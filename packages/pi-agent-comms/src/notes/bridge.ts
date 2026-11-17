@@ -49,8 +49,10 @@ export interface NoteSnapshotData {
 }
 
 /** JSON-safe raw provenance. Projection belongs to the requesting runtime. */
-export interface SerializedCachedResponse
-	extends Omit<CachedResponse, "bytes"> {
+export interface SerializedCachedResponse extends Omit<
+	CachedResponse,
+	"bytes"
+> {
 	bytesBase64: string;
 }
 

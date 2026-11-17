@@ -4,7 +4,10 @@ export interface WaitableSession {
 	listeners: Set<() => void>;
 }
 
-export function registerAbortHandler(signal: AbortSignal | undefined, onAbort: () => void): () => void {
+export function registerAbortHandler(
+	signal: AbortSignal | undefined,
+	onAbort: () => void,
+): () => void {
 	if (!signal) return () => {};
 	if (signal.aborted) {
 		onAbort();
@@ -15,8 +18,15 @@ export function registerAbortHandler(signal: AbortSignal | undefined, onAbort: (
 	return () => signal.removeEventListener("abort", abortListener);
 }
 
-export function waitForExitOrInactivity(session: WaitableSession, idleTimeMs: number, maxWaitMs = idleTimeMs, signal?: AbortSignal, onUpdate?: (elapsedMs: number) => void): Promise<number> {
-	if (session.exitCode !== undefined && session.exitCode !== null) return Promise.resolve(0);
+export function waitForExitOrInactivity(
+	session: WaitableSession,
+	idleTimeMs: number,
+	maxWaitMs = idleTimeMs,
+	signal?: AbortSignal,
+	onUpdate?: (elapsedMs: number) => void,
+): Promise<number> {
+	if (session.exitCode !== undefined && session.exitCode !== null)
+		return Promise.resolve(0);
 	if (signal?.aborted) return Promise.resolve(0);
 
 	const startedAt = Date.now();

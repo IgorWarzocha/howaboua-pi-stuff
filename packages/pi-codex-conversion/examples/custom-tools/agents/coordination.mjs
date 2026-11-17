@@ -55,18 +55,23 @@ function optionalBoolean(value, field) {
 function parseTimeout(value) {
 	if (value === undefined) return DEFAULT_TIMEOUT_MS;
 	if (!Number.isInteger(value) || value < 1 || value > MAX_TIMEOUT_MS)
-		throw new Error(`timeout_ms must be an integer from 1 to ${MAX_TIMEOUT_MS}`);
+		throw new Error(
+			`timeout_ms must be an integer from 1 to ${MAX_TIMEOUT_MS}`,
+		);
 	return value;
 }
 
 function parseAnswers(value) {
 	if (!Array.isArray(value)) throw new Error("answers must be an array");
 	return value.map((answer, index) => {
-		if (!isObject(answer)) throw new Error(`answers[${index}] must be an object`);
+		if (!isObject(answer))
+			throw new Error(`answers[${index}] must be an object`);
 		const allowed = new Set(["selections", "other", "comment"]);
 		const unknown = Object.keys(answer).filter((key) => !allowed.has(key));
 		if (unknown.length)
-			throw new Error(`unknown answers[${index}] field(s): ${unknown.join(", ")}`);
+			throw new Error(
+				`unknown answers[${index}] field(s): ${unknown.join(", ")}`,
+			);
 		if (
 			answer.selections !== undefined &&
 			(!Array.isArray(answer.selections) ||
@@ -99,7 +104,7 @@ export function parseRequest(text) {
 		value = JSON.parse(text);
 	} catch (error) {
 		throw new Error(
-			`input must be \"help\" or valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+			`input must be "help" or valid JSON: ${error instanceof Error ? error.message : String(error)}`,
 		);
 	}
 	if (!isObject(value)) throw new Error("input must be a JSON object");
@@ -107,7 +112,9 @@ export function parseRequest(text) {
 		typeof value.action !== "string" ||
 		!Object.hasOwn(ACTION_FIELDS, value.action)
 	)
-		throw new Error(`action must be one of: ${Object.keys(ACTION_FIELDS).join(", ")}`);
+		throw new Error(
+			`action must be one of: ${Object.keys(ACTION_FIELDS).join(", ")}`,
+		);
 	const unknown = Object.keys(value).filter(
 		(key) => !ACTION_FIELDS[value.action].has(key),
 	);
@@ -126,7 +133,8 @@ export function parseRequest(text) {
 			action: "find",
 			...(value.query?.trim() ? { query: value.query.trim() } : {}),
 			...(value.status ? { status: value.status } : {}),
-			include_self: optionalBoolean(value.include_self, "include_self") === true,
+			include_self:
+				optionalBoolean(value.include_self, "include_self") === true,
 		});
 	}
 
@@ -183,7 +191,9 @@ async function runRemote(host, request, options = {}) {
 			"remote agents routing is not configured; set AGENTS_REMOTE_SOCKET_PATH and AGENTS_REMOTE_COORDINATION_TOOL",
 		);
 	const exactTargets = options.exactTargets ? " AGENTS_EXACT_TARGETS=1" : "";
-	const includePending = options.includePending ? " AGENTS_INCLUDE_PENDING=1" : "";
+	const includePending = options.includePending
+		? " AGENTS_INCLUDE_PENDING=1"
+		: "";
 	const remoteCommand = `HERDR_SOCKET_PATH=${REMOTE_SOCKET_PATH}${exactTargets}${includePending} /usr/bin/node ${REMOTE_TOOL_PATH}`;
 	const child = spawn("ssh", [host, remoteCommand], {
 		env: process.env,
@@ -212,7 +222,9 @@ async function runRemote(host, request, options = {}) {
 		});
 		if (code !== 0) {
 			throw new Error(
-				stderr.trim() || stdout.trim() || `remote agents coordination exited with code ${code}`,
+				stderr.trim() ||
+					stdout.trim() ||
+					`remote agents coordination exited with code ${code}`,
 			);
 		}
 		try {
@@ -272,16 +284,16 @@ class HerdrClient {
 				try {
 					response = JSON.parse(buffer.slice(0, newline));
 				} catch (error) {
-					return finish(new Error(`Herdr returned invalid JSON: ${error.message}`));
+					return finish(
+						new Error(`Herdr returned invalid JSON: ${error.message}`),
+					);
 				}
 				if (response.error) {
 					const error = new Error(
 						response.error.message || JSON.stringify(response.error),
 					);
 					error.code = response.error.code;
-					return finish(
-						error,
-					);
+					return finish(error);
 				}
 				if (!("result" in response))
 					return finish(new Error(`Herdr ${method} returned no result`));
@@ -320,10 +332,10 @@ function parseAskPrompt(value) {
 function parseAskCall(part) {
 	if (!isObject(part) || part.type !== "toolCall" || part.name !== "ask")
 		return undefined;
-	if (typeof part.id !== "string" || !isObject(part.arguments)) return undefined;
-	const prompts = (Array.isArray(part.arguments.prompts)
-		? part.arguments.prompts
-		: []
+	if (typeof part.id !== "string" || !isObject(part.arguments))
+		return undefined;
+	const prompts = (
+		Array.isArray(part.arguments.prompts) ? part.arguments.prompts : []
 	)
 		.map(parseAskPrompt)
 		.filter(Boolean);
@@ -356,7 +368,11 @@ export function parseSessionLines(lines) {
 			if (typeof message.content === "string") text.push(message.content);
 			if (Array.isArray(message.content))
 				for (const part of message.content) {
-					if (isObject(part) && part.type === "text" && typeof part.text === "string")
+					if (
+						isObject(part) &&
+						part.type === "text" &&
+						typeof part.text === "string"
+					)
 						text.push(part.text);
 					const ask = parseAskCall(part);
 					if (ask) node.asks.push(ask);
@@ -382,7 +398,11 @@ export function parseSessionLines(lines) {
 			if (typeof message.content === "string") text.push(message.content);
 			if (Array.isArray(message.content))
 				for (const part of message.content)
-					if (isObject(part) && part.type === "text" && typeof part.text === "string")
+					if (
+						isObject(part) &&
+						part.type === "text" &&
+						typeof part.text === "string"
+					)
 						text.push(part.text);
 			const joined = text.join("");
 			if (joined) node.user = { id: entry.id, text: joined };
@@ -471,7 +491,9 @@ async function getAgent(client, target) {
 
 function assertSameAgent(expected, current) {
 	if (current.terminal_id !== expected.terminal_id)
-		throw new Error(`${expected.pane_id} no longer hosts the targeted Pi agent`);
+		throw new Error(
+			`${expected.pane_id} no longer hosts the targeted Pi agent`,
+		);
 	return current;
 }
 
@@ -486,7 +508,10 @@ async function getSnapshot(client) {
 function enrichPanels(snapshot) {
 	const tabs = new Map(snapshot.tabs.map((tab) => [tab.tab_id, tab.label]));
 	const workspaces = new Map(
-		snapshot.workspaces.map((workspace) => [workspace.workspace_id, workspace.label]),
+		snapshot.workspaces.map((workspace) => [
+			workspace.workspace_id,
+			workspace.label,
+		]),
 	);
 	return (snapshot.agents.length ? snapshot.agents : snapshot.panes).map(
 		(panel) => ({
@@ -517,7 +542,8 @@ async function findPanels(client, request) {
 	return enrichPanels(await getSnapshot(client))
 		.filter((panel) => panel.agent === "pi")
 		.filter(
-			(panel) => request.include_self || panel.pane_id !== process.env.HERDR_PANE_ID,
+			(panel) =>
+				request.include_self || panel.pane_id !== process.env.HERDR_PANE_ID,
 		)
 		.filter((panel) => !request.status || panel.agent_status === request.status)
 		.filter((panel) => !query || panelHaystack(panel).includes(query))
@@ -572,7 +598,9 @@ async function resolvePanel(client, target, options = {}) {
 
 function assertRemote(panel) {
 	if (panel.pane_id === process.env.HERDR_PANE_ID)
-		throw new Error("refusing to target the calling Pi panel from its own tool call");
+		throw new Error(
+			"refusing to target the calling Pi panel from its own tool call",
+		);
 }
 
 function sessionPath(panel) {
@@ -581,7 +609,12 @@ function sessionPath(panel) {
 		: undefined;
 }
 
-async function terminalSnapshot(client, target, source = "visible", lines = 40) {
+async function terminalSnapshot(
+	client,
+	target,
+	source = "visible",
+	lines = 40,
+) {
 	return (
 		await client.request("agent.read", {
 			target,
@@ -640,13 +673,20 @@ export async function settledOutput(reader, panel, baseline, requireNew) {
 		view = await reader.read(sessionPath(panel));
 		const sessionChanged = baseline.path !== view.path;
 		const assistantChanged =
-			sessionChanged || view.assistant_entry?.id !== baseline.assistant_entry_id;
-		if (!requireNew || assistantChanged || (panel.agent_status === "blocked" && view.ask)) {
+			sessionChanged ||
+			view.assistant_entry?.id !== baseline.assistant_entry_id;
+		if (
+			!requireNew ||
+			assistantChanged ||
+			(panel.agent_status === "blocked" && view.ask)
+		) {
 			if (assistantChanged && view.assistant_entry?.stop_reason === "error")
 				throw new Error(
-					view.assistant?.text || `${panel.pane_id} assistant stopped with an error`,
+					view.assistant?.text ||
+						`${panel.pane_id} assistant stopped with an error`,
 				);
-			const newReply = view.assistant?.id !== baseline.reply_id ? view.assistant : undefined;
+			const newReply =
+				view.assistant?.id !== baseline.reply_id ? view.assistant : undefined;
 			return {
 				pane: panel.pane_id,
 				status: panel.agent_status,
@@ -682,7 +722,7 @@ function askOutput(ask) {
 
 export function coordinationHelp() {
 	return {
-		call: "await tools.agents(JSON.stringify(request))",
+		call: "tools.agents(JSON.stringify(request))",
 		routing: {
 			host: "desktop | laptop | server? (default current host)",
 			note: "host routes Herdr agent operations over SSH; use normal SSH for shell commands",
@@ -724,7 +764,8 @@ export function coordinationHelp() {
 				request: {
 					action: "answer",
 					target: "string",
-					answers: "Array<{ selections?: string[], other?: string, comment?: string }>",
+					answers:
+						"Array<{ selections?: string[], other?: string, comment?: string }>",
 					wait: "boolean? (default true)",
 					timeout_ms: "integer?",
 				},
@@ -754,18 +795,31 @@ function stableKey(panel, view) {
 	].join(":");
 }
 
-async function waitForPanel(client, reader, paneId, baseline, timeoutMs, options = {}) {
+async function waitForPanel(
+	client,
+	reader,
+	paneId,
+	baseline,
+	timeoutMs,
+	options = {},
+) {
 	const deadline = Date.now() + timeoutMs;
 	let latestPanel = await getAgent(client, paneId);
 	if (options.expected_terminal_id)
-		assertSameAgent({ pane_id: paneId, terminal_id: options.expected_terminal_id }, latestPanel);
+		assertSameAgent(
+			{ pane_id: paneId, terminal_id: options.expected_terminal_id },
+			latestPanel,
+		);
 	let latestView = await reader.read(sessionPath(latestPanel));
 	let candidate;
 	let candidateSince = 0;
 	while (Date.now() < deadline) {
 		latestPanel = await getAgent(client, paneId);
 		if (options.expected_terminal_id)
-			assertSameAgent({ pane_id: paneId, terminal_id: options.expected_terminal_id }, latestPanel);
+			assertSameAgent(
+				{ pane_id: paneId, terminal_id: options.expected_terminal_id },
+				latestPanel,
+			);
 		latestView = await reader.read(sessionPath(latestPanel));
 		if (latestPanel.agent_status === "blocked") {
 			const priorAskStillClearing =
@@ -805,7 +859,8 @@ async function waitForPanel(client, reader, paneId, baseline, timeoutMs, options
 					latestView.assistant_entry?.stop_reason === "error"
 				)
 					throw new Error(
-						latestView.assistant?.text || `${paneId} assistant stopped with an error`,
+						latestView.assistant?.text ||
+							`${paneId} assistant stopped with an error`,
 					);
 				const newReply =
 					latestView.assistant?.id !== baseline.reply_id
@@ -837,7 +892,9 @@ async function waitForPanel(client, reader, paneId, baseline, timeoutMs, options
 
 async function readKeybindings() {
 	try {
-		const value = JSON.parse(await readFile(join(AGENT_DIR, "keybindings.json"), "utf8"));
+		const value = JSON.parse(
+			await readFile(join(AGENT_DIR, "keybindings.json"), "utf8"),
+		);
 		return isObject(value) ? value : {};
 	} catch {
 		return {};
@@ -886,10 +943,7 @@ function normalizeDeliveryText(value) {
 }
 
 export function detectDelivery(baseline, view, screen, text) {
-	if (
-		view.user?.id !== baseline.user?.id &&
-		view.user?.text === text
-	)
+	if (view.user?.id !== baseline.user?.id && view.user?.text === text)
 		return "delivered";
 	const normalizedScreen = normalizeDeliveryText(screen);
 	const prefix = normalizeDeliveryText(text).slice(0, 80);
@@ -934,7 +988,9 @@ export function planAskAnswer(prompts, answers, controls = {}) {
 		const answer = answers[promptIndex];
 		const labels = answer.selections ?? [];
 		const indexes = labels.map((label) => {
-			const index = prompt.choices.findIndex((choice) => choice.label === label);
+			const index = prompt.choices.findIndex(
+				(choice) => choice.label === label,
+			);
 			if (index < 0)
 				throw new Error(
 					`unknown choice ${JSON.stringify(label)} for ${JSON.stringify(prompt.title)}`,
@@ -990,7 +1046,8 @@ function askFrame(screen) {
 export function inspectAskScreen(screen, ask) {
 	const frame = askFrame(screen);
 	const selected = frame.match(/^>\s+(.*?)\s*$/m)?.[1];
-	const review = /^\s*Review\s*$/m.test(frame) && frame.includes("enter submit");
+	const review =
+		/^\s*Review\s*$/m.test(frame) && frame.includes("enter submit");
 	const current_prompt = review
 		? "Review"
 		: ask?.prompts.find((prompt) =>
@@ -1010,7 +1067,9 @@ async function answerAsk(client, reader, panel, request) {
 		);
 	const baseline = await reader.read(sessionPath(panel));
 	if (!baseline.ask)
-		throw new Error(`${panel.pane_id} has no pending pi-ask call on its active branch`);
+		throw new Error(
+			`${panel.pane_id} has no pending pi-ask call on its active branch`,
+		);
 	const screen = await terminalRead(client, panel.pane_id, "visible", 80);
 	const inspection = inspectAskScreen(screen, baseline.ask);
 	const first = baseline.ask.prompts[0];
@@ -1043,11 +1102,12 @@ async function answerAsk(client, reader, panel, request) {
 				80,
 			);
 			if (!inspectAskScreen(currentScreen, baseline.ask).recognized)
-				throw new Error("ask UI became unrecognized; stopped without retrying input");
+				throw new Error(
+					"ask UI became unrecognized; stopped without retrying input",
+				);
 		}
 	}
-	if (!request.wait)
-		return { pane: panel.pane_id, answered: true };
+	if (!request.wait) return { pane: panel.pane_id, answered: true };
 	return waitForPanel(
 		client,
 		reader,
@@ -1118,10 +1178,10 @@ async function execute(request, options = {}) {
 					until: ["idle", "done", "blocked"],
 					timeout_ms: request.timeout_ms,
 				},
-					apiWaitTimeout(request.timeout_ms),
-				);
-				assertSameAgent(panel, result.agent);
-				return settledOutput(
+				apiWaitTimeout(request.timeout_ms),
+			);
+			assertSameAgent(panel, result.agent);
+			return settledOutput(
 				reader,
 				result.agent,
 				{
@@ -1155,16 +1215,16 @@ async function execute(request, options = {}) {
 					text: request.text,
 					...(request.wait && !busy
 						? {
-							wait: {
-								until: ["idle", "done", "blocked"],
-								timeout_ms: request.timeout_ms,
-							},
-						}
+								wait: {
+									until: ["idle", "done", "blocked"],
+									timeout_ms: request.timeout_ms,
+								},
+							}
 						: {}),
 				},
-					request.wait && !busy ? apiWaitTimeout(request.timeout_ms) : 10_000,
-				);
-				assertSameAgent(panel, result.agent);
+				request.wait && !busy ? apiWaitTimeout(request.timeout_ms) : 10_000,
+			);
+			assertSameAgent(panel, result.agent);
 			if (!request.wait)
 				return {
 					pane: panel.pane_id,
@@ -1193,21 +1253,17 @@ async function execute(request, options = {}) {
 					assistant_entry_id: baseline.assistant_entry?.id,
 					reply_id: baseline.assistant?.id,
 					require_new: true,
-					},
-					request.timeout_ms,
-					{ expected_terminal_id: panel.terminal_id },
-				);
+				},
+				request.timeout_ms,
+				{ expected_terminal_id: panel.terminal_id },
+			);
 		} catch (error) {
 			if (error?.code !== "timeout") throw error;
 			return timeoutOutput(await getSameAgent(client, panel));
 		}
 	}
 	const bindings = await readKeybindings();
-	const key = keyFor(
-		bindings,
-		disposition.keybinding,
-		disposition.fallback,
-	);
+	const key = keyFor(bindings, disposition.keybinding, disposition.fallback);
 	// Paste and submit separately. A combined PTY write can hit Pi's
 	// streaming-to-idle transition before the editor has consumed the paste.
 	await sendInput(client, panel, { text: request.text });
@@ -1246,7 +1302,12 @@ async function execute(request, options = {}) {
 			`${panel.pane_id} did not confirm the message; it may already be queued in Pi`,
 		);
 	if (!request.wait)
-		return { pane: panel.pane_id, sent: true, mode: disposition.mode, delivery };
+		return {
+			pane: panel.pane_id,
+			sent: true,
+			mode: disposition.mode,
+			delivery,
+		};
 	return waitForPanel(
 		client,
 		reader,
@@ -1283,9 +1344,7 @@ export async function coordinate(text, options = {}) {
 
 async function main() {
 	const result = await coordinate(await readStdin());
-	process.stdout.write(
-		`${JSON.stringify(result)}\n`,
-	);
+	process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 
 if (process.argv[1] === new URL(import.meta.url).pathname)

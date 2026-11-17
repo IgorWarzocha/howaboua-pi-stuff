@@ -1,0 +1,44 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "useTabs": true,
+  "tabWidth": 2,
+  "printWidth": 80,
+  "singleQuote": false,
+  "jsxSingleQuote": false,
+  "semi": true,
+  "trailingComma": "all",
+  "arrowParens": "always",
+  "sortImports": false,
+  "sortPackageJson": false,
+  "embeddedLanguageFormatting": "off",
+  "ignorePatterns": [
+    "**/node_modules/",
+    "**/dist/",
+    "**/coverage/",
+    "**/target/",
+    "**/vendor/",
+    "**/package-lock.json",
+    "packages/pi-codex-conversion/src/tools/apply-patch/bin/",
+    "packages/pi-codex-conversion/src/voice/bin/",
+    "packages/pi-gippity-control/src/voice/bin/",
+    "packages/pi-grok-realtime/src/audio/bin/",
+    "packages/pi-agent-comms/src/board/viewer/web/",
+    "packages/pi-agent-board/src/board/viewer/web/",
+    "packages/pi-notes-compaction/src/board/viewer/web/"
+  ],
+  "overrides": [
+    {
+      "files": ["packages/pi-pet/**"],
+      "options": { "useTabs": false, "tabWidth": 2, "printWidth": 120 }
+    },
+    {
+      "files": [
+        "package.json",
+        ".oxfmtrc.json",
+        "tsconfig.base.json",
+        "packages/pi-codex-conversion/*.json"
+      ],
+      "options": { "useTabs": false, "tabWidth": 2 }
+    }
+  ]
+}

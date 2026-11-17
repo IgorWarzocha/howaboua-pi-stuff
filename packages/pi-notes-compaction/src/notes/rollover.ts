@@ -7,6 +7,7 @@ import type {
 import { prepareCompactionProjection } from "./compaction-projection.js";
 import type { NotesLifecycle } from "./lifecycle.js";
 import type { ModelRoleHandoff } from "./model-roles.js";
+import type { NewWindowRequests } from "./settings.js";
 
 type Rollover = {
 	sessionId: string;
@@ -67,24 +68,45 @@ export class RolloverRequests {
 	clear(): void {
 		this.rollover = undefined;
 	}
-	schedule(ctx: ExtensionContext, handoff?: ModelRoleHandoff): void {
+	schedule(
+		ctx: ExtensionContext,
+		handoff?: ModelRoleHandoff,
+		resume = true,
+	): void {
 		this.rollover = {
 			sessionId: ctx.sessionManager.getSessionId(),
 			windowId: this.host.windows.current?.currentWindowId,
 			phase: "scheduled",
-			triggerTurn: true,
+			triggerTurn: resume,
 			...(handoff ? { handoff } : {}),
 		};
 	}
-	settled(ctx: ExtensionContext): Promise<void> | undefined {
+	outcome(outcome: "completed" | "aborted" | "error"): void {
+		if (
+			this.rollover?.phase === "scheduled" &&
+			!this.rollover.triggerTurn &&
+			outcome !== "completed"
+		)
+			this.clear();
+	}
+	settled(ctx: ExtensionContext, aborted = false): Promise<void> | undefined {
 		const rollover = this.rollover;
+		if (rollover?.phase === "scheduled" && !rollover.triggerTurn && aborted) {
+			this.clear();
+			return;
+		}
 		if (
 			rollover?.phase === "scheduled" &&
 			rollover.sessionId === ctx.sessionManager.getSessionId() &&
 			rollover.windowId === this.host.windows.current?.currentWindowId
 		) {
 			this.rollover = undefined;
-			return this.roll(ctx, rollover.triggerTurn, rollover.handoff);
+			return this.roll(
+				ctx,
+				rollover.triggerTurn,
+				rollover.handoff,
+				this.host.newWindowRequests,
+			);
 		}
 	}
 
@@ -92,8 +114,10 @@ export class RolloverRequests {
 		ctx: ExtensionContext,
 		triggerTurn: boolean,
 		handoff?: ModelRoleHandoff,
+		policy: NewWindowRequests | undefined = triggerTurn
+			? this.host.newWindowRequests
+			: undefined,
 	): Promise<void> {
-		const policy = triggerTurn ? this.host.newWindowRequests : undefined;
 		const checkOnly = !this.host.normalCompaction && policy === "pi-limits";
 		if (!this.host.normalCompaction && !checkOnly) {
 			await this.openWindow(ctx, triggerTurn, true, handoff);
@@ -151,6 +175,11 @@ export class RolloverRequests {
 							}
 							this.rollover = undefined;
 							try {
+								if (!triggerTurn && policy !== undefined)
+									ctx.ui.notify(
+										"New context was not opened: Pi has no eligible history to compact. The current context remains.",
+										"warning",
+									);
 								if (triggerTurn)
 									this.sendMessage(
 										{

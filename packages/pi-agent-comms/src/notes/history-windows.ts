@@ -36,7 +36,7 @@ function customHistoryRole(
 						"codex-toolkit-update",
 						"codex-notebook-status",
 						"codex-context-briefing",
-					].includes(entry.customType)
+				  ].includes(entry.customType)
 				? details
 				: undefined;
 	return metadata &&

@@ -47,7 +47,9 @@ export function resolveLanVoiceWebTheme(theme: Theme): LanVoiceWebTheme {
 }
 
 function resolveAnsiColor(ansi: string, resetColor: string): ResolvedColor {
+	// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
 	if (/\x1b\[(?:39|49)m/u.test(ansi)) return { css: resetColor };
+	// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
 	const trueColor = /\x1b\[(?:38|48);2;(\d+);(\d+);(\d+)m/u.exec(ansi);
 	if (trueColor)
 		return rgbColor(
@@ -55,6 +57,7 @@ function resolveAnsiColor(ansi: string, resetColor: string): ResolvedColor {
 			Number(trueColor[2]),
 			Number(trueColor[3]),
 		);
+	// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
 	const indexed = /\x1b\[(?:38|48);5;(\d+)m/u.exec(ansi);
 	if (indexed) return rgbColor(...ansi256ToRgb(Number(indexed[1])));
 	throw new Error("Pi theme returned an unsupported color sequence");

@@ -96,7 +96,11 @@ export class ConversationSetup {
 						},
 						output: { voice: config.voice.realtimeVoice },
 					},
-					tools: [SEND_TASK_TOOL, END_CALL_TOOL, ...(auth.realtime?.tools.definitions ?? [])],
+					tools: [
+						SEND_TASK_TOOL,
+						END_CALL_TOOL,
+						...(auth.realtime?.tools.definitions ?? []),
+					],
 					tool_choice: "auto",
 				}),
 			);

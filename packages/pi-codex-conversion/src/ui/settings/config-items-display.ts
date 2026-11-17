@@ -1,4 +1,7 @@
-import { type CodexConversionConfig, normalizeCompactToolsMode } from "../../adapter/activation/config.ts";
+import {
+	type CodexConversionConfig,
+	normalizeCompactToolsMode,
+} from "../../adapter/activation/config.ts";
 import { type ConfigSetting, setting, toggle } from "./config-items-shared.ts";
 
 export function buildDisplaySettings(
@@ -31,11 +34,16 @@ export function buildDisplaySettings(
 				label: "Compact tool output",
 				currentValue: config.ui.compactTools,
 				values: ["off", "on", "minimal"],
-				description: "On hides collapsed patch diffs. Minimal also replaces Code / Notebook text previews with an expand hint; nested tool output stays visible.",
+				description:
+					"On hides collapsed patch diffs. Minimal also replaces Code / Notebook text previews with an expand hint; nested tool output stays visible.",
 			},
 			(value, current) => ({
 				...current,
-				ui: { ...current.ui, compactTools: normalizeCompactToolsMode(value) ?? current.ui.compactTools },
+				ui: {
+					...current.ui,
+					compactTools:
+						normalizeCompactToolsMode(value) ?? current.ui.compactTools,
+				},
 			}),
 		),
 		toggle(

@@ -29,10 +29,10 @@ export function isExplicitlyConfiguredToolProvider(
 	const provider = model?.provider?.trim().toLowerCase();
 	return Boolean(
 		isResponsesModel(model) &&
-			provider &&
-			config.scope.additionalProviders.some(
-				(entry) => entry.trim().toLowerCase() === provider,
-			),
+		provider &&
+		config.scope.additionalProviders.some(
+			(entry) => entry.trim().toLowerCase() === provider,
+		),
 	);
 }
 

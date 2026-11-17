@@ -15,7 +15,7 @@ export function shellSplit(input: string): string[] {
 
 	for (let index = 0; index < input.length; index++) {
 		const char = input[index]!;
-		const next = (input[index + 1])!;
+		const next = input[index + 1]!;
 
 		if (escaping) {
 			current += char;
@@ -29,7 +29,10 @@ export function shellSplit(input: string): string[] {
 				continue;
 			}
 			if (quote === '"') {
-				if (next && (next === "\\" || next === '"' || next === "$" || next === "`")) {
+				if (
+					next &&
+					(next === "\\" || next === '"' || next === "$" || next === "`")
+				) {
 					escaping = true;
 					continue;
 				}
@@ -107,15 +110,26 @@ function isUnquotedOk(char: string): boolean {
 
 export function joinCommandTokens(tokens: string[]): string {
 	return tokens
-		.map((token) => (token === "&&" || token === "||" || token === "|" || token === ";" ? token : shellQuote(token)))
+		.map((token) =>
+			token === "&&" || token === "||" || token === "|" || token === ";"
+				? token
+				: shellQuote(token),
+		)
 		.join(" ");
 }
 
 export function normalizeTokens(tokens: string[]): string[] {
-	if (tokens.length >= 3 && (tokens[0] === "yes" || tokens[0] === "y" || tokens[0] === "no" || tokens[0] === "n") && tokens[1] === "|") {
+	if (
+		tokens.length >= 3 &&
+		(tokens[0] === "yes" ||
+			tokens[0] === "y" ||
+			tokens[0] === "no" ||
+			tokens[0] === "n") &&
+		tokens[1] === "|"
+	) {
 		return normalizeTokens(tokens.slice(2));
 	}
-	const shell = tokens[0]!?.replace(/\\/g, "/").split("/").pop();
+	const shell = tokens[0]?.replace(/\\/g, "/").split("/").pop();
 	if (
 		tokens.length === 3 &&
 		(shell === "bash" || shell === "zsh" || shell === "sh") &&
@@ -149,7 +163,14 @@ export function shortDisplayPath(path: string): string {
 	const normalized = path.replace(/\\/g, "/").replace(/\/$/, "");
 	const parts = normalized
 		.split("/")
-		.filter((part) => part.length > 0 && part !== "src" && part !== "dist" && part !== "build" && part !== "node_modules");
+		.filter(
+			(part) =>
+				part.length > 0 &&
+				part !== "src" &&
+				part !== "dist" &&
+				part !== "build" &&
+				part !== "node_modules",
+		);
 	return parts[parts.length - 1] ?? normalized;
 }
 
@@ -161,5 +182,9 @@ export function joinPaths(base: string, extra: string): string {
 }
 
 export function isAbsoluteLike(path: string): boolean {
-	return path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path) || path.startsWith("\\\\");
+	return (
+		path.startsWith("/") ||
+		/^[A-Za-z]:[\\/]/.test(path) ||
+		path.startsWith("\\\\")
+	);
 }

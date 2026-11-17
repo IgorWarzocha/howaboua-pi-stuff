@@ -160,7 +160,6 @@ async function readSharedSession(
 	const { containingMachine, locator, load, indexed, find } =
 		createSavedSessionAccess(store, namespace, loader, signal);
 	let unavailable: unknown;
-	let targetReached = false;
 	async function exploratoryLoad(location: Parameters<typeof load>[0]) {
 		try {
 			return await load(location);
@@ -181,6 +180,31 @@ async function readSharedSession(
 		resolve,
 		sharedNotesUnavailable,
 	);
+	async function discover(
+		target: string,
+	): Promise<SavedNotesSession | undefined> {
+		const family = savedFamilyIdentity(current);
+		if (!family) return;
+		const candidates: SavedNotesSession[] = [];
+		for (const location of await find(target)) {
+			const saved = await exploratoryLoad(location);
+			if (!saved) continue;
+			if (saved.threadId !== target.slice(1))
+				throw new Error("Saved session discovery returned a different thread");
+			const member = savedFamilyIdentity(saved);
+			if (
+				member?.storage === "session" &&
+				member.sessionId === family.sessionId &&
+				member.agentName === target
+			)
+				candidates.push(saved);
+		}
+		if (candidates.length > 1)
+			throw new Error(
+				"Saved shared address is ambiguous across machines. Use a unique attached alias, then retry.",
+			);
+		return candidates[0];
+	}
 	async function resolve(
 		session: SavedNotesSession,
 		destination: string,
@@ -192,7 +216,6 @@ async function readSharedSession(
 		visited.add(key);
 		const identity = savedNotesIdentity(session);
 		if (contextAgentNames(identity).includes(destination)) {
-			targetReached = true;
 			return read(session, query, destination);
 		}
 		const routes = new Map<string, Static<typeof Route>>();
@@ -216,7 +239,6 @@ async function readSharedSession(
 				"Saved shared address is ambiguous across machines. Use a unique attached alias, then retry.",
 			);
 		for (const route of matching) {
-			targetReached = true;
 			const link = route.plan.context;
 			if (route.phase !== "ready" || !link) continue;
 			const alias =
@@ -246,7 +268,6 @@ async function readSharedSession(
 			(inside(destination, owner.context.controllerAlias) ||
 				destination === canonicalAgentName(owner.context.controller.threadId))
 		) {
-			targetReached = true;
 			const link = owner.context;
 			const alias =
 				destination === canonicalAgentName(link.controller.threadId)
@@ -304,6 +325,33 @@ async function readSharedSession(
 			(member) =>
 				memberValidator.check(member) && member.agentName === destination,
 		);
+		if (session === current && !direct.length) {
+			// Exact native discovery avoids reading every sibling's conversation.
+			// Explicit routes and local hints above retain precedence.
+			let saved: SavedNotesSession | undefined;
+			try {
+				saved = await discover(destination);
+			} catch (error) {
+				signal?.throwIfAborted();
+				if (!sharedNotesUnavailable(error)) throw error;
+				unavailable ??= error;
+			}
+			if (saved) {
+				return read(saved, query, destination);
+			}
+			// Do not crawl an entire family to guess a shortened UUID. A real
+			// explicitly named session still works via a route, member or exact hint.
+			if (/^\/[a-f0-9]{8}-[a-f0-9]{4}$/i.test(destination))
+				throw (
+					unavailable ??
+					Object.assign(
+						new Error(
+							"This looks like a shortened agent address. Use the complete agent address from the owner and retry.",
+						),
+						{ code: "SAVED_SESSION_UNAVAILABLE" },
+					)
+				);
+		}
 		for (const member of direct.length ? direct : members) {
 			if (!memberValidator.check(member)) continue;
 			const location = locator(session, member.machine, member.sessionFile);
@@ -372,32 +420,6 @@ async function readSharedSession(
 			signal?.throwIfAborted();
 			if (!sharedNotesUnavailable(error)) throw error;
 			unavailable ??= error;
-		}
-		// Legacy remote children may record only a now-dead relay parent. Find the
-		// requested native thread once, never aliases or intermediate graph nodes.
-		const family = savedFamilyIdentity(current);
-		if (!result && !targetReached && family) {
-			const candidates: SavedNotesSession[] = [];
-			for (const location of await find(target)) {
-				const saved = await exploratoryLoad(location);
-				if (!saved) continue;
-				if (saved.threadId !== target.slice(1))
-					throw new Error(
-						"Saved session discovery returned a different thread",
-					);
-				const member = savedFamilyIdentity(saved);
-				if (
-					member?.storage === "session" &&
-					member.sessionId === family.sessionId &&
-					member.agentName === target
-				)
-					candidates.push(saved);
-			}
-			if (candidates.length > 1)
-				throw new Error(
-					"Saved shared address is ambiguous across machines. Use a unique attached alias, then retry.",
-				);
-			if (candidates[0]) result = await read(candidates[0], params, target);
 		}
 		if (!result && unavailable) throw unavailable;
 		return result;

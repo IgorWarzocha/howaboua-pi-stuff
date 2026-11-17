@@ -1,81 +1,81 @@
 {
-	"name": "@howaboua/pi-codex-web-run",
-	"version": "0.0.10",
-	"description": "Codex web search and navigation for Pi, Code Mode and Notebook Mode.",
-	"type": "module",
-	"license": "MIT",
-	"author": "Igor Warzocha",
-	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-codex-web-run#readme",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-codex-web-run"
-	},
-	"bugs": {
-		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
-	},
-	"keywords": [
-		"pi-package",
-		"pi-extension",
-		"pi",
-		"codex",
-		"web-search",
-		"code-mode"
-	],
-	"files": [
-		"index.ts",
-		"src",
-		"upstream",
-		"README.md",
-		"UPSTREAM_SYNC.md",
-		"LICENSE",
-		"CHANGELOG.md",
-		"tsconfig.json",
-		"biome.json"
-	],
-	"scripts": {
-		"check": "bun run lint && bun run typecheck && bun run test",
-		"prepack": "bun run check",
-		"typecheck": "tsgo --noEmit",
-		"lint": "biome check .",
-		"test": "tsx --test tests/**/*.test.ts",
-		"pack:dry": "npm pack --dry-run"
-	},
-	"dependencies": {
-		"proxy-from-env": "2.1.0",
-		"undici": "8.12.4",
-		"@earendil-works/pi-schema": "1.5.2"
-	},
-	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=1.5.0",
-		"@earendil-works/pi-tui": ">=1.0.0",
-		"@howaboua/pi-codex-conversion": ">=5.0.0"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "^2.6.6",
-		"@earendil-works/pi-coding-agent": "1.5.2",
-		"@earendil-works/pi-tui": "1.5.2",
-		"@types/node": "^26.6.6",
-		"tsx": "^4.23.15",
-		"typescript": "^7.0.2",
-		"@howaboua/pi-codex-conversion": "5.0.0"
-	},
-	"pi": {
-		"extensions": [
-			"./index.ts"
-		]
-	},
-	"engines": {
-		"node": ">=22.19.0"
-	},
-	"main": "index.ts",
-	"exports": "./index.ts",
-	"publishConfig": {
-		"access": "public"
-	},
-	"peerDependenciesMeta": {
-		"@howaboua/pi-codex-conversion": {
-			"optional": true
-		}
-	}
+  "name": "@howaboua/pi-codex-web-run",
+  "version": "0.0.10",
+  "description": "Codex web search and navigation for Pi, Code Mode and Notebook Mode.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Igor Warzocha",
+  "homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-codex-web-run#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+    "directory": "packages/pi-codex-web-run"
+  },
+  "bugs": {
+    "url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "codex",
+    "web-search",
+    "code-mode"
+  ],
+  "files": [
+    "index.ts",
+    "src",
+    "upstream",
+    "README.md",
+    "UPSTREAM_SYNC.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "tsconfig.json"
+  ],
+  "scripts": {
+    "check": "bun run lint && bun run typecheck && bun run test",
+    "prepack": "bun run check",
+    "typecheck": "tsrs --noEmit",
+    "lint": "bun run format:check && oxlint --type-aware",
+    "test": "tsx --test tests/**/*.test.ts",
+    "pack:dry": "npm pack --dry-run",
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'"
+  },
+  "dependencies": {
+    "proxy-from-env": "2.1.0",
+    "undici": "8.12.4",
+    "@earendil-works/pi-schema": "1.5.2"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=1.5.0",
+    "@earendil-works/pi-tui": ">=1.0.0",
+    "@howaboua/pi-codex-conversion": ">=5.0.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.5.2",
+    "@earendil-works/pi-tui": "1.5.2",
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "@howaboua/pi-codex-conversion": "5.0.0",
+    "oxfmt": "^0.78.0"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "main": "index.ts",
+  "exports": "./index.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependenciesMeta": {
+    "@howaboua/pi-codex-conversion": {
+      "optional": true
+    }
+  }
 }

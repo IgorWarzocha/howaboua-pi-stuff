@@ -59,7 +59,9 @@ export function startVoiceArrival(options: {
 	let operation = Promise.resolve();
 	let restartAbort: AbortController | undefined;
 	let stopGeneration = 0;
-	let lanPreparation: Awaited<ReturnType<CodexLanVoiceServerController["prepareTakeover"]>> | undefined;
+	let lanPreparation:
+		| Awaited<ReturnType<CodexLanVoiceServerController["prepareTakeover"]>>
+		| undefined;
 	let lanCommitted = false;
 	const serialize = (action: () => Promise<void>): Promise<void> => {
 		const result = operation.then(action);
@@ -69,7 +71,8 @@ export function startVoiceArrival(options: {
 	const link = new VoiceHandoffLink(options.channel, {
 		async request(method, value) {
 			if (method === "lan.verify") {
-				if (!lanPreparation || !starting) throw new Error("LAN takeover is not preparing");
+				if (!lanPreparation || !starting)
+					throw new Error("LAN takeover is not preparing");
 				return lanPreparation.verify(value);
 			}
 			if (method === "session.stop" || method === "session.start") {
@@ -237,9 +240,16 @@ export function startVoiceArrival(options: {
 				},
 			];
 			// Optional capability preparation must not break ordinary native transfers.
-			try { lanPreparation = await options.lanVoice.prepareTakeover(ctx); } catch { /* A LAN source reports the absent capability and retains source hosting. */ }
+			try {
+				lanPreparation = await options.lanVoice.prepareTakeover(ctx);
+			} catch {
+				/* A LAN source reports the absent capability and retains source hosting. */
+			}
 			signal.throwIfAborted();
-			link.stage("prepared", lanPreparation ? { lanTakeover: lanPreparation.offer } : undefined);
+			link.stage(
+				"prepared",
+				lanPreparation ? { lanTakeover: lanPreparation.offer } : undefined,
+			);
 			const activation = await link.waitFor("activate");
 			if (
 				!isRecord(activation) ||
@@ -255,11 +265,23 @@ export function startVoiceArrival(options: {
 			reservation.release();
 			const takeover = activation["lanTakeover"];
 			if (takeover !== undefined) {
-				if (!lanPreparation || !isRecord(takeover) || takeover["token"] !== lanPreparation.offer.token ||
-					typeof takeover["port"] !== "number" || !Number.isInteger(takeover["port"]) || takeover["port"] < 1 || takeover["port"] > 65535)
+				if (
+					!lanPreparation ||
+					!isRecord(takeover) ||
+					takeover["token"] !== lanPreparation.offer.token ||
+					typeof takeover["port"] !== "number" ||
+					!Number.isInteger(takeover["port"]) ||
+					takeover["port"] < 1 ||
+					takeover["port"] > 65535
+				)
 					throw new Error("Invalid LAN takeover activation");
 				plan = undefined;
-				await lanPreparation.start(takeover["port"], prepared, activation["inputMuted"], activation["alternateVoice"] === true);
+				await lanPreparation.start(
+					takeover["port"],
+					prepared,
+					activation["inputMuted"],
+					activation["alternateVoice"] === true,
+				);
 				signal.throwIfAborted();
 				lanCommitted = true;
 				starting = false;
@@ -306,7 +328,9 @@ export function startVoiceArrival(options: {
 	})();
 	return {
 		completion,
-		get detached() { return lanCommitted; },
+		get detached() {
+			return lanCommitted;
+		},
 		publish(event, data) {
 			if (!closed && !forwarding)
 				link.notify({

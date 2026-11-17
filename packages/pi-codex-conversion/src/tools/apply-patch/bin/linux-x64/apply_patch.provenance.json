@@ -6,11 +6,11 @@
     "inputsSha256": "ee9c9cd8f2e4de01626f32e6c5592ed3c02c307c1b23307c91cbce08b299b295"
   },
   "binary": {
-    "sha256": "4289a0ac626cd3a164090fd74e479bdd1f2c553fb929b0fcf078795749af0946"
+    "sha256": "30a8660a489375357e05f342a8ddb128648b47dd4affe2714148b4aafee88171"
   },
   "build": {
     "target": "x86_64-unknown-linux-gnu",
-    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
-    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)"
+    "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+    "cargo": "cargo 1.100.0 (3acc79c0c 2026-11-05)"
   }
 }

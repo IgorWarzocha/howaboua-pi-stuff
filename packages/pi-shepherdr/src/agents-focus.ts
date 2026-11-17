@@ -120,6 +120,7 @@ export function readFocus(value: unknown): FocusRequest {
 	if (
 		"agent" in source &&
 		(typeof source["agent"] !== "string" ||
+			// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
 			!/^\/[^/\\\u0000]+$/.test(source["agent"]))
 	)
 		throw new Error("Invalid focus agent");

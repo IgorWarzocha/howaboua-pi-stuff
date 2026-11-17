@@ -84,15 +84,27 @@ export class LanVoiceBrowserSession {
 			this.connections.sendAudio(active.socket, pcm);
 	}
 
-	drainConversationPlayback(signal: AbortSignal, seal: () => Promise<void>): Promise<void> {
+	drainConversationPlayback(
+		signal: AbortSignal,
+		seal: () => Promise<void>,
+	): Promise<void> {
 		const active = this.state;
-		if (active.type !== "active" || active.mode !== "conversation" || !active.playbackDrain)
-			return Promise.reject(new Error("This voice device cannot confirm playback; update or reconnect it, or use Stop"));
+		if (
+			active.type !== "active" ||
+			active.mode !== "conversation" ||
+			!active.playbackDrain
+		)
+			return Promise.reject(
+				new Error(
+					"This voice device cannot confirm playback; update or reconnect it, or use Stop",
+				),
+			);
 		return this.playbackDrain.wait(active.socket, signal, seal);
 	}
 
 	acknowledgePlayback(socket: WebSocket, id: string): void {
-		if (this.conversationSocket === socket) this.playbackDrain.acknowledge(socket, id);
+		if (this.conversationSocket === socket)
+			this.playbackDrain.acknowledge(socket, id);
 	}
 
 	setConversationSpeakerSuppressed(suppressed: boolean): void {
@@ -121,7 +133,10 @@ export class LanVoiceBrowserSession {
 				((starting.type === "active" || starting.type === "starting") &&
 					starting.socket === socket));
 		this.releaseStarting(clientId, socket);
-		if (this.conversationSocket && (!socket || socket === this.conversationSocket))
+		if (
+			this.conversationSocket &&
+			(!socket || socket === this.conversationSocket)
+		)
 			this.playbackDrain.cancel();
 		let completion: Promise<boolean>;
 		if (

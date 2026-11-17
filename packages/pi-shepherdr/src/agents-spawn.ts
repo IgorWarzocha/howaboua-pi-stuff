@@ -232,7 +232,7 @@ export async function spawnAgent(
 								target: started.id,
 								name,
 								status: "working",
-								next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or await timers/extra Promises for reports",
+								next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or use timers/extra Promises for reports",
 							}),
 				agent: agentName,
 				...(boardBinding || sharing

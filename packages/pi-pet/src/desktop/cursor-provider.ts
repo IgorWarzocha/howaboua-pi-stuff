@@ -45,7 +45,7 @@ function parseCoordinatePair(value: unknown, label: string): [number, number] {
 function parseHyprlandClientBounds(value: string, pid: number): DesktopWindowBounds {
   const clients = JSON.parse(value) as unknown;
   if (!Array.isArray(clients)) throw new Error("Hyprland clients response must be an array.");
-  const client = clients.find(
+  const client: unknown = clients.find(
     (candidate) =>
       candidate !== null &&
       typeof candidate === "object" &&

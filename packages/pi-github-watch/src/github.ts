@@ -109,13 +109,16 @@ export function githubClient(
 		snapshot(thread: Thread) {
 			return threadSnapshot(gh, thread);
 		},
-		async prState(thread: Thread): Promise<"open" | "closed" | "merged"> {
+		async prSnapshot(thread: Thread): Promise<{
+			state: "open" | "closed" | "merged";
+			headSha: string;
+		}> {
 			const value: unknown = JSON.parse(
 				await gh([
 					"api",
 					`repos/${thread.repo}/pulls/${thread.number}`,
 					"--jq",
-					"{state, merged}",
+					"{state, merged, headSha: .head.sha}",
 				]),
 			);
 			if (
@@ -123,10 +126,18 @@ export function githubClient(
 				typeof value === "object" &&
 				"state" in value &&
 				"merged" in value &&
-				typeof value.merged === "boolean"
+				typeof value.merged === "boolean" &&
+				"headSha" in value &&
+				typeof value.headSha === "string" &&
+				/^[0-9a-f]{40}$/.test(value.headSha)
 			) {
-				if (value.state === "closed") return value.merged ? "merged" : "closed";
-				if (value.state === "open" && !value.merged) return "open";
+				if (value.state === "closed")
+					return {
+						state: value.merged ? "merged" : "closed",
+						headSha: value.headSha,
+					};
+				if (value.state === "open" && !value.merged)
+					return { state: "open", headSha: value.headSha };
 			}
 			throw new Error("GitHub returned invalid PR state. Retry the watch.");
 		},

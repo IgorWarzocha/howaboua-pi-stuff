@@ -1,5 +1,8 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { NotebookControlResult, ToolExecutionContext } from "../code-mode/types.ts";
+import type {
+	NotebookControlResult,
+	ToolExecutionContext,
+} from "../code-mode/types.ts";
 import { globMatcher } from "./glob.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 import { resolveNotebookProject } from "./project-identity.ts";
@@ -33,17 +36,25 @@ export class NotebookProfileController {
 	list(query: string | undefined): NotebookControlResult {
 		const storage = this.host.profileStorage();
 		const matches = query === undefined ? undefined : globMatcher(query);
-		const profiles = listNotebookProfiles(storage.agentDir)
-			.filter(({ name }) => !matches || matches(name));
+		const profiles = listNotebookProfiles(storage.agentDir).filter(
+			({ name }) => !matches || matches(name),
+		);
 		return {
 			message: formatProfiles(profiles, query),
 			details: { profiles, ...(query === undefined ? {} : { query }) },
 		};
 	}
 
-	async save(name: string, context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
+	async save(
+		name: string,
+		context: ToolExecutionContext,
+		signal?: AbortSignal,
+	): Promise<NotebookControlResult> {
 		const activeCell = this.host.activeCellId();
-		if (activeCell) throw new Error(`Cannot save a notebook profile while exec cell "${activeCell}" is running`);
+		if (activeCell)
+			throw new Error(
+				`Cannot save a notebook profile while exec cell "${activeCell}" is running`,
+			);
 		const storage = this.host.profileStorage();
 		await this.host.checkpoint();
 		const summary = await saveNotebookProfile({
@@ -61,9 +72,16 @@ export class NotebookProfileController {
 		};
 	}
 
-	async load(name: string, context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
+	async load(
+		name: string,
+		context: ToolExecutionContext,
+		signal?: AbortSignal,
+	): Promise<NotebookControlResult> {
 		const activeCell = this.host.activeCellId();
-		if (activeCell) throw new Error(`Cannot load a notebook profile while exec cell "${activeCell}" is running`);
+		if (activeCell)
+			throw new Error(
+				`Cannot load a notebook profile while exec cell "${activeCell}" is running`,
+			);
 		const storage = this.host.profileStorage();
 		await this.host.checkpoint();
 		let loaded;
@@ -84,7 +102,9 @@ export class NotebookProfileController {
 			throw error;
 		}
 		if (loaded.collisions.length > 0) {
-			throw new Error(`Notebook profile ${name} conflicts with existing bindings: ${bound(loaded.collisions.join(", "))}. Release or rename them before loading`);
+			throw new Error(
+				`Notebook profile ${name} conflicts with existing bindings: ${bound(loaded.collisions.join(", "))}. Release or rename them before loading`,
+			);
 		}
 		if (loaded.loaded.length > 0) {
 			this.host.markChanged();
@@ -97,15 +117,28 @@ export class NotebookProfileController {
 	}
 }
 
-function formatProfiles(profiles: ProfileStateSummary[], query: string | undefined): string {
-	if (profiles.length === 0) return query === undefined ? "No notebook profiles saved" : `No notebook profiles match ${JSON.stringify(query)}`;
-	return bound([
-		`Notebook profiles${query === undefined ? "" : ` matching ${JSON.stringify(query)}`}:`,
-		...profiles.map((profile) => `- ${profile.name}: ${profile.values} value(s), ${profile.definitions} definition(s), saved ${profile.createdAt}`),
-	].join("\n"));
+function formatProfiles(
+	profiles: ProfileStateSummary[],
+	query: string | undefined,
+): string {
+	if (profiles.length === 0)
+		return query === undefined
+			? "No notebook profiles saved"
+			: `No notebook profiles match ${JSON.stringify(query)}`;
+	return bound(
+		[
+			`Notebook profiles${query === undefined ? "" : ` matching ${JSON.stringify(query)}`}:`,
+			...profiles.map(
+				(profile) =>
+					`- ${profile.name}: ${profile.values} value(s), ${profile.definitions} definition(s), saved ${profile.createdAt}`,
+			),
+		].join("\n"),
+	);
 }
 
 function bound(value: string): string {
 	const marker = "\n[Notebook profile output truncated; narrow query]";
-	return value.length <= MESSAGE_BUDGET ? value : `${value.slice(0, MESSAGE_BUDGET - marker.length)}${marker}`;
+	return value.length <= MESSAGE_BUDGET
+		? value
+		: `${value.slice(0, MESSAGE_BUDGET - marker.length)}${marker}`;
 }

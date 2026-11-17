@@ -1,61 +1,64 @@
 {
-	"name": "@howaboua/pi-extensions",
-	"version": "0.0.107",
-	"description": "all Howaboua Pi extensions",
-	"type": "module",
-	"keywords": [
-		"pi-package",
-		"pi",
-		"howaboua"
-	],
-	"license": "MIT",
-	"publishConfig": {
-		"access": "public"
-	},
-	"dependencies": {
-		"@howaboua/pi-ask": "0.0.19",
-		"@howaboua/pi-auto-trees": "0.1.19",
-		"@howaboua/pi-better-skills-tool": "0.0.12",
-		"@howaboua/pi-cache-hit-predictor": "0.0.1",
-		"@howaboua/pi-gippity-control": "0.0.32",
-		"@howaboua/pi-github-watch": "0.0.6",
-		"@howaboua/pi-gpt-switcher": "0.1.6",
-		"@howaboua/pi-grok-realtime": "0.0.6",
-		"@howaboua/pi-pet": "0.1.8",
-		"@howaboua/pi-shepherdr": "1.0.1",
-		"@howaboua/pi-smart-btw": "0.2.8",
-		"@howaboua/pi-subagent-review": "0.2.26",
-		"@howaboua/pi-suggestions": "0.0.3",
-		"@howaboua/pi-unicode-charts": "0.1.4"
-	},
-	"files": [
-		"README.md",
-		"LICENSE",
-		"index.ts",
-		"CHANGELOG.md"
-	],
-	"pi": {
-		"extensions": [
-			"./index.ts"
-		]
-	},
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-extensions"
-	},
-	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-extensions#readme",
-	"bugs": {
-		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
-	},
-	"scripts": {
-		"prepack": "bun run ../../scripts/prepare-aggregate-package.mjs"
-	},
-	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=1.5.0",
-		"@earendil-works/pi-tui": ">=1.5.0"
-	},
-	"devDependencies": {
-		"@earendil-works/pi-coding-agent": "1.5.2"
-	}
+  "name": "@howaboua/pi-extensions",
+  "version": "0.0.107",
+  "description": "all Howaboua Pi extensions",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "howaboua"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@howaboua/pi-ask": "0.0.19",
+    "@howaboua/pi-auto-trees": "0.1.19",
+    "@howaboua/pi-better-skills-tool": "0.0.12",
+    "@howaboua/pi-cache-hit-predictor": "0.0.1",
+    "@howaboua/pi-gippity-control": "0.0.32",
+    "@howaboua/pi-github-watch": "0.0.6",
+    "@howaboua/pi-gpt-switcher": "0.1.6",
+    "@howaboua/pi-grok-realtime": "0.0.6",
+    "@howaboua/pi-pet": "0.1.8",
+    "@howaboua/pi-shepherdr": "1.0.1",
+    "@howaboua/pi-smart-btw": "0.2.8",
+    "@howaboua/pi-subagent-review": "0.2.26",
+    "@howaboua/pi-suggestions": "0.0.3",
+    "@howaboua/pi-unicode-charts": "0.1.4"
+  },
+  "files": [
+    "README.md",
+    "LICENSE",
+    "index.ts",
+    "CHANGELOG.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+    "directory": "packages/pi-extensions"
+  },
+  "homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-extensions#readme",
+  "bugs": {
+    "url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+  },
+  "scripts": {
+    "prepack": "bun run ../../scripts/prepare-aggregate-package.mjs",
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'",
+    "lint": "bun run format:check && oxlint --type-aware",
+    "check": "bun run lint"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=1.5.0",
+    "@earendil-works/pi-tui": ">=1.5.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.5.2"
+  }
 }

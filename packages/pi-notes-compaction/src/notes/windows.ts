@@ -256,17 +256,16 @@ export class Windows {
 			if (entries[i]!.type === "compaction" && !isWindowCheckpoint(entries[i]!))
 				boundary = -1;
 		}
-		return entries.slice(Math.max(0, boundary)).map(
-			(entry): SessionEntry =>
-				isWindowCheckpoint(entry)
-					? {
-							type: "custom",
-							id: entry.id,
-							parentId: entry.parentId,
-							timestamp: entry.timestamp,
-							customType: "notes-compaction:window-checkpoint",
-						}
-					: entry,
+		return entries.slice(Math.max(0, boundary)).map((entry): SessionEntry =>
+			isWindowCheckpoint(entry)
+				? {
+						type: "custom",
+						id: entry.id,
+						parentId: entry.parentId,
+						timestamp: entry.timestamp,
+						customType: "notes-compaction:window-checkpoint",
+					}
+				: entry,
 		);
 	}
 }

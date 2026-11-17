@@ -92,7 +92,12 @@ export class CodeModeHostClient {
 				request: {
 					tool_call_id: `exec-${id}`,
 					enabled_tools: tools.map(toWireToolDefinition),
-					source: scopeAllToolsToDiscoverable(withContentOutput(withMissingMcpToolRecovery(withCommandOutput(code, tools), tools)), tools),
+					source: scopeAllToolsToDiscoverable(
+						withContentOutput(
+							withMissingMcpToolRecovery(withCommandOutput(code, tools), tools),
+						),
+						tools,
+					),
 					yield_time_ms: effectiveYieldTimeMs,
 					max_output_tokens: maxOutputTokens,
 				},
@@ -122,7 +127,9 @@ export class CodeModeHostClient {
 				abort();
 				throw abortError();
 			}
-			const response = this.delegation.attach(parseRuntimeResponse(await initial));
+			const response = this.delegation.attach(
+				parseRuntimeResponse(await initial),
+			);
 			const result = await this.waitForBlockers(
 				response,
 				context,
@@ -150,9 +157,17 @@ export class CodeModeHostClient {
 		signal?: AbortSignal,
 	): Promise<RuntimeResponse> {
 		let current = response;
-		while (current.kind === "yielded" && this.delegation.isBlocked(current.cellId)) {
+		while (
+			current.kind === "yielded" &&
+			this.delegation.isBlocked(current.cellId)
+		) {
 			await this.delegation.waitUntilUnblocked(current.cellId, signal);
-			current = await this.cells.wait(current.cellId, yieldTimeMs, context, signal);
+			current = await this.cells.wait(
+				current.cellId,
+				yieldTimeMs,
+				context,
+				signal,
+			);
 		}
 		return current;
 	}

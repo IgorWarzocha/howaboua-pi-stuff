@@ -27,7 +27,9 @@ export interface NotebookReleaseResult {
 }
 
 export function notebookStatusSource(names: string[], marker: string): string {
-	const inspections = names.map((name) => `
+	const inspections = names
+		.map(
+			(name) => `
   try {
     const __value = ${name};
 	let __kind = "value";
@@ -53,7 +55,9 @@ export function notebookStatusSource(names: string[], marker: string): string {
     });
   } catch (__error) {
 	__bindings.push({ name: ${JSON.stringify(name)}, type: "unavailable", kind: "runtime-only", globalProperty: false });
-  }`).join("");
+  }`,
+		)
+		.join("");
 	return `{
 	const { getHeapStatistics } = await import("node:v8");
   const __descriptorValue = (__value, __key) => {
@@ -90,8 +94,14 @@ export function notebookDisposeSource(names: string[], marker: string): string {
 	return notebookDisposalSource(names, marker, false);
 }
 
-function notebookDisposalSource(names: string[], marker: string, remove: boolean): string {
-	const releases = names.map((name) => `
+function notebookDisposalSource(
+	names: string[],
+	marker: string,
+	remove: boolean,
+): string {
+	const releases = names
+		.map(
+			(name) => `
   try {
     const __value = ${name};
     if (__value !== null && (typeof __value === "object" || typeof __value === "function") && !__seen.has(__value)) {
@@ -104,11 +114,17 @@ function notebookDisposalSource(names: string[], marker: string, remove: boolean
         __disposed.push(${JSON.stringify(name)});
       }
     }
-	    ${remove ? `if (!delete globalThis[${JSON.stringify(name)}]) throw new Error("binding is not configurable");
-    __released.push(${JSON.stringify(name)});` : ""}
+	    ${
+				remove
+					? `if (!delete globalThis[${JSON.stringify(name)}]) throw new Error("binding is not configurable");
+    __released.push(${JSON.stringify(name)});`
+					: ""
+			}
   } catch (__error) {
     __failures.push({ name: ${JSON.stringify(name)}, reason: String(__error instanceof Error ? __error.message : __error).slice(0, 240) });
-  }`).join("");
+  }`,
+		)
+		.join("");
 	return `{
   const __seen = new WeakSet();
   const __released = [];
@@ -120,14 +136,19 @@ function notebookDisposalSource(names: string[], marker: string, remove: boolean
 }`;
 }
 
-export function parseNotebookRuntimeResult<T>(result: KernelExecutionResult, marker: string): T {
-	if (result.status !== "ok") throw new Error(result.errorText ?? "Notebook lifecycle operation failed");
+export function parseNotebookRuntimeResult<T>(
+	result: KernelExecutionResult,
+	marker: string,
+): T {
+	if (result.status !== "ok")
+		throw new Error(result.errorText ?? "Notebook lifecycle operation failed");
 	const output = result.items
 		.filter((item) => item.type === "input_text")
 		.map((item) => item.text ?? "")
 		.join("");
 	const start = output.indexOf(marker);
-	if (start === -1) throw new Error("Notebook lifecycle operation returned no result");
+	if (start === -1)
+		throw new Error("Notebook lifecycle operation returned no result");
 	const line = output.slice(start + marker.length).split("\n", 1)[0];
 	try {
 		return JSON.parse(line!) as T;

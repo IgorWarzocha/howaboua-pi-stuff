@@ -21,7 +21,7 @@ export function focusArrivalContent(
 		voice: request.voice === true,
 	};
 	const args = JSON.stringify(returnFocus);
-	const callable = codeMode ? `await tools.agents(${args})` : `agents ${args}`;
+	const callable = codeMode ? `tools.agents(${args})` : `agents ${args}`;
 	return {
 		returnFocus,
 		content: `User arrived from ${JSON.stringify(focusOrigin(request))}\nReturn: ${callable}${request.voice ? "\nVoice transfer pending" : ""}${request.handoff ? `\nHandoff from that agent:\n${request.handoff}` : ""}`,

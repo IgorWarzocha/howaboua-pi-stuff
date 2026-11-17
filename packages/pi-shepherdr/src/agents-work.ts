@@ -128,7 +128,10 @@ export async function dispatchAgentWork(
 	signal: AbortSignal,
 	onUpdate: AgentToolUpdateCallback<Record<string, unknown>>,
 	send: () => Promise<PeerDelivery | void>,
-	options: { expectUserMessage?: boolean; replyingTo?: ExtensionReply } = {},
+	options: {
+		expectUserMessage?: boolean;
+		replyingTo?: ExtensionReply;
+	} = {},
 ): Promise<{
 	settlement?: ClaimedSettlement;
 	command?: true;

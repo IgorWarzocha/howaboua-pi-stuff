@@ -1,8 +1,15 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { AccessPrograms, ServiceTier } from "../../providers/openai-codex/types.ts";
+import type {
+	AccessPrograms,
+	ServiceTier,
+} from "../../providers/openai-codex/types.ts";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import { convertToLlm, getAgentDir, type SessionEntry } from "@earendil-works/pi-coding-agent";
+import {
+	convertToLlm,
+	getAgentDir,
+	type SessionEntry,
+} from "@earendil-works/pi-coding-agent";
 import {
 	normalizeContext,
 	type Api,
@@ -14,7 +21,10 @@ import {
 	type ToolResultMessage,
 	type UserMessage,
 } from "@earendil-works/pi-ai";
-import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../../providers/openai-responses/shared.ts";
+import {
+	CODEX_TOOL_CALL_PROVIDERS,
+	convertResponsesMessages,
+} from "../../providers/openai-responses/shared.ts";
 import { isProviderContextExcludedMessage } from "../prompt/context-filter.ts";
 import { CodexDeveloperMessageBridge } from "../developer-messages.ts";
 import { projectCodexDeveloperHistory } from "../developer-history.ts";
@@ -44,7 +54,10 @@ type ResponsesEncryptedContentItem = {
 	encrypted_content: string;
 };
 
-export type ResponsesInputContentItem = ResponsesTextInputItem | ResponsesImageInputItem | ResponsesEncryptedContentItem;
+export type ResponsesInputContentItem =
+	| ResponsesTextInputItem
+	| ResponsesImageInputItem
+	| ResponsesEncryptedContentItem;
 
 export type ResponsesInputMessageItem = {
 	role: "user" | "developer" | "system";
@@ -102,7 +115,13 @@ export type NativeCompactionRequestBody = {
 
 export type NativeCompactionRequestOptions = Pick<
 	NativeCompactionRequestBody,
-	"parallel_tool_calls" | "prompt_cache_key" | "service_tier" | "access_programs" | "text" | "tools" | "reasoning"
+	| "parallel_tool_calls"
+	| "prompt_cache_key"
+	| "service_tier"
+	| "access_programs"
+	| "text"
+	| "tools"
+	| "reasoning"
 >;
 
 export type SerializeResponsesMessagesOptions = {
@@ -130,29 +149,53 @@ let cachedBlockImagesSetting: boolean | undefined;
 function readBlockImagesSetting(): boolean {
 	if (cachedBlockImagesSetting !== undefined) return cachedBlockImagesSetting;
 	try {
-		const parsed = JSON.parse(readFileSync(join(getAgentDir(), "settings.json"), "utf-8")) as unknown;
-		cachedBlockImagesSetting = isRecord(parsed) && isRecord(parsed["images"]!) && parsed["images"]["blockImages"] === true;
+		const parsed = JSON.parse(
+			readFileSync(join(getAgentDir(), "settings.json"), "utf-8"),
+		) as unknown;
+		cachedBlockImagesSetting =
+			isRecord(parsed) &&
+			isRecord(parsed["images"]!) &&
+			parsed["images"]["blockImages"] === true;
 	} catch {
 		cachedBlockImagesSetting = false;
 	}
 	return cachedBlockImagesSetting;
 }
 
-function replaceImagesWithDisabledPlaceholder<TMessage extends UserMessage | ToolResultMessage>(message: TMessage): TMessage {
-	if (!Array.isArray(message.content) || !message.content.some((item) => item.type === "image")) return message;
+function replaceImagesWithDisabledPlaceholder<
+	TMessage extends UserMessage | ToolResultMessage,
+>(message: TMessage): TMessage {
+	if (
+		!Array.isArray(message.content) ||
+		!message.content.some((item) => item.type === "image")
+	)
+		return message;
 	const content = message.content
-		.map((item): TextContent | ImageContent => item.type === "image" ? { type: "text", text: "Image reading is disabled." } : item)
+		.map((item): TextContent | ImageContent =>
+			item.type === "image"
+				? { type: "text", text: "Image reading is disabled." }
+				: item,
+		)
 		.filter((item, index, items) => {
-			const previous = (items[index - 1])!;
-			return !(item.type === "text" && item.text === "Image reading is disabled." && previous?.type === "text" && previous.text === "Image reading is disabled.");
+			const previous = items[index - 1]!;
+			return !(
+				item.type === "text" &&
+				item.text === "Image reading is disabled." &&
+				previous?.type === "text" &&
+				previous.text === "Image reading is disabled."
+			);
 		});
 	return { ...message, content };
 }
 
-function applyBlockImages(messages: Message[], blockImages: boolean): Message[] {
+function applyBlockImages(
+	messages: Message[],
+	blockImages: boolean,
+): Message[] {
 	if (!blockImages) return messages;
 	return messages.map((message) => {
-		if (message.role === "user" || message.role === "toolResult") return replaceImagesWithDisabledPlaceholder(message);
+		if (message.role === "user" || message.role === "toolResult")
+			return replaceImagesWithDisabledPlaceholder(message);
 		return message;
 	});
 }
@@ -163,8 +206,11 @@ export function serializeActiveSessionToResponsesInput<TApi extends Api>(args: {
 	leafId?: string | null | undefined;
 	options?: SerializeResponsesMessagesOptions | undefined;
 }): ResponsesInputItem[] {
-	const messages = projectCodexDeveloperHistory(args.entries, undefined, args.leafId)
-		.filter((message) => !isProviderContextExcludedMessage(message));
+	const messages = projectCodexDeveloperHistory(
+		args.entries,
+		undefined,
+		args.leafId,
+	).filter((message) => !isProviderContextExcludedMessage(message));
 	return serializeMessagesToResponsesInput(args.model, messages, args.options);
 }
 
@@ -180,33 +226,47 @@ export function serializeMessagesToResponsesInput<TApi extends Api>(
 	);
 	const transcriptMessages: Message[] = [
 		...(options.includeInstructionsInInput && options.instructions
-			? [{ role: "system", content: options.instructions, timestamp: 0 } satisfies SystemMessage]
+			? [
+					{
+						role: "system",
+						content: options.instructions,
+						timestamp: 0,
+					} satisfies SystemMessage,
+				]
 			: []),
 		...(options.transcriptBaseline ? [options.transcriptBaseline] : []),
 		...llmMessages,
 	];
 	const context = normalizeContext({ messages: transcriptMessages });
-	const compat = model.compat as {
-		supportsStrictMode?: boolean | undefined;
-		supportsOpenAIGrammarTools?: boolean | undefined;
-		supportsMidConvoSystemMessages?: boolean | undefined;
-		supportsAdditionalTools?: boolean | undefined;
-		supportsToolSearch?: boolean | undefined;
-	} | undefined;
-	const supportsOpenAIGrammarTools = compat?.supportsOpenAIGrammarTools ?? false;
-	const emitsOpenAIGrammarTools = supportsOpenAIGrammarTools
-		|| (options.grammarToolInputProperties?.size ?? 0) > 0;
-	const allowedToolCallProviders = emitsOpenAIGrammarTools && !CODEX_TOOL_CALL_PROVIDERS.has(model.provider)
-		? new Set([...CODEX_TOOL_CALL_PROVIDERS, model.provider])
-		: CODEX_TOOL_CALL_PROVIDERS;
+	const compat = model.compat as
+		| {
+				supportsStrictMode?: boolean | undefined;
+				supportsOpenAIGrammarTools?: boolean | undefined;
+				supportsMidConvoSystemMessages?: boolean | undefined;
+				supportsAdditionalTools?: boolean | undefined;
+				supportsToolSearch?: boolean | undefined;
+		  }
+		| undefined;
+	const supportsOpenAIGrammarTools =
+		compat?.supportsOpenAIGrammarTools ?? false;
+	const emitsOpenAIGrammarTools =
+		supportsOpenAIGrammarTools ||
+		(options.grammarToolInputProperties?.size ?? 0) > 0;
+	const allowedToolCallProviders =
+		emitsOpenAIGrammarTools && !CODEX_TOOL_CALL_PROVIDERS.has(model.provider)
+			? new Set([...CODEX_TOOL_CALL_PROVIDERS, model.provider])
+			: CODEX_TOOL_CALL_PROVIDERS;
 	const input = convertResponsesMessages(
 		model,
 		context,
 		allowedToolCallProviders,
 		{
 			includeSystemPrompt: options.includeInstructionsInInput ?? false,
-			...(options.grammarToolInputProperties ? { grammarToolInputProperties: options.grammarToolInputProperties } : {}),
-			supportsMidConvoSystemMessages: compat?.supportsMidConvoSystemMessages ?? false,
+			...(options.grammarToolInputProperties
+				? { grammarToolInputProperties: options.grammarToolInputProperties }
+				: {}),
+			supportsMidConvoSystemMessages:
+				compat?.supportsMidConvoSystemMessages ?? false,
 			supportsAdditionalTools: compat?.supportsAdditionalTools ?? false,
 			supportsToolSearch: compat?.supportsToolSearch ?? false,
 			toolOptions: {
@@ -215,14 +275,25 @@ export function serializeMessagesToResponsesInput<TApi extends Api>(
 			},
 		},
 	) as ResponsesInputItem[];
-	return (developerMessages.rewritePayload({ input }, model, options.blockImages ?? readBlockImagesSetting()) as { input: ResponsesInputItem[] }).input;
+	return (
+		developerMessages.rewritePayload(
+			{ input },
+			model,
+			options.blockImages ?? readBlockImagesSetting(),
+		) as { input: ResponsesInputItem[] }
+	).input;
 }
 
-export function createResponsesInputParitySignature(input: readonly unknown[]): string[] {
+export function createResponsesInputParitySignature(
+	input: readonly unknown[],
+): string[] {
 	return input.map(describeResponsesInputItem);
 }
 
-export function compareResponsesInputParity(actual: readonly unknown[], expected: readonly unknown[]): ResponsesParityReport {
+export function compareResponsesInputParity(
+	actual: readonly unknown[],
+	expected: readonly unknown[],
+): ResponsesParityReport {
 	const actualSignature = createResponsesInputParitySignature(actual);
 	const expectedSignature = createResponsesInputParitySignature(expected);
 	const maxLength = Math.max(actualSignature.length, expectedSignature.length);
@@ -232,7 +303,9 @@ export function compareResponsesInputParity(actual: readonly unknown[], expected
 		const actualValue = actualSignature[index]!;
 		const expectedValue = expectedSignature[index]!;
 		if (actualValue !== expectedValue) {
-			mismatches.push(`index ${index}: expected ${expectedValue ?? "<missing>"}, got ${actualValue ?? "<missing>"}`);
+			mismatches.push(
+				`index ${index}: expected ${expectedValue ?? "<missing>"}, got ${actualValue ?? "<missing>"}`,
+			);
 		}
 	}
 
@@ -250,10 +323,13 @@ function describeResponsesInputItem(item: unknown): string {
 	}
 
 	const record = item as Record<string, unknown>;
-	const type = typeof record["type"]! === "string" ? record["type"]! : undefined;
+	const type =
+		typeof record["type"]! === "string" ? record["type"]! : undefined;
 	if (type === "message") {
 		const phase =
-			record["phase"] === "commentary" || record["phase"] === "partial_answer" || record["phase"] === "final_answer"
+			record["phase"] === "commentary" ||
+			record["phase"] === "partial_answer" ||
+			record["phase"] === "final_answer"
 				? `:${record["phase"]!}`
 				: "";
 		return `message:${typeof record["role"]! === "string" ? record["role"]! : "unknown"}${phase}`;
@@ -272,7 +348,9 @@ function describeResponsesInputItem(item: unknown): string {
 	}
 
 	if (typeof record["role"]! === "string") {
-		const content = Array.isArray(record["content"]!) ? `[${record["content"]!.length}]` : "";
+		const content = Array.isArray(record["content"]!)
+			? `[${record["content"]!.length}]`
+			: "";
 		return `input:${record["role"]!}${content}`;
 	}
 

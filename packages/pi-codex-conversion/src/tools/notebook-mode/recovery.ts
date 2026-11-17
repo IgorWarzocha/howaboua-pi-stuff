@@ -1,5 +1,8 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { NotebookControlResult, ToolExecutionContext } from "../code-mode/types.ts";
+import type {
+	NotebookControlResult,
+	ToolExecutionContext,
+} from "../code-mode/types.ts";
 import {
 	notebookCheckpointBindingNames,
 	removeNotebookCheckpoint,
@@ -10,7 +13,10 @@ import { initializeNotebookJournal } from "./journal.ts";
 import { diagnoseNotebook } from "./notebook-diagnostics.ts";
 import { resolveNotebookProject } from "./project-identity.ts";
 import { notebookProfileBindingNames } from "./profile-state.ts";
-import { projectStateBindingNames, unpinProjectStateBindings } from "./project-state.ts";
+import {
+	projectStateBindingNames,
+	unpinProjectStateBindings,
+} from "./project-state.ts";
 import { formatNameList } from "./lifecycle-result.ts";
 import { readRetainedProjectBindings } from "./project-state-metadata.ts";
 import type { NotebookRuntimeHealth } from "./runtime-health.ts";
@@ -31,7 +37,11 @@ export class NotebookRecoveryController {
 	private readonly host: NotebookRecoveryHost;
 
 	constructor(
-		options: { agentDir: string; maxBytes: number; profile?: string | undefined },
+		options: {
+			agentDir: string;
+			maxBytes: number;
+			profile?: string | undefined;
+		},
 		host: NotebookRecoveryHost,
 	) {
 		this.agentDir = options.agentDir;
@@ -40,25 +50,50 @@ export class NotebookRecoveryController {
 		this.host = host;
 	}
 
-	async diagnostics(context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
+	async diagnostics(
+		context: ToolExecutionContext,
+		signal?: AbortSignal,
+	): Promise<NotebookControlResult> {
 		const identity = this.identity(context, "diagnostics");
 		const journal = initializeNotebookJournal(identity, this.maxBytes);
-		if (!journal) return {
-			message: "Notebook diagnostics are unavailable while journals are off. Re-enable Notebook journals in /codex to diagnose newly recorded cells. Execution and saved binding recovery remain available",
-			details: { available: false, reason: "journals_off" },
-		};
-		const deno = await ensureNotebookDenoBinary({ agentDir: this.agentDir }, signal);
+		if (!journal)
+			return {
+				message:
+					"Notebook diagnostics are unavailable while journals are off. Re-enable Notebook journals in /codex to diagnose newly recorded cells. Execution and saved binding recovery remain available",
+				details: { available: false, reason: "journals_off" },
+			};
+		const deno = await ensureNotebookDenoBinary(
+			{ agentDir: this.agentDir },
+			signal,
+		);
 		const runtimeBindings = new Set([
 			...projectStateBindingNames(identity, this.maxBytes),
 			...notebookCheckpointBindingNames(identity, this.maxBytes),
 			...(this.host.configuredProfileActive()
-				? notebookProfileBindingNames(this.profile, this.agentDir, this.maxBytes)
+				? notebookProfileBindingNames(
+						this.profile,
+						this.agentDir,
+						this.maxBytes,
+					)
 				: []),
 		]);
-		return diagnoseNotebook({ deno, cwd: identity.project, path: journal.path, runtimeBindings, runtimeHealth: this.host.runtimeHealth(requireExtensionContext(context, "diagnostics")).state, signal });
+		return diagnoseNotebook({
+			deno,
+			cwd: identity.project,
+			path: journal.path,
+			runtimeBindings,
+			runtimeHealth: this.host.runtimeHealth(
+				requireExtensionContext(context, "diagnostics"),
+			).state,
+			signal,
+		});
 	}
 
-	async unpin(names: string[], context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
+	async unpin(
+		names: string[],
+		context: ToolExecutionContext,
+		signal?: AbortSignal,
+	): Promise<NotebookControlResult> {
 		const identity = this.identity(context, "unpin");
 		await this.host.stopWithoutCheckpoint();
 		await unpinProjectStateBindings(identity, names, signal);
@@ -68,7 +103,10 @@ export class NotebookRecoveryController {
 		};
 	}
 
-	async reset(context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
+	async reset(
+		context: ToolExecutionContext,
+		signal?: AbortSignal,
+	): Promise<NotebookControlResult> {
 		signal?.throwIfAborted();
 		const extension = requireExtensionContext(context, "reset");
 		const identity = notebookIdentity(extension, this.agentDir);
@@ -90,12 +128,21 @@ export class NotebookRecoveryController {
 		};
 	}
 
-	private identity(context: ToolExecutionContext, action: string): NotebookCheckpointIdentity {
-		return notebookIdentity(requireExtensionContext(context, action), this.agentDir);
+	private identity(
+		context: ToolExecutionContext,
+		action: string,
+	): NotebookCheckpointIdentity {
+		return notebookIdentity(
+			requireExtensionContext(context, action),
+			this.agentDir,
+		);
 	}
 }
 
-function notebookIdentity(context: ExtensionContext, agentDir: string): NotebookCheckpointIdentity {
+function notebookIdentity(
+	context: ExtensionContext,
+	agentDir: string,
+): NotebookCheckpointIdentity {
 	return {
 		project: resolveNotebookProject(context.cwd),
 		session: notebookSessionIdentity(context),
@@ -103,7 +150,11 @@ function notebookIdentity(context: ExtensionContext, agentDir: string): Notebook
 	};
 }
 
-function requireExtensionContext(context: ToolExecutionContext, action: string): ExtensionContext {
-	if (!context.extensionContext) throw new Error(`Notebook ${action} requires an extension session context`);
+function requireExtensionContext(
+	context: ToolExecutionContext,
+	action: string,
+): ExtensionContext {
+	if (!context.extensionContext)
+		throw new Error(`Notebook ${action} requires an extension session context`);
 	return context.extensionContext;
 }

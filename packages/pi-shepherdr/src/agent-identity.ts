@@ -23,6 +23,7 @@ export async function nativeAgentName(
 		!("sessionId" in value) ||
 		typeof value.sessionId !== "string" ||
 		!value.sessionId ||
+		// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
 		/[/\\\u0000]/.test(value.sessionId)
 	)
 		throw new Error(

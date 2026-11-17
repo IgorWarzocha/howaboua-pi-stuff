@@ -1,16 +1,31 @@
 import type { Api, Message, Model } from "@earendil-works/pi-ai";
-import { isImageGenerationCallBlock, isWebSearchCallBlock, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
+import {
+	isImageGenerationCallBlock,
+	isWebSearchCallBlock,
+	type ImageGenerationCallBlock,
+	type WebSearchCallBlock,
+} from "./native-items.ts";
 
-type InternalAssistantContent = Extract<Message, { role: "assistant" }>["content"][number] | ImageGenerationCallBlock | WebSearchCallBlock;
+type InternalAssistantContent =
+	| Extract<Message, { role: "assistant" }>["content"][number]
+	| ImageGenerationCallBlock
+	| WebSearchCallBlock;
 
-const NON_VISION_USER_IMAGE_PLACEHOLDER = "(image omitted: model does not support images)";
-const NON_VISION_TOOL_IMAGE_PLACEHOLDER = "(tool image omitted: model does not support images)";
+const NON_VISION_USER_IMAGE_PLACEHOLDER =
+	"(image omitted: model does not support images)";
+const NON_VISION_TOOL_IMAGE_PLACEHOLDER =
+	"(tool image omitted: model does not support images)";
 
 function replaceImagesWithPlaceholder(
-	content: Extract<Message, { role: "user" }> extends { content: infer T } ? Exclude<T, string> : never,
+	content: Extract<Message, { role: "user" }> extends { content: infer T }
+		? Exclude<T, string>
+		: never,
 	placeholder: string,
 ) {
-	const result: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = [];
+	const result: Array<
+		| { type: "text"; text: string }
+		| { type: "image"; data: string; mimeType: string }
+	> = [];
 	let previousWasPlaceholder = false;
 	for (const block of content) {
 		if (block.type === "image") {
@@ -26,14 +41,29 @@ function replaceImagesWithPlaceholder(
 	return result;
 }
 
-function downgradeUnsupportedImages(messages: Message[], model: Model<Api>): Message[] {
+function downgradeUnsupportedImages(
+	messages: Message[],
+	model: Model<Api>,
+): Message[] {
 	if (model.input.includes("image")) return messages;
 	return messages.map((msg) => {
 		if (msg.role === "user" && Array.isArray(msg.content)) {
-			return { ...msg, content: replaceImagesWithPlaceholder(msg.content, NON_VISION_USER_IMAGE_PLACEHOLDER) };
+			return {
+				...msg,
+				content: replaceImagesWithPlaceholder(
+					msg.content,
+					NON_VISION_USER_IMAGE_PLACEHOLDER,
+				),
+			};
 		}
 		if (msg.role === "toolResult") {
-			return { ...msg, content: replaceImagesWithPlaceholder(msg.content, NON_VISION_TOOL_IMAGE_PLACEHOLDER) };
+			return {
+				...msg,
+				content: replaceImagesWithPlaceholder(
+					msg.content,
+					NON_VISION_TOOL_IMAGE_PLACEHOLDER,
+				),
+			};
 		}
 		return msg;
 	});
@@ -42,7 +72,11 @@ function downgradeUnsupportedImages(messages: Message[], model: Model<Api>): Mes
 export function normalizeResponsesMessageHistory(
 	messages: Message[],
 	model: Model<Api>,
-	normalizeToolCallId?: (id: string, targetModel: Model<Api>, source: Extract<Message, { role: "assistant" }>) => string,
+	normalizeToolCallId?: (
+		id: string,
+		targetModel: Model<Api>,
+		source: Extract<Message, { role: "assistant" }>,
+	) => string,
 ): Message[] {
 	const toolCallIdMap = new Map<string, string>();
 	const imageAwareMessages = downgradeUnsupportedImages(messages, model);
@@ -50,13 +84,19 @@ export function normalizeResponsesMessageHistory(
 		if (msg.role === "user") return msg;
 		if (msg.role === "toolResult") {
 			const normalizedId = toolCallIdMap.get(msg.toolCallId);
-			return normalizedId && normalizedId !== msg.toolCallId ? { ...msg, toolCallId: normalizedId } : msg;
+			return normalizedId && normalizedId !== msg.toolCallId
+				? { ...msg, toolCallId: normalizedId }
+				: msg;
 		}
 		if (msg.role === "assistant") {
 			const assistantMsg = msg;
 			const isSameModel =
-				assistantMsg.provider === model.provider && assistantMsg.api === model.api && assistantMsg.model === model.id;
-			const transformedContent = (assistantMsg.content as InternalAssistantContent[]).flatMap((block) => {
+				assistantMsg.provider === model.provider &&
+				assistantMsg.api === model.api &&
+				assistantMsg.model === model.id;
+			const transformedContent = (
+				assistantMsg.content as InternalAssistantContent[]
+			).flatMap((block) => {
 				if (isImageGenerationCallBlock(block)) return block;
 				if (isWebSearchCallBlock(block)) return block;
 				if (block.type === "thinking") {
@@ -65,7 +105,10 @@ export function normalizeResponsesMessageHistory(
 					if (!block.thinking || block.thinking.trim() === "") return [];
 					return block;
 				}
-				if (block.type === "text") return isSameModel ? block : { type: "text" as const, text: block.text };
+				if (block.type === "text")
+					return isSameModel
+						? block
+						: { type: "text" as const, text: block.text };
 				if (block.type === "toolCall") {
 					let normalizedToolCall = block;
 					if (!isSameModel && block.thoughtSignature) {
@@ -73,7 +116,11 @@ export function normalizeResponsesMessageHistory(
 						delete normalizedToolCall.thoughtSignature;
 					}
 					if (!isSameModel && normalizeToolCallId) {
-						const normalizedId = normalizeToolCallId(block.id, model, assistantMsg);
+						const normalizedId = normalizeToolCallId(
+							block.id,
+							model,
+							assistantMsg,
+						);
 						if (normalizedId !== block.id) {
 							toolCallIdMap.set(block.id, normalizedId);
 							normalizedToolCall = { ...normalizedToolCall, id: normalizedId };
@@ -83,13 +130,24 @@ export function normalizeResponsesMessageHistory(
 				}
 				return block;
 			});
-			return { ...assistantMsg, content: transformedContent as Extract<Message, { role: "assistant" }>["content"] };
+			return {
+				...assistantMsg,
+				content: transformedContent as Extract<
+					Message,
+					{ role: "assistant" }
+				>["content"],
+			};
 		}
 		return msg;
 	});
 
 	const result: Message[] = [];
-	let pendingToolCalls: Array<Extract<Extract<Message, { role: "assistant" }>["content"][number], { type: "toolCall" }>> = [];
+	let pendingToolCalls: Array<
+		Extract<
+			Extract<Message, { role: "assistant" }>["content"][number],
+			{ type: "toolCall" }
+		>
+	> = [];
 	let existingToolResultIds = new Set<string>();
 
 	const insertSyntheticToolResults = () => {
@@ -115,7 +173,9 @@ export function normalizeResponsesMessageHistory(
 		if (msg.role === "assistant") {
 			insertSyntheticToolResults();
 			if (msg.stopReason === "error" || msg.stopReason === "aborted") continue;
-			const toolCalls = msg.content.filter((block) => block.type === "toolCall");
+			const toolCalls = msg.content.filter(
+				(block) => block.type === "toolCall",
+			);
 			if (toolCalls.length > 0) {
 				const seen = new Set<string>();
 				pendingToolCalls = toolCalls.filter((toolCall) => {
@@ -129,7 +189,11 @@ export function normalizeResponsesMessageHistory(
 			continue;
 		}
 		if (msg.role === "toolResult") {
-			if (!pendingToolCalls.some((toolCall) => toolCall.id === msg.toolCallId) || existingToolResultIds.has(msg.toolCallId)) continue;
+			if (
+				!pendingToolCalls.some((toolCall) => toolCall.id === msg.toolCallId) ||
+				existingToolResultIds.has(msg.toolCallId)
+			)
+				continue;
 			existingToolResultIds.add(msg.toolCallId);
 			result.push(msg);
 			continue;
@@ -146,4 +210,3 @@ export function normalizeResponsesMessageHistory(
 
 	return result;
 }
-

@@ -134,9 +134,8 @@ export default async function sitesExtension(pi: ExtensionAPI) {
 			),
 		);
 		pi.on("session_shutdown", () => registration.unregister());
-		const { registerGptPromptMode } = await import(
-			"@howaboua/pi-codex-conversion/prompt-mode"
-		);
+		const { registerGptPromptMode } =
+			await import("@howaboua/pi-codex-conversion/prompt-mode");
 		registerGptPromptMode(pi, (active) => {
 			for (const { tool, gpt, ordinary } of tools) {
 				const description = active ? gpt : ordinary;

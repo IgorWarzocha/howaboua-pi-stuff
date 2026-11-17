@@ -15,12 +15,7 @@ export const NEW_WINDOW_REQUESTS = [
 	"unrestricted",
 ] as const;
 export type NewWindowRequests = (typeof NEW_WINDOW_REQUESTS)[number];
-const DEFAULT_MODEL_WHITELIST = [
-	"gpt-6-astra",
-	"gpt-6-sol",
-	"gpt-6-luna",
-	"gpt-6.1-sol",
-];
+const DEFAULT_MODEL_WHITELIST = ["gpt-6.2-astra", "gpt-6.2-sol", "gpt-6-luna"];
 export interface NotesSettings {
 	active: "all" | "whitelist" | "off";
 	modelWhitelist: string[];
@@ -29,6 +24,7 @@ export interface NotesSettings {
 	rankedHistorySearch: boolean;
 	shareSubagentContext: boolean;
 	newWindowRequests: NewWindowRequests;
+	taskCompletionRollover: boolean;
 	idleMinutes: IdleMinutes;
 	taskBoundaryReminder: number;
 }
@@ -79,6 +75,7 @@ function readSettings(
 					noteSaveMarkers: preferences().noteSaveMarkers,
 					shareSubagentContext: false,
 					newWindowRequests: "unrestricted",
+					taskCompletionRollover: false,
 					idleMinutes: 0,
 					taskBoundaryReminder: 0,
 				}
@@ -129,6 +126,14 @@ function readSettings(
 		);
 	const taskBoundaryReminder =
 		"taskBoundaryReminder" in settings ? settings.taskBoundaryReminder : 0;
+	const taskCompletionRollover =
+		"taskCompletionRollover" in settings
+			? settings.taskCompletionRollover
+			: false;
+	if (typeof taskCompletionRollover !== "boolean")
+		throw new Error(
+			"Invalid task-completion rollover setting. Choose on or off in /notes.",
+		);
 	if (
 		typeof taskBoundaryReminder !== "number" ||
 		!Number.isSafeInteger(taskBoundaryReminder) ||
@@ -159,6 +164,7 @@ function readSettings(
 				? settings.shareSubagentContext === true
 				: preferences().compaction["shareSubagentContext"] === true,
 		newWindowRequests: newWindowRequests as NewWindowRequests,
+		taskCompletionRollover,
 		idleMinutes: idleMinutes as IdleMinutes,
 		taskBoundaryReminder,
 	};
@@ -208,6 +214,7 @@ function readLegacySettings(
 		newWindowRequests: NEW_WINDOW_REQUESTS.some((item) => item === requests)
 			? (requests as NewWindowRequests)
 			: "unrestricted",
+		taskCompletionRollover: false,
 		idleMinutes: [...IDLE_MINUTES, 5, 15].some((item) => item === idle)
 			? (idle as IdleMinutes)
 			: 0,

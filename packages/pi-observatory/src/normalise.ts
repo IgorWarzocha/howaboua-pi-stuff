@@ -68,14 +68,17 @@ export function displayValue(value: unknown): string {
 }
 
 function signature(text: string): string {
-	return (text.split("\n").find((line) => line.trim()) ?? "")
-		.replace(/\u001b\[[0-9;]*m/g, "")
-		.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, "<id>")
-		.replace(/call_[A-Za-z0-9|_-]+/g, "<call>")
-		.replace(/notebook-\d+/g, "notebook-<n>")
-		.replace(/:\d+:\d+/g, ":<line>")
-		.replace(/\s+/g, " ")
-		.slice(0, 240);
+	return (
+		(text.split("\n").find((line) => line.trim()) ?? "")
+			// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
+			.replace(/\u001b\[[0-9;]*m/g, "")
+			.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, "<id>")
+			.replace(/call_[A-Za-z0-9|_-]+/g, "<call>")
+			.replace(/notebook-\d+/g, "notebook-<n>")
+			.replace(/:\d+:\d+/g, ":<line>")
+			.replace(/\s+/g, " ")
+			.slice(0, 240)
+	);
 }
 
 function exitCode(value: JsonObject): number | null {

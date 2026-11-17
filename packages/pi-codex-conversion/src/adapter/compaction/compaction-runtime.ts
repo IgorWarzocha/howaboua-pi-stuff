@@ -3,7 +3,10 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isCodexTransportModel } from "../prompt/codex-model.ts";
 
 export const DEFAULT_SUPPORTED_PROVIDERS = ["openai", "openai-codex"] as const;
-export const DEFAULT_SUPPORTED_APIS = ["openai-responses", "openai-codex-responses"] as const;
+export const DEFAULT_SUPPORTED_APIS = [
+	"openai-responses",
+	"openai-codex-responses",
+] as const;
 
 type DefaultSupportedApi = (typeof DEFAULT_SUPPORTED_APIS)[number];
 
@@ -64,16 +67,29 @@ export type NativeCompactionEnvironmentResolution =
 	| NativeCompactionEnvironmentFailure
 	| NativeCompactionEnvironmentSuccess;
 
-function normalizeConfiguredSet(values: readonly string[] | undefined, defaults: readonly string[]): Set<string> {
+function normalizeConfiguredSet(
+	values: readonly string[] | undefined,
+	defaults: readonly string[],
+): Set<string> {
 	const source = values && values.length > 0 ? values : defaults;
-	return new Set(source.map((value) => value.trim()).filter((value) => value.length > 0));
+	return new Set(
+		source.map((value) => value.trim()).filter((value) => value.length > 0),
+	);
 }
 
-function normalizeConfiguredProviderSet(values: readonly string[] | undefined): Set<string> {
-	return new Set([...normalizeConfiguredSet(values, DEFAULT_SUPPORTED_PROVIDERS)].map((value) => value.toLowerCase()));
+function normalizeConfiguredProviderSet(
+	values: readonly string[] | undefined,
+): Set<string> {
+	return new Set(
+		[...normalizeConfiguredSet(values, DEFAULT_SUPPORTED_PROVIDERS)].map(
+			(value) => value.toLowerCase(),
+		),
+	);
 }
 
-export function normalizeBaseUrl(baseUrl: string | undefined | null): string | undefined {
+export function normalizeBaseUrl(
+	baseUrl: string | undefined | null,
+): string | undefined {
 	const normalized = baseUrl?.trim().replace(/\/+$/, "");
 	return normalized ? normalized : undefined;
 }
@@ -81,12 +97,25 @@ export function normalizeBaseUrl(baseUrl: string | undefined | null): string | u
 async function resolveRequestAuth(
 	ctx: ExtensionContext,
 	model: RuntimeModel,
-): Promise<{ apiKey?: string | undefined; headers?: ProviderHeaders | undefined; baseUrl?: string | undefined; env?: Record<string, string> | undefined }> {
+): Promise<{
+	apiKey?: string | undefined;
+	headers?: ProviderHeaders | undefined;
+	baseUrl?: string | undefined;
+	env?: Record<string, string> | undefined;
+}> {
 	const modelRegistry = ctx.modelRegistry as {
-		getApiKeyAndHeaders?: (currentModel: RuntimeModel) => Promise<
-			| { ok: true; apiKey?: string | undefined; headers?: ProviderHeaders | undefined; baseUrl?: string | undefined; env?: Record<string, string> | undefined }
-			| { ok: false; error: string }
-		> | undefined;
+		getApiKeyAndHeaders?: (currentModel: RuntimeModel) =>
+			| Promise<
+					| {
+							ok: true;
+							apiKey?: string | undefined;
+							headers?: ProviderHeaders | undefined;
+							baseUrl?: string | undefined;
+							env?: Record<string, string> | undefined;
+					  }
+					| { ok: false; error: string }
+			  >
+			| undefined;
 	};
 
 	if (typeof modelRegistry.getApiKeyAndHeaders !== "function") {
@@ -94,20 +123,32 @@ async function resolveRequestAuth(
 	}
 
 	const auth = await modelRegistry.getApiKeyAndHeaders(model);
-	return auth && auth.ok ? { apiKey: auth.apiKey, headers: auth.headers, baseUrl: auth.baseUrl, env: auth.env } : {};
+	return auth && auth.ok
+		? {
+				apiKey: auth.apiKey,
+				headers: auth.headers,
+				baseUrl: auth.baseUrl,
+				env: auth.env,
+			}
+		: {};
 }
 
 export function isSupportedApi(api: string): api is DefaultSupportedApi {
 	return (DEFAULT_SUPPORTED_APIS as readonly string[]).includes(api);
 }
 
-export function isResponsesCompatiblePayload(payload: unknown): payload is ResponsesCompatibleRequestPayload {
+export function isResponsesCompatiblePayload(
+	payload: unknown,
+): payload is ResponsesCompatibleRequestPayload {
 	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
 		return false;
 	}
 
 	const candidate = payload as Record<string, unknown>;
-	return typeof candidate["model"]! === "string" && Array.isArray(candidate["input"]!);
+	return (
+		typeof candidate["model"]! === "string" &&
+		Array.isArray(candidate["input"]!)
+	);
 }
 
 export function getRuntimeModelDescriptor(model: RuntimeModel | undefined): {
@@ -142,7 +183,12 @@ export async function resolveNativeCompactionEnvironment(
 
 	const currentModel = ctx.model;
 	const descriptor = getRuntimeModelDescriptor(currentModel);
-	if (!currentModel || !descriptor.provider || !descriptor.api || !descriptor.model) {
+	if (
+		!currentModel ||
+		!descriptor.provider ||
+		!descriptor.api ||
+		!descriptor.model
+	) {
 		return {
 			ok: false,
 			reason: "missing-model",
@@ -150,7 +196,10 @@ export async function resolveNativeCompactionEnvironment(
 		};
 	}
 
-	const supportedApis = normalizeConfiguredSet(options.supportedApis, DEFAULT_SUPPORTED_APIS);
+	const supportedApis = normalizeConfiguredSet(
+		options.supportedApis,
+		DEFAULT_SUPPORTED_APIS,
+	);
 	if (!supportedApis.has(descriptor.api)) {
 		return {
 			ok: false,
@@ -166,8 +215,12 @@ export async function resolveNativeCompactionEnvironment(
 			...descriptor,
 		};
 	}
-	const supportedProviders = normalizeConfiguredProviderSet(options.supportedProviders);
-	const providerSupported = supportedProviders.has(descriptor.provider.trim().toLowerCase());
+	const supportedProviders = normalizeConfiguredProviderSet(
+		options.supportedProviders,
+	);
+	const providerSupported = supportedProviders.has(
+		descriptor.provider.trim().toLowerCase(),
+	);
 	if (!providerSupported && !isCodexTransportModel(currentModel)) {
 		return {
 			ok: false,
@@ -176,7 +229,12 @@ export async function resolveNativeCompactionEnvironment(
 		};
 	}
 
-	const { apiKey, headers, baseUrl: authBaseUrl, env } = await resolveRequestAuth(ctx, currentModel);
+	const {
+		apiKey,
+		headers,
+		baseUrl: authBaseUrl,
+		env,
+	} = await resolveRequestAuth(ctx, currentModel);
 	const effectiveBaseUrl = normalizeBaseUrl(authBaseUrl) ?? descriptor.baseUrl;
 	if (!effectiveBaseUrl) {
 		return {
@@ -230,14 +288,17 @@ export async function resolveNativeCompactionEnvironment(
 			headers,
 			env,
 			payload: requestPayload,
-			currentModel: authBaseUrl ? { ...currentModel, baseUrl: effectiveBaseUrl } : currentModel,
+			currentModel: authBaseUrl
+				? { ...currentModel, baseUrl: effectiveBaseUrl }
+				: currentModel,
 		},
 	};
 }
 
 function bearerToken(headers: ProviderHeaders | undefined): string | undefined {
 	for (const [key, value] of Object.entries(headers ?? {})) {
-		if (key.toLowerCase() !== "authorization" || typeof value !== "string") continue;
+		if (key.toLowerCase() !== "authorization" || typeof value !== "string")
+			continue;
 		const match = value.trim().match(/^Bearer\s+(.+)$/i);
 		if (match?.[1]?.trim()) return match[1].trim();
 	}

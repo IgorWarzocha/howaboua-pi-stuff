@@ -25,21 +25,32 @@ export interface AdapterState {
 	/** Managed names whose provider gates passed at the last projection refresh. */
 	activeCodeModeExtensionToolNames?: string[] | undefined;
 	/** Last adapter policy and output, used to distinguish external loadout edits. */
-	appliedRuntimeKind?: "inactive" | "extras" | "normal" | "code" | "notebook" | "ts" | "js" | undefined;
+	appliedRuntimeKind?:
+		| "inactive"
+		| "extras"
+		| "normal"
+		| "code"
+		| "notebook"
+		| "ts"
+		| "js"
+		| "vm"
+		| undefined;
 	appliedRuntimeToolNames?: string[] | undefined;
 	appliedActiveToolNames?: string[] | undefined;
 	previousToolNames?: string[] | undefined;
 	promptSkills: PromptSkill[];
-	preparedPrompt?: {
-		sessionId: string;
-		provider: string;
-		api: string;
-		model: string;
-		baseUrl: string;
-		executionMode: ExecutionMode;
-		transport: "responses" | "responses-lite";
-		systemMessage: SystemMessage;
-	} | undefined;
+	preparedPrompt?:
+		| {
+				sessionId: string;
+				provider: string;
+				api: string;
+				model: string;
+				baseUrl: string;
+				executionMode: ExecutionMode;
+				transport: "responses" | "responses-lite";
+				systemMessage: SystemMessage;
+		  }
+		| undefined;
 	/** Native checkpoint named by Pi's effective context, including restored branches. */
 	replayCompaction?: { sessionId: string; entryId: string } | undefined;
 	usageStatus?: CodexUsageStatus | undefined;

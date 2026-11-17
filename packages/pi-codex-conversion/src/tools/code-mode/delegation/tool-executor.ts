@@ -1,12 +1,19 @@
 import { runCustomTool } from "../custom-tool-runner.js";
 import type { prepareCodeModeToolInput } from "../tool-input.ts";
-import { mcpToolNamespaces, missingMcpToolMessage } from "../mcp-tool-recovery.js";
+import {
+	mcpToolNamespaces,
+	missingMcpToolMessage,
+} from "../mcp-tool-recovery.js";
 import { isCustomToolDefinition } from "../host-protocol.js";
 import { runCodeModeToolWithHooks } from "../nested-tool-completion.js";
 import type { CodeModeNestedRenderStore } from "../trace-render-state.js";
 import type { CodeModeTraceStore } from "../trace-store.js";
 import { toolResultFromValue, truncateTraceText } from "../trace-values.js";
-import type { OpaqueToolOutput, RuntimeContentItem, ToolExecutionContext } from "../types.js";
+import type {
+	OpaqueToolOutput,
+	RuntimeContentItem,
+	ToolExecutionContext,
+} from "../types.js";
 import type { DelegateCellScheduling } from "./cell-scheduling.ts";
 import { numericSessionId, type DelegateCellResults } from "./cell-results.ts";
 
@@ -45,13 +52,17 @@ export class DelegateToolExecutor {
 	): Promise<unknown> {
 		const tool = this.cells.tools(cellId)?.get(toolName);
 		const context = this.cells.context(cellId);
-		if (!tool) throw new Error(
-			missingMcpToolMessage(toolName, mcpToolNamespaces(this.cells.tools(cellId)?.values() ?? []))
-				?? `Unknown custom tool: ${toolName}`,
-		);
+		if (!tool)
+			throw new Error(
+				missingMcpToolMessage(
+					toolName,
+					mcpToolNamespaces(this.cells.tools(cellId)?.values() ?? []),
+				) ?? `Unknown custom tool: ${toolName}`,
+			);
 		if (!context) throw new Error("Code-mode cell context is unavailable");
 		input = this.prepareToolInput(tool, input);
-		const opaqueResult = !isCustomToolDefinition(tool) && tool.opaqueResult === true;
+		const opaqueResult =
+			!isCustomToolDefinition(tool) && tool.opaqueResult === true;
 		const currentContext = () => this.cells.context(cellId) ?? context;
 		const emitTrace = () => this.traces.emitUpdate(cellId, currentContext());
 		const trace = this.traces.start(
@@ -65,26 +76,42 @@ export class DelegateToolExecutor {
 			Boolean(tool.renderCall || tool.renderResult);
 		let finalResultCaptured = false;
 		let resultSessionId: number | undefined;
-		if (captureRendererValues)
-			this.renderStore.captureInput(trace.id, input);
+		if (captureRendererValues) this.renderStore.captureInput(trace.id, input);
 		const invocationContext: ToolExecutionContext = {
 			...context,
 			originalExecCallId: this.results.originalExecCallId(cellId),
 			toolCallId: trace.id,
-			...(opaqueResult ? { captureOpaqueResult: (output: OpaqueToolOutput, images: RuntimeContentItem[]) => {
-				this.results.reserveOpaqueCall(cellId);
-				const pending = this.results.hasOpaqueResults(cellId);
-				if (!pending || controller.signal.aborted ||
-					this.cells.context(cellId)?.opaqueScope !== context.opaqueScope ||
-					this.cells.context(cellId)?.opaqueContextGeneration !== context.opaqueContextGeneration)
-					throw new Error("Remote operation executed but result delivery was cancelled; check completed results before retrying");
-				this.results.captureOpaqueResult(cellId, output, images);
-			} } : {}),
+			...(opaqueResult
+				? {
+						captureOpaqueResult: (
+							output: OpaqueToolOutput,
+							images: RuntimeContentItem[],
+						) => {
+							this.results.reserveOpaqueCall(cellId);
+							const pending = this.results.hasOpaqueResults(cellId);
+							if (
+								!pending ||
+								controller.signal.aborted ||
+								this.cells.context(cellId)?.opaqueScope !==
+									context.opaqueScope ||
+								this.cells.context(cellId)?.opaqueContextGeneration !==
+									context.opaqueContextGeneration
+							)
+								throw new Error(
+									"Remote operation executed but result delivery was cancelled; check completed results before retrying",
+								);
+							this.results.captureOpaqueResult(cellId, output, images);
+						},
+					}
+				: {}),
 			...(!isCustomToolDefinition(tool) && tool.executionPipeline === "pi"
 				? { preflight: undefined, completion: undefined }
 				: {}),
 			executeTool: async (name, args, options) => {
-				const outcome = await this.cells.executePiTool(cellId, name, args, { ...options, signal: options?.signal ?? controller.signal });
+				const outcome = await this.cells.executePiTool(cellId, name, args, {
+					...options,
+					signal: options?.signal ?? controller.signal,
+				});
 				trace.nativeCallIds?.push(outcome.toolCall.id);
 				return outcome;
 			},
@@ -96,7 +123,11 @@ export class DelegateToolExecutor {
 			},
 			captureResult: (result) => {
 				finalResultCaptured = true;
-				if (!isCustomToolDefinition(tool) && tool.propagateTermination && result.terminate)
+				if (
+					!isCustomToolDefinition(tool) &&
+					tool.propagateTermination &&
+					result.terminate
+				)
 					this.results.markTerminating(cellId);
 				resultSessionId = numericSessionId(result.details);
 				if (captureRendererValues)
@@ -110,7 +141,10 @@ export class DelegateToolExecutor {
 		let blockerActive = false;
 		try {
 			if (opaqueResult) {
-				if (!context.opaqueContextValid || !await context.opaqueContextValid())
+				if (
+					!context.opaqueContextValid ||
+					!(await context.opaqueContextValid())
+				)
 					throw new Error("Remote context changed; start a new exec cell");
 				if (!context.resolveOpaqueScope) {
 					this.results.reserveOpaqueCall(cellId);
@@ -130,42 +164,56 @@ export class DelegateToolExecutor {
 				controller.signal.throwIfAborted();
 				const run = async (): Promise<unknown> => {
 					return isCustomToolDefinition(tool)
-						? await runCustomTool(tool, input, hookContext.cwd, controller.signal)
+						? await runCustomTool(
+								tool,
+								input,
+								hookContext.cwd,
+								controller.signal,
+							)
 						: await tool.invoke(input, hookContext, controller.signal);
 				};
-				return !isCustomToolDefinition(tool) && tool.executionMode === "sequential"
+				return !isCustomToolDefinition(tool) &&
+					tool.executionMode === "sequential"
 					? await this.cells.invokeSequential(cellId, controller.signal, run)
 					: await run();
 			};
-			const result = !isCustomToolDefinition(tool) && tool.executionPipeline === "adapter"
-				? await invoke(invocationContext)
-				: await runCodeModeToolWithHooks(tool.name, input, invocationContext, controller.signal, invoke);
+			const result =
+				!isCustomToolDefinition(tool) && tool.executionPipeline === "adapter"
+					? await invoke(invocationContext)
+					: await runCodeModeToolWithHooks(
+							tool.name,
+							input,
+							invocationContext,
+							controller.signal,
+							invoke,
+						);
 			if (!trace.result)
-				trace.result = this.traces.captureResult(cellId, trace, toolResultFromValue(result));
+				trace.result = this.traces.captureResult(
+					cellId,
+					trace,
+					toolResultFromValue(result),
+				);
 			trace.status = "done";
-			this.results.recordExecSession(cellId, tool.name, input, finalResultCaptured ? resultSessionId : numericSessionId(result));
+			this.results.recordExecSession(
+				cellId,
+				tool.name,
+				input,
+				finalResultCaptured ? resultSessionId : numericSessionId(result),
+			);
 			emitTrace();
 			return result;
 		} catch (error) {
-			const errorText =
-				error instanceof Error ? error.message : String(error);
+			const errorText = error instanceof Error ? error.message : String(error);
 			if (captureRendererValues && !finalResultCaptured) {
 				const errorResult = {
 					content: [{ type: "text" as const, text: errorText }],
 					details: {},
 				};
 				this.renderStore.captureResult(trace.id, errorResult);
-				trace.result = this.traces.captureResult(
-					cellId,
-					trace,
-					errorResult,
-				);
+				trace.result = this.traces.captureResult(cellId, trace, errorResult);
 			}
 			trace.status = "error";
-			trace.error = truncateTraceText(
-				errorText,
-				MAX_TRACE_ERROR_CHARS,
-			);
+			trace.error = truncateTraceText(errorText, MAX_TRACE_ERROR_CHARS);
 			emitTrace();
 			throw error;
 		} finally {

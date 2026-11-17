@@ -28,8 +28,7 @@ export default async function browserExtension(
 		}
 		return;
 	}
-	const { default: registerBrowser } = await import(
-		"./src/browser-registration.js"
-	);
+	const { default: registerBrowser } =
+		await import("./src/browser-registration.js");
 	await registerBrowser(pi, { defineTool, obj, opt, str });
 }

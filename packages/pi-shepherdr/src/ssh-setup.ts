@@ -44,6 +44,7 @@ export function sshSetupItems(draft: SshSetupDraft): SettingItem[] {
 
 export function sshSetupArgs(draft: SshSetupDraft): string[] {
 	const { target, label, session } = draft;
+	// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
 	if (!target || /^[-\s]|[\s\x00-\x1f\x7f]/.test(target))
 		throw new Error(
 			"Enter an SSH alias or user@host, without spaces or options.",

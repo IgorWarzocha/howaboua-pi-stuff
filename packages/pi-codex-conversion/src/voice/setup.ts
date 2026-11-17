@@ -2,7 +2,11 @@ import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { getCodexConversionConfigPath } from "../adapter/activation/config-store.ts";
 import type { CodexVoiceMode } from "./ui.ts";
 
-export function formatVoiceAudioError(error: Error, mode: CodexVoiceMode, config: CodexConversionConfig): string {
+export function formatVoiceAudioError(
+	error: Error,
+	mode: CodexVoiceMode,
+	config: CodexConversionConfig,
+): string {
 	const direction = audioErrorDirection(error.message, mode);
 	if (!direction) return error.message;
 	const input = direction === "input";
@@ -17,11 +21,24 @@ export function formatVoiceAudioError(error: Error, mode: CodexVoiceMode, config
 	].join("\n");
 }
 
-function audioErrorDirection(message: string, mode: CodexVoiceMode): "input" | "output" | undefined {
+function audioErrorDirection(
+	message: string,
+	mode: CodexVoiceMode,
+): "input" | "output" | undefined {
 	const normalized = message.toLowerCase();
-	if (/microphone|default input|input (?:device|stream|format)/.test(normalized)) return "input";
-	if (/speaker|default output|output (?:device|stream|format)/.test(normalized)) return "output";
-	if (mode === "dictation" && /(?:requested )?device|audio (?:device|stream)|capture stream|sample format/.test(normalized)) return "input";
+	if (
+		/microphone|default input|input (?:device|stream|format)/.test(normalized)
+	)
+		return "input";
+	if (/speaker|default output|output (?:device|stream|format)/.test(normalized))
+		return "output";
+	if (
+		mode === "dictation" &&
+		/(?:requested )?device|audio (?:device|stream)|capture stream|sample format/.test(
+			normalized,
+		)
+	)
+		return "input";
 	return undefined;
 }
 
@@ -54,5 +71,18 @@ export function buildVoiceSetupInstructions(options: {
 }
 
 export function formatVoiceShortcut(value: string): string {
-	return value.split("+").map((part) => part === "ctrl" ? "Ctrl" : part === "alt" ? "Alt" : part === "shift" ? "Shift" : part === "space" ? "Space" : part.toUpperCase()).join("+");
+	return value
+		.split("+")
+		.map((part) =>
+			part === "ctrl"
+				? "Ctrl"
+				: part === "alt"
+					? "Alt"
+					: part === "shift"
+						? "Shift"
+						: part === "space"
+							? "Space"
+							: part.toUpperCase(),
+		)
+		.join("+");
 }

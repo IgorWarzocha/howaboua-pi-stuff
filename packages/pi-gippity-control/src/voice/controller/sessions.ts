@@ -18,8 +18,7 @@ interface SessionLifecycle<T> {
 	onStatus(status: string): void;
 }
 
-interface RealtimeSessionLifecycle
-	extends SessionLifecycle<CodexRealtimeConversation> {
+interface RealtimeSessionLifecycle extends SessionLifecycle<CodexRealtimeConversation> {
 	onEndCall(session: CodexRealtimeConversation): void;
 	onDrop(session: CodexRealtimeConversation, error: Error): void;
 	onTurn(session: CodexRealtimeConversation, turn: RealtimeVoiceTurn): void;
@@ -28,8 +27,7 @@ interface RealtimeSessionLifecycle
 	onAudioDiagnostics(diagnostics: VoiceAudioDiagnostics): void;
 }
 
-interface DictationSessionLifecycle
-	extends SessionLifecycle<CodexDictationSession> {
+interface DictationSessionLifecycle extends SessionLifecycle<CodexDictationSession> {
 	onTranscript(transcript: string): void;
 }
 
@@ -49,9 +47,8 @@ export async function startControllerConversation(options: {
 		await options.peer?.close();
 		return;
 	}
-	const { CodexRealtimeConversation } = await import(
-		"../conversation/session.ts"
-	);
+	const { CodexRealtimeConversation } =
+		await import("../conversation/session.ts");
 	if (!options.lifecycle.stillAuthorizing() || options.signal?.aborted) {
 		await options.peer?.close();
 		return;

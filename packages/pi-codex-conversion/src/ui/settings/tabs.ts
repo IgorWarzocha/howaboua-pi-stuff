@@ -9,7 +9,7 @@ export const SETTINGS_TABS = [
 	{ id: "about", label: "About" },
 ] as const;
 
-export type SettingsTab = typeof SETTINGS_TABS[number]["id"];
+export type SettingsTab = (typeof SETTINGS_TABS)[number]["id"];
 
 export const ROUTABLE_SETTINGS_TABS = SETTINGS_TABS.slice(1);
 

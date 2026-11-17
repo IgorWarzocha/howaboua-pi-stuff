@@ -24,19 +24,48 @@ import {
 	resolveGrammarConstrainedSampling,
 	resolveJsonSchemaStrictSampling,
 } from "../constrained-sampling.js";
-import { parseTextSignature, shortHash, type TextSignaturePhase } from "./signatures.ts";
+import {
+	parseTextSignature,
+	shortHash,
+	type TextSignaturePhase,
+} from "./signatures.ts";
 import { normalizeResponsesToolHistory } from "./tool-history.ts";
 import { normalizeResponsesMessageHistory } from "./message-history.ts";
-import { encryptedToolOutputFromDetails, opaqueToolOutputsFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, recordedCustomInputProperty, recordedResponsesNamespace, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
+import {
+	encryptedToolOutputFromDetails,
+	opaqueToolOutputsFromDetails,
+	imageDetailForResponses,
+	isImageGenerationCallBlock,
+	isWebSearchCallBlock,
+	sanitizeImageGenerationCallItem,
+	sanitizeWebSearchCallItem,
+	recordedCustomInputProperty,
+	recordedResponsesNamespace,
+	type ImageDetail,
+	type ImageGenerationCallBlock,
+	type WebSearchCallBlock,
+} from "./native-items.ts";
 import { legacyNamespaceToolCall } from "./native-items.ts";
 import type { ServiceTier } from "../openai-codex/types.ts";
 
-type InternalAssistantContent = Extract<Message, { role: "assistant" }>["content"][number] | ImageGenerationCallBlock | WebSearchCallBlock;
-type ImageContentWithDetail = { type: "image"; data: string; mimeType: string; detail?: ImageDetail | undefined };
+type InternalAssistantContent =
+	| Extract<Message, { role: "assistant" }>["content"][number]
+	| ImageGenerationCallBlock
+	| WebSearchCallBlock;
+type ImageContentWithDetail = {
+	type: "image";
+	data: string;
+	mimeType: string;
+	detail?: ImageDetail | undefined;
+};
 
 // Codex supports partial_answer before the OpenAI SDK's Responses declarations.
-type ResponseInput = Array<Exclude<OpenAIResponseInput[number], ResponseOutputMessage> |
-	(Omit<ResponseOutputMessage, "phase"> & { phase?: TextSignaturePhase | null })>;
+type ResponseInput = Array<
+	| Exclude<OpenAIResponseInput[number], ResponseOutputMessage>
+	| (Omit<ResponseOutputMessage, "phase"> & {
+			phase?: TextSignaturePhase | null;
+	  })
+>;
 
 export interface OpenAIResponsesStreamOptions {
 	serviceTier?: ServiceTier;
@@ -65,7 +94,11 @@ interface ConvertResponsesToolsOptions {
 	toolSearchResult?: boolean | undefined;
 }
 
-export const CODEX_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
+export const CODEX_TOOL_CALL_PROVIDERS = new Set([
+	"openai",
+	"openai-codex",
+	"opencode",
+]);
 
 export function normalizeResponsesId(part: string): string {
 	const sanitized = part.replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -74,10 +107,15 @@ export function normalizeResponsesId(part: string): string {
 }
 
 function sanitizeSurrogates(text: string): string {
-	return text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
+	return text.replace(
+		/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+		"",
+	);
 }
 
-function parseResponsesThinkingSignature(signature: string): ResponseInput[number] | undefined {
+function parseResponsesThinkingSignature(
+	signature: string,
+): ResponseInput[number] | undefined {
 	try {
 		return JSON.parse(signature) as ResponseInput[number];
 	} catch {
@@ -91,49 +129,82 @@ export function convertResponsesMessages<TApi extends Api>(
 	allowedToolCallProviders: ReadonlySet<string>,
 	options?: ConvertResponsesMessagesOptions,
 ): ResponseInput {
-	const normalizedContext = resolveTranscript(context, options?.supportsMidConvoSystemMessages);
+	const normalizedContext = resolveTranscript(
+		context,
+		options?.supportsMidConvoSystemMessages,
+	);
 	const messages: ResponseInput = [];
-	const recordedCustomInputs = new Map(normalizedContext.messages.flatMap(message => message.role === "assistant"
-		? message.content.flatMap(block => {
-			if (block.type !== "toolCall") return [];
-			const property = recordedCustomInputProperty(block, message.api);
-			return property === undefined ? [] : [[block.id, property] as const];
-		}) : []));
+	const recordedCustomInputs = new Map(
+		normalizedContext.messages.flatMap((message) =>
+			message.role === "assistant"
+				? message.content.flatMap((block) => {
+						if (block.type !== "toolCall") return [];
+						const property = recordedCustomInputProperty(block, message.api);
+						return property === undefined
+							? []
+							: [[block.id, property] as const];
+					})
+				: [],
+		),
+	);
 	const customCallIds = new Set<string>();
-	const buildForeignResponsesItemId = (itemId: string, prefix: "fc" | "ctc") => {
+	const buildForeignResponsesItemId = (
+		itemId: string,
+		prefix: "fc" | "ctc",
+	) => {
 		const normalized = `${prefix}_${shortHash(itemId)}`;
 		return normalized.length > 64 ? normalized.slice(0, 64) : normalized;
 	};
-	const normalizeToolCallId = (id: string, _targetModel: Model<TApi>, source: Extract<Message, { role: "assistant" }>) => {
+	const normalizeToolCallId = (
+		id: string,
+		_targetModel: Model<TApi>,
+		source: Extract<Message, { role: "assistant" }>,
+	) => {
 		const property = recordedCustomInputs.get(id);
 		const remember = (normalized: string) => {
-			if (property !== undefined) recordedCustomInputs.set(normalized, property);
+			if (property !== undefined)
+				recordedCustomInputs.set(normalized, property);
 			return normalized;
 		};
-		if (!allowedToolCallProviders.has(model.provider)) return remember(normalizeResponsesId(id));
+		if (!allowedToolCallProviders.has(model.provider))
+			return remember(normalizeResponsesId(id));
 		if (!id.includes("|")) return remember(normalizeResponsesId(id));
 		const [callId, itemId] = id.split("|") as [string, string | undefined];
 		const normalizedCallId = normalizeResponsesId(callId);
-		const isForeignToolCall = source.provider !== model.provider || source.api !== model.api;
+		const isForeignToolCall =
+			source.provider !== model.provider || source.api !== model.api;
 		const prefix = property === undefined ? "fc" : "ctc";
-		let normalizedItemId = isForeignToolCall ? buildForeignResponsesItemId(itemId ?? "", prefix) : normalizeResponsesId(itemId ?? "");
-		if (!normalizedItemId.startsWith(prefix + "_")) normalizedItemId = normalizeResponsesId(`${prefix}_${normalizedItemId}`);
+		let normalizedItemId = isForeignToolCall
+			? buildForeignResponsesItemId(itemId ?? "", prefix)
+			: normalizeResponsesId(itemId ?? "");
+		if (!normalizedItemId.startsWith(prefix + "_"))
+			normalizedItemId = normalizeResponsesId(`${prefix}_${normalizedItemId}`);
 		return remember(`${normalizedCallId}|${normalizedItemId}`);
 	};
 
-	const transformedMessages = normalizeResponsesMessageHistory(normalizedContext.messages, model as Model<Api>, normalizeToolCallId as never);
+	const transformedMessages = normalizeResponsesMessageHistory(
+		normalizedContext.messages,
+		model as Model<Api>,
+		normalizeToolCallId as never,
+	);
 	const transcriptTools = resolveTranscriptTools(
 		normalizedContext.messages,
-		options?.supportsAdditionalTools || options?.supportsToolSearch ? "additions" : "none",
+		options?.supportsAdditionalTools || options?.supportsToolSearch
+			? "additions"
+			: "none",
 	);
 	const anchoredToolNames = new Set<string>();
 	let declarationIndex = 0;
 	for (const message of normalizedContext.messages) {
 		if (message.role !== "system") continue;
 		if (declarationIndex++ < transcriptTools.foldedSystemMessages) continue;
-		for (const tool of message.toolsAdded ?? []) anchoredToolNames.add(tool.name);
+		for (const tool of message.toolsAdded ?? [])
+			anchoredToolNames.add(tool.name);
 	}
-	const appendSystemToolAdditions = (message: SystemMessage, seed: string): void => {
+	const appendSystemToolAdditions = (
+		message: SystemMessage,
+		seed: string,
+	): void => {
 		const tools = message.toolsAdded ?? [];
 		if (tools.length === 0) return;
 		if (options?.supportsAdditionalTools) {
@@ -159,12 +230,20 @@ export function convertResponsesMessages<TApi extends Api>(
 			call_id: searchCallId,
 			execution: "client",
 			status: "completed",
-			tools: convertResponsesTools(tools, { ...options.toolOptions, toolSearchResult: true }),
+			tools: convertResponsesTools(tools, {
+				...options.toolOptions,
+				toolSearchResult: true,
+			}),
 		} satisfies ResponseToolSearchOutputItemParam);
 	};
 	const includeSystemPrompt = options?.includeSystemPrompt ?? true;
-	const compat = model.compat as { supportsDeveloperRole?: boolean | undefined } | undefined;
-	const instructionRole = model.reasoning && compat?.supportsDeveloperRole !== false ? "developer" : "system";
+	const compat = model.compat as
+		| { supportsDeveloperRole?: boolean | undefined }
+		| undefined;
+	const instructionRole =
+		model.reasoning && compat?.supportsDeveloperRole !== false
+			? "developer"
+			: "system";
 
 	let msgIndex = 0;
 	let sourceIndex = 0;
@@ -172,48 +251,83 @@ export function convertResponsesMessages<TApi extends Api>(
 	for (const msg of transformedMessages) {
 		const isLeadingSystemMessage = sourceIndex++ === 0 && msg.role === "system";
 		if (msg.role === "system") {
-			if (systemIndex++ >= transcriptTools.foldedSystemMessages) appendSystemToolAdditions(msg, `system:${msgIndex}`);
+			if (systemIndex++ >= transcriptTools.foldedSystemMessages)
+				appendSystemToolAdditions(msg, `system:${msgIndex}`);
 			if (!isLeadingSystemMessage || includeSystemPrompt) {
-				const text = isLeadingSystemMessage ? getSystemMessageText(msg) : renderSystemMessageUpdate(msg);
-				if (text.length > 0) messages.push({ role: instructionRole, content: sanitizeSurrogates(text) });
+				const text = isLeadingSystemMessage
+					? getSystemMessageText(msg)
+					: renderSystemMessageUpdate(msg);
+				if (text.length > 0)
+					messages.push({
+						role: instructionRole,
+						content: sanitizeSurrogates(text),
+					});
 			}
 		} else if (msg.role === "user") {
 			if (typeof msg.content === "string") {
-				messages.push({ role: "user", content: [{ type: "input_text", text: sanitizeSurrogates(msg.content) }] });
+				messages.push({
+					role: "user",
+					content: [
+						{ type: "input_text", text: sanitizeSurrogates(msg.content) },
+					],
+				});
 			} else {
 				const content = msg.content.map((item) =>
 					item.type === "text"
-						? { type: "input_text" as const, text: sanitizeSurrogates(item.text) }
-						: { type: "input_image" as const, detail: imageDetailForResponses(item), image_url: `data:${item.mimeType};base64,${item.data}` },
+						? {
+								type: "input_text" as const,
+								text: sanitizeSurrogates(item.text),
+							}
+						: {
+								type: "input_image" as const,
+								detail: imageDetailForResponses(item),
+								image_url: `data:${item.mimeType};base64,${item.data}`,
+							},
 				);
 				if (content.length > 0) messages.push({ role: "user", content });
 			}
 		} else if (msg.role === "assistant") {
 			const output: ResponseInput = [];
-			const isSameProviderAndApi = msg.provider === model.provider && msg.api === model.api;
+			const isSameProviderAndApi =
+				msg.provider === model.provider && msg.api === model.api;
 			const isSameModel = isSameProviderAndApi && msg.model === model.id;
 			const isDifferentModel = isSameProviderAndApi && msg.model !== model.id;
 			let textBlockIndex = 0;
 			for (const block of msg.content as InternalAssistantContent[]) {
 				if (isImageGenerationCallBlock(block)) {
-					const imageGenerationCall = sanitizeImageGenerationCallItem(block.item);
-					if (imageGenerationCall) output.push(imageGenerationCall as ResponseInput[number]);
+					const imageGenerationCall = sanitizeImageGenerationCallItem(
+						block.item,
+					);
+					if (imageGenerationCall)
+						output.push(imageGenerationCall as ResponseInput[number]);
 				} else if (isWebSearchCallBlock(block)) {
 					const webSearchCall = sanitizeWebSearchCallItem(block.item);
-					if (webSearchCall) output.push(webSearchCall as ResponseInput[number]);
+					if (webSearchCall)
+						output.push(webSearchCall as ResponseInput[number]);
 				} else if (block.type === "thinking") {
-					const thinkingItem = block.thinkingSignature ? parseResponsesThinkingSignature(block.thinkingSignature) : undefined;
+					const thinkingItem = block.thinkingSignature
+						? parseResponsesThinkingSignature(block.thinkingSignature)
+						: undefined;
 					if (thinkingItem) output.push(thinkingItem);
 				} else if (block.type === "text") {
 					const parsedSignature = parseTextSignature(block.textSignature);
-					const fallbackMessageId = textBlockIndex === 0 ? `msg_pi_${msgIndex}` : `msg_pi_${msgIndex}_${textBlockIndex}`;
+					const fallbackMessageId =
+						textBlockIndex === 0
+							? `msg_pi_${msgIndex}`
+							: `msg_pi_${msgIndex}_${textBlockIndex}`;
 					textBlockIndex++;
 					let msgId = parsedSignature?.id ?? fallbackMessageId;
 					if (msgId.length > 64) msgId = `msg_${shortHash(msgId)}`;
 					output.push({
 						type: "message",
 						role: "assistant",
-						content: [{ type: "output_text", text: sanitizeSurrogates(block.text), annotations: [] }],
+						content: [
+							{
+								type: "output_text",
+								text: sanitizeSurrogates(block.text),
+								annotations: [],
+							},
+						],
 						status: "completed",
 						id: msgId,
 						...(parsedSignature?.phase ? { phase: parsedSignature.phase } : {}),
@@ -221,65 +335,99 @@ export function convertResponsesMessages<TApi extends Api>(
 				} else if (block.type === "toolCall") {
 					const wireCall = legacyNamespaceToolCall(block);
 					const [callId, itemIdRaw] = block.id.split("|");
-					const customInputProperty = recordedCustomInputs.get(block.id) ?? options?.grammarToolInputProperties?.get(block.name);
-					if (customInputProperty !== undefined && callId !== undefined) customCallIds.add(callId);
+					const customInputProperty =
+						recordedCustomInputs.get(block.id) ??
+						options?.grammarToolInputProperties?.get(block.name);
+					if (customInputProperty !== undefined && callId !== undefined)
+						customCallIds.add(callId);
 					let itemId: string | undefined = itemIdRaw;
 					if (customInputProperty !== undefined && itemId?.startsWith("fc_")) {
 						itemId = `ctc_${itemId.slice(3)}`;
 					}
-					const itemIdPrefix = customInputProperty === undefined ? "fc_" : "ctc_";
-					if (isDifferentModel || !itemId?.startsWith(itemIdPrefix)) itemId = undefined;
-					const namespace = recordedResponsesNamespace(block) ??
-						(isSameModel || anchoredToolNames.has(block.name) ? block.namespace : undefined);
-					output.push(customInputProperty === undefined
-						? {
-								type: "function_call",
-								...(itemId ? { id: itemId } : {}),
-								call_id: callId,
-								name: wireCall.name,
-								arguments: JSON.stringify(wireCall.arguments),
-								...(namespace !== undefined ? { namespace } : {}),
-							} as ResponseInput[number]
-						: {
-								type: "custom_tool_call",
-								...(itemId ? { id: itemId } : {}),
-								call_id: callId,
-								name: wireCall.name,
-								input: sanitizeSurrogates(getGrammarToolInput(block.name, wireCall.arguments, customInputProperty)),
-								...(namespace !== undefined ? { namespace } : {}),
-							} as ResponseInput[number]);
+					const itemIdPrefix =
+						customInputProperty === undefined ? "fc_" : "ctc_";
+					if (isDifferentModel || !itemId?.startsWith(itemIdPrefix))
+						itemId = undefined;
+					const namespace =
+						recordedResponsesNamespace(block) ??
+						(isSameModel || anchoredToolNames.has(block.name)
+							? block.namespace
+							: undefined);
+					output.push(
+						customInputProperty === undefined
+							? ({
+									type: "function_call",
+									...(itemId ? { id: itemId } : {}),
+									call_id: callId,
+									name: wireCall.name,
+									arguments: JSON.stringify(wireCall.arguments),
+									...(namespace !== undefined ? { namespace } : {}),
+								} as ResponseInput[number])
+							: ({
+									type: "custom_tool_call",
+									...(itemId ? { id: itemId } : {}),
+									call_id: callId,
+									name: wireCall.name,
+									input: sanitizeSurrogates(
+										getGrammarToolInput(
+											block.name,
+											wireCall.arguments,
+											customInputProperty,
+										),
+									),
+									...(namespace !== undefined ? { namespace } : {}),
+								} as ResponseInput[number]),
+					);
 				}
 			}
 			if (output.length > 0) messages.push(...output);
 		} else if (msg.role === "toolResult") {
-			const textResult = msg.content.filter((c) => c.type === "text").map((c) => c.text).join("\n");
+			const textResult = msg.content
+				.filter((c) => c.type === "text")
+				.map((c) => c.text)
+				.join("\n");
 			const hasImages = msg.content.some((c) => c.type === "image");
 			const hasText = textResult.length > 0;
 			const [callId] = msg.toolCallId.split("|");
 			const encryptedToolOutput = encryptedToolOutputFromDetails(msg.details);
-			const attachmentHint = (msg.details as { codexHistoryNotes?: { attachment_hint?: unknown } } | undefined)?.codexHistoryNotes?.attachment_hint;
+			const attachmentHint = (
+				msg.details as
+					| { codexHistoryNotes?: { attachment_hint?: unknown } }
+					| undefined
+			)?.codexHistoryNotes?.attachment_hint;
 			const opaqueOutputs = opaqueToolOutputsFromDetails(msg.details);
-			if (opaqueOutputs.length && callId !== undefined && customCallIds.has(callId))
+			if (
+				opaqueOutputs.length &&
+				callId !== undefined &&
+				customCallIds.has(callId)
+			)
 				throw new Error("Protected results require a native tool output");
 			const output = opaqueOutputs.length
 				? [
-						...(hasText ? [{ type: "input_text" as const, text: sanitizeSurrogates(textResult) }] : []),
-						...opaqueOutputs.flatMap(item => [
-							{ type: "input_text" as const, text: `Result ${item.resultId} (${item.name})` },
-							{ type: "encrypted_content" as const, encrypted_content: item.encryptedOutput },
+						...(hasText
+							? [
+									{
+										type: "input_text" as const,
+										text: sanitizeSurrogates(textResult),
+									},
+								]
+							: []),
+						...opaqueOutputs.flatMap((item) => [
+							{
+								type: "input_text" as const,
+								text: `Result ${item.resultId} (${item.name})`,
+							},
+							{
+								type: "encrypted_content" as const,
+								encrypted_content: item.encryptedOutput,
+							},
 						]),
-						...(model.input.includes("image") ? msg.content
-							.filter((block): block is ImageContentWithDetail => block.type === "image")
-							.map(block => ({ type: "input_image" as const, detail: imageDetailForResponses(block),
-								image_url: `data:${block.mimeType};base64,${block.data}` })) : []),
-					]
-				: encryptedToolOutput
-				? [
-						...(typeof attachmentHint === "string" ? [{ type: "input_text" as const, text: sanitizeSurrogates(attachmentHint) }] : []),
-						{ type: "encrypted_content" as const, encrypted_content: encryptedToolOutput },
-						...(hasImages && model.input.includes("image")
+						...(model.input.includes("image")
 							? msg.content
-									.filter((block): block is ImageContentWithDetail => block.type === "image")
+									.filter(
+										(block): block is ImageContentWithDetail =>
+											block.type === "image",
+									)
 									.map((block) => ({
 										type: "input_image" as const,
 										detail: imageDetailForResponses(block),
@@ -287,22 +435,60 @@ export function convertResponsesMessages<TApi extends Api>(
 									}))
 							: []),
 					]
-				: hasImages && model.input.includes("image")
+				: encryptedToolOutput
 					? [
-							...(hasText ? [{ type: "input_text" as const, text: sanitizeSurrogates(textResult) }] : []),
-							...msg.content
-								.filter((block): block is ImageContentWithDetail => block.type === "image")
-								.map((block) => ({
-									type: "input_image" as const,
-									detail: imageDetailForResponses(block),
-									image_url: `data:${block.mimeType};base64,${block.data}`,
-								})),
+							...(typeof attachmentHint === "string"
+								? [
+										{
+											type: "input_text" as const,
+											text: sanitizeSurrogates(attachmentHint),
+										},
+									]
+								: []),
+							{
+								type: "encrypted_content" as const,
+								encrypted_content: encryptedToolOutput,
+							},
+							...(hasImages && model.input.includes("image")
+								? msg.content
+										.filter(
+											(block): block is ImageContentWithDetail =>
+												block.type === "image",
+										)
+										.map((block) => ({
+											type: "input_image" as const,
+											detail: imageDetailForResponses(block),
+											image_url: `data:${block.mimeType};base64,${block.data}`,
+										}))
+								: []),
 						]
-					: sanitizeSurrogates(hasText ? textResult : "(see attached image)");
+					: hasImages && model.input.includes("image")
+						? [
+								...(hasText
+									? [
+											{
+												type: "input_text" as const,
+												text: sanitizeSurrogates(textResult),
+											},
+										]
+									: []),
+								...msg.content
+									.filter(
+										(block): block is ImageContentWithDetail =>
+											block.type === "image",
+									)
+									.map((block) => ({
+										type: "input_image" as const,
+										detail: imageDetailForResponses(block),
+										image_url: `data:${block.mimeType};base64,${block.data}`,
+									})),
+							]
+						: sanitizeSurrogates(hasText ? textResult : "(see attached image)");
 			messages.push({
-				type: callId !== undefined && customCallIds.has(callId)
-					? "custom_tool_call_output"
-					: "function_call_output",
+				type:
+					callId !== undefined && customCallIds.has(callId)
+						? "custom_tool_call_output"
+						: "function_call_output",
 				call_id: callId!,
 				output: output as any,
 			} as ResponseInput[number]);
@@ -313,36 +499,49 @@ export function convertResponsesMessages<TApi extends Api>(
 	return normalizeResponsesToolHistory(messages) as ResponseInput;
 }
 
-export function convertResponsesTools(tools: readonly Tool[], options?: ConvertResponsesToolsOptions): OpenAITool[] {
+export function convertResponsesTools(
+	tools: readonly Tool[],
+	options?: ConvertResponsesToolsOptions,
+): OpenAITool[] {
 	const defaultStrict = options?.strict === undefined ? false : options.strict;
 	const supportsStrictMode = options?.supportsStrictMode ?? true;
-	const supportsOpenAIGrammarTools = options?.supportsOpenAIGrammarTools ?? false;
+	const supportsOpenAIGrammarTools =
+		options?.supportsOpenAIGrammarTools ?? false;
 	return tools.map((tool): OpenAITool => {
-		const grammar = resolveGrammarConstrainedSampling(tool, supportsOpenAIGrammarTools);
-		if (grammar) return {
-			type: "custom",
-			name: tool.name,
-			description: tool.description,
-			format: {
-				type: "grammar",
-				syntax: grammar.format,
-				definition: grammar.definition,
-			},
-			...(options?.toolSearchResult ? { defer_loading: true } : {}),
-		} as OpenAITool;
-		const constrainedStrict = resolveJsonSchemaStrictSampling(tool, supportsStrictMode);
+		const grammar = resolveGrammarConstrainedSampling(
+			tool,
+			supportsOpenAIGrammarTools,
+		);
+		if (grammar)
+			return {
+				type: "custom",
+				name: tool.name,
+				description: tool.description,
+				format: {
+					type: "grammar",
+					syntax: grammar.format,
+					definition: grammar.definition,
+				},
+				...(options?.toolSearchResult ? { defer_loading: true } : {}),
+			} as OpenAITool;
+		const constrainedStrict = resolveJsonSchemaStrictSampling(
+			tool,
+			supportsStrictMode,
+		);
 		const strict = constrainedStrict ?? defaultStrict;
 		const functionTool = {
 			type: "function",
 			name: tool.name,
 			description: tool.description,
-			parameters: getJsonSchemaToolParameters(tool, strict === true) as unknown as Record<string, unknown>,
+			parameters: getJsonSchemaToolParameters(
+				tool,
+				strict === true,
+			) as unknown as Record<string, unknown>,
 			...(options?.toolSearchResult ? { defer_loading: true } : {}),
 		} as Extract<OpenAITool, { type: "function" }>;
 		if (supportsStrictMode) functionTool.strict = strict;
 		return functionTool;
 	});
 }
-
 
 export { processResponsesStream } from "./stream.ts";

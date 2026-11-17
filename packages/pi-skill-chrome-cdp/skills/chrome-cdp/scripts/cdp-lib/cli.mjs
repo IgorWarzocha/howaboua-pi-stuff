@@ -1,9 +1,24 @@
-import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { getOrStartTabDaemon, runDaemon, sendCommand, stopDaemons } from './daemon.mjs';
-import { formatPageList, formatPagesJson, getPages, waitForOpenedTarget } from './pages.mjs';
-import { CDP } from './protocol.mjs';
-import { PAGES_CACHE, getDisplayPrefixLength, getWsUrl, resolvePrefix } from './runtime.mjs';
+import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import {
+	getOrStartTabDaemon,
+	runDaemon,
+	sendCommand,
+	stopDaemons,
+} from "./daemon.mjs";
+import {
+	formatPageList,
+	formatPagesJson,
+	getPages,
+	waitForOpenedTarget,
+} from "./pages.mjs";
+import { CDP } from "./protocol.mjs";
+import {
+	PAGES_CACHE,
+	getDisplayPrefixLength,
+	getWsUrl,
+	resolvePrefix,
+} from "./runtime.mjs";
 
 const USAGE_HEADER = `cdp - lightweight Chrome DevTools Protocol CLI (no Puppeteer)
 
@@ -70,129 +85,180 @@ DAEMON IPC (for advanced use / scripting)
 `;
 
 export function cdpUsage({ commands = [] } = {}) {
-  const extraCommands = commands
-    .map(({ syntax, description }) => `  ${syntax.padEnd(32)}  ${description}\n`)
-    .join('');
-  return `${USAGE_HEADER}${extraCommands}${COMMAND_USAGE}${USAGE_FOOTER}`;
+	const extraCommands = commands
+		.map(
+			({ syntax, description }) => `  ${syntax.padEnd(32)}  ${description}\n`,
+		)
+		.join("");
+	return `${USAGE_HEADER}${extraCommands}${COMMAND_USAGE}${USAGE_FOOTER}`;
 }
 
 export function isMainModule(moduleUrl) {
-  return Boolean(process.argv[1]) &&
-    realpathSync(process.argv[1]) === realpathSync(fileURLToPath(moduleUrl));
+	return (
+		Boolean(process.argv[1]) &&
+		realpathSync(process.argv[1]) === realpathSync(fileURLToPath(moduleUrl))
+	);
 }
 
 const NEEDS_TARGET = new Set([
-  'snap','snapshot','eval','shot','screenshot','shotel','screenshot-element','elementshot','html','nav','navigate',
-  'shotref','htmlref','find','net','network','click','clickref','clickxy','type','typeref','loadall','evalraw',
+	"snap",
+	"snapshot",
+	"eval",
+	"shot",
+	"screenshot",
+	"shotel",
+	"screenshot-element",
+	"elementshot",
+	"html",
+	"nav",
+	"navigate",
+	"shotref",
+	"htmlref",
+	"find",
+	"net",
+	"network",
+	"click",
+	"clickref",
+	"clickxy",
+	"type",
+	"typeref",
+	"loadall",
+	"evalraw",
 ]);
 
 async function runCli({ discoveryRecovery, startBrowser, usage } = {}) {
-  const [cmd, ...args] = process.argv.slice(2);
+	const [cmd, ...args] = process.argv.slice(2);
 
-  // Daemon mode (internal)
-  if (cmd === '_daemon') { await runDaemon(args[0], discoveryRecovery); return; }
+	// Daemon mode (internal)
+	if (cmd === "_daemon") {
+		await runDaemon(args[0], discoveryRecovery);
+		return;
+	}
 
-  if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') {
-    console.log(usage); process.exit(0);
-  }
+	if (!cmd || cmd === "help" || cmd === "--help" || cmd === "-h") {
+		console.log(usage);
+		process.exit(0);
+	}
 
-  if ((cmd === 'start' || cmd === 'launch') && startBrowser) {
-    console.log(await startBrowser());
-    return;
-  }
+	if ((cmd === "start" || cmd === "launch") && startBrowser) {
+		console.log(await startBrowser());
+		return;
+	}
 
+	if (cmd === "list" || cmd === "ls" || cmd === "tabsjson") {
+		const cdp = new CDP();
+		await cdp.connect(await getWsUrl(discoveryRecovery));
+		const pages = await getPages(cdp);
+		cdp.close();
+		writeFileSync(PAGES_CACHE, JSON.stringify(pages), { mode: 0o600 });
+		console.log(
+			cmd === "tabsjson" ? formatPagesJson(pages) : formatPageList(pages),
+		);
+		setTimeout(() => process.exit(0), 100);
+		return;
+	}
 
-  if (cmd === 'list' || cmd === 'ls' || cmd === 'tabsjson') {
-    const cdp = new CDP();
-    await cdp.connect(await getWsUrl(discoveryRecovery));
-    const pages = await getPages(cdp);
-    cdp.close();
-    writeFileSync(PAGES_CACHE, JSON.stringify(pages), { mode: 0o600 });
-    console.log(cmd === 'tabsjson' ? formatPagesJson(pages) : formatPageList(pages));
-    setTimeout(() => process.exit(0), 100);
-    return;
-  }
+	// Open new tab
+	if (cmd === "open") {
+		const url = args[0] || "about:blank";
+		const cdp = new CDP();
+		await cdp.connect(await getWsUrl(discoveryRecovery));
+		const { targetId } = await cdp.send("Target.createTarget", { url });
+		const openedTarget = await waitForOpenedTarget(cdp, targetId, url);
+		// Refresh cache; new tab may not appear in getTargets immediately, so add it manually.
+		const pages = await getPages(cdp);
+		if (!pages.some((p) => p.targetId === targetId)) {
+			pages.push(openedTarget);
+		}
+		cdp.close();
+		writeFileSync(PAGES_CACHE, JSON.stringify(pages), { mode: 0o600 });
+		const prefixLen = getDisplayPrefixLength(
+			pages.map((page) => page.targetId),
+		);
+		console.log(`Opened new tab: ${targetId.slice(0, prefixLen)}  ${url}`);
+		console.log(
+			'Note: Chrome may request "Allow debugging?" approval on first access.',
+		);
+		return;
+	}
 
-  // Open new tab
-  if (cmd === 'open') {
-    const url = args[0] || 'about:blank';
-    const cdp = new CDP();
-    await cdp.connect(await getWsUrl(discoveryRecovery));
-    const { targetId } = await cdp.send('Target.createTarget', { url });
-    const openedTarget = await waitForOpenedTarget(cdp, targetId, url);
-    // Refresh cache; new tab may not appear in getTargets immediately, so add it manually.
-    const pages = await getPages(cdp);
-    if (!pages.some(p => p.targetId === targetId)) {
-      pages.push(openedTarget);
-    }
-    cdp.close();
-    writeFileSync(PAGES_CACHE, JSON.stringify(pages), { mode: 0o600 });
-    const prefixLen = getDisplayPrefixLength(pages.map(page => page.targetId));
-    console.log(`Opened new tab: ${targetId.slice(0, prefixLen)}  ${url}`);
-    console.log('Note: Chrome may request "Allow debugging?" approval on first access.');
-    return;
-  }
+	// Stop
+	if (cmd === "stop") {
+		await stopDaemons(args[0]);
+		return;
+	}
 
-  // Stop
-  if (cmd === 'stop') {
-    await stopDaemons(args[0]);
-    return;
-  }
+	// Page commands — need target prefix
+	if (!NEEDS_TARGET.has(cmd)) {
+		console.error(`Unknown command: ${cmd}\n`);
+		console.log(usage);
+		process.exit(1);
+	}
 
-  // Page commands — need target prefix
-  if (!NEEDS_TARGET.has(cmd)) {
-    console.error(`Unknown command: ${cmd}\n`);
-    console.log(usage);
-    process.exit(1);
-  }
+	const targetPrefix = args[0];
+	if (!targetPrefix) {
+		console.error('Error: target ID required. Run "cdp list" first.');
+		process.exit(1);
+	}
 
-  const targetPrefix = args[0];
-  if (!targetPrefix) {
-    console.error('Error: target ID required. Run "cdp list" first.');
-    process.exit(1);
-  }
+	// Resolve prefix → full targetId from pages cache
+	if (!existsSync(PAGES_CACHE)) {
+		console.error('No page list cached. Run "cdp list" first.');
+		process.exit(1);
+	}
+	const pages = JSON.parse(readFileSync(PAGES_CACHE, "utf8"));
+	const targetId = resolvePrefix(
+		targetPrefix,
+		pages.map((p) => p.targetId),
+		"target",
+		'Run "cdp list".',
+	);
+	const targetRef = targetId.slice(
+		0,
+		getDisplayPrefixLength(pages.map((page) => page.targetId)),
+	);
 
-  // Resolve prefix → full targetId from pages cache
-  if (!existsSync(PAGES_CACHE)) {
-    console.error('No page list cached. Run "cdp list" first.');
-    process.exit(1);
-  }
-  const pages = JSON.parse(readFileSync(PAGES_CACHE, 'utf8'));
-  const targetId = resolvePrefix(targetPrefix, pages.map(p => p.targetId), 'target', 'Run "cdp list".');
-  const targetRef = targetId.slice(0, getDisplayPrefixLength(pages.map(page => page.targetId)));
+	const conn = await getOrStartTabDaemon(targetId);
 
-  const conn = await getOrStartTabDaemon(targetId);
+	const cmdArgs = args.slice(1);
 
-  const cmdArgs = args.slice(1);
+	if (cmd === "eval") {
+		const expr = cmdArgs.join(" ");
+		if (!expr) {
+			console.error("Error: expression required");
+			process.exit(1);
+		}
+		cmdArgs[0] = expr;
+	} else if (cmd === "type") {
+		// Join all remaining args as text (allows spaces)
+		const text = cmdArgs.join(" ");
+		if (!text) {
+			console.error("Error: text required");
+			process.exit(1);
+		}
+		cmdArgs[0] = text;
+	} else if (cmd === "evalraw") {
+		// args: [method, ...jsonParts] — join json parts in case of spaces
+		if (!cmdArgs[0]) {
+			console.error("Error: CDP method required");
+			process.exit(1);
+		}
+		if (cmdArgs.length > 2) cmdArgs[1] = cmdArgs.slice(1).join(" ");
+	}
 
-  if (cmd === 'eval') {
-    const expr = cmdArgs.join(' ');
-    if (!expr) { console.error('Error: expression required'); process.exit(1); }
-    cmdArgs[0] = expr;
-  } else if (cmd === 'type') {
-    // Join all remaining args as text (allows spaces)
-    const text = cmdArgs.join(' ');
-    if (!text) { console.error('Error: text required'); process.exit(1); }
-    cmdArgs[0] = text;
-  } else if (cmd === 'evalraw') {
-    // args: [method, ...jsonParts] — join json parts in case of spaces
-    if (!cmdArgs[0]) { console.error('Error: CDP method required'); process.exit(1); }
-    if (cmdArgs.length > 2) cmdArgs[1] = cmdArgs.slice(1).join(' ');
-  }
+	if ((cmd === "nav" || cmd === "navigate") && !cmdArgs[0]) {
+		console.error("Error: URL required");
+		process.exit(1);
+	}
 
-  if ((cmd === 'nav' || cmd === 'navigate') && !cmdArgs[0]) {
-    console.error('Error: URL required');
-    process.exit(1);
-  }
+	const response = await sendCommand(conn, { cmd, args: cmdArgs, targetRef });
 
-  const response = await sendCommand(conn, { cmd, args: cmdArgs, targetRef });
-
-  if (response.ok) {
-    if (response.result) console.log(response.result);
-  } else {
-    console.error('Error:', response.error);
-    process.exitCode = 1;
-  }
+	if (response.ok) {
+		if (response.result) console.log(response.result);
+	} else {
+		console.error("Error:", response.error);
+		process.exitCode = 1;
+	}
 }
 
 export { runCli };

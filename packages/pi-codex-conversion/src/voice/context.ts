@@ -1,4 +1,9 @@
-import { type Context, type Model, normalizeContext, uuidv7 } from "@earendil-works/pi-ai";
+import {
+	type Context,
+	type Model,
+	normalizeContext,
+	uuidv7,
+} from "@earendil-works/pi-ai";
 import {
 	buildSessionContext,
 	type ExtensionAPI,
@@ -15,7 +20,8 @@ import { REALTIME_DELEGATION_MESSAGE_TYPE } from "./ui.ts";
 
 const VOICE_CONTEXT_SYSTEM_PROMPT = `Summarize the current Pi conversation for a realtime voice assistant joining the same session. Preserve the user's goal, relevant preferences, decisions, current state, unresolved questions, and next step. Treat the conversation as history: do not continue its work or answer it. Return only the self-contained continuity summary.`;
 const VOICE_CONTEXT_REQUEST = "Create the voice continuity summary now.";
-const VOICE_STARTUP_CONTEXT_HEADER = "Earlier Pi conversation, possibly summarized. Use as background; do not repeat unless relevant.";
+const VOICE_STARTUP_CONTEXT_HEADER =
+	"Earlier Pi conversation, possibly summarized. Use as background; do not repeat unless relevant.";
 const SUMMARIZABLE_CUSTOM_TYPES = new Set([
 	REALTIME_DELEGATION_MESSAGE_TYPE,
 	"codex-realtime-voice-tail",
@@ -46,9 +52,19 @@ export async function buildRealtimeInitialItems(args: {
 	const initialItems: RealtimeInitialMessageItem[] = [];
 	if (selected) {
 		const reasoning = args.config.voice.contextReasoning;
-		const project = () => projectContextBranch(args.pi, args.ctx, args.ctx.sessionManager.getBranch(args.sourceLeafId));
+		const project = () =>
+			projectContextBranch(
+				args.pi,
+				args.ctx,
+				args.ctx.sessionManager.getBranch(args.sourceLeafId),
+			);
 		const entries = project();
-		const cacheKey = voiceContextCacheKey(args.ctx, selected, reasoning, entries);
+		const cacheKey = voiceContextCacheKey(
+			args.ctx,
+			selected,
+			reasoning,
+			entries,
+		);
 		let text = args.forceSummary ? undefined : summaryCache.get(cacheKey);
 		if (!text) {
 			args.onSummaryStatus?.(true);
@@ -62,7 +78,10 @@ export async function buildRealtimeInitialItems(args: {
 				);
 				if (generated) {
 					text = generated;
-					if (cacheKey === voiceContextCacheKey(args.ctx, selected, reasoning, project())) {
+					if (
+						cacheKey ===
+						voiceContextCacheKey(args.ctx, selected, reasoning, project())
+					) {
 						summaryCache.set(cacheKey, text);
 						while (summaryCache.size > SUMMARY_CACHE_LIMIT)
 							summaryCache.delete(summaryCache.keys().next().value!);
@@ -77,7 +96,9 @@ export async function buildRealtimeInitialItems(args: {
 			initialItems.push({
 				type: "message",
 				role: "developer",
-				content: [{ type: "input_text", text: renderVoiceStartupContext(text) }],
+				content: [
+					{ type: "input_text", text: renderVoiceStartupContext(text) },
+				],
 			});
 		}
 	}
@@ -213,20 +234,26 @@ async function completeWithSelectedModel(
 		throw new Error(`Voice context provider is unavailable: ${model.provider}`);
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	if (!auth.ok) throw new Error(auth.error);
-	const requestModel = auth.baseUrl ? { ...model, baseUrl: auth.baseUrl } : model;
+	const requestModel = auth.baseUrl
+		? { ...model, baseUrl: auth.baseUrl }
+		: model;
 	let completed:
 		| { content: Array<{ type: string; text?: string }> }
 		| undefined;
-	for await (const event of provider.streamSimple(requestModel, normalizeContext(context), {
-		...(auth.apiKey ? { apiKey: auth.apiKey } : {}),
-		...(auth.headers ? { headers: auth.headers } : {}),
-		...(auth.env ? { env: auth.env } : {}),
-		...(signal ? { signal } : {}),
-		maxTokens: requestModel.maxTokens,
-		cacheRetention: "none",
-		sessionId: uuidv7(),
-		...(requestModel.reasoning && reasoning !== "off" ? { reasoning } : {}),
-	})) {
+	for await (const event of provider.streamSimple(
+		requestModel,
+		normalizeContext(context),
+		{
+			...(auth.apiKey ? { apiKey: auth.apiKey } : {}),
+			...(auth.headers ? { headers: auth.headers } : {}),
+			...(auth.env ? { env: auth.env } : {}),
+			...(signal ? { signal } : {}),
+			maxTokens: requestModel.maxTokens,
+			cacheRetention: "none",
+			sessionId: uuidv7(),
+			...(requestModel.reasoning && reasoning !== "off" ? { reasoning } : {}),
+		},
+	)) {
 		if (event.type === "done") completed = event.message;
 		if (event.type === "error")
 			throw new Error(event.error.errorMessage || "Voice context model failed");
@@ -240,8 +267,7 @@ async function completeWithSelectedModel(
 }
 
 function latestCompactionIsOpaque(entries: readonly SessionEntry[]): boolean {
-	const latest = entries
-		.findLast((entry) => entry.type === "compaction");
+	const latest = entries.findLast((entry) => entry.type === "compaction");
 	if (!latest || latest.type !== "compaction") return false;
 	const details = latest.details;
 	return (
@@ -266,14 +292,13 @@ function voiceContextCacheKey(
 	reasoning: CodexConversionConfig["voice"]["contextReasoning"],
 	entries: readonly SessionEntry[],
 ): string {
-	const boundary = entries
-		.findLast(
-			(entry) =>
-				entry.type === "message" ||
-				entry.type === "compaction" ||
-				entry.type === "branch_summary" ||
-				(entry.type === "custom_message" &&
-					SUMMARIZABLE_CUSTOM_TYPES.has(entry.customType)),
-		)?.id;
+	const boundary = entries.findLast(
+		(entry) =>
+			entry.type === "message" ||
+			entry.type === "compaction" ||
+			entry.type === "branch_summary" ||
+			(entry.type === "custom_message" &&
+				SUMMARIZABLE_CUSTOM_TYPES.has(entry.customType)),
+	)?.id;
 	return `${ctx.sessionManager.getSessionId()}:${boundary ?? "empty"}:${model.provider}/${model.modelId}:${reasoning}`;
 }

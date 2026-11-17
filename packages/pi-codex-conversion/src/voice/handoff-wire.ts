@@ -73,12 +73,15 @@ export class VoiceHandoffLink {
 			return Promise.reject(new Error("Too many pending voice controls"));
 		const id = ++this.sequence;
 		return new Promise((resolve, reject) => {
-			const timer = setTimeout(() => {
-				this.pending.delete(id);
-				const error = new Error("Voice control did not respond");
-				reject(error);
-				this.fail(error);
-			}, method === "session.start" ? 120_000 : 30_000);
+			const timer = setTimeout(
+				() => {
+					this.pending.delete(id);
+					const error = new Error("Voice control did not respond");
+					reject(error);
+					this.fail(error);
+				},
+				method === "session.start" ? 120_000 : 30_000,
+			);
 			this.pending.set(id, { resolve, reject, timer });
 			try {
 				this.send({ type: "request", id, method, value });

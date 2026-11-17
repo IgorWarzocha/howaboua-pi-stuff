@@ -1,16 +1,16 @@
 {
-  "name": "howaboua-pi-stuff",
-  "owner": {
-    "name": "Howaboua"
-  },
-  "metadata": {
-    "description": "Cursor plugins from the Howaboua Pi repository. The public listing is h-stack."
-  },
-  "plugins": [
-    {
-      "name": "h-stack",
-      "source": "plugins/h-stack",
-      "description": "Portable skills for maintained code and agent harnesses, plus a command that tunes this repository's voice."
-    }
-  ]
+	"name": "howaboua-pi-stuff",
+	"owner": {
+		"name": "Howaboua"
+	},
+	"metadata": {
+		"description": "Cursor plugins from the Howaboua Pi repository. The public listing is h-stack."
+	},
+	"plugins": [
+		{
+			"name": "h-stack",
+			"source": "plugins/h-stack",
+			"description": "Portable skills for maintained code and agent harnesses, plus a command that tunes this repository's voice."
+		}
+	]
 }

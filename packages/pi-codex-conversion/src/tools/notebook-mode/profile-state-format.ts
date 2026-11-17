@@ -39,41 +39,69 @@ export interface ProfileStateSummary {
 
 export function profileStatePaths(name: string, agentDir: string) {
 	assertProfileName(name);
-	const directory = join(agentDir, "cache", "pi-codex-conversion", "notebook-mode", "profiles", name);
-	return { directory, manifest: join(directory, "profile.json"), lock: join(directory, "write.lock") };
+	const directory = join(
+		agentDir,
+		"cache",
+		"pi-codex-conversion",
+		"notebook-mode",
+		"profiles",
+		name,
+	);
+	return {
+		directory,
+		manifest: join(directory, "profile.json"),
+		lock: join(directory, "write.lock"),
+	};
 }
 
 export function profilesDirectory(agentDir: string): string {
-	return join(agentDir, "cache", "pi-codex-conversion", "notebook-mode", "profiles");
+	return join(
+		agentDir,
+		"cache",
+		"pi-codex-conversion",
+		"notebook-mode",
+		"profiles",
+	);
 }
 
 export function assertProfileName(name: string): void {
-	if (!PROFILE_NAME.test(name)) throw new Error("Notebook profile name must be 1-64 letters, numbers, dots, underscores, or hyphens and start with a letter or number");
+	if (!PROFILE_NAME.test(name))
+		throw new Error(
+			"Notebook profile name must be 1-64 letters, numbers, dots, underscores, or hyphens and start with a letter or number",
+		);
 }
 
-export function readProfileStateManifest(path: string, expectedName?: string): ProfileStateManifest | undefined {
+export function readProfileStateManifest(
+	path: string,
+	expectedName?: string,
+): ProfileStateManifest | undefined {
 	try {
 		if (statSync(path).size > MAX_PROJECT_MANIFEST_BYTES) return undefined;
 		const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
-		if (!isRecord(value) || value["schema"] !== PROFILE_STATE_SCHEMA) return undefined;
+		if (!isRecord(value) || value["schema"] !== PROFILE_STATE_SCHEMA)
+			return undefined;
 		if (
-			typeof value["name"] !== "string" || !PROFILE_NAME.test(value["name"])
-			|| typeof value["deno"] !== "string"
-			|| typeof value["v8"] !== "string"
-			|| typeof value["payload"] !== "string"
-			|| typeof value["createdAt"] !== "string"
-			|| typeof value["sourceProject"] !== "string"
-			|| !Array.isArray(value["entries"])
-			|| !Array.isArray(value["skipped"])
-			|| value["entries"].length > MAX_PROJECT_ENTRIES
-			|| value["skipped"].length > MAX_PROJECT_ENTRIES
-			|| !PAYLOAD_NAME.test(value["payload"])
-			|| basename(value["payload"]) !== value["payload"]
-		) return undefined;
-		if (expectedName !== undefined && value["name"] !== expectedName) return undefined;
+			typeof value["name"] !== "string" ||
+			!PROFILE_NAME.test(value["name"]) ||
+			typeof value["deno"] !== "string" ||
+			typeof value["v8"] !== "string" ||
+			typeof value["payload"] !== "string" ||
+			typeof value["createdAt"] !== "string" ||
+			typeof value["sourceProject"] !== "string" ||
+			!Array.isArray(value["entries"]) ||
+			!Array.isArray(value["skipped"]) ||
+			value["entries"].length > MAX_PROJECT_ENTRIES ||
+			value["skipped"].length > MAX_PROJECT_ENTRIES ||
+			!PAYLOAD_NAME.test(value["payload"]) ||
+			basename(value["payload"]) !== value["payload"]
+		)
+			return undefined;
+		if (expectedName !== undefined && value["name"] !== expectedName)
+			return undefined;
 		const entries = value["entries"].map(parseEntry);
 		const skipped = value["skipped"].map(parseSkipped);
-		if (entries.some((entry) => !entry) || skipped.some((entry) => !entry)) return undefined;
+		if (entries.some((entry) => !entry) || skipped.some((entry) => !entry))
+			return undefined;
 		return {
 			schema: PROFILE_STATE_SCHEMA,
 			name: value["name"],
@@ -90,31 +118,52 @@ export function readProfileStateManifest(path: string, expectedName?: string): P
 	}
 }
 
-export function assertSafeProfileDirectory(directory: string, agentDir: string): void {
+export function assertSafeProfileDirectory(
+	directory: string,
+	agentDir: string,
+): void {
 	const root = resolve(agentDir);
 	const target = resolve(directory);
 	const suffix = relative(root, target);
-	if (!suffix || suffix.startsWith("..") || suffix.includes("\0")) throw new Error("Notebook profile path escaped agent storage");
+	if (!suffix || suffix.startsWith("..") || suffix.includes("\0"))
+		throw new Error("Notebook profile path escaped agent storage");
 	let current = root;
 	for (const part of suffix.split(/[\\/]+/)) {
 		current = join(current, part);
 		if (existsSync(current) && lstatSync(current).isSymbolicLink()) {
-			throw new Error(`Notebook profile storage cannot use symlinked path: ${current}`);
+			throw new Error(
+				`Notebook profile storage cannot use symlinked path: ${current}`,
+			);
 		}
 	}
 }
 
-export function readProfileStatePayload(manifest: ProfileStateManifest, path: string, maxBytes: number): Buffer | undefined {
+export function readProfileStatePayload(
+	manifest: ProfileStateManifest,
+	path: string,
+	maxBytes: number,
+): Buffer | undefined {
 	try {
 		const stat = lstatSync(path);
-		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > maxBytes) return undefined;
+		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > maxBytes)
+			return undefined;
 		const payload = readFileSync(path);
 		const names = new Set<string>();
 		let offset = 0;
 		for (const entry of manifest.entries) {
-			if (names.has(entry.name) || entry.offset !== offset || entry.offset + entry.length > payload.length) return undefined;
+			if (
+				names.has(entry.name) ||
+				entry.offset !== offset ||
+				entry.offset + entry.length > payload.length
+			)
+				return undefined;
 			names.add(entry.name);
-			if (hashProfileBytes(payload.subarray(entry.offset, entry.offset + entry.length)) !== entry.hash) return undefined;
+			if (
+				hashProfileBytes(
+					payload.subarray(entry.offset, entry.offset + entry.length),
+				) !== entry.hash
+			)
+				return undefined;
 			offset += entry.length;
 		}
 		return offset === payload.length ? payload : undefined;
@@ -123,7 +172,9 @@ export function readProfileStatePayload(manifest: ProfileStateManifest, path: st
 	}
 }
 
-export function profileSummary(manifest: ProfileStateManifest): ProfileStateSummary {
+export function profileSummary(
+	manifest: ProfileStateManifest,
+): ProfileStateSummary {
 	const values = manifest.entries.filter(({ kind }) => kind === "value").length;
 	return {
 		name: manifest.name,
@@ -143,21 +194,35 @@ function parseEntry(value: unknown): ProjectStateEntry | undefined {
 	if (!isRecord(value)) return undefined;
 	const { name, kind, offset, length, hash } = value;
 	const metadata = parseProjectBindingMetadata(value);
-	return typeof name === "string" && IDENTIFIER.test(name) && Buffer.byteLength(name) <= MAX_PROJECT_NAME_BYTES
-		&& (kind === "value" || kind === "function")
-		&& Number.isSafeInteger(offset) && (offset as number) >= 0
-		&& Number.isSafeInteger(length) && (length as number) >= 0
-		&& typeof hash === "string" && HASH.test(hash)
-		&& metadata !== undefined
-		? { name, kind, offset: offset as number, length: length as number, hash, ...metadata }
+	return typeof name === "string" &&
+		IDENTIFIER.test(name) &&
+		Buffer.byteLength(name) <= MAX_PROJECT_NAME_BYTES &&
+		(kind === "value" || kind === "function") &&
+		Number.isSafeInteger(offset) &&
+		(offset as number) >= 0 &&
+		Number.isSafeInteger(length) &&
+		(length as number) >= 0 &&
+		typeof hash === "string" &&
+		HASH.test(hash) &&
+		metadata !== undefined
+		? {
+				name,
+				kind,
+				offset: offset as number,
+				length: length as number,
+				hash,
+				...metadata,
+			}
 		: undefined;
 }
 
-function parseSkipped(value: unknown): { name: string; reason: string } | undefined {
-	return isRecord(value)
-		&& typeof value["name"] === "string"
-		&& Buffer.byteLength(value["name"]) <= MAX_PROJECT_NAME_BYTES
-		&& typeof value["reason"] === "string"
+function parseSkipped(
+	value: unknown,
+): { name: string; reason: string } | undefined {
+	return isRecord(value) &&
+		typeof value["name"] === "string" &&
+		Buffer.byteLength(value["name"]) <= MAX_PROJECT_NAME_BYTES &&
+		typeof value["reason"] === "string"
 		? { name: value["name"], reason: value["reason"] }
 		: undefined;
 }

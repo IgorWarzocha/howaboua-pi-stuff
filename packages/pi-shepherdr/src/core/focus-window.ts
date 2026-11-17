@@ -103,7 +103,11 @@ export async function focusCoreWindow(
 	try {
 		const created = object(
 			await core.request("terminal.run", {
-				argv: [process.execPath, "-e", "setTimeout(()=>{},120000)"],
+				argv: [
+					process.versions["bun"] ? "node" : process.execPath,
+					"-e",
+					"setTimeout(()=>{},120000)",
+				],
 				name,
 				labels: { "herdr.space": space, "herdr.tab": tab },
 				no_parent: true,
@@ -188,13 +192,16 @@ export async function focusCoreWindow(
 					"kind" in error &&
 					error.kind === "not_found"
 				) {
+					// oxlint-disable-next-line no-unsafe-finally -- Preserve the focus result while treating an already-closed probe as successful cleanup.
 					if (failed) throw failure;
+					// oxlint-disable-next-line no-unsafe-finally -- Preserve the focus result while treating an already-closed probe as successful cleanup.
 					return;
 				}
 				const cleanupFailure = new Error(
 					`${focused ? "Focus succeeded" : `Focus failed: ${String(failure)}`} but its temporary terminal could not be closed: ${String(error)}`,
 					{ cause: failure ?? error },
 				);
+				// oxlint-disable-next-line no-unsafe-finally -- Preserve the focus result while treating an already-closed probe as successful cleanup.
 				throw dispatched ? cleanupFailure : rejected(cleanupFailure);
 			}
 		}

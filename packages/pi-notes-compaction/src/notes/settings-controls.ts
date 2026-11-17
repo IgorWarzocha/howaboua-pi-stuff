@@ -100,6 +100,14 @@ export function createNotesSettingsControls(
 				values: [...NEW_WINDOW_REQUESTS],
 			},
 			{
+				id: "taskCompletionRollover",
+				label: "Task-completion rollover",
+				description:
+					"Allow new_context({resume: false}) when a task is complete: finish the reply, then wait in fresh context. Off keeps immediate continuation only.",
+				currentValue: settings.taskCompletionRollover ? "on" : "off",
+				values: ["off", "on"],
+			},
+			{
 				id: "taskBoundaryReminder",
 				label: "Task-boundary reminder",
 				description:
@@ -167,6 +175,8 @@ export function createNotesSettingsControls(
 				save({ ...current, rankedHistorySearch: value === "on" });
 			else if (id === "compact")
 				save({ ...current, normalCompaction: value === "on" });
+			else if (id === "taskCompletionRollover")
+				save({ ...current, taskCompletionRollover: value === "on" });
 			else if (id === "newWindowRequests") {
 				const newWindowRequests = NEW_WINDOW_REQUESTS.find(
 					(mode) => mode === value,

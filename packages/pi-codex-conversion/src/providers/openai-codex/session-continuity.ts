@@ -23,23 +23,43 @@ type CanonicalSessionState = {
 const canonicalSessions = new Map<string, CanonicalSessionState>();
 const canonicalSessionLanes = new Map<string, CanonicalSessionLane>();
 
-function matchesLane(state: CanonicalSessionState, url: string, accountId: string, model: string): boolean {
-	return state.url === url && state.accountId === accountId && state.requestBody.model === model;
+function matchesLane(
+	state: CanonicalSessionState,
+	url: string,
+	accountId: string,
+	model: string,
+): boolean {
+	return (
+		state.url === url &&
+		state.accountId === accountId &&
+		state.requestBody.model === model
+	);
 }
 
 function materializedInput(state: CanonicalSessionState): unknown[] {
 	return [...state.requestBody.input, ...state.responseItems];
 }
 
-function compactionRequestPrefixLength(state: CanonicalSessionState, reconstructedInput: readonly unknown[]): number {
+function compactionRequestPrefixLength(
+	state: CanonicalSessionState,
+	reconstructedInput: readonly unknown[],
+): number {
 	const first = state.reconstructedRequestInput[0];
-	const toolsPrefix = first && typeof first === "object" && (first as { type?: unknown }).type === "additional_tools" ? 1 : 0;
+	const toolsPrefix =
+		first &&
+		typeof first === "object" &&
+		(first as { type?: unknown }).type === "additional_tools"
+			? 1
+			: 0;
 	const instructions = state.reconstructedRequestInput[toolsPrefix];
 	// Reconstructed history omits the standing prompt, but can itself start with a
 	// persisted developer update. Never strip that update from the comparison.
-	const hasInstructions = state.requestBody.instructions === undefined && instructions && typeof instructions === "object"
-		&& (instructions as { role?: unknown }).role === "developer"
-		&& !responseInputsEqual([instructions], reconstructedInput.slice(0, 1));
+	const hasInstructions =
+		state.requestBody.instructions === undefined &&
+		instructions &&
+		typeof instructions === "object" &&
+		(instructions as { role?: unknown }).role === "developer" &&
+		!responseInputsEqual([instructions], reconstructedInput.slice(0, 1));
 	return toolsPrefix + (hasInstructions ? 1 : 0);
 }
 
@@ -48,16 +68,32 @@ function validateCanonicalInput(
 	preparedInput: readonly unknown[],
 	requestPrefixLength = 0,
 ): CanonicalHistoryDecision {
-	const reconstructedRequestInput = state.reconstructedRequestInput.slice(requestPrefixLength);
-	const minimumInputLength = reconstructedRequestInput.length + state.responseItems.length;
+	const reconstructedRequestInput =
+		state.reconstructedRequestInput.slice(requestPrefixLength);
+	const minimumInputLength =
+		reconstructedRequestInput.length + state.responseItems.length;
 	if (preparedInput.length < minimumInputLength) {
 		return "input_shorter_than_baseline";
 	}
-	if (!responseInputsEqual(preparedInput.slice(0, reconstructedRequestInput.length), reconstructedRequestInput)) {
+	if (
+		!responseInputsEqual(
+			preparedInput.slice(0, reconstructedRequestInput.length),
+			reconstructedRequestInput,
+		)
+	) {
 		return "request_prefix_mismatch";
 	}
-	const reconstructedResponseEnd = reconstructedRequestInput.length + state.responseItems.length;
-	if (!responseInputsEqual(preparedInput.slice(reconstructedRequestInput.length, reconstructedResponseEnd), state.responseItems)) {
+	const reconstructedResponseEnd =
+		reconstructedRequestInput.length + state.responseItems.length;
+	if (
+		!responseInputsEqual(
+			preparedInput.slice(
+				reconstructedRequestInput.length,
+				reconstructedResponseEnd,
+			),
+			state.responseItems,
+		)
+	) {
 		return "response_prefix_mismatch";
 	}
 	return "validated";
@@ -68,9 +104,16 @@ function replayCanonicalInput(
 	preparedInput: readonly unknown[],
 	requestPrefixLength = 0,
 ): { input?: unknown[] | undefined; decision: CanonicalHistoryDecision } {
-	const decision = validateCanonicalInput(state, preparedInput, requestPrefixLength);
+	const decision = validateCanonicalInput(
+		state,
+		preparedInput,
+		requestPrefixLength,
+	);
 	if (decision !== "validated") return { decision };
-	const reconstructedResponseEnd = state.reconstructedRequestInput.length - requestPrefixLength + state.responseItems.length;
+	const reconstructedResponseEnd =
+		state.reconstructedRequestInput.length -
+		requestPrefixLength +
+		state.responseItems.length;
 	return {
 		input: [
 			...structuredClone(materializedInput(state)),
@@ -90,19 +133,24 @@ export function recordCanonicalSessionResponse(args: {
 	token?: CanonicalSessionToken | undefined;
 }): void {
 	if (!args.sessionId) return;
-	if (args.token && !canonicalSessionTokenMatches(args.sessionId, args.token)) return;
+	if (args.token && !canonicalSessionTokenMatches(args.sessionId, args.token))
+		return;
 	canonicalSessions.set(args.sessionId, {
 		accountId: args.accountId,
 		url: args.url,
 		...structuredClone({
 			requestBody: args.requestBody,
-			reconstructedRequestInput: (args.reconstructedRequestBody ?? args.requestBody).input,
+			reconstructedRequestInput: (
+				args.reconstructedRequestBody ?? args.requestBody
+			).input,
 			responseItems: args.responseItems,
 		}),
 	});
 }
 
-export function captureCanonicalSessionToken(sessionId: string | undefined): CanonicalSessionToken | undefined {
+export function captureCanonicalSessionToken(
+	sessionId: string | undefined,
+): CanonicalSessionToken | undefined {
 	if (!sessionId) return undefined;
 	let lane = canonicalSessionLanes.get(sessionId);
 	if (!lane) {
@@ -116,10 +164,15 @@ export function captureCanonicalSessionToken(sessionId: string | undefined): Can
 	};
 }
 
-function canonicalSessionTokenMatches(sessionId: string, token: CanonicalSessionToken): boolean {
+function canonicalSessionTokenMatches(
+	sessionId: string,
+	token: CanonicalSessionToken,
+): boolean {
 	const lane = canonicalSessionLanes.get(sessionId);
-	return lane?.identity === token.laneIdentity
-		&& token.requestSequence === lane.requestSequence;
+	return (
+		lane?.identity === token.laneIdentity &&
+		token.requestSequence === lane.requestSequence
+	);
 }
 
 export function validateCanonicalSessionRequest(
@@ -144,7 +197,12 @@ export function canonicalCompactionPromptInput(
 	identity?: { url: string; accountId: string } | undefined,
 	reconstructedInput?: readonly unknown[] | undefined,
 ): unknown[] | undefined {
-	return resolveCanonicalCompactionPromptInput(sessionId, model, identity, reconstructedInput).input;
+	return resolveCanonicalCompactionPromptInput(
+		sessionId,
+		model,
+		identity,
+		reconstructedInput,
+	).input;
 }
 
 export function resolveCanonicalCompactionPromptInput(
@@ -156,8 +214,16 @@ export function resolveCanonicalCompactionPromptInput(
 	const state = canonicalSessions.get(sessionId);
 	if (!state) return { decision: "no_state" };
 	if (state.requestBody.model !== model) return { decision: "model_mismatch" };
-	if (identity && (state.url !== identity.url || state.accountId !== identity.accountId)) return { decision: "identity_mismatch" };
-	if (!reconstructedInput) return { input: structuredClone(materializedInput(state)), decision: "validated" };
+	if (
+		identity &&
+		(state.url !== identity.url || state.accountId !== identity.accountId)
+	)
+		return { decision: "identity_mismatch" };
+	if (!reconstructedInput)
+		return {
+			input: structuredClone(materializedInput(state)),
+			decision: "validated",
+		};
 	const replay = replayCanonicalInput(
 		state,
 		reconstructedInput,
@@ -175,7 +241,8 @@ export function canonicalCompactionRequestBody(
 	identity: { url: string; accountId: string },
 ): ResponsesBody | undefined {
 	const state = canonicalSessions.get(sessionId);
-	if (!state || !matchesLane(state, identity.url, identity.accountId, model)) return undefined;
+	if (!state || !matchesLane(state, identity.url, identity.accountId, model))
+		return undefined;
 	const body = structuredClone({ ...state.requestBody, input: [] });
 	delete body.previous_response_id;
 	return body;

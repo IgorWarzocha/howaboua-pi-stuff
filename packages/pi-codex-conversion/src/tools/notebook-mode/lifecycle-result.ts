@@ -1,5 +1,8 @@
 import type { NotebookHook, NotebookMemoryUsage } from "../code-mode/types.ts";
-import type { NotebookKernelStatus, NotebookReleaseResult } from "./lifecycle-runtime.ts";
+import type {
+	NotebookKernelStatus,
+	NotebookReleaseResult,
+} from "./lifecycle-runtime.ts";
 import type { RetainedProjectBinding } from "./project-state-metadata.ts";
 
 const INSPECTION_NAME_BUDGET = 16 * 1024;
@@ -15,14 +18,18 @@ export interface NotebookStatusDetails extends Record<string, unknown> {
 	memory?: NotebookKernelStatus["memory"] | NotebookMemoryUsage | undefined;
 	checkpoint: Record<string, unknown>;
 	query?: string | undefined;
-	matches?: Array<NotebookKernelStatus["bindings"][number] & {
-		bytes?: number | undefined;
-		updatedAt?: string | undefined;
-		pinned?: boolean | undefined;
-		hook?: NotebookHook | undefined;
-		description?: string | undefined;
-		usage?: string | undefined;
-	}> | undefined;
+	matches?:
+		| Array<
+				NotebookKernelStatus["bindings"][number] & {
+					bytes?: number | undefined;
+					updatedAt?: string | undefined;
+					pinned?: boolean | undefined;
+					hook?: NotebookHook | undefined;
+					description?: string | undefined;
+					usage?: string | undefined;
+				}
+		  >
+		| undefined;
 	omittedMatches?: number | undefined;
 	retainedBindings: number;
 	retainedBytes: number;
@@ -43,11 +50,17 @@ export function withinNameBudget(names: string[]): string[] {
 
 export function formatNameList(names: string[]): string {
 	const shown = withinNameBudget(names);
-	const suffix = names.length > shown.length ? `, and ${names.length - shown.length} more` : "";
+	const suffix =
+		names.length > shown.length
+			? `, and ${names.length - shown.length} more`
+			: "";
 	return `${shown.join(", ")}${suffix}`;
 }
 
-export function takeDetailValues<T>(values: T[], budget: { remaining: number }): T[] {
+export function takeDetailValues<T>(
+	values: T[],
+	budget: { remaining: number },
+): T[] {
 	const selected: T[] = [];
 	for (const value of values) {
 		const bytes = Buffer.byteLength(JSON.stringify(value)) + 1;
@@ -59,7 +72,12 @@ export function takeDetailValues<T>(values: T[], budget: { remaining: number }):
 }
 
 export function remainingDetailsBudget(base: unknown): { remaining: number } {
-	return { remaining: Math.max(0, NOTEBOOK_DETAILS_BUDGET - Buffer.byteLength(JSON.stringify(base))) };
+	return {
+		remaining: Math.max(
+			0,
+			NOTEBOOK_DETAILS_BUDGET - Buffer.byteLength(JSON.stringify(base)),
+		),
+	};
 }
 
 export function boundedReleaseDetails(
@@ -92,60 +110,110 @@ export function formatStatus(details: NotebookStatusDetails): string {
 	const checkpoint = details.checkpoint;
 	const lines = [
 		`Notebook ${details.state}${details.activeCell ? ` (${details.activeCell})` : ""} · ${details.userCells} completed cell${details.userCells === 1 ? "" : "s"}`,
-		memory ? `Memory ${formatBytes(memory.heapUsedBytes)} heap used / ${formatBytes(memory.heapLimitBytes)} limit · ${formatBytes(memory.rssBytes)} RSS` : undefined,
+		memory
+			? `Memory ${formatBytes(memory.heapUsedBytes)} heap used / ${formatBytes(memory.heapLimitBytes)} limit · ${formatBytes(memory.rssBytes)} RSS`
+			: undefined,
 		`Checkpoint ${checkpoint["dirty"] ? "pending" : "current"} · ${String(checkpoint["projectBindings"] ?? 0)} durable binding(s)`,
 		`Retained state ${details.retainedBindings} binding(s) · ${formatBytes(details.retainedBytes)} serialized · ${details.pinnedBindings} pinned`,
-		details.userBindings === undefined ? undefined : `Top-level bindings: ${details.userBindings}`,
+		details.userBindings === undefined
+			? undefined
+			: `Top-level bindings: ${details.userBindings}`,
 	];
 	if (details.query === undefined && details.pinned.length > 0) {
 		lines.push("Pinned project bindings:");
-		for (const binding of details.pinned) lines.push(`- ${binding.name}: ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt)}${formatBindingMetadata(binding)}`);
-		if (details.omittedPinned > 0) lines.push(`${details.omittedPinned} additional pinned binding(s) omitted; use status with a query glob`);
+		for (const binding of details.pinned)
+			lines.push(
+				`- ${binding.name}: ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt)}${formatBindingMetadata(binding)}`,
+			);
+		if (details.omittedPinned > 0)
+			lines.push(
+				`${details.omittedPinned} additional pinned binding(s) omitted; use status with a query glob`,
+			);
 	}
-	if (details.query === undefined && (details.largestUnpinned.length > 0 || details.omittedLargestUnpinned > 0)) {
+	if (
+		details.query === undefined &&
+		(details.largestUnpinned.length > 0 || details.omittedLargestUnpinned > 0)
+	) {
 		if (details.largestUnpinned.length > 0) {
 			lines.push("Largest unpinned retained bindings:");
 			for (const binding of details.largestUnpinned) {
-				lines.push(`- ${binding.name}: ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt)}${formatBindingMetadata(binding)}`);
+				lines.push(
+					`- ${binding.name}: ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt)}${formatBindingMetadata(binding)}`,
+				);
 			}
 		}
-		if (details.omittedLargestUnpinned > 0) lines.push(`${details.omittedLargestUnpinned} additional unpinned binding(s) omitted; use status with a query glob`);
-		lines.push("Use status with a query glob for details; unpinned state is reusable scratch, pin valuable state before pruning");
+		if (details.omittedLargestUnpinned > 0)
+			lines.push(
+				`${details.omittedLargestUnpinned} additional unpinned binding(s) omitted; use status with a query glob`,
+			);
+		lines.push(
+			"Use status with a query glob for details; unpinned state is reusable scratch, pin valuable state before pruning",
+		);
 	}
 	if (details.query !== undefined) {
 		lines.push(`Bindings matching ${JSON.stringify(details.query)}:`);
 		for (const binding of details.matches ?? []) {
-			lines.push(`- ${binding.name}: ${binding.kind}${binding.constructor ? ` ${binding.constructor}` : ` ${binding.type}`}${binding.disposable ? ` · ${binding.disposable} disposable` : ""}${binding.bytes === undefined ? "" : ` · ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt!)}`}${binding.pinned ? " · pinned" : ""}${formatBindingMetadata(binding)}`);
+			lines.push(
+				`- ${binding.name}: ${binding.kind}${binding.constructor ? ` ${binding.constructor}` : ` ${binding.type}`}${binding.disposable ? ` · ${binding.disposable} disposable` : ""}${binding.bytes === undefined ? "" : ` · ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt!)}`}${binding.pinned ? " · pinned" : ""}${formatBindingMetadata(binding)}`,
+			);
 		}
 		if ((details.matches?.length ?? 0) === 0) lines.push("- none");
-		if ((details.omittedMatches ?? 0) > 0) lines.push(`${details.omittedMatches} additional match(es) omitted; narrow query`);
+		if ((details.omittedMatches ?? 0) > 0)
+			lines.push(
+				`${details.omittedMatches} additional match(es) omitted; narrow query`,
+			);
 	}
 	return boundMessage(lines.filter(Boolean).join("\n"));
 }
 
 /** Startup capability inventory, independent of sampled diagnostics and relative ages. */
 export function formatStartupStatus(details: NotebookStatusDetails): string {
-	const lines = [`Notebook ${details.state}${details.activeCell ? ` (${details.activeCell})` : ""}`];
+	const lines = [
+		`Notebook ${details.state}${details.activeCell ? ` (${details.activeCell})` : ""}`,
+	];
 	for (const binding of details.matches ?? []) {
-		lines.push(`- ${binding.name}: ${binding.kind}${binding.disposable ? ` · ${binding.disposable} disposable` : ""}${binding.pinned ? " · pinned" : ""}${formatBindingMetadata(binding)}`);
+		lines.push(
+			`- ${binding.name}: ${binding.kind}${binding.disposable ? ` · ${binding.disposable} disposable` : ""}${binding.pinned ? " · pinned" : ""}${formatBindingMetadata(binding)}`,
+		);
 	}
-	if (details.state === "running") lines.push("Bindings unavailable while cell runs; use notebook status after settlement");
+	if (details.state === "running")
+		lines.push(
+			"Bindings unavailable while cell runs; use notebook status after settlement",
+		);
 	else if ((details.matches?.length ?? 0) === 0) lines.push("Bindings: none");
-	if ((details.omittedMatches ?? 0) > 0) lines.push(`${details.omittedMatches} binding(s) omitted; notebook status + narrower query`);
+	if ((details.omittedMatches ?? 0) > 0)
+		lines.push(
+			`${details.omittedMatches} binding(s) omitted; notebook status + narrower query`,
+		);
 	return boundMessage(lines.join("\n"));
 }
 
-function formatBindingMetadata(binding: { description?: string | undefined; usage?: string | undefined; hook?: NotebookHook | undefined }): string {
-	const description = binding.description === undefined ? "" : ` · ${binding.description}`;
-	const usage = binding.usage === undefined ? "" : ` · usage: ${binding.usage.replaceAll("\n", "\n  ")}`;
+function formatBindingMetadata(binding: {
+	description?: string | undefined;
+	usage?: string | undefined;
+	hook?: NotebookHook | undefined;
+}): string {
+	const description =
+		binding.description === undefined ? "" : ` · ${binding.description}`;
+	const usage =
+		binding.usage === undefined
+			? ""
+			: ` · usage: ${binding.usage.replaceAll("\n", "\n  ")}`;
 	return `${binding.hook ? ` · hook: ${binding.hook}` : ""}${description}${usage}`;
 }
 
-export function formatRelease(result: NotebookReleaseResult, restarted: boolean): string {
+export function formatRelease(
+	result: NotebookReleaseResult,
+	restarted: boolean,
+): string {
 	const lines = [
 		`Released notebook bindings: ${result.released.length > 0 ? result.released.join(", ") : "none"}`,
-		restarted ? "Kernel restarted to clear lexical bindings; durable state was restored and runtime-only handles were not" : undefined,
-		result.disposed.length > 0 ? `Disposed standard resources: ${result.disposed.join(", ")}` : undefined,
+		restarted
+			? "Kernel restarted to clear lexical bindings; durable state was restored and runtime-only handles were not"
+			: undefined,
+		result.disposed.length > 0
+			? `Disposed standard resources: ${result.disposed.join(", ")}`
+			: undefined,
 		...result.failures.map(({ name, reason }) => `Failed ${name}: ${reason}`),
 	];
 	return boundMessage(lines.filter(Boolean).join("\n"));
@@ -168,5 +236,7 @@ function formatAge(timestamp: string): string {
 
 function boundMessage(message: string): string {
 	const marker = "\n[Notebook lifecycle output truncated; narrow query]";
-	return message.length <= MESSAGE_BUDGET ? message : `${message.slice(0, MESSAGE_BUDGET - marker.length)}${marker}`;
+	return message.length <= MESSAGE_BUDGET
+		? message
+		: `${message.slice(0, MESSAGE_BUDGET - marker.length)}${marker}`;
 }

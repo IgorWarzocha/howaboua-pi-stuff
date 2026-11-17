@@ -1,8 +1,16 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { supportsCodexReasoningUpdates } from "../reasoning-updates.ts";
 import { supportsViewImageInputs } from "../tool-support.ts";
-import { isGpt6ModelId, supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite-model.ts";
-import { isCodexLikeModel, isCodexTransportContext, isOpenAIResponsesContext, isResponsesContext } from "../prompt/codex-model.ts";
+import {
+	isGpt6ModelId,
+	supportsResponsesLiteModel,
+} from "../../providers/openai-codex/responses-lite-model.ts";
+import {
+	isCodexLikeModel,
+	isCodexTransportContext,
+	isOpenAIResponsesContext,
+	isResponsesContext,
+} from "../prompt/codex-model.ts";
 import type { CodexConversionConfig } from "./config.ts";
 import { FAST_MODE_FAMILIES } from "./config-contract.ts";
 import type { ExecutionMode } from "./execution-mode.ts";
@@ -19,7 +27,15 @@ import {
 type RuntimeContext = Pick<ExtensionContext, "model">;
 
 interface RuntimePlanBase {
-	kind: "inactive" | "extras" | "normal" | "code" | "notebook" | "ts" | "js";
+	kind:
+		| "inactive"
+		| "extras"
+		| "normal"
+		| "code"
+		| "notebook"
+		| "ts"
+		| "js"
+		| "vm";
 	toolNames: string[];
 	ownedToolNames: string[];
 	configuredProvider: boolean;
@@ -74,7 +90,21 @@ export interface JsRuntimePlan extends RuntimePlanBase {
 	transport: "responses" | "responses-lite";
 }
 
-export type CodexRuntimePlan = InactiveRuntimePlan | ExtrasRuntimePlan | NormalRuntimePlan | CodeRuntimePlan | NotebookRuntimePlan | TsRuntimePlan | JsRuntimePlan;
+export interface VmRuntimePlan extends RuntimePlanBase {
+	kind: "vm";
+	prompt: "vm";
+	transport: "responses" | "responses-lite";
+}
+
+export type CodexRuntimePlan =
+	| InactiveRuntimePlan
+	| ExtrasRuntimePlan
+	| NormalRuntimePlan
+	| CodeRuntimePlan
+	| NotebookRuntimePlan
+	| TsRuntimePlan
+	| JsRuntimePlan
+	| VmRuntimePlan;
 
 const ALL_ADAPTER_TOOL_NAMES = [
 	"change_reasoning",
@@ -83,20 +113,43 @@ const ALL_ADAPTER_TOOL_NAMES = [
 	VIEW_IMAGE_TOOL_NAME,
 ];
 
-function configuredProvider(ctx: RuntimeContext, config: CodexConversionConfig): boolean {
+function configuredProvider(
+	ctx: RuntimeContext,
+	config: CodexConversionConfig,
+): boolean {
 	const provider = ctx.model?.provider?.trim().toLowerCase();
-	return Boolean(provider && isResponsesContext(ctx) && config.scope.additionalProviders.includes(provider));
+	return Boolean(
+		provider &&
+		isResponsesContext(ctx) &&
+		config.scope.additionalProviders.includes(provider),
+	);
 }
 
-function proxySupportsResponsesLite(ctx: RuntimeContext, config: CodexConversionConfig): boolean {
-	if (!config.openai.proxyResponsesLite || !configuredProvider(ctx, config) || !isOpenAIResponsesContext(ctx)) return false;
+function proxySupportsResponsesLite(
+	ctx: RuntimeContext,
+	config: CodexConversionConfig,
+): boolean {
+	if (
+		!config.openai.proxyResponsesLite ||
+		!configuredProvider(ctx, config) ||
+		!isOpenAIResponsesContext(ctx)
+	)
+		return false;
 	const modelId = ctx.model?.id;
 	if (!modelId) return false;
-	const id = modelId.includes("/") ? (modelId.split("/").pop() ?? modelId) : modelId;
-	return isGpt6ModelId(id) || /^gpt-5\.6(?:-(?:luna|terra|sol))?$/.test(id.toLowerCase());
+	const id = modelId.includes("/")
+		? (modelId.split("/").pop() ?? modelId)
+		: modelId;
+	return (
+		isGpt6ModelId(id) ||
+		/^gpt-5\.6(?:-(?:luna|terra|sol))?$/.test(id.toLowerCase())
+	);
 }
 
-function usesResponsesLite(ctx: RuntimeContext, config: CodexConversionConfig): boolean {
+function usesResponsesLite(
+	ctx: RuntimeContext,
+	config: CodexConversionConfig,
+): boolean {
 	return isCodexTransportContext(ctx)
 		? supportsResponsesLiteModel(ctx.model?.id)
 		: proxySupportsResponsesLite(ctx, config);
@@ -107,32 +160,55 @@ function hasExtras(config: CodexConversionConfig): boolean {
 	return tools.applyPatchOnly || tools.viewImageOnly;
 }
 
-function extraToolNames(ctx: RuntimeContext, config: CodexConversionConfig): string[] {
+function extraToolNames(
+	ctx: RuntimeContext,
+	config: CodexConversionConfig,
+): string[] {
 	const names: string[] = [];
 	if (config.tools.applyPatchOnly) names.push(APPLY_PATCH_TOOL_NAME);
-	if (config.tools.viewImageOnly && (supportsViewImageInputs(ctx.model) || config.tools.viewImageFallback)) names.push(VIEW_IMAGE_TOOL_NAME);
+	if (
+		config.tools.viewImageOnly &&
+		(supportsViewImageInputs(ctx.model) || config.tools.viewImageFallback)
+	)
+		names.push(VIEW_IMAGE_TOOL_NAME);
 	return names;
 }
 
-function normalToolNames(ctx: RuntimeContext, config: CodexConversionConfig): string[] {
+function normalToolNames(
+	ctx: RuntimeContext,
+	config: CodexConversionConfig,
+): string[] {
 	const names = [...CORE_ADAPTER_TOOL_NAMES];
-	if (supportsViewImageInputs(ctx.model) || config.tools.viewImageFallback) names.push(VIEW_IMAGE_TOOL_NAME);
+	if (supportsViewImageInputs(ctx.model) || config.tools.viewImageFallback)
+		names.push(VIEW_IMAGE_TOOL_NAME);
 	return names;
 }
 
 /** Provider feature negotiation shares the configured method; route eligibility is resolved below. */
-export function nativeCompactionConfigured(compaction: CodexConversionConfig["compaction"] | undefined): boolean {
+export function nativeCompactionConfigured(
+	compaction: CodexConversionConfig["compaction"] | undefined,
+): boolean {
 	return compaction !== undefined && compaction.method !== "pi";
 }
 
-export function hasCodexTransportConfigChanged(previous: CodexConversionConfig, next: CodexConversionConfig): boolean {
-	return next.voiceFeaturesOnly !== previous.voiceFeaturesOnly
-		|| next.executionMode !== previous.executionMode
-		|| next.prompt.heavySystemPromptOverwrite !== previous.prompt.heavySystemPromptOverwrite
-		|| [...FAST_MODE_FAMILIES, "other" as const].some((family) => next.openai.fast[family] !== previous.openai.fast[family])
-		|| next.openai.daybreak !== previous.openai.daybreak
-		|| next.openai.harnessIdentifierHeader !== previous.openai.harnessIdentifierHeader
-		|| nativeCompactionConfigured(next.compaction) !== nativeCompactionConfigured(previous.compaction);
+export function hasCodexTransportConfigChanged(
+	previous: CodexConversionConfig,
+	next: CodexConversionConfig,
+): boolean {
+	return (
+		next.voiceFeaturesOnly !== previous.voiceFeaturesOnly ||
+		next.executionMode !== previous.executionMode ||
+		next.prompt.heavySystemPromptOverwrite !==
+			previous.prompt.heavySystemPromptOverwrite ||
+		[...FAST_MODE_FAMILIES, "other" as const].some(
+			(family) => next.openai.fast[family] !== previous.openai.fast[family],
+		) ||
+		next.openai.daybreak !== previous.openai.daybreak ||
+		next.openai.harnessIdentifierHeader !==
+			previous.openai.harnessIdentifierHeader ||
+		nativeCompactionConfigured(next.compaction) !==
+			nativeCompactionConfigured(previous.compaction)
+	);
 }
 
 export function resolveCodexRuntimePlan(
@@ -159,36 +235,67 @@ export function resolveCodexRuntimePlan(
 		nativeReplay: false,
 		autoReasoning: false,
 	};
-	const extras = hasExtras(config)
-		&& (config.scope.allProviders === "extras"
-			|| (config.voiceFeaturesOnly && config.scope.allProviders === "on")
-			|| (config.scope.allProviders === "off" && (isConfigured || isCodexLikeModel(ctx.model))));
+	const extras =
+		hasExtras(config) &&
+		(config.scope.allProviders === "extras" ||
+			(config.voiceFeaturesOnly && config.scope.allProviders === "on") ||
+			(config.scope.allProviders === "off" &&
+				(isConfigured || isCodexLikeModel(ctx.model))));
 	if (extras) {
-		return { ...base, kind: "extras", toolNames: extraToolNames(ctx, config), prompt: undefined, transport: "responses" };
+		return {
+			...base,
+			kind: "extras",
+			toolNames: extraToolNames(ctx, config),
+			prompt: undefined,
+			transport: "responses",
+		};
 	}
-	if (config.voiceFeaturesOnly) return { ...base, kind: "inactive", toolNames: [], prompt: undefined, transport: undefined };
+	if (config.voiceFeaturesOnly)
+		return {
+			...base,
+			kind: "inactive",
+			toolNames: [],
+			prompt: undefined,
+			transport: undefined,
+		};
 
-	const active = config.scope.allProviders === "on" || isConfigured || isCodexLikeModel(ctx.model);
-	if (!active) return { ...base, kind: "inactive", toolNames: [], prompt: undefined, transport: undefined };
+	const active =
+		config.scope.allProviders === "on" ||
+		isConfigured ||
+		isCodexLikeModel(ctx.model);
+	if (!active)
+		return {
+			...base,
+			kind: "inactive",
+			toolNames: [],
+			prompt: undefined,
+			transport: undefined,
+		};
 	base.nativeReplay = effectiveOpenAICodex;
-	const nativeCompaction = effectiveOpenAICodex && nativeCompactionConfigured(config.compaction);
-	base.autoReasoning = config.tools.autoReasoning && supportsCodexReasoningUpdates(ctx.model);
+	const nativeCompaction =
+		effectiveOpenAICodex && nativeCompactionConfigured(config.compaction);
+	base.autoReasoning =
+		config.tools.autoReasoning && supportsCodexReasoningUpdates(ctx.model);
 	const configuredExecutionMode = executionMode ?? config.executionMode;
-	const requestedCodeMode = configuredExecutionMode === "code" || configuredExecutionMode === "notebook" || configuredExecutionMode === "ts" || configuredExecutionMode === "js"
-		? configuredExecutionMode
-		: configuredExecutionMode === "normal"
-			? undefined
+	const requestedCodeMode =
+		configuredExecutionMode === "code" ||
+		configuredExecutionMode === "notebook" ||
+		configuredExecutionMode === "ts" ||
+		configuredExecutionMode === "js" ||
+		configuredExecutionMode === "vm"
+			? configuredExecutionMode
 			: undefined;
 	if (requestedCodeMode) {
-		const transport: "responses-lite" | "responses" = usesResponsesLite(ctx, config)
+		const transport: "responses-lite" | "responses" = usesResponsesLite(
+			ctx,
+			config,
+		)
 			? "responses-lite"
 			: "responses";
 		if (requestedCodeMode === "notebook" || requestedCodeMode === "ts") {
 			const statefulPlan = {
 				...base,
-				toolNames: [
-					...NOTEBOOK_MODE_TOOL_NAMES,
-				],
+				toolNames: [...NOTEBOOK_MODE_TOOL_NAMES],
 				transport,
 				nativeCompaction,
 			};
@@ -198,20 +305,23 @@ export function resolveCodexRuntimePlan(
 		}
 		const statelessPlan = {
 			...base,
-			toolNames: [
-				...CODE_MODE_TOOL_NAMES,
-			],
+			toolNames: [...CODE_MODE_TOOL_NAMES],
 			transport,
 			nativeCompaction,
 		};
 		return requestedCodeMode === "js"
 			? { ...statelessPlan, kind: "js", prompt: "js" }
-			: { ...statelessPlan, kind: "code", prompt: "code" };
+			: requestedCodeMode === "vm"
+				? { ...statelessPlan, kind: "vm", prompt: "vm" }
+				: { ...statelessPlan, kind: "code", prompt: "code" };
 	}
 	return {
 		...base,
 		kind: "normal",
-		toolNames: [...normalToolNames(ctx, config), ...(base.autoReasoning ? ["change_reasoning"] : [])],
+		toolNames: [
+			...normalToolNames(ctx, config),
+			...(base.autoReasoning ? ["change_reasoning"] : []),
+		],
 		prompt: "normal",
 		transport: "responses",
 		nativeCompaction,
@@ -223,10 +333,12 @@ export function resolveCodexRuntimePlanForState(
 	state: Pick<AdapterState, "config" | "executionMode" | "availableToolNames">,
 ): CodexRuntimePlan {
 	const plan = resolveCodexRuntimePlan(ctx, state.config, state.executionMode);
-	const missingToolNames = state.availableToolNames === undefined
-		? []
-		: plan.toolNames
-			.filter((name) => !state.availableToolNames?.includes(name));
+	const missingToolNames =
+		state.availableToolNames === undefined
+			? []
+			: plan.toolNames.filter(
+					(name) => !state.availableToolNames?.includes(name),
+				);
 	if (!missingToolNames.length) return plan;
 	return {
 		...plan,
@@ -241,12 +353,40 @@ export function resolveCodexRuntimePlanForState(
 	};
 }
 
-export function isAdapterRuntime(plan: CodexRuntimePlan): plan is NormalRuntimePlan | CodeRuntimePlan | NotebookRuntimePlan | TsRuntimePlan | JsRuntimePlan {
-	return plan.kind === "normal" || plan.kind === "code" || plan.kind === "notebook" || plan.kind === "ts" || plan.kind === "js";
+export function isAdapterRuntime(
+	plan: CodexRuntimePlan,
+): plan is
+	| NormalRuntimePlan
+	| CodeRuntimePlan
+	| NotebookRuntimePlan
+	| TsRuntimePlan
+	| JsRuntimePlan
+	| VmRuntimePlan {
+	return (
+		plan.kind === "normal" ||
+		plan.kind === "code" ||
+		plan.kind === "notebook" ||
+		plan.kind === "ts" ||
+		plan.kind === "js" ||
+		plan.kind === "vm"
+	);
 }
 
-export function isCodeModeRuntime(plan: CodexRuntimePlan): plan is CodeRuntimePlan | NotebookRuntimePlan | TsRuntimePlan | JsRuntimePlan {
-	return plan.kind === "code" || plan.kind === "notebook" || plan.kind === "ts" || plan.kind === "js";
+export function isCodeModeRuntime(
+	plan: CodexRuntimePlan,
+): plan is
+	| CodeRuntimePlan
+	| NotebookRuntimePlan
+	| TsRuntimePlan
+	| JsRuntimePlan
+	| VmRuntimePlan {
+	return (
+		plan.kind === "code" ||
+		plan.kind === "notebook" ||
+		plan.kind === "ts" ||
+		plan.kind === "js" ||
+		plan.kind === "vm"
+	);
 }
 
 export const ALL_CODEX_ADAPTER_TOOL_NAMES = ALL_ADAPTER_TOOL_NAMES;

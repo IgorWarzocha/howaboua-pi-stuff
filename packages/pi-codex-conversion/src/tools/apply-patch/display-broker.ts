@@ -288,9 +288,9 @@ function textContent(content: unknown): { content?: string | undefined } {
 		.filter((item): item is { type: "text"; text: string } =>
 			Boolean(
 				item &&
-					typeof item === "object" &&
-					(item as { type?: unknown }).type === "text" &&
-					typeof (item as { text?: unknown }).text === "string",
+				typeof item === "object" &&
+				(item as { type?: unknown }).type === "text" &&
+				typeof (item as { text?: unknown }).text === "string",
 			),
 		)
 		.map((item) => item.text)

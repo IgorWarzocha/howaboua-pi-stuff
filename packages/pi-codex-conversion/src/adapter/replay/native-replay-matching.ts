@@ -2,11 +2,22 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { ResponsesCompatibleRequestPayload } from "../compaction/compaction-runtime.ts";
-import { serializeMessagesToResponsesInput, type ResponsesInputItem, type SerializeResponsesMessagesOptions } from "../compaction/serializer.js";
-import { areEquivalentValues, cloneResponsesInputSlice, isRecord } from "./payload-structured.ts";
+import {
+	serializeMessagesToResponsesInput,
+	type ResponsesInputItem,
+	type SerializeResponsesMessagesOptions,
+} from "../compaction/serializer.js";
+import {
+	areEquivalentValues,
+	cloneResponsesInputSlice,
+	isRecord,
+} from "./payload-structured.ts";
 import type { FreshAuthoritativePreamble } from "./payload-preamble.ts";
 import type { NativeCompactionEntry } from "../compaction/types.js";
-import { toPiReplayAgentMessage, toReplayAgentMessage } from "./replay-message-conversion.ts";
+import {
+	toPiReplayAgentMessage,
+	toReplayAgentMessage,
+} from "./replay-message-conversion.ts";
 
 export type SerializedReplaySlice = {
 	entries: SessionEntry[];
@@ -30,30 +41,40 @@ export type ReplayMatch = {
 const GENERATED_PI_MESSAGE_ID = /^msg_pi_\d+(?:_\d+)?$/;
 
 function replayPrefixValuesEquivalent(left: unknown, right: unknown): boolean {
-	if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+	if (
+		!Array.isArray(left) ||
+		!Array.isArray(right) ||
+		left.length !== right.length
+	)
+		return false;
 	// Segment serialization restarts its message index. Ignore only the resulting
 	// generated assistant ID while requiring the rest of the item to match.
 	return left.every((leftItem, index) => {
 		const rightItem = right[index];
 		if (
-			isRecord(leftItem)
-			&& isRecord(rightItem)
-			&& leftItem["type"] === "message"
-			&& rightItem["type"] === "message"
-			&& leftItem["role"] === "assistant"
-			&& rightItem["role"] === "assistant"
-			&& typeof leftItem["id"] === "string"
-			&& typeof rightItem["id"] === "string"
-			&& GENERATED_PI_MESSAGE_ID.test(leftItem["id"])
-			&& GENERATED_PI_MESSAGE_ID.test(rightItem["id"])
+			isRecord(leftItem) &&
+			isRecord(rightItem) &&
+			leftItem["type"] === "message" &&
+			rightItem["type"] === "message" &&
+			leftItem["role"] === "assistant" &&
+			rightItem["role"] === "assistant" &&
+			typeof leftItem["id"] === "string" &&
+			typeof rightItem["id"] === "string" &&
+			GENERATED_PI_MESSAGE_ID.test(leftItem["id"]) &&
+			GENERATED_PI_MESSAGE_ID.test(rightItem["id"])
 		) {
-			return areEquivalentValues({ ...leftItem, id: "msg_pi_generated" }, { ...rightItem, id: "msg_pi_generated" });
+			return areEquivalentValues(
+				{ ...leftItem, id: "msg_pi_generated" },
+				{ ...rightItem, id: "msg_pi_generated" },
+			);
 		}
 		return areEquivalentValues(leftItem, rightItem);
 	});
 }
 
-export function collectReplayMessages(entries: readonly SessionEntry[]): AgentMessage[] {
+export function collectReplayMessages(
+	entries: readonly SessionEntry[],
+): AgentMessage[] {
 	const messages: AgentMessage[] = [];
 
 	for (const entry of entries) {
@@ -66,7 +87,9 @@ export function collectReplayMessages(entries: readonly SessionEntry[]): AgentMe
 	return messages;
 }
 
-function collectPiReplayMessages(entries: readonly SessionEntry[]): AgentMessage[] {
+function collectPiReplayMessages(
+	entries: readonly SessionEntry[],
+): AgentMessage[] {
 	const messages: AgentMessage[] = [];
 	for (const entry of entries) {
 		const message = toPiReplayAgentMessage(entry);
@@ -75,7 +98,9 @@ function collectPiReplayMessages(entries: readonly SessionEntry[]): AgentMessage
 	return messages;
 }
 
-export function createCompactionSummaryAgentMessage(entry: NativeCompactionEntry): AgentMessage {
+export function createCompactionSummaryAgentMessage(
+	entry: NativeCompactionEntry,
+): AgentMessage {
 	return {
 		role: "compactionSummary",
 		summary: entry.summary,
@@ -96,7 +121,11 @@ export function createReplaySlice(
 	};
 }
 
-function createReplayMessageSet<TApi extends Api>(model: Model<TApi>, messages: AgentMessage[], options?: SerializeResponsesMessagesOptions): ReplayMessageSet {
+function createReplayMessageSet<TApi extends Api>(
+	model: Model<TApi>,
+	messages: AgentMessage[],
+	options?: SerializeResponsesMessagesOptions,
+): ReplayMessageSet {
 	return {
 		messages,
 		input: serializeMessagesToResponsesInput(model, messages, options),
@@ -110,18 +139,31 @@ function createReplayVariants<TApi extends Api>(args: {
 }): ReplayMessageSet[] {
 	const contextMessages = collectReplayMessages(args.entries);
 	const piMessages = collectPiReplayMessages(args.entries);
-	const contextSet = createReplayMessageSet(args.model, contextMessages, args.serializationOptions);
+	const contextSet = createReplayMessageSet(
+		args.model,
+		contextMessages,
+		args.serializationOptions,
+	);
 	if (areEquivalentValues(contextMessages, piMessages)) return [contextSet];
-	return [contextSet, createReplayMessageSet(args.model, piMessages, args.serializationOptions)];
+	return [
+		contextSet,
+		createReplayMessageSet(args.model, piMessages, args.serializationOptions),
+	];
 }
 
 function clonePayloadConversationInput(args: {
 	payloadInput: readonly unknown[];
 	freshPreamble: FreshAuthoritativePreamble;
 }): ResponsesInputItem[] | undefined {
-	const tailEndIndex = args.payloadInput.length - args.freshPreamble.trailingInput.length;
+	const tailEndIndex =
+		args.payloadInput.length - args.freshPreamble.trailingInput.length;
 	if (tailEndIndex < args.freshPreamble.leadingInput.length) return undefined;
-	return cloneResponsesInputSlice(args.payloadInput.slice(args.freshPreamble.leadingInput.length, tailEndIndex));
+	return cloneResponsesInputSlice(
+		args.payloadInput.slice(
+			args.freshPreamble.leadingInput.length,
+			tailEndIndex,
+		),
+	);
 }
 
 export function buildLenientNativeReplayPayload(args: {
@@ -130,14 +172,26 @@ export function buildLenientNativeReplayPayload(args: {
 	compactedWindow: readonly unknown[];
 	compactionSummaryInput: readonly ResponsesInputItem[];
 }): { input: unknown[]; conversationInput: ResponsesInputItem[] } | undefined {
-	const conversationInput = clonePayloadConversationInput({ payloadInput: args.payload.input, freshPreamble: args.freshPreamble });
+	const conversationInput = clonePayloadConversationInput({
+		payloadInput: args.payload.input,
+		freshPreamble: args.freshPreamble,
+	});
 	if (!conversationInput) return undefined;
 	if (!args.compactionSummaryInput.length) return undefined;
 	const summaryIndex = conversationInput.findIndex((_, index) =>
-		areEquivalentValues(conversationInput.slice(index, index + args.compactionSummaryInput.length), args.compactionSummaryInput));
+		areEquivalentValues(
+			conversationInput.slice(
+				index,
+				index + args.compactionSummaryInput.length,
+			),
+			args.compactionSummaryInput,
+		),
+	);
 	if (summaryIndex < 0) return undefined;
 	const preceding = conversationInput.slice(0, summaryIndex);
-	const following = conversationInput.slice(summaryIndex + args.compactionSummaryInput.length);
+	const following = conversationInput.slice(
+		summaryIndex + args.compactionSummaryInput.length,
+	);
 	return {
 		conversationInput: [...preceding, ...following],
 		input: [
@@ -159,12 +213,24 @@ export function findReplayMatch<TApi extends Api>(args: {
 	postCompactionEntries: readonly SessionEntry[];
 	serializationOptions?: SerializeResponsesMessagesOptions | undefined;
 }): ReplayMatch | undefined {
-	const compactionSummaryInput = serializeMessagesToResponsesInput(args.model, [args.compactionSummaryMessage], args.serializationOptions);
+	const compactionSummaryInput = serializeMessagesToResponsesInput(
+		args.model,
+		[args.compactionSummaryMessage],
+		args.serializationOptions,
+	);
 	const preCompactionVariants = [
-		...createReplayVariants({ model: args.model, entries: args.preCompactionEntries, serializationOptions: args.serializationOptions }),
+		...createReplayVariants({
+			model: args.model,
+			entries: args.preCompactionEntries,
+			serializationOptions: args.serializationOptions,
+		}),
 		createReplayMessageSet(args.model, [], args.serializationOptions),
 	];
-	const postCompactionVariants = createReplayVariants({ model: args.model, entries: args.postCompactionEntries, serializationOptions: args.serializationOptions });
+	const postCompactionVariants = createReplayVariants({
+		model: args.model,
+		entries: args.postCompactionEntries,
+		serializationOptions: args.serializationOptions,
+	});
 
 	for (const preCompactionKept of preCompactionVariants) {
 		for (const postCompactionTail of postCompactionVariants) {
@@ -174,21 +240,46 @@ export function findReplayMatch<TApi extends Api>(args: {
 				...preCompactionKept.input,
 				...postCompactionTail.input,
 			];
-			const originalPiReplayInput: ResponsesInputItem[] = [...expectedBeforeTrailing, ...args.freshPreamble.trailingInput];
-			const tailEndIndex = args.payloadInput.length - args.freshPreamble.trailingInput.length;
-			const prefixMatches = replayPrefixValuesEquivalent(args.payloadInput.slice(0, expectedBeforeTrailing.length), expectedBeforeTrailing);
-			const trailingMatches = areEquivalentValues(args.payloadInput.slice(tailEndIndex), args.freshPreamble.trailingInput);
+			const originalPiReplayInput: ResponsesInputItem[] = [
+				...expectedBeforeTrailing,
+				...args.freshPreamble.trailingInput,
+			];
+			const tailEndIndex =
+				args.payloadInput.length - args.freshPreamble.trailingInput.length;
+			const prefixMatches = replayPrefixValuesEquivalent(
+				args.payloadInput.slice(0, expectedBeforeTrailing.length),
+				expectedBeforeTrailing,
+			);
+			const trailingMatches = areEquivalentValues(
+				args.payloadInput.slice(tailEndIndex),
+				args.freshPreamble.trailingInput,
+			);
 
-			if (prefixMatches && trailingMatches && tailEndIndex >= expectedBeforeTrailing.length) {
+			if (
+				prefixMatches &&
+				trailingMatches &&
+				tailEndIndex >= expectedBeforeTrailing.length
+			) {
 				const actualPostCompactionTail = cloneResponsesInputSlice(
 					args.payloadInput.slice(
-						args.freshPreamble.leadingInput.length + compactionSummaryInput.length + preCompactionKept.input.length,
+						args.freshPreamble.leadingInput.length +
+							compactionSummaryInput.length +
+							preCompactionKept.input.length,
 						tailEndIndex,
 					),
 				);
-				const extraPostCompactionTail = cloneResponsesInputSlice(args.payloadInput.slice(expectedBeforeTrailing.length, tailEndIndex));
-				if (!actualPostCompactionTail || !extraPostCompactionTail) return undefined;
-				return { originalPiReplayInput, preCompactionKept, postCompactionTail, actualPostCompactionTail, extraPostCompactionTail };
+				const extraPostCompactionTail = cloneResponsesInputSlice(
+					args.payloadInput.slice(expectedBeforeTrailing.length, tailEndIndex),
+				);
+				if (!actualPostCompactionTail || !extraPostCompactionTail)
+					return undefined;
+				return {
+					originalPiReplayInput,
+					preCompactionKept,
+					postCompactionTail,
+					actualPostCompactionTail,
+					extraPostCompactionTail,
+				};
 			}
 		}
 	}

@@ -148,8 +148,9 @@ export async function connectAdmission(
 			});
 		}
 		signal.throwIfAborted();
+		// Standalone Pi's Bun executable runs Pi, not arbitrary JavaScript.
 		const child = spawn(
-			process.execPath,
+			process.versions["bun"] ? "node" : process.execPath,
 			[
 				fileURLToPath(new URL("./admission-broker.mjs", import.meta.url)),
 				createHash("sha256").update(path).digest("hex"),

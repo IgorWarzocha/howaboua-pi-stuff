@@ -18,6 +18,7 @@ const CODEX_TOOL_ORIGINATOR = "codex_cli_rs";
 const OPENAI_CODEX_PROVIDER = "openai-codex";
 const PREFERRED_MODELS = [
 	"gpt-6-luna",
+	"gpt-6.2-sol",
 	"gpt-6-sol",
 	"gpt-5.6-luna",
 	"gpt-5.6-terra",
@@ -164,10 +165,10 @@ function isConfiguredProviderRequest(
 ): value is ConfiguredProviderRequest {
 	return Boolean(
 		value &&
-			typeof value === "object" &&
-			"model" in value &&
-			"allow" in value &&
-			typeof value.allow === "function",
+		typeof value === "object" &&
+		"model" in value &&
+		"allow" in value &&
+		typeof value.allow === "function",
 	);
 }
 
@@ -176,9 +177,9 @@ function isProviderResolverRequest(
 ): value is ProviderResolverRequest {
 	return Boolean(
 		value &&
-			typeof value === "object" &&
-			"use" in value &&
-			typeof value.use === "function",
+		typeof value === "object" &&
+		"use" in value &&
+		typeof value.use === "function",
 	);
 }
 

@@ -1,4 +1,7 @@
-export type TextSignaturePhase = "commentary" | "partial_answer" | "final_answer";
+export type TextSignaturePhase =
+	| "commentary"
+	| "partial_answer"
+	| "final_answer";
 
 export function shortHash(str: string): string {
 	let h1 = 0xdeadbeef;
@@ -8,24 +11,41 @@ export function shortHash(str: string): string {
 		h1 = Math.imul(h1 ^ ch, 2654435761);
 		h2 = Math.imul(h2 ^ ch, 1597334677);
 	}
-	h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-	h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+	h1 =
+		Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^
+		Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+	h2 =
+		Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^
+		Math.imul(h1 ^ (h1 >>> 13), 3266489909);
 	return (h2 >>> 0).toString(36) + (h1 >>> 0).toString(36);
 }
 
 export function encodeTextSignatureV1(id: string, phase?: string): string {
-	const payload: { v: 1; id: string; phase?: string | undefined } = { v: 1, id };
+	const payload: { v: 1; id: string; phase?: string | undefined } = {
+		v: 1,
+		id,
+	};
 	if (phase) payload.phase = phase;
 	return JSON.stringify(payload);
 }
 
-export function parseTextSignature(signature: string | undefined): { id: string; phase?: TextSignaturePhase | undefined } | undefined {
+export function parseTextSignature(
+	signature: string | undefined,
+): { id: string; phase?: TextSignaturePhase | undefined } | undefined {
 	if (!signature) return undefined;
 	if (signature.startsWith("{")) {
 		try {
-			const parsed = JSON.parse(signature) as { v?: number | undefined; id?: string | undefined; phase?: TextSignaturePhase | string | undefined };
+			const parsed = JSON.parse(signature) as {
+				v?: number | undefined;
+				id?: string | undefined;
+				phase?: TextSignaturePhase | string | undefined;
+			};
 			if (parsed.v === 1 && typeof parsed.id === "string") {
-				return parsed.phase === "commentary" || parsed.phase === "partial_answer" || parsed.phase === "final_answer" ? { id: parsed.id, phase: parsed.phase } : { id: parsed.id };
+				return parsed.phase === "commentary" ||
+					parsed.phase === "partial_answer" ||
+					parsed.phase === "final_answer"
+					? { id: parsed.id, phase: parsed.phase }
+					: { id: parsed.id };
 			}
 		} catch {
 			// Fall through to legacy plain-string handling.

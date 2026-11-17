@@ -1,15 +1,11 @@
 {
-  "name": "h-pi-stuff-stack",
-  "displayName": "H Pi Stuff Stack",
-  "version": "1.0.0",
-  "description": "Howaboua cloud-agent skills that match the local Pi skill set. Not listed for public marketplace review.",
-  "author": {
-    "name": "Howaboua"
-  },
-  "license": "MIT",
-  "keywords": [
-    "skills",
-    "pi",
-    "howaboua"
-  ]
+	"name": "h-pi-stuff-stack",
+	"displayName": "H Pi Stuff Stack",
+	"version": "1.0.0",
+	"description": "Howaboua cloud-agent skills that match the local Pi skill set. Not listed for public marketplace review.",
+	"author": {
+		"name": "Howaboua"
+	},
+	"license": "MIT",
+	"keywords": ["skills", "pi", "howaboua"]
 }

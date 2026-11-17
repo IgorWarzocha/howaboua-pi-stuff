@@ -38,7 +38,7 @@ function reverseBytes(hex) {
 function compressIpv6(groups) {
 	let bestStart = -1;
 	let bestLength = 0;
-	for (let index = 0; index < groups.length; ) {
+	for (let index = 0; index < groups.length;) {
 		if (groups[index] !== "0") {
 			index++;
 			continue;
@@ -54,7 +54,7 @@ function compressIpv6(groups) {
 	if (bestLength < 2) return groups.join(":");
 	const left = groups.slice(0, bestStart).join(":");
 	const right = groups.slice(bestStart + bestLength).join(":");
-	return `${left}::${right}` || "::";
+	return `${left}::${right}`;
 }
 
 export function decodeProcAddress(hex) {
@@ -381,7 +381,7 @@ function lsofReport(port, platform) {
 }
 
 function windowsReport(port) {
-	const script = `$ErrorActionPreference='SilentlyContinue'; $rows=@(); Get-NetTCPConnection -LocalPort ${port} | ForEach-Object { $p=Get-CimInstance Win32_Process -Filter (\"ProcessId = \"+$_.OwningProcess); $s=Get-CimInstance Win32_Service -Filter (\"ProcessId = \"+$_.OwningProcess); $rows += [pscustomobject]@{protocol=$(if ($_.LocalAddress -like '*:*') {'tcp6'} else {'tcp4'});local_address=$_.LocalAddress;local_port=$_.LocalPort;remote_address=$_.RemoteAddress;remote_port=$_.RemotePort;state=$_.State.ToString().ToLower();owners=@([pscustomobject]@{pid=$_.OwningProcess;command=$p.CommandLine;executable=$p.ExecutablePath;parent_pid=$p.ParentProcessId;service=$s.Name})} }; Get-NetUDPEndpoint -LocalPort ${port} | ForEach-Object { $p=Get-CimInstance Win32_Process -Filter (\"ProcessId = \"+$_.OwningProcess); $s=Get-CimInstance Win32_Service -Filter (\"ProcessId = \"+$_.OwningProcess); $rows += [pscustomobject]@{protocol=$(if ($_.LocalAddress -like '*:*') {'udp6'} else {'udp4'});local_address=$_.LocalAddress;local_port=$_.LocalPort;remote_address=$null;remote_port=$null;state='unconnected';owners=@([pscustomobject]@{pid=$_.OwningProcess;command=$p.CommandLine;executable=$p.ExecutablePath;parent_pid=$p.ParentProcessId;service=$s.Name})} }; $rows | ConvertTo-Json -Depth 6 -Compress`;
+	const script = `$ErrorActionPreference='SilentlyContinue'; $rows=@(); Get-NetTCPConnection -LocalPort ${port} | ForEach-Object { $p=Get-CimInstance Win32_Process -Filter ("ProcessId = "+$_.OwningProcess); $s=Get-CimInstance Win32_Service -Filter ("ProcessId = "+$_.OwningProcess); $rows += [pscustomobject]@{protocol=$(if ($_.LocalAddress -like '*:*') {'tcp6'} else {'tcp4'});local_address=$_.LocalAddress;local_port=$_.LocalPort;remote_address=$_.RemoteAddress;remote_port=$_.RemotePort;state=$_.State.ToString().ToLower();owners=@([pscustomobject]@{pid=$_.OwningProcess;command=$p.CommandLine;executable=$p.ExecutablePath;parent_pid=$p.ParentProcessId;service=$s.Name})} }; Get-NetUDPEndpoint -LocalPort ${port} | ForEach-Object { $p=Get-CimInstance Win32_Process -Filter ("ProcessId = "+$_.OwningProcess); $s=Get-CimInstance Win32_Service -Filter ("ProcessId = "+$_.OwningProcess); $rows += [pscustomobject]@{protocol=$(if ($_.LocalAddress -like '*:*') {'udp6'} else {'udp4'});local_address=$_.LocalAddress;local_port=$_.LocalPort;remote_address=$null;remote_port=$null;state='unconnected';owners=@([pscustomobject]@{pid=$_.OwningProcess;command=$p.CommandLine;executable=$p.ExecutablePath;parent_pid=$p.ParentProcessId;service=$s.Name})} }; $rows | ConvertTo-Json -Depth 6 -Compress`;
 	let result = run("powershell.exe", [
 		"-NoProfile",
 		"-NonInteractive",

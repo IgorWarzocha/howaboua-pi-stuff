@@ -109,8 +109,8 @@ export function parseCustomTool(
 	const args = stringArray(value["args"], "args", path);
 	const resolvedCommand =
 		!isAbsolute(command) && (command.includes("/") || command.includes("\\"))
-		? resolve(dirname(path), command)
-		: command;
+			? resolve(dirname(path), command)
+			: command;
 	const nodeScript =
 		isAbsolute(resolvedCommand) && NODE_SCRIPT_PATTERN.test(resolvedCommand);
 	return {

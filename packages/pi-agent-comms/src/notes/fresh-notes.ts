@@ -58,17 +58,58 @@ export function hasPrecedingNoteWrite(
 	windowId: string | undefined,
 	runId: string,
 	requestCallId: string,
+	parentCallId?: string,
 ): boolean {
 	const { messages, receipts, outcomes } = noteEvidence(
 		branch,
 		windowId,
 		runId,
 	);
+	if (parentCallId) {
+		// The running cell has no result yet. Only Notes-owned completed write
+		// outcomes under its exec/wait scopes can prove a same-cell save.
+		const issuingCall = messages.findLastIndex(
+			(message) =>
+				message.role === "assistant" &&
+				message.content.some(
+					(block) => block.type === "toolCall" && block.id === parentCallId,
+				),
+		);
+		if (issuingCall < 0) return false;
+		const parents = new Set([parentCallId]);
+		const initial = messages.find(
+			(message) =>
+				message.role === "toolResult" && message.toolCallId === parentCallId,
+		);
+		const cell = initial?.role === "toolResult" ? codeCell(initial) : undefined;
+		if (cell) {
+			for (const message of messages.slice(issuingCall)) {
+				if (message.role !== "assistant") continue;
+				for (const call of message.content) {
+					if (
+						call.type === "toolCall" &&
+						call.name === "wait" &&
+						call.arguments["cell_id"] === cell.id
+					)
+						parents.add(call.id);
+				}
+			}
+		}
+		const local = outcomes.filter(
+			(item) => parents.has(item.parentCallId) && item.origin !== "routed",
+		);
+		if (local.length)
+			return (
+				receipts.length > 0 &&
+				local.every((item) => !item.pending && item.saved)
+			);
+	}
+	const issuingCallId = parentCallId ?? requestCallId;
 	const request = messages.findLastIndex(
 		(message) =>
 			message.role === "assistant" &&
 			message.content.some(
-				(block) => block.type === "toolCall" && block.id === requestCallId,
+				(block) => block.type === "toolCall" && block.id === issuingCallId,
 			),
 	);
 	if (request < 0) return false;
@@ -83,7 +124,7 @@ export function hasPrecedingNoteWrite(
 	const current = groups.pop() ?? [];
 	const predecessors = current.slice(
 		0,
-		current.findIndex((call) => call.id === requestCallId),
+		current.findIndex((call) => call.id === issuingCallId),
 	);
 	const calls = predecessors.length ? predecessors : (groups.at(-1) ?? []);
 	const allResults = messages.flatMap((message) =>
@@ -140,9 +181,9 @@ function noteEvidence(
 		.filter((receipt): receipt is NoteReceipt =>
 			Boolean(
 				receipt &&
-					receipt.origin !== "routed" &&
-					receipt.windowId === windowId &&
-					(!runId || receipt.runId === runId),
+				receipt.origin !== "routed" &&
+				receipt.windowId === windowId &&
+				(!runId || receipt.runId === runId),
 			),
 		);
 	const messages = buildSessionProjection(run).messages;

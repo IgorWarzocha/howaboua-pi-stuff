@@ -145,6 +145,7 @@ async function poll() {
 	} catch (error) {
 		report(error);
 	}
+	// oxlint-disable-next-line typescript/no-misused-promises -- poll reports refresh failures before scheduling its next pass.
 	if (!stopped) setTimeout(poll, 2000);
 }
 

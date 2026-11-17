@@ -39,8 +39,7 @@ export function registerCodeModeExtensionTools(
 	let active = options.isActive === undefined;
 	const stopProvider = pi.events.on(EXTENSION_TOOLS_CHANNEL, (value) => {
 		if (!isExtensionToolsRequest(value)) return;
-		if (value.refreshGates)
-			active = options.isActive?.(value.context) ?? true;
+		if (value.refreshGates) active = options.isActive?.(value.context) ?? true;
 		value.add(provider, active);
 	});
 	const refresh = () => {
@@ -76,7 +75,10 @@ export function onCodeModeExtensionToolsRefresh(
 export function getCodeModeExtensionToolSnapshot(
 	pi: ExtensionAPI,
 	context: ExtensionContext | undefined,
-	options: { refreshGates?: boolean; eligibleTopLevelNames?: readonly string[] | undefined } = {},
+	options: {
+		refreshGates?: boolean;
+		eligibleTopLevelNames?: readonly string[] | undefined;
+	} = {},
 ): {
 	tools: ProgrammaticCodeModeToolDefinition[];
 	allToolNames: string[];
@@ -106,23 +108,28 @@ export function getCodeModeExtensionToolSnapshot(
 		tools: resolved
 			.filter(({ active }) => active)
 			.flatMap(({ tools }) => tools)
-			.filter((tool) => tool.topLevelName === undefined || (registeredNames.has(tool.topLevelName)
-				&& (options.eligibleTopLevelNames === undefined || options.eligibleTopLevelNames.includes(tool.topLevelName)))),
-		allToolNames: [
-			...new Set(
-				allTools.map((tool) => tool.topLevelName ?? tool.name),
+			.filter(
+				(tool) =>
+					tool.topLevelName === undefined ||
+					(registeredNames.has(tool.topLevelName) &&
+						(options.eligibleTopLevelNames === undefined ||
+							options.eligibleTopLevelNames.includes(tool.topLevelName))),
 			),
+		allToolNames: [
+			...new Set(allTools.map((tool) => tool.topLevelName ?? tool.name)),
 		],
 	};
 }
 
-function isExtensionToolsRequest(value: unknown): value is ExtensionToolsRequest {
+function isExtensionToolsRequest(
+	value: unknown,
+): value is ExtensionToolsRequest {
 	return Boolean(
 		value &&
-			typeof value === "object" &&
-			"add" in value &&
-			typeof value.add === "function" &&
-			"refreshGates" in value &&
-			typeof value.refreshGates === "boolean",
+		typeof value === "object" &&
+		"add" in value &&
+		typeof value.add === "function" &&
+		"refreshGates" in value &&
+		typeof value.refreshGates === "boolean",
 	);
 }

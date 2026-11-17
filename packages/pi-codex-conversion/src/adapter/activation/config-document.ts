@@ -1,6 +1,9 @@
 import { mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { DEFAULT_CODEX_CONVERSION_CONFIG, type CodexConversionConfig } from "./config.ts";
+import {
+	DEFAULT_CODEX_CONVERSION_CONFIG,
+	type CodexConversionConfig,
+} from "./config.ts";
 
 export const OWNED_CONFIG_KEYS = Object.keys(DEFAULT_CODEX_CONVERSION_CONFIG);
 export const LEGACY_OWNED_CONFIG_KEYS = ["beta"];
@@ -9,18 +12,26 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-export function mergeConfigDocument(existing: Record<string, unknown>, owned: Record<string, unknown>): Record<string, unknown> {
+export function mergeConfigDocument(
+	existing: Record<string, unknown>,
+	owned: Record<string, unknown>,
+): Record<string, unknown> {
 	const merged = { ...existing };
 	for (const [key, value] of Object.entries(owned)) {
 		const previous = merged[key];
-		merged[key] = isRecord(previous) && isRecord(value)
-			? mergeConfigDocument(previous, value)
-			: value;
+		merged[key] =
+			isRecord(previous) && isRecord(value)
+				? mergeConfigDocument(previous, value)
+				: value;
 	}
 	return merged;
 }
 
-export function clearAbsentOwnedOptionals(document: Record<string, unknown>, owned: Record<string, unknown>, folderScope: boolean): void {
+export function clearAbsentOwnedOptionals(
+	document: Record<string, unknown>,
+	owned: Record<string, unknown>,
+	folderScope: boolean,
+): void {
 	const voice = isRecord(document["voice"]) ? document["voice"] : undefined;
 	const ownedVoice = isRecord(owned["voice"]) ? owned["voice"] : undefined;
 	if (!voice || !ownedVoice) return;
@@ -32,7 +43,10 @@ export function clearAbsentOwnedOptionals(document: Record<string, unknown>, own
 		}
 }
 
-export function writeConfigDocumentAtomic(configPath: string, document: Record<string, unknown>): void {
+export function writeConfigDocumentAtomic(
+	configPath: string,
+	document: Record<string, unknown>,
+): void {
 	const temporaryPath = `${configPath}.${process.pid}.${Date.now()}.tmp`;
 	mkdirSync(dirname(configPath), { recursive: true });
 	try {
@@ -46,15 +60,25 @@ export function writeConfigDocumentAtomic(configPath: string, document: Record<s
 	}
 }
 
-export function withoutProjectOnlyConfig(config: CodexConversionConfig): CodexConversionConfig {
+export function withoutProjectOnlyConfig(
+	config: CodexConversionConfig,
+): CodexConversionConfig {
 	return {
 		...config,
-		openai: { ...config.openai, cacheKeepalive: false, cacheKeepaliveIntervalMinutes: 25 },
+		openai: {
+			...config.openai,
+			cacheKeepalive: false,
+			cacheKeepaliveIntervalMinutes: 25,
+		},
 	};
 }
 
-export function withoutProjectOnlyDocument(document: Record<string, unknown>): Record<string, unknown> {
-	const openai = isRecord(document["openai"]) ? { ...document["openai"] } : undefined;
+export function withoutProjectOnlyDocument(
+	document: Record<string, unknown>,
+): Record<string, unknown> {
+	const openai = isRecord(document["openai"])
+		? { ...document["openai"] }
+		: undefined;
 	if (!openai) return document;
 	delete openai["cacheKeepalive"];
 	delete openai["cacheKeepaliveIntervalMinutes"];
@@ -64,12 +88,18 @@ export function withoutProjectOnlyDocument(document: Record<string, unknown>): R
 	return next;
 }
 
-export function withoutGlobalOnlyDocument(document: Record<string, unknown>): Record<string, unknown> {
-	const notebook = isRecord(document["notebook"]) ? { ...document["notebook"] } : undefined;
+export function withoutGlobalOnlyDocument(
+	document: Record<string, unknown>,
+): Record<string, unknown> {
+	const notebook = isRecord(document["notebook"])
+		? { ...document["notebook"] }
+		: undefined;
 	if (notebook) delete notebook["journals"];
 	if (notebook) delete notebook["checkpointCleanup"];
 	document = notebook ? { ...document, notebook } : document;
-	const openai = isRecord(document["openai"]) ? { ...document["openai"] } : undefined;
+	const openai = isRecord(document["openai"])
+		? { ...document["openai"] }
+		: undefined;
 	if (!openai) return document;
 	delete openai["lunaCacheKeepaliveMinutes"];
 	delete openai["lunaCacheKeepaliveIntervalMinutes"];
@@ -79,8 +109,12 @@ export function withoutGlobalOnlyDocument(document: Record<string, unknown>): Re
 	return next;
 }
 
-export function withoutDisabledProjectCacheKeepalive(document: Record<string, unknown>): Record<string, unknown> {
-	const openai = isRecord(document["openai"]) ? { ...document["openai"] } : undefined;
+export function withoutDisabledProjectCacheKeepalive(
+	document: Record<string, unknown>,
+): Record<string, unknown> {
+	const openai = isRecord(document["openai"])
+		? { ...document["openai"] }
+		: undefined;
 	if (!openai || openai["cacheKeepalive"] !== false) return document;
 	delete openai["cacheKeepalive"];
 	const next = { ...document };

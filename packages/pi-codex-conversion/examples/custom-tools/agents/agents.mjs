@@ -120,7 +120,8 @@ function parseAnswerRequest(value) {
 	const unknown = Object.keys(value).filter((key) => !ANSWER_FIELDS.has(key));
 	if (unknown.length)
 		throw new Error(`unknown answer field(s): ${unknown.join(", ")}`);
-	if (!Array.isArray(value.answers)) throw new Error("answers must be an array");
+	if (!Array.isArray(value.answers))
+		throw new Error("answers must be an array");
 	return {
 		action: "answer",
 		target: requiredString(value.target, "target"),
@@ -155,7 +156,9 @@ function parseRequest(text) {
 			throw new Error(`unknown find field(s): ${unknown.join(", ")}`);
 	}
 	if (value.action !== "find")
-		throw new Error("action must be one of: help, spawn, find, send, read, answer");
+		throw new Error(
+			"action must be one of: help, spawn, find, send, read, answer",
+		);
 	return {
 		action: "coordinate",
 		raw: text,
@@ -187,9 +190,17 @@ async function run(command, args, options = {}) {
 		child.once("error", rejectRun);
 		child.once("close", (code, signal) => {
 			if (stdout.length > MAX_OUTPUT_CHARS || stderr.length > MAX_OUTPUT_CHARS)
-				return rejectRun(new Error(`${command} output exceeded ${MAX_OUTPUT_CHARS} characters`));
-			if (code === 0) return resolveRun({ stdout: stdout.trim(), stderr: stderr.trim() });
-			const reason = stderr.trim() || stdout.trim() || (signal ? `signal ${signal}` : `exit ${code}`);
+				return rejectRun(
+					new Error(
+						`${command} output exceeded ${MAX_OUTPUT_CHARS} characters`,
+					),
+				);
+			if (code === 0)
+				return resolveRun({ stdout: stdout.trim(), stderr: stderr.trim() });
+			const reason =
+				stderr.trim() ||
+				stdout.trim() ||
+				(signal ? `signal ${signal}` : `exit ${code}`);
 			rejectRun(new Error(`${command}: ${reason}`));
 		});
 		child.stdin.end(options.input ?? "");
@@ -208,7 +219,10 @@ async function runJson(command, args, options) {
 }
 
 function validateStringArray(value, field) {
-	if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || !item))
+	if (
+		!Array.isArray(value) ||
+		value.some((item) => typeof item !== "string" || !item)
+	)
 		throw new Error(`${field} must be an array of non-empty strings`);
 	return value;
 }
@@ -228,7 +242,8 @@ async function loadProfiles() {
 				`invalid ${entry.name} profile: ${error instanceof Error ? error.message : String(error)}`,
 			);
 		}
-		if (!isObject(profile)) throw new Error(`${entry.name} profile must be an object`);
+		if (!isObject(profile))
+			throw new Error(`${entry.name} profile must be an object`);
 		const allowed = new Set([
 			"description",
 			"model",
@@ -240,9 +255,15 @@ async function loadProfiles() {
 		]);
 		const unknown = Object.keys(profile).filter((key) => !allowed.has(key));
 		if (unknown.length)
-			throw new Error(`unknown ${entry.name} profile field(s): ${unknown.join(", ")}`);
-		const prompt = resolve(dir, requiredString(profile.prompt, `${entry.name}.prompt`));
-		if (!(await stat(prompt)).isFile()) throw new Error(`${entry.name}.prompt is not a file`);
+			throw new Error(
+				`unknown ${entry.name} profile field(s): ${unknown.join(", ")}`,
+			);
+		const prompt = resolve(
+			dir,
+			requiredString(profile.prompt, `${entry.name}.prompt`),
+		);
+		if (!(await stat(prompt)).isFile())
+			throw new Error(`${entry.name}.prompt is not a file`);
 		const prepare = profile.prepare
 			? resolve(dir, requiredString(profile.prepare, `${entry.name}.prepare`))
 			: undefined;
@@ -250,20 +271,31 @@ async function loadProfiles() {
 			throw new Error(`${entry.name}.prepare is not a file`);
 		profiles.set(entry.name, {
 			name: entry.name,
-			description: requiredString(profile.description, `${entry.name}.description`),
+			description: requiredString(
+				profile.description,
+				`${entry.name}.description`,
+			),
 			model: requiredString(profile.model, `${entry.name}.model`),
 			thinking: requiredString(profile.thinking, `${entry.name}.thinking`),
 			prompt,
 			prepare,
-			accepts: profile.accepts ? validateStringArray(profile.accepts, `${entry.name}.accepts`) : [],
-			pi_args: profile.pi_args ? validateStringArray(profile.pi_args, `${entry.name}.pi_args`) : [],
+			accepts: profile.accepts
+				? validateStringArray(profile.accepts, `${entry.name}.accepts`)
+				: [],
+			pi_args: profile.pi_args
+				? validateStringArray(profile.pi_args, `${entry.name}.pi_args`)
+				: [],
 		});
 	}
 	return profiles;
 }
 
 async function resolveCwd(value) {
-	const cwd = value ? (isAbsolute(value) ? value : resolve(process.cwd(), value)) : process.cwd();
+	const cwd = value
+		? isAbsolute(value)
+			? value
+			: resolve(process.cwd(), value)
+		: process.cwd();
 	try {
 		if (!(await stat(cwd)).isDirectory()) throw new Error("not a directory");
 	} catch {
@@ -291,7 +323,9 @@ function uniqueName(label, names) {
 		const candidate = `${base.slice(0, 32 - tail.length).replace(/-+$/u, "")}${tail}`;
 		if (!names.has(candidate)) return { name: candidate, suffix };
 	}
-	throw new Error(`could not allocate an agent name for ${JSON.stringify(label)}`);
+	throw new Error(
+		`could not allocate an agent name for ${JSON.stringify(label)}`,
+	);
 }
 
 function herdrResult(value, command) {
@@ -304,7 +338,10 @@ function publicResult(result, preferredTarget) {
 	if (Array.isArray(result.panels))
 		return {
 			...(result.host ? { host: result.host } : {}),
-			agents: result.panels.map(({ id, ...agent }) => ({ target: id, ...agent })),
+			agents: result.panels.map(({ id, ...agent }) => ({
+				target: id,
+				...agent,
+			})),
 		};
 	const {
 		pane,
@@ -358,14 +395,23 @@ async function closeWorkspace(workspaceId) {
 }
 
 async function prepareMessage(profile, request, cwd) {
-	const unsupported = request.base && !profile.accepts.includes("base") ? ["base"] : [];
+	const unsupported =
+		request.base && !profile.accepts.includes("base") ? ["base"] : [];
 	if (unsupported.length)
-		throw new Error(`${unsupported.join(", ")} is not supported by ${profile.name}`);
+		throw new Error(
+			`${unsupported.join(", ")} is not supported by ${profile.name}`,
+		);
 	if (!profile.prepare) return request.message;
-	const module = await import(`${pathToFileURL(profile.prepare).href}?mtime=${Date.now()}`);
+	const module = await import(
+		`${pathToFileURL(profile.prepare).href}?mtime=${Date.now()}`
+	);
 	if (typeof module.prepare !== "function")
 		throw new Error(`${profile.name}.prepare must export prepare()`);
-	return await module.prepare({ cwd, message: request.message, base: request.base });
+	return await module.prepare({
+		cwd,
+		message: request.message,
+		base: request.base,
+	});
 }
 
 async function waitUntilSettled(target, host) {
@@ -414,12 +460,14 @@ async function read(request) {
 			}),
 			{ exactTargets: true, includePending: true },
 		);
-		if (current.status === "blocked") return publicResult(current, request.target);
+		if (current.status === "blocked")
+			return publicResult(current, request.target);
 		if (!current.pending && current.status !== "working")
 			return publicResult(current, request.target);
 		if (current.status === "working") {
 			const settled = await waitUntilSettled(request.target, request.host);
-			if (settled.status === "blocked") return publicResult(settled, request.target);
+			if (settled.status === "blocked")
+				return publicResult(settled, request.target);
 		} else {
 			await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
 		}
@@ -460,10 +508,18 @@ async function spawnAgent(request) {
 		);
 	const cwd = await resolveCwd(request.cwd);
 	const message = await prepareMessage(profile, request, cwd);
-	const list = herdrResult(await runJson("herdr", ["agent", "list"]), "herdr agent list");
-	const names = new Set((list.agents ?? []).map((agent) => agent.name).filter(Boolean));
+	const list = herdrResult(
+		await runJson("herdr", ["agent", "list"]),
+		"herdr agent list",
+	);
+	const names = new Set(
+		(list.agents ?? []).map((agent) => agent.name).filter(Boolean),
+	);
 	const allocated = uniqueName(request.label, names);
-	const label = allocated.suffix === 1 ? request.label : `${request.label} ${allocated.suffix}`;
+	const label =
+		allocated.suffix === 1
+			? request.label
+			: `${request.label} ${allocated.suffix}`;
 	let tabId;
 	let workspaceId;
 	try {
@@ -494,10 +550,13 @@ async function spawnAgent(request) {
 					]),
 					"herdr tab create",
 				);
-		workspaceId = remoteInvocation ? created.workspace?.workspace_id : undefined;
+		workspaceId = remoteInvocation
+			? created.workspace?.workspace_id
+			: undefined;
 		tabId = created.tab?.tab_id;
 		const paneId = created.root_pane?.pane_id;
-		if (!tabId || !paneId) throw new Error("herdr tab create returned no tab or pane id");
+		if (!tabId || !paneId)
+			throw new Error("herdr tab create returned no tab or pane id");
 		await runJson(
 			"herdr",
 			[
@@ -577,10 +636,11 @@ async function help() {
 			"Specialists know their job. MUST provide only the concrete task and relevant context they cannot access, including session details and prior decisions. MUST stop after the task and inaccessible context. MUST NOT append generic method, evidence, or reporting instructions",
 		reuse:
 			"Reuse explorers only for the same investigation. General agents get follow-ups only on user request or to finish their assigned task. Keep reviewers independent. New scope gets a new agent",
-		call: "await tools.agents(JSON.stringify(request))",
+		call: "tools.agents(JSON.stringify(request))",
 		common: "host?: desktop|laptop|server",
 		actions: {
-			spawn: "agent_type, label, name, message, cwd?, base?, blocking? (default true)",
+			spawn:
+				"agent_type, label, name, message, cwd?, base?, blocking? (default true)",
 			find: "query?",
 			send: "target, message, blocking? (default true)",
 			read: "target",
@@ -589,11 +649,11 @@ async function help() {
 		notes: {
 			label: "2-3 words",
 			base: "Reviewer parent branch override, omit for normal baseline",
-				target: "Exact value returned by spawn or find",
-				answers: "[{selections?, other?, comment?}]",
+			target: "Exact value returned by spawn or find",
+			answers: "[{selections?, other?, comment?}]",
 			blocking:
 				"true or omitted for requested findings, answers, or reviews, false only while continuing other work before read or when the user wants dispatch without waiting",
-			},
+		},
 		profiles: Object.fromEntries(
 			[...profiles].map(([name, profile]) => [name, profile.description]),
 		),
@@ -620,16 +680,18 @@ async function main() {
 						? await read(request)
 						: request.action === "answer"
 							? await answer(request)
-					: publicResult(
-							await coordinate(request.raw, { exactTargets: true }),
-							request.target,
-						);
+							: publicResult(
+									await coordinate(request.raw, { exactTargets: true }),
+									request.target,
+								);
 	process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url))
 	main().catch((error) => {
-		process.stderr.write(`agents: ${error instanceof Error ? error.message : String(error)}\n`);
+		process.stderr.write(
+			`agents: ${error instanceof Error ? error.message : String(error)}\n`,
+		);
 		process.exitCode = 1;
 	});
 

@@ -1,6 +1,15 @@
 import { formatUtcMinute } from "../../time-format.ts";
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+	appendFileSync,
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	renameSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import type { RuntimeContentItem } from "../code-mode/types.ts";
 import {
@@ -13,7 +22,12 @@ import {
 	writeNotebookDocument,
 } from "./journal-document.ts";
 import type { KernelExecutionResult } from "./jupyter-kernel.ts";
-import { removeExpiredNotebookJournalFiles, scheduleNotebookStorageMaintenance, notebookJournalRetention, notebookJournalsDirectory } from "./storage-retention.ts";
+import {
+	removeExpiredNotebookJournalFiles,
+	scheduleNotebookStorageMaintenance,
+	notebookJournalRetention,
+	notebookJournalsDirectory,
+} from "./storage-retention.ts";
 
 const MAX_CELL_OUTPUT_CHARS = 16 * 1024 * 1024;
 const JOURNAL_DOCUMENT_OVERHEAD_BYTES = 4_096;
@@ -44,44 +58,95 @@ export function initializeNotebookJournal(
 	if (notebookJournalRetention(identity.agentDir) === "off") return undefined;
 	const project = resolve(identity.project);
 	const projectKey = createHash("sha256").update(project).digest("hex");
-	const sessionKey = createHash("sha256").update(identity.session).digest("hex");
-	const directory = join(notebookJournalsDirectory(identity.agentDir), projectKey);
+	const sessionKey = createHash("sha256")
+		.update(identity.session)
+		.digest("hex");
+	const directory = join(
+		notebookJournalsDirectory(identity.agentDir),
+		projectKey,
+	);
 	mkdirSync(directory, { recursive: true });
 	const path = join(directory, `${sessionKey}.ipynb`);
 	const eventsPath = journalEventsPath(path);
 	const previousPath = previousJournalPath(path);
 	if (notebookJournalRetention(identity.agentDir) === "week") {
-		removeExpiredNotebookJournalFiles([path, eventsPath, previousPath, `${path}.replacement`]);
+		removeExpiredNotebookJournalFiles([
+			path,
+			eventsPath,
+			previousPath,
+			`${path}.replacement`,
+		]);
 	}
 	for (const candidate of [path, eventsPath, previousPath]) {
 		if (fileSize(candidate) > maxBytes) rmSync(candidate, { force: true });
 	}
-	if (!existsSync(path)) writeNotebookDocument(path, emptyNotebookDocument(project, identity.session), maxBytes);
+	if (!existsSync(path))
+		writeNotebookDocument(
+			path,
+			emptyNotebookDocument(project, identity.session),
+			maxBytes,
+		);
 	if (!existsSync(eventsPath)) writeFileSync(eventsPath, "", { mode: 0o600 });
-	const journal = { agentDir: identity.agentDir, path, eventsPath, project, session: identity.session, cells: 0, completedCells: 0, writable: true, maxBytes };
-	try { materializeNotebookJournal(journal); } catch { journal.writable = false; }
+	const journal = {
+		agentDir: identity.agentDir,
+		path,
+		eventsPath,
+		project,
+		session: identity.session,
+		cells: 0,
+		completedCells: 0,
+		writable: true,
+		maxBytes,
+	};
+	try {
+		materializeNotebookJournal(journal);
+	} catch {
+		journal.writable = false;
+	}
 	const document = readNotebookDocument(path, maxBytes);
 	if (!document) journal.writable = false;
 	journal.cells = document?.cells.length ?? 0;
-	journal.completedCells = document?.cells.filter((cell) => notebookCellStatus(cell) !== "running").length ?? 0;
+	journal.completedCells =
+		document?.cells.filter((cell) => notebookCellStatus(cell) !== "running")
+			.length ?? 0;
 	return journalRecordingEnabled(journal) ? journal : undefined;
 }
 
-export function beginNotebookJournalCell(journal: NotebookJournal, cell: { id: string; source: string }): void {
+export function beginNotebookJournalCell(
+	journal: NotebookJournal,
+	cell: { id: string; source: string },
+): void {
 	if (!prepareJournalWrite(journal)) return;
-	if (!journal.writable) throw new Error(`Notebook journal requires diagnostics: ${journal.path}`);
-	appendEvent(journal, { type: "begin", id: cell.id, source: cell.source, createdAt: formatUtcMinute() });
+	if (!journal.writable)
+		throw new Error(`Notebook journal requires diagnostics: ${journal.path}`);
+	appendEvent(journal, {
+		type: "begin",
+		id: cell.id,
+		source: cell.source,
+		createdAt: formatUtcMinute(),
+	});
 	journal.cells += 1;
 	journalRecordingEnabled(journal);
 }
 
-function rotateNotebookJournalIfNeeded(journal: NotebookJournal, incomingBytes: number): boolean {
-	if (fileSize(journal.path) + fileSize(journal.eventsPath) + incomingBytes <= journal.maxBytes) return false;
+function rotateNotebookJournalIfNeeded(
+	journal: NotebookJournal,
+	incomingBytes: number,
+): boolean {
+	if (
+		fileSize(journal.path) + fileSize(journal.eventsPath) + incomingBytes <=
+		journal.maxBytes
+	)
+		return false;
 	materializeNotebookJournal(journal);
 	if (fileSize(journal.path) + incomingBytes <= journal.maxBytes) return false;
 	const previous = previousJournalPath(journal.path);
 	const replacement = `${journal.path}.replacement`;
-	writeNotebookDocument(replacement, emptyNotebookDocument(journal.project, journal.session), journal.maxBytes);
+	writeNotebookDocument(
+		replacement,
+		emptyNotebookDocument(journal.project, journal.session),
+		journal.maxBytes,
+	);
 	try {
 		rmSync(previous, { force: true });
 		renameSync(journal.path, previous);
@@ -98,15 +163,25 @@ function rotateNotebookJournalIfNeeded(journal: NotebookJournal, incomingBytes: 
 }
 
 function fileSize(path: string): number {
-	try { return statSync(path).size; } catch { return 0; }
+	try {
+		return statSync(path).size;
+	} catch {
+		return 0;
+	}
 }
 
 export function finishNotebookJournalCell(
 	journal: NotebookJournal,
-	cell: { id: string; source: string; items: RuntimeContentItem[]; result: KernelExecutionResult },
+	cell: {
+		id: string;
+		source: string;
+		items: RuntimeContentItem[];
+		result: KernelExecutionResult;
+	},
 ): void {
 	if (!prepareJournalWrite(journal)) return;
-	if (!journal.writable) throw new Error(`Notebook journal requires diagnostics: ${journal.path}`);
+	if (!journal.writable)
+		throw new Error(`Notebook journal requires diagnostics: ${journal.path}`);
 	const rotated = appendEvent(journal, {
 		type: "finish",
 		id: cell.id,
@@ -116,7 +191,18 @@ export function finishNotebookJournalCell(
 		outputs: journalOutputs(
 			cell.items,
 			cell.result,
-			Math.min(MAX_CELL_OUTPUT_CHARS, Math.max(0, Math.floor((journal.maxBytes - Buffer.byteLength(cell.source) - JOURNAL_DOCUMENT_OVERHEAD_BYTES) / 6))),
+			Math.min(
+				MAX_CELL_OUTPUT_CHARS,
+				Math.max(
+					0,
+					Math.floor(
+						(journal.maxBytes -
+							Buffer.byteLength(cell.source) -
+							JOURNAL_DOCUMENT_OVERHEAD_BYTES) /
+							6,
+					),
+				),
+			),
 		),
 	});
 	if (rotated) journal.cells = 1;
@@ -128,7 +214,8 @@ export function materializeNotebookJournal(journal: NotebookJournal): void {
 	if (!journalRecordingEnabled(journal)) return;
 	if (!existsSync(journal.path)) return;
 	const document = readNotebookDocument(journal.path, journal.maxBytes);
-	if (!document) throw new Error(`Notebook journal is invalid: ${journal.path}`);
+	if (!document)
+		throw new Error(`Notebook journal is invalid: ${journal.path}`);
 	const events = readEvents(journal.eventsPath, journal.maxBytes);
 	if (events.length === 0) return;
 	for (const event of events) applyNotebookJournalEvent(document, event);
@@ -141,7 +228,12 @@ export function materializeNotebookJournal(journal: NotebookJournal): void {
 function prepareJournalWrite(journal: NotebookJournal): boolean {
 	if (!journalRecordingEnabled(journal)) return false;
 	if (notebookJournalRetention(journal.agentDir) === "week") {
-		removeExpiredNotebookJournalFiles([journal.path, journal.eventsPath, previousJournalPath(journal.path), `${journal.path}.replacement`]);
+		removeExpiredNotebookJournalFiles([
+			journal.path,
+			journal.eventsPath,
+			previousJournalPath(journal.path),
+			`${journal.path}.replacement`,
+		]);
 	}
 	if (!existsSync(journal.path)) {
 		const replacement = initializeNotebookJournal(journal, journal.maxBytes);
@@ -153,35 +245,53 @@ function prepareJournalWrite(journal: NotebookJournal): boolean {
 
 function journalRecordingEnabled(journal: NotebookJournal): boolean {
 	if (notebookJournalRetention(journal.agentDir) !== "off") return true;
-	for (const path of [journal.path, journal.eventsPath, previousJournalPath(journal.path), `${journal.path}.replacement`]) {
+	for (const path of [
+		journal.path,
+		journal.eventsPath,
+		previousJournalPath(journal.path),
+		`${journal.path}.replacement`,
+	]) {
 		rmSync(path, { force: true });
 	}
 	return false;
 }
 
-export function readNotebookJournalCodeCells(path: string): NotebookJournalCodeCell[] {
+export function readNotebookJournalCodeCells(
+	path: string,
+): NotebookJournalCodeCell[] {
 	const document = materializedDocument(path);
 	return document.cells.flatMap((cell, index) => {
 		if (cell.cell_type !== "code") return [];
-		if (typeof cell.source !== "string" && !cell.source.every((line) => typeof line === "string")) {
-			throw new Error(`Notebook code cell ${index + 1} has invalid source: ${path}`);
+		if (
+			typeof cell.source !== "string" &&
+			!cell.source.every((line) => typeof line === "string")
+		) {
+			throw new Error(
+				`Notebook code cell ${index + 1} has invalid source: ${path}`,
+			);
 		}
-		return [{
-			id: notebookCellId(cell) ?? `cell-${index + 1}`,
-			index,
-			source: Array.isArray(cell.source) ? cell.source.join("") : cell.source,
-		}];
+		return [
+			{
+				id: notebookCellId(cell) ?? `cell-${index + 1}`,
+				index,
+				source: Array.isArray(cell.source) ? cell.source.join("") : cell.source,
+			},
+		];
 	});
 }
 
 function materializedDocument(path: string) {
 	const document = readNotebookDocument(path);
 	if (!document) throw new Error(`Notebook journal is invalid: ${path}`);
-	for (const event of readEvents(journalEventsPath(path))) applyNotebookJournalEvent(document, event);
+	for (const event of readEvents(journalEventsPath(path)))
+		applyNotebookJournalEvent(document, event);
 	return document;
 }
 
-function appendEvent(journal: NotebookJournal, event: NotebookJournalEvent): boolean {
+function appendEvent(
+	journal: NotebookJournal,
+	event: NotebookJournalEvent,
+): boolean {
 	const line = `${JSON.stringify(event)}\n`;
 	const bytes = Buffer.byteLength(line);
 	if (bytes + JOURNAL_DOCUMENT_OVERHEAD_BYTES > journal.maxBytes) {
@@ -195,7 +305,8 @@ function appendEvent(journal: NotebookJournal, event: NotebookJournalEvent): boo
 function readEvents(path: string, maxBytes?: number): NotebookJournalEvent[] {
 	if (!existsSync(path)) return [];
 	try {
-		if (maxBytes !== undefined && fileSize(path) > maxBytes) throw new Error("events exceed budget");
+		if (maxBytes !== undefined && fileSize(path) > maxBytes)
+			throw new Error("events exceed budget");
 		const text = readFileSync(path, "utf8");
 		const lines = text.split("\n");
 		const events: NotebookJournalEvent[] = [];
@@ -220,13 +331,14 @@ function readEvents(path: string, maxBytes?: number): NotebookJournalEvent[] {
 function isNotebookJournalEvent(value: unknown): value is NotebookJournalEvent {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
 	const event = value as Record<string, unknown>;
-	if (typeof event["id"] !== "string" || typeof event["source"] !== "string") return false;
+	if (typeof event["id"] !== "string" || typeof event["source"] !== "string")
+		return false;
 	return event["type"] === "begin"
 		? typeof event["createdAt"] === "string"
-		: event["type"] === "finish"
-			&& typeof event["status"] === "string"
-			&& typeof event["completedAt"] === "string"
-			&& Array.isArray(event["outputs"]);
+		: event["type"] === "finish" &&
+				typeof event["status"] === "string" &&
+				typeof event["completedAt"] === "string" &&
+				Array.isArray(event["outputs"]);
 }
 
 function journalEventsPath(path: string): string {
@@ -237,7 +349,11 @@ function previousJournalPath(path: string): string {
 	return path.replace(/\.ipynb$/, ".previous.ipynb");
 }
 
-function journalOutputs(items: RuntimeContentItem[], result: KernelExecutionResult, maxChars: number): Array<Record<string, unknown>> {
+function journalOutputs(
+	items: RuntimeContentItem[],
+	result: KernelExecutionResult,
+	maxChars: number,
+): Array<Record<string, unknown>> {
 	const outputs: Array<Record<string, unknown>> = [];
 	let remaining = maxChars;
 	for (const item of items) {
@@ -248,7 +364,9 @@ function journalOutputs(items: RuntimeContentItem[], result: KernelExecutionResu
 			outputs.push({ name: "stdout", output_type: "stream", text });
 			continue;
 		}
-		const match = item.type === "input_image" && item.image_url?.match(/^data:([^;,]+);base64,(.+)$/s);
+		const match =
+			item.type === "input_image" &&
+			item.image_url?.match(/^data:([^;,]+);base64,(.+)$/s);
 		if (!match) continue;
 		if (match[2]!.length > remaining) {
 			remaining = 0;
@@ -256,16 +374,31 @@ function journalOutputs(items: RuntimeContentItem[], result: KernelExecutionResu
 		}
 		const data = match[2]!;
 		remaining -= data.length;
-		outputs.push({ output_type: "display_data", data: { [match[1]!]: data }, metadata: {} });
+		outputs.push({
+			output_type: "display_data",
+			data: { [match[1]!]: data },
+			metadata: {},
+		});
 	}
-	if (remaining <= 0) outputs.push({ name: "stderr", output_type: "stream", text: ["[notebook journal output truncated]\n"] });
+	if (remaining <= 0)
+		outputs.push({
+			name: "stderr",
+			output_type: "stream",
+			text: ["[notebook journal output truncated]\n"],
+		});
 	if (result.status === "error" && result.errorText) {
 		const marker = "\n[notebook journal error truncated]";
 		const errorBudget = Math.floor(Math.max(0, remaining) / 2);
-		const errorText = result.errorText.length > errorBudget
-			? `${result.errorText.slice(0, Math.max(0, errorBudget - marker.length))}${marker.slice(0, errorBudget)}`
-			: result.errorText;
-		outputs.push({ output_type: "error", ename: "NotebookCellError", evalue: errorText, traceback: errorText.split("\n") });
+		const errorText =
+			result.errorText.length > errorBudget
+				? `${result.errorText.slice(0, Math.max(0, errorBudget - marker.length))}${marker.slice(0, errorBudget)}`
+				: result.errorText;
+		outputs.push({
+			output_type: "error",
+			ename: "NotebookCellError",
+			evalue: errorText,
+			traceback: errorText.split("\n"),
+		});
 	}
 	return outputs;
 }

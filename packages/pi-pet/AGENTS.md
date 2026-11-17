@@ -1,5 +1,6 @@
 - GipPity owns network, session, prompt, voice and browser transport. Pet registers a static miniapp and reaction snapshot.
 - Manifests/assets are untrusted. Validate and bound them at build boundaries. Never execute pet-provided code.
+- HTML metadata merges replace whole attributes. Keep native HTML5 → ARIA → platform layers; final platform additions must not overwrite ARIA validators or ID references.
 - Check realpath containment, not lexical paths alone. Check frame bounds against decoded dimensions.
 - Own pet/catalog and reaction contracts in src/protocol/. Never duplicate them in renderer/extension.
 - Before packaging or launching Electron, pass bun run ai:check:strict.

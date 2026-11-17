@@ -27,8 +27,10 @@ export function decodeLanVoiceAudioCommand(
 	)
 		throw invalidCommand();
 	if (value.type === "start") {
-		if ("playbackDrain" in value && typeof value.playbackDrain !== "boolean") throw invalidCommand();
-		const playbackDrain = "playbackDrain" in value && value.playbackDrain === true;
+		if ("playbackDrain" in value && typeof value.playbackDrain !== "boolean")
+			throw invalidCommand();
+		const playbackDrain =
+			"playbackDrain" in value && value.playbackDrain === true;
 		if (
 			!("mode" in value) ||
 			(value.mode !== "conversation" && value.mode !== "dictation")
@@ -48,7 +50,11 @@ export function decodeLanVoiceAudioCommand(
 				...(playbackDrain ? { playbackDrain } : {}),
 			};
 		}
-		return { type: "start", mode: value.mode, ...(playbackDrain ? { playbackDrain } : {}) };
+		return {
+			type: "start",
+			mode: value.mode,
+			...(playbackDrain ? { playbackDrain } : {}),
+		};
 	}
 	if (value.type === "finish") {
 		if (!("draft" in value) || typeof value.draft !== "string")
@@ -82,7 +88,12 @@ export function decodeLanVoiceAudioCommand(
 		return { type: "mute", muted: value.muted };
 	}
 	if (value.type === "drained") {
-		if (!("id" in value) || typeof value.id !== "string" || !/^[a-f0-9-]{36}$/.test(value.id)) throw invalidCommand();
+		if (
+			!("id" in value) ||
+			typeof value.id !== "string" ||
+			!/^[a-f0-9-]{36}$/.test(value.id)
+		)
+			throw invalidCommand();
 		return { type: "drained", id: value.id };
 	}
 	if (value.type === "release" || value.type === "cancel")

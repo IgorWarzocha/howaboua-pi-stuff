@@ -104,9 +104,10 @@ export function registerCodexVoiceRenderer(pi: ExtensionAPI): void {
 				typeof entry.data?.input === "string"
 					? entry.data.input
 					: "Voice delegation unavailable.";
-			const error = typeof entry.data?.error === "string"
-				? `\n\nNot sent: ${entry.data.error}`
-				: "";
+			const error =
+				typeof entry.data?.error === "string"
+					? `\n\nNot sent: ${entry.data.error}`
+					: "";
 			return voiceBox(
 				theme,
 				error ? "Voice delegation" : "Task for Pi",

@@ -242,6 +242,7 @@ export function createFiltersView(onApply) {
 	sessionSearch.addEventListener("input", () => {
 		clearTimeout(sessionSearchTimer);
 		sessionsRequest?.abort();
+		// oxlint-disable-next-line typescript/no-misused-promises -- refreshSessions reports failures and retains the current selection.
 		sessionSearchTimer = setTimeout(refreshSessions, 200);
 	});
 

@@ -113,7 +113,7 @@ async function* records(input, start, size) {
 	const buffer = Buffer.alloc(64 * 1024);
 	const decoder = new StringDecoder("utf8");
 	let pending = "";
-	for (let position = start; position < size; ) {
+	for (let position = start; position < size;) {
 		const { bytesRead } = await input.read(
 			buffer,
 			0,

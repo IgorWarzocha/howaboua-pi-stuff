@@ -16,12 +16,19 @@ interface FilePreview {
 	lines: PreviewLine[];
 }
 
-export function buildFilePreviews(actions: ParsedPatchAction[], cwd: string): FilePreview[] {
+export function buildFilePreviews(
+	actions: ParsedPatchAction[],
+	cwd: string,
+): FilePreview[] {
 	const files: FilePreview[] = [];
 	for (let index = 0; index < actions.length; index += 1) {
 		const action = actions[index]!;
 		const next = actions[index + 1];
-		if (action.type === "delete" && next?.type === "add" && action.path === next.path) {
+		if (
+			action.type === "delete" &&
+			next?.type === "add" &&
+			action.path === next.path
+		) {
 			const deleted = buildFilePreview(action, cwd);
 			const added = buildFilePreview(next, cwd);
 			files.push({
@@ -47,7 +54,11 @@ function buildFilePreview(action: ParsedPatchAction, cwd: string): FilePreview {
 			path: action.path,
 			added: lines.length,
 			removed: 0,
-			lines: lines.map((text, index) => ({ lineNumber: index + 1, marker: "+", text })),
+			lines: lines.map((text, index) => ({
+				lineNumber: index + 1,
+				marker: "+",
+				text,
+			})),
 		};
 	}
 
@@ -58,7 +69,11 @@ function buildFilePreview(action: ParsedPatchAction, cwd: string): FilePreview {
 			path: action.path,
 			added: 0,
 			removed: deletedLines.length,
-			lines: deletedLines.map((text, index) => ({ lineNumber: index + 1, marker: "-", text })),
+			lines: deletedLines.map((text, index) => ({
+				lineNumber: index + 1,
+				marker: "-",
+				text,
+			})),
 		};
 	}
 
@@ -73,7 +88,10 @@ function buildFilePreview(action: ParsedPatchAction, cwd: string): FilePreview {
 	};
 }
 
-function buildUpdatePreview(action: ParsedPatchAction, cwd: string): { added: number; removed: number; lines: PreviewLine[] } {
+function buildUpdatePreview(
+	action: ParsedPatchAction,
+	cwd: string,
+): { added: number; removed: number; lines: PreviewLine[] } {
 	if (!action.lines) {
 		return { added: 0, removed: 0, lines: [] };
 	}
@@ -98,7 +116,11 @@ function buildUpdatePreview(action: ParsedPatchAction, cwd: string): { added: nu
 
 		index += 1;
 		const sectionLines: string[] = [];
-		while (index < action.lines.length && !action.lines[index]!.startsWith("@@") && action.lines[index] !== "*** End of File") {
+		while (
+			index < action.lines.length &&
+			!action.lines[index]!.startsWith("@@") &&
+			action.lines[index] !== "*** End of File"
+		) {
 			sectionLines.push(action.lines[index]!);
 			index += 1;
 		}
@@ -111,7 +133,11 @@ function buildUpdatePreview(action: ParsedPatchAction, cwd: string): { added: nu
 			.map(normalizePatchLine)
 			.filter((entry) => entry.marker === " " || entry.marker === "-")
 			.map((entry) => entry.text);
-		const sectionStart = findMatchingSequence(originalLines, oldSequence, searchStart);
+		const sectionStart = findMatchingSequence(
+			originalLines,
+			oldSequence,
+			searchStart,
+		);
 		let oldLineNumber = sectionStart + 1;
 		let newLineNumber = sectionStart + 1 + delta;
 
@@ -119,19 +145,31 @@ function buildUpdatePreview(action: ParsedPatchAction, cwd: string): { added: nu
 			const entry = normalizePatchLine(rawLine);
 			if (entry.marker === "+") {
 				added += 1;
-				renderedLines.push({ lineNumber: newLineNumber, marker: "+", text: entry.text });
+				renderedLines.push({
+					lineNumber: newLineNumber,
+					marker: "+",
+					text: entry.text,
+				});
 				newLineNumber += 1;
 				continue;
 			}
 
 			if (entry.marker === "-") {
 				removed += 1;
-				renderedLines.push({ lineNumber: oldLineNumber, marker: "-", text: entry.text });
+				renderedLines.push({
+					lineNumber: oldLineNumber,
+					marker: "-",
+					text: entry.text,
+				});
 				oldLineNumber += 1;
 				continue;
 			}
 
-			renderedLines.push({ lineNumber: newLineNumber, marker: " ", text: entry.text });
+			renderedLines.push({
+				lineNumber: newLineNumber,
+				marker: " ",
+				text: entry.text,
+			});
 			oldLineNumber += 1;
 			newLineNumber += 1;
 		}
@@ -157,7 +195,11 @@ function normalizePatchLine(rawLine: string): PreviewLine {
 	return { lineNumber: 0, marker, text: normalized.slice(1) };
 }
 
-function findMatchingSequence(lines: string[], context: string[], start: number): number {
+function findMatchingSequence(
+	lines: string[],
+	context: string[],
+	start: number,
+): number {
 	if (context.length === 0) {
 		return start;
 	}
@@ -167,7 +209,9 @@ function findMatchingSequence(lines: string[], context: string[], start: number)
 		return exact;
 	}
 
-	const trimEnd = findSequence(lines, context, start, (value) => value.trimEnd());
+	const trimEnd = findSequence(lines, context, start, (value) =>
+		value.trimEnd(),
+	);
 	if (trimEnd !== -1) {
 		return trimEnd;
 	}
@@ -180,11 +224,27 @@ function findMatchingSequence(lines: string[], context: string[], start: number)
 	return start;
 }
 
-function findSequence(lines: string[], context: string[], start: number, normalize: (value: string) => string): number {
-	for (let lineIndex = start; lineIndex <= lines.length - context.length; lineIndex += 1) {
+function findSequence(
+	lines: string[],
+	context: string[],
+	start: number,
+	normalize: (value: string) => string,
+): number {
+	for (
+		let lineIndex = start;
+		lineIndex <= lines.length - context.length;
+		lineIndex += 1
+	) {
 		let matches = true;
-		for (let contextIndex = 0; contextIndex < context.length; contextIndex += 1) {
-			if (normalize((lines[lineIndex + contextIndex])!) !== normalize(context[contextIndex]!)) {
+		for (
+			let contextIndex = 0;
+			contextIndex < context.length;
+			contextIndex += 1
+		) {
+			if (
+				normalize(lines[lineIndex + contextIndex]!) !==
+				normalize(context[contextIndex]!)
+			) {
 				matches = false;
 				break;
 			}

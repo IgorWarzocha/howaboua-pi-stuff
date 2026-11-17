@@ -2,16 +2,44 @@
 	"$schema": "https://unpkg.com/knip@6/schema.json",
 	"workspaces": {
 		"packages/pi-suggestions": {
-			"project": ["*.ts", "src/**/*.ts"]
+			"project": ["*.ts", "src/**/*.ts"],
 		},
 		"packages/pi-observatory": {
-			"entry": ["index.ts", "src/server.ts", "src/index-worker.ts", "src/query-worker.ts", "scripts/*.mjs", "web/app.js", "web/tab-client.js", "tabs/*/collect.ts", "tabs/*/query.ts", "tabs/*/web/view.js"],
-			"project": ["*.ts", "src/**/*.ts", "scripts/*.mjs", "web/*.js", "tabs/**/*.ts", "tabs/**/web/*.js"]
+			"entry": [
+				"index.ts",
+				"src/server.ts",
+				"src/index-worker.ts",
+				"src/query-worker.ts",
+				"scripts/*.mjs",
+				"web/app.js",
+				"web/tab-client.js",
+				"tabs/*/collect.ts",
+				"tabs/*/query.ts",
+				"tabs/*/web/view.js",
+			],
+			"project": [
+				"*.ts",
+				"src/**/*.ts",
+				"scripts/*.mjs",
+				"web/*.js",
+				"tabs/**/*.ts",
+				"tabs/**/web/*.js",
+			],
 		},
 		"packages/pi-agent-comms": {
-			"entry": ["src/notes/history-search-worker.mjs", "src/board/viewer/server.ts", "src/board/viewer/web/app.js", "scripts/*.mjs"],
-			"project": ["src/**/*.ts", "src/**/*.mjs", "src/board/viewer/web/*.js", "scripts/*.mjs"],
-			"ignoreUnresolved": ["^/vendor/(marked|purify)\\.js$"]
+			"entry": [
+				"src/notes/history-search-worker.mjs",
+				"src/board/viewer/server.ts",
+				"src/board/viewer/web/app.js",
+				"scripts/*.mjs",
+			],
+			"project": [
+				"src/**/*.ts",
+				"src/**/*.mjs",
+				"src/board/viewer/web/*.js",
+				"scripts/*.mjs",
+			],
+			"ignoreUnresolved": ["^/vendor/(marked|purify)\\.js$"],
 		},
 		"packages/pi-notes-compaction": {
 			"entry": ["src/notes/history-search-worker.mjs"],
@@ -19,35 +47,41 @@
 			// Byte-identical shared helpers retain exports used by the Board distribution.
 			"ignoreIssues": {
 				"src/board/context-briefing.ts": ["exports"],
-				"src/board/delivery.ts": ["exports"]
-			}
+				"src/board/delivery.ts": ["exports"],
+			},
 		},
 		"packages/pi-agent-board": {
-			"entry": ["src/board/viewer/server.ts", "src/board/viewer/web/app.js", "scripts/*.mjs"],
+			"entry": [
+				"src/board/viewer/server.ts",
+				"src/board/viewer/web/app.js",
+				"scripts/*.mjs",
+			],
 			"project": ["src/**/*.ts", "src/board/viewer/web/*.js", "scripts/*.mjs"],
 			"ignoreUnresolved": ["^/vendor/(marked|purify)\\.js$"],
 			// The shared navigation snapshot also exports the type imported by Notes.
-			"ignoreIssues": { "src/settings-navigation.ts": ["types"] }
+			"ignoreIssues": { "src/settings-navigation.ts": ["types"] },
 		},
 		"packages/pi-chatgpt-sites": {
 			"entry": ["index.ts", "src/git-askpass.ts", "scripts/*.mjs"],
-			"project": ["src/**/*.ts", "scripts/*.mjs"]
+			"project": ["src/**/*.ts", "scripts/*.mjs"],
 		},
 		"packages/pi-grok-realtime": {
 			"entry": ["src/host-settings.ts", "examples/**/*.ts", "scripts/**/*.mjs"],
-			"project": ["*.ts", "src/**/*.ts", "examples/**/*.ts", "scripts/**/*.mjs"]
+			"project": [
+				"*.ts",
+				"src/**/*.ts",
+				"examples/**/*.ts",
+				"scripts/**/*.mjs",
+			],
 		},
 		"packages/pi-browser": {
 			"entry": [
 				"extension.ts",
 				"index.ts",
 				"remote-worker.ts",
-				"src/browser/voice-start.ts"
+				"src/browser/voice-start.ts",
 			],
-			"project": [
-				"*.ts",
-				"src/**/*.ts"
-			]
+			"project": ["*.ts", "src/**/*.ts"],
 		},
 		"packages/pi-codex-conversion": {
 			"ignoreExportsUsedInFile": true,
@@ -66,25 +100,26 @@
 				"src/codex-usage/analyse.ts",
 				"scripts/**/*.mjs",
 				"examples/custom-tools/**/*.mjs",
-				"tests/**/*.test.ts"
+				"tests/**/*.test.ts",
 			],
 			"project": [
 				"src/**/*.ts",
 				"scripts/**/*.mjs",
 				"examples/custom-tools/**/*.mjs",
-				"tests/**/*.ts"
+				"tests/**/*.ts",
 			],
-			"ignoreDependencies": ["proxy-from-env"]
+			"ignoreDependencies": ["proxy-from-env"],
 		},
 		"packages/pi-gippity-control": {
-			"entry": ["src/host-settings.ts"]
+			"entry": ["src/host-settings.ts"],
 		},
 		"packages/pi-sandbox": {
-			"entry": ["src/daemon.ts"]
+			"entry": ["src/daemon.ts"],
 		},
 		"packages/pi-pet": {
 			"ignoreDependencies": ["@howaboua/pi-gippity-control"],
 			"entry": [
+				".htmlvalidate.cjs",
 				"src/authoring/prepare-cli.ts",
 				"src/authoring/rebuild-cli.ts",
 				"src/authoring/validate-cli.ts",
@@ -92,24 +127,41 @@
 				"src/desktop/preload.ts",
 				"src/web/main.ts",
 				"tests/*.test.ts",
-				"scripts/**/*.mjs"
+				"scripts/**/*.mjs",
 			],
-			"project": ["extensions/**/*.ts", "src/**/*.ts", "tests/**/*.ts", "scripts/**/*.mjs"],
+			"project": [
+				"extensions/**/*.ts",
+				"src/**/*.ts",
+				"tests/**/*.ts",
+				"scripts/**/*.mjs",
+			],
 			"ignoreIssues": {
-				"src/protocol/index.ts": ["exports", "types"]
-			}
+				"src/protocol/index.ts": ["exports", "types"],
+			},
 		},
 		"packages/pi-pulses": {
 			"entry": ["integration.ts"],
 			"project": ["*.ts", "src/**/*.ts"],
 			// Shepherdr supplies ABI types only; runtime discovery uses Pi events.
-			"ignoreDependencies": ["@howaboua/pi-codex-conversion", "@howaboua/pi-shepherdr"]
+			"ignoreDependencies": [
+				"@howaboua/pi-codex-conversion",
+				"@howaboua/pi-shepherdr",
+			],
 		},
 		"packages/pi-shepherdr": {
-			"entry": ["profiles/**/*.mjs", "src/core/helper-bootstrap.mjs", "src/core/helper-context.mjs", "src/core/helper-core.mjs", "src/core/helper-lifetime.mjs", "src/core/remote-service.mjs", "src/core/focus-channel-helper.mjs", "src/remote/shepherdr-context.mjs"]
+			"entry": [
+				"profiles/**/*.mjs",
+				"src/core/helper-bootstrap.mjs",
+				"src/core/helper-context.mjs",
+				"src/core/helper-core.mjs",
+				"src/core/helper-lifetime.mjs",
+				"src/core/remote-service.mjs",
+				"src/core/focus-channel-helper.mjs",
+				"src/remote/shepherdr-context.mjs",
+			],
 		},
 		"packages/pi-subagent-review": {
-			"project": ["src/**/*.ts"]
-		}
-	}
+			"project": ["src/**/*.ts"],
+		},
+	},
 }

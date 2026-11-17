@@ -4,6 +4,7 @@ export function normalizeVoiceApiProvider(value: unknown): string | undefined {
 		value.trim() === value &&
 		value.length > 0 &&
 		Buffer.byteLength(value) <= 512 &&
+		// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
 		!/[\u0000-\u001f\u007f]/u.test(value)
 		? value
 		: undefined;

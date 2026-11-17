@@ -135,6 +135,7 @@ export async function commitSessionPruning(
 		try {
 			unlinkSync(temp);
 		} catch (error) {
+			// oxlint-disable-next-line no-unsafe-finally -- Cleanup failure must remain visible, even when the primary operation failed.
 			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 		}
 	}

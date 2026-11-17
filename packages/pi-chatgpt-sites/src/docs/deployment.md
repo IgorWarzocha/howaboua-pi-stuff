@@ -12,7 +12,7 @@ Required facade parameters: `project_id` (or local manifest), `version_id`, and 
 Calling this action is the production effect. Preserve the existing audience unless the user requests a change.
 
 ```js
-await tools.sites({
+tools.sites({
 	resource: "deployment",
 	action: "deploy",
 	params: {

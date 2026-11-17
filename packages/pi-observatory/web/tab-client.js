@@ -27,13 +27,13 @@ function validState(value) {
 	}
 	return Boolean(
 		filters &&
-			typeof filters === "object" &&
-			!Array.isArray(filters) &&
-			Object.entries(filters).every(
-				([key, item]) =>
-					["session", "project", "since", "until"].includes(key) &&
-					typeof item === "string",
-			),
+		typeof filters === "object" &&
+		!Array.isArray(filters) &&
+		Object.entries(filters).every(
+			([key, item]) =>
+				["session", "project", "since", "until"].includes(key) &&
+				typeof item === "string",
+		),
 	);
 }
 

@@ -18,7 +18,8 @@ export function buildAdapterSettings(
 		setting(
 			{
 				id: "extensionMode",
-				description: "Voice only disables the prompt and tool adapter. Standalone tools remain controlled by Provider scope.",
+				description:
+					"Voice only disables the prompt and tool adapter. Standalone tools remain controlled by Provider scope.",
 				label: "Extension mode",
 				currentValue: config.voiceFeaturesOnly
 					? "voice only"
@@ -33,7 +34,8 @@ export function buildAdapterSettings(
 		setting(
 			{
 				id: "allProviders",
-				description: "Choose which models use the adapter. Extra tools only exposes standalone tools without replacing the prompt.",
+				description:
+					"Choose which models use the adapter. Extra tools only exposes standalone tools without replacing the prompt.",
 				label: "Provider scope",
 				currentValue: formatAllProvidersMode(config.scope.allProviders),
 				values: ["Codex and configured", "all providers", "extra tools only"],
@@ -49,7 +51,8 @@ export function buildAdapterSettings(
 		setting(
 			{
 				id: "additionalProviders",
-				description: "Provider IDs for compatible Responses endpoints, including passthrough proxies, that should use the adapter.",
+				description:
+					"Provider IDs for compatible Responses endpoints, including passthrough proxies, that should use the adapter.",
 				label: "Additional providers",
 				currentValue: config.scope.additionalProviders.join(", "),
 				submenu: (currentValue, done) =>
@@ -73,20 +76,23 @@ export function buildAdapterSettings(
 		setting(
 			{
 				id: "heavySystemPromptOverwrite",
-				description: "On removes Pi's generic scaffold. GPT also compresses PCC's instructions; savings vary with execution mode and context. Other extensions' instructions are preserved.",
+				description:
+					"On removes Pi's generic scaffold. GPT also compresses PCC's instructions; savings vary with execution mode and context. Other extensions' instructions are preserved.",
 				label: "Heavy system prompt overwrite",
-				currentValue: config.prompt.heavySystemPromptOverwrite === "gpt"
-					? "GPT (experimental)"
-					: config.prompt.heavySystemPromptOverwrite
-					? "on (40% smaller)"
-					: "off",
+				currentValue:
+					config.prompt.heavySystemPromptOverwrite === "gpt"
+						? "GPT (experimental)"
+						: config.prompt.heavySystemPromptOverwrite
+							? "on (40% smaller)"
+							: "off",
 				values: ["off", "on (40% smaller)", "GPT (experimental)"],
 			},
 			(value, current) => ({
 				...current,
 				prompt: {
 					...current.prompt,
-					heavySystemPromptOverwrite: value === "GPT (experimental)" ? "gpt" : value !== "off",
+					heavySystemPromptOverwrite:
+						value === "GPT (experimental)" ? "gpt" : value !== "off",
 				},
 			}),
 		),
@@ -94,22 +100,28 @@ export function buildAdapterSettings(
 			{
 				id: "currentTimeReminderMinutes",
 				label: "Current time reminders",
-				description: "Include UTC time on the first inference and at the chosen interval. Never starts a turn.",
-				currentValue: config.prompt.currentTimeReminderMinutes === 0 ? "off" : `${config.prompt.currentTimeReminderMinutes} mins`,
+				description:
+					"Include UTC time on the first inference and at the chosen interval. Never starts a turn.",
+				currentValue:
+					config.prompt.currentTimeReminderMinutes === 0
+						? "off"
+						: `${config.prompt.currentTimeReminderMinutes} mins`,
 				values: ["off", "30 mins", "60 mins"],
 			},
 			(value, current) => ({
 				...current,
 				prompt: {
 					...current.prompt,
-					currentTimeReminderMinutes: value === "30 mins" ? 30 : value === "60 mins" ? 60 : 0,
+					currentTimeReminderMinutes:
+						value === "30 mins" ? 30 : value === "60 mins" ? 60 : 0,
 				},
 			}),
 		),
 		{
 			item: {
 				id: "editConfig",
-				description: "Open the selected scope's config file in your editor for settings not exposed here.",
+				description:
+					"Open the selected scope's config file in your editor for settings not exposed here.",
 				label: "Edit config",
 				currentValue: editorCommand()
 					? "Opens in default editor (please /reload)"

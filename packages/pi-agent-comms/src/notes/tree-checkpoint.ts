@@ -95,19 +95,18 @@ function hideArchiveSummaries(
 	hidden: ReadonlySet<string>,
 ): readonly SessionEntry[] {
 	if (hidden.size === 0) return entries;
-	return entries.map(
-		(entry): SessionEntry =>
-			entry.type === "branch_summary" && hidden.has(entry.id)
-				? // Keep entry IDs as replay cut points without sending archive summaries.
-					{
-						type: "custom",
-						id: entry.id,
-						parentId: entry.parentId,
-						timestamp: entry.timestamp,
-						customType: "codex-context-tree-summary",
-						data: {},
-					}
-				: entry,
+	return entries.map((entry): SessionEntry =>
+		entry.type === "branch_summary" && hidden.has(entry.id)
+			? // Keep entry IDs as replay cut points without sending archive summaries.
+				{
+					type: "custom",
+					id: entry.id,
+					parentId: entry.parentId,
+					timestamp: entry.timestamp,
+					customType: "codex-context-tree-summary",
+					data: {},
+				}
+			: entry,
 	);
 }
 

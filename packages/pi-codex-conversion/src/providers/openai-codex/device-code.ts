@@ -61,10 +61,7 @@ export async function pollOAuthDeviceCodeFlow<T>(
 	if (options.waitBeforeFirstPoll) {
 		const remainingMs = deadline - Date.now();
 		if (remainingMs > 0) {
-			await abortableSleep(
-				Math.min(intervalMs, remainingMs),
-				options.signal,
-			);
+			await abortableSleep(Math.min(intervalMs, remainingMs), options.signal);
 		}
 	}
 
@@ -92,10 +89,7 @@ export async function pollOAuthDeviceCodeFlow<T>(
 
 		const remainingMs = deadline - Date.now();
 		if (remainingMs <= 0) break;
-		await abortableSleep(
-			Math.min(intervalMs, remainingMs),
-			options.signal,
-		);
+		await abortableSleep(Math.min(intervalMs, remainingMs), options.signal);
 	}
 
 	throw new Error(

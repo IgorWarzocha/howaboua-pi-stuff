@@ -1,72 +1,73 @@
 {
-	"name": "@howaboua/pi-sandbox",
-	"publishConfig": {
-		"access": "public"
-	},
-	"version": "0.1.6",
-	"description": "Persistent local Gondolin environments and managed app previews for Pi",
-	"type": "module",
-	"license": "MIT",
-	"keywords": [
-		"pi-package",
-		"pi-extension",
-		"sandbox",
-		"gondolin",
-		"microvm"
-	],
-	"engines": {
-		"node": ">=24.0.0"
-	},
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-sandbox"
-	},
-	"files": [
-		"index.ts",
-		"src",
-		"dist",
-		"README.md",
-		"LICENSE",
-		"CHANGELOG.md"
-	],
-	"main": "index.ts",
-	"exports": "./index.ts",
-	"pi": {
-		"extensions": [
-			"./index.ts"
-		]
-	},
-	"dependencies": {
-		"@earendil-works/gondolin": "0.14.0",
-		"yaml": "2.9.1",
-		"zod": "4.6.7",
-		"@earendil-works/pi-schema": "1.5.2"
-	},
-	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=1.5.0",
-		"@howaboua/pi-codex-conversion": ">=5.0.0",
-		"@earendil-works/pi-tui": ">=1.0.0"
-	},
-	"peerDependenciesMeta": {
-		"@howaboua/pi-codex-conversion": {
-			"optional": true
-		}
-	},
-	"devDependencies": {
-		"@earendil-works/pi-coding-agent": "1.5.2",
-		"@howaboua/pi-codex-conversion": "5.0.0",
-		"@types/node": "^26.6.6",
-		"@biomejs/biome": "^2.6.6",
-		"typescript": "^7.0.2"
-	},
-	"scripts": {
-		"build": "bun build src/daemon.ts --target=node --packages=external --outdir=dist",
-		"check": "bun run lint && bun run typecheck",
-		"lint": "biome check .",
-		"format": "biome check --write .",
-		"typecheck": "tsgo --noEmit",
-		"prepack": "bun run check && bun run build",
-		"pack:dry": "npm pack --dry-run"
-	}
+  "name": "@howaboua/pi-sandbox",
+  "publishConfig": {
+    "access": "public"
+  },
+  "version": "0.1.6",
+  "description": "Persistent local Gondolin environments and managed app previews for Pi",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "sandbox",
+    "gondolin",
+    "microvm"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+    "directory": "packages/pi-sandbox"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "main": "index.ts",
+  "exports": "./index.ts",
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "dependencies": {
+    "@earendil-works/gondolin": "0.14.0",
+    "yaml": "2.9.1",
+    "zod": "4.6.7",
+    "@earendil-works/pi-schema": "1.5.2"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=1.5.0",
+    "@howaboua/pi-codex-conversion": ">=5.0.0",
+    "@earendil-works/pi-tui": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@howaboua/pi-codex-conversion": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.5.2",
+    "@howaboua/pi-codex-conversion": "5.0.0",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "oxfmt": "^0.78.0"
+  },
+  "scripts": {
+    "build": "bun build src/daemon.ts --target=node --packages=external --outdir=dist",
+    "check": "bun run lint && bun run typecheck",
+    "lint": "bun run format:check && oxlint --type-aware",
+    "format": "oxfmt --write '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'",
+    "typecheck": "tsrs --noEmit",
+    "prepack": "bun run check && bun run build",
+    "pack:dry": "npm pack --dry-run",
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'"
+  }
 }

@@ -1,7 +1,7 @@
 {
-  "description": "Read-only discovery",
-  "model": "openai-codex/gpt-6-luna",
-  "thinking": "high",
-  "prompt": "prompt.md",
-  "accepts": []
+	"description": "Read-only discovery",
+	"model": "openai-codex/gpt-6-luna",
+	"thinking": "high",
+	"prompt": "prompt.md",
+	"accepts": []
 }

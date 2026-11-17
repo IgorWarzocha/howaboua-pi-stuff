@@ -16,11 +16,17 @@ export function isProviderContextExcludedMessage(message: {
 	content?: unknown;
 	summary?: unknown;
 }): boolean {
-	return isVoiceContextExcludedMessage(message)
-		|| (message.role === "custom" && typeof message.customType === "string" && ADAPTER_CONTEXT_EXCLUDED_CUSTOM_MESSAGE_TYPES.has(message.customType));
+	return (
+		isVoiceContextExcludedMessage(message) ||
+		(message.role === "custom" &&
+			typeof message.customType === "string" &&
+			ADAPTER_CONTEXT_EXCLUDED_CUSTOM_MESSAGE_TYPES.has(message.customType))
+	);
 }
 
-export function isProviderContextExcludedCustomMessageEntry(entry: CustomMessageEntry): boolean {
+export function isProviderContextExcludedCustomMessageEntry(
+	entry: CustomMessageEntry,
+): boolean {
 	return isProviderContextExcludedMessage({
 		role: "custom",
 		customType: entry.customType,

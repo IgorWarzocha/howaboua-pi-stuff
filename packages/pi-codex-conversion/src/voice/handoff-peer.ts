@@ -101,7 +101,13 @@ export class HandoffAudioHost {
 					this.link.notify({ type: "peer.event", generation, event });
 			});
 			const removeExit = peer.onExit((error) => this.link.fail(error));
-			this.current = { generation, peer, abort: new AbortController(), removeEvent, removeExit };
+			this.current = {
+				generation,
+				peer,
+				abort: new AbortController(),
+				removeEvent,
+				removeExit,
+			};
 			this.captured.transferred(peer, this.controls);
 			const sdp = await this.captured.start(peer);
 			if (this.closed || this.current?.generation !== generation)
@@ -119,7 +125,9 @@ export class HandoffAudioHost {
 		await this.closeCurrent();
 	}
 
-	async finishPlayback(value: unknown): Promise<{ sealed: boolean; error?: string }> {
+	async finishPlayback(
+		value: unknown,
+	): Promise<{ sealed: boolean; error?: string }> {
 		if (!isRecord(value) || !Number.isSafeInteger(value["generation"]))
 			throw new Error("Invalid voice playback completion");
 		const current = this.current;
@@ -130,7 +138,10 @@ export class HandoffAudioHost {
 			return { sealed: current.peer.playbackSealed === true };
 		} catch (error) {
 			// Failure after sealing is terminal; carry that state with the error.
-			return { sealed: current.peer.playbackSealed === true, error: asError(error).message.slice(0, 4_000) };
+			return {
+				sealed: current.peer.playbackSealed === true,
+				error: asError(error).message.slice(0, 4_000),
+			};
 		}
 	}
 
@@ -246,8 +257,12 @@ export class HandoffRemotePeer implements CodexRealtimePeer {
 			signal,
 		);
 		if (result === CANCELLED) throw new Error("Playback wait cancelled");
-		if (!isRecord(result) || typeof result["sealed"] !== "boolean" ||
-			(result["error"] !== undefined && (typeof result["error"] !== "string" || result["error"].length > 4_000)))
+		if (
+			!isRecord(result) ||
+			typeof result["sealed"] !== "boolean" ||
+			(result["error"] !== undefined &&
+				(typeof result["error"] !== "string" || result["error"].length > 4_000))
+		)
 			throw new Error("Source audio did not confirm playback completion");
 		this.sealed = result["sealed"];
 		if (typeof result["error"] === "string") throw new Error(result["error"]);
@@ -286,8 +301,9 @@ export class HandoffRemotePeer implements CodexRealtimePeer {
 			return;
 		} // Startup already reports its failure; there is no established peer to close.
 		if (this.generation !== undefined && !this.link.closed) {
-			try { await this.link.request("peer.close", { generation: this.generation }); }
-			catch (error) {
+			try {
+				await this.link.request("peer.close", { generation: this.generation });
+			} catch (error) {
 				// Closing transport also tears down the source audio owner.
 				if (!this.link.closed) throw error;
 			}

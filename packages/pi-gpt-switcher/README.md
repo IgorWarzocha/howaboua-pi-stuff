@@ -4,10 +4,10 @@ Pi extension adding quick model commands:
 
 | Command              | Model                        |
 | -------------------- | ---------------------------- |
-| `/sol [reasoning]`   | `openai-codex/gpt-6.1-sol`   |
+| `/sol [reasoning]`   | `openai-codex/gpt-6.2-sol`   |
 | `/terra [reasoning]` | `openai-codex/gpt-6.1-terra` |
 | `/luna [reasoning]`  | `openai-codex/gpt-6-luna`    |
-| `/astra [reasoning]` | `openai-codex/gpt-6-astra`   |
+| `/astra [reasoning]` | `openai-codex/gpt-6.2-astra` |
 
 An explicit reasoning argument overrides the configured default. Valid arguments
 are `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`; for example,
@@ -20,10 +20,10 @@ agent directory:
 
 ```json
 {
-	"sol": { "contextWindow": 272000, "reasoning": "high" },
-	"terra": { "contextWindow": 272000, "reasoning": "high" },
-	"luna": { "contextWindow": 472000, "reasoning": "xhigh" },
-	"astra": { "contextWindow": 272000, "reasoning": "low" }
+	"sol": { "contextWindow": 500000, "reasoning": "high" },
+	"terra": { "contextWindow": 500000, "reasoning": "high" },
+	"luna": { "contextWindow": 500000, "reasoning": "xhigh" },
+	"astra": { "contextWindow": 256000, "reasoning": "low" }
 }
 ```
 
@@ -33,7 +33,7 @@ provider catalogue. Context windows must be safe integers of at least 128k.
 Values above the shortcut's default are accepted. Set a window supported by
 your provider; this setting changes Pi's budget, not the provider's capacity.
 
-Existing config files need no migration: omitted shortcuts use their shipped defaults, and unknown entries are ignored.
+Existing context and reasoning settings are preserved. Edit existing context windows to adopt the new defaults. Omitted shortcuts use their shipped defaults, and unknown entries are ignored.
 
 ## Install
 
@@ -53,10 +53,11 @@ The commands use Pi's model registry and normal provider authentication. If a
 model is unavailable or the OpenAI Codex credentials are missing, the command
 reports that instead of changing the current model.
 
+GPT-6.2 shortcuts work with Pi's built-in Codex provider without another extension.
+An extension-supplied native Codex provider keeps control of its model catalogue.
+
 Pi clamps the requested reasoning level automatically if the selected model
 supports fewer levels.
-GPT-6.1 Sol supports `low`, `medium`, `high`, `xhigh`, and `max`.
-An `off` or `minimal` request is clamped to `low`.
 
 ## Local development
 

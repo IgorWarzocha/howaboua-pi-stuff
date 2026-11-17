@@ -40,10 +40,10 @@ export function isVoiceHandoffRequest(
 ): value is VoiceHandoffServiceRequest {
 	return Boolean(
 		value &&
-			typeof value === "object" &&
-			"protocol" in value &&
-			value.protocol === VOICE_HANDOFF_PROTOCOL &&
-			"accept" in value &&
-			typeof value.accept === "function",
+		typeof value === "object" &&
+		"protocol" in value &&
+		value.protocol === VOICE_HANDOFF_PROTOCOL &&
+		"accept" in value &&
+		typeof value.accept === "function",
 	);
 }

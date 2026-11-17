@@ -12,7 +12,11 @@ function packageRoot(): string {
 	return dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
 }
 
-export function getBundledToolBinaryPath(toolName: string, target: { platform?: NodeJS.Platform; arch?: string } = {}, customDir?: string | undefined): string | undefined {
+export function getBundledToolBinaryPath(
+	toolName: string,
+	target: { platform?: NodeJS.Platform; arch?: string } = {},
+	customDir?: string | undefined,
+): string | undefined {
 	const toolDir = TOOL_DIRS[toolName] ?? toolName;
 	const platform = target.platform ?? process.platform;
 	const arch = target.arch ?? process.arch;
@@ -22,6 +26,14 @@ export function getBundledToolBinaryPath(toolName: string, target: { platform?: 
 		const customBinary = join(custom, exe);
 		if (existsSync(customBinary)) return customBinary;
 	}
-	const binary = join(packageRoot(), "src", "tools", toolDir, "bin", `${platform}-${arch}`, exe);
+	const binary = join(
+		packageRoot(),
+		"src",
+		"tools",
+		toolDir,
+		"bin",
+		`${platform}-${arch}`,
+		exe,
+	);
 	return existsSync(binary) ? binary : undefined;
 }

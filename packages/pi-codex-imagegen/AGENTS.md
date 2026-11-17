@@ -1,2 +1,3 @@
 - Compare generation/edit contracts with `~/Frameworks/codex/codex-rs/ext/image-generation/`, `codex-api/src/endpoint/images.rs` and `codex-api/src/images.rs` (last two relative to `codex-rs/`). `UPSTREAM_SYNC.md` pins the reference and reviewed deltas. Inspect changes since that pin when touching the adapter; do not restore inert Rust snapshots. Pi-facing auth, artifacts, rendering and Code Mode projection remain TypeScript.
 - Local edit targets accept validated PNG, JPEG, GIF, or WebP bytes. Recent targets come only from Pi's active compaction-aware context.
+- Native Pi and nested Code wrappers own result-content images. Keep custom result renderers text-only; never mutate model-visible results to fix display.

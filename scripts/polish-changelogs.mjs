@@ -49,11 +49,15 @@ for (const dir of packageDirs) {
 	);
 	if (after !== before) writeFileSync(changelogPath, after);
 	const packageDir = join(root, "packages", dir);
-	if (existsSync(join(packageDir, "biome.json")) || existsSync(join(packageDir, "biome.jsonc"))) {
-		const result = spawnSync(join(root, "node_modules", ".bin", "biome"), ["format", "--write", "CHANGELOG.md"], {
-			cwd: packageDir,
-			stdio: "inherit",
-		});
+	if (after !== before) {
+		const result = spawnSync(
+			join(root, "node_modules", ".bin", "oxfmt"),
+			["--write", "CHANGELOG.md"],
+			{
+				cwd: packageDir,
+				stdio: "inherit",
+			},
+		);
 		if (result.error) throw result.error;
 		if (result.status !== 0) process.exit(result.status ?? 1);
 	}

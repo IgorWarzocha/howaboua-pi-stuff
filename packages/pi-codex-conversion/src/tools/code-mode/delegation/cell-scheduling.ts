@@ -8,20 +8,34 @@ interface Deferred {
 export class DelegateCellScheduling {
 	private readonly cellContexts = new Map<string, ToolExecutionContext>();
 	private readonly contextChanges = new Map<string, Deferred>();
-	private readonly cellTools = new Map<string, Map<string, CodeModeToolDefinition>>();
+	private readonly cellTools = new Map<
+		string,
+		Map<string, CodeModeToolDefinition>
+	>();
 	private readonly blockers = new Map<string, Set<string>>();
 	private readonly blockerChanges = new Map<string, Deferred>();
 	private readonly sequentialTails = new Map<string, Promise<void>>();
 
-	context(cellId: string): ToolExecutionContext | undefined { return this.cellContexts.get(cellId); }
-	tools(cellId: string): Map<string, CodeModeToolDefinition> | undefined { return this.cellTools.get(cellId); }
-	bindTools(cellId: string, tools: Map<string, CodeModeToolDefinition>): void { this.cellTools.set(cellId, tools); }
+	context(cellId: string): ToolExecutionContext | undefined {
+		return this.cellContexts.get(cellId);
+	}
+	tools(cellId: string): Map<string, CodeModeToolDefinition> | undefined {
+		return this.cellTools.get(cellId);
+	}
+	bindTools(cellId: string, tools: Map<string, CodeModeToolDefinition>): void {
+		this.cellTools.set(cellId, tools);
+	}
 
 	updateCellContext(cellId: string, context: ToolExecutionContext): void {
 		const previous = this.cellContexts.get(cellId);
-		if (previous?.opaqueScope && (previous.opaqueScope !== context.opaqueScope ||
-			previous.opaqueContextGeneration !== context.opaqueContextGeneration))
-			throw new Error("Remote cell belongs to a different context; check completed results before retrying");
+		if (
+			previous?.opaqueScope &&
+			(previous.opaqueScope !== context.opaqueScope ||
+				previous.opaqueContextGeneration !== context.opaqueContextGeneration)
+		)
+			throw new Error(
+				"Remote cell belongs to a different context; check completed results before retrying",
+			);
 		this.cellContexts.set(cellId, context);
 		this.contextChanges.get(cellId)?.resolve();
 		this.contextChanges.delete(cellId);
@@ -51,7 +65,10 @@ export class DelegateCellScheduling {
 		return (this.blockers.get(cellId)?.size ?? 0) > 0;
 	}
 
-	async waitUntilUnblocked(cellId: string, signal?: AbortSignal): Promise<void> {
+	async waitUntilUnblocked(
+		cellId: string,
+		signal?: AbortSignal,
+	): Promise<void> {
 		while (this.isBlocked(cellId)) {
 			const change = this.blockerChanges.get(cellId) ?? deferred();
 			this.blockerChanges.set(cellId, change);
@@ -60,7 +77,9 @@ export class DelegateCellScheduling {
 	}
 	async executePiTool(
 		cellId: string,
-		...[name, args, options]: Parameters<NonNullable<ToolExecutionContext["executeTool"]>>
+		...[name, args, options]: Parameters<
+			NonNullable<ToolExecutionContext["executeTool"]>
+		>
 	): ReturnType<NonNullable<ToolExecutionContext["executeTool"]>> {
 		while (true) {
 			options?.signal?.throwIfAborted();
@@ -83,7 +102,10 @@ export class DelegateCellScheduling {
 			release = resolve;
 		});
 		const previous = this.sequentialTails.get(cellId) ?? Promise.resolve();
-		this.sequentialTails.set(cellId, previous.then(() => turn));
+		this.sequentialTails.set(
+			cellId,
+			previous.then(() => turn),
+		);
 		try {
 			await waitForChange(previous, signal);
 			return await run();
@@ -92,13 +114,11 @@ export class DelegateCellScheduling {
 		}
 	}
 
-	setBlocked(
-		cellId: string,
-		blockerId: string,
-		active: boolean,
-	): void {
+	setBlocked(cellId: string, blockerId: string, active: boolean): void {
 		const blockers = this.blockers.get(cellId) ?? new Set<string>();
-		const changed = active ? !blockers.has(blockerId) : blockers.delete(blockerId);
+		const changed = active
+			? !blockers.has(blockerId)
+			: blockers.delete(blockerId);
 		if (active) blockers.add(blockerId);
 		if (!changed) return;
 		if (blockers.size === 0) this.blockers.delete(cellId);
@@ -111,13 +131,19 @@ export class DelegateCellScheduling {
 
 function deferred(): Deferred {
 	let resolve!: () => void;
-	const promise = new Promise<void>((done) => { resolve = done; });
+	const promise = new Promise<void>((done) => {
+		resolve = done;
+	});
 	return { promise, resolve };
 }
 
-function waitForChange(change: Promise<void>, signal?: AbortSignal): Promise<void> {
+function waitForChange(
+	change: Promise<void>,
+	signal?: AbortSignal,
+): Promise<void> {
 	if (!signal) return change;
-	if (signal.aborted) return Promise.reject(signal.reason ?? new Error("Operation aborted"));
+	if (signal.aborted)
+		return Promise.reject(signal.reason ?? new Error("Operation aborted"));
 	return new Promise((resolve, reject) => {
 		const abort = () => reject(signal.reason ?? new Error("Operation aborted"));
 		signal.addEventListener("abort", abort, { once: true });

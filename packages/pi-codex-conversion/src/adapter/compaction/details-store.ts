@@ -1,4 +1,7 @@
-import type { CompactionEntry, SessionEntry } from "@earendil-works/pi-coding-agent";
+import type {
+	CompactionEntry,
+	SessionEntry,
+} from "@earendil-works/pi-coding-agent";
 import {
 	isNativeCompactionEntry,
 	type NativeCompactionEntry,
@@ -26,7 +29,10 @@ export type LatestNativeCompactionResolution =
 			latestCompaction?: CompactionEntry | undefined;
 	  };
 
-function entryMatches(entry: NativeCompactionEntry, match: NativeCompactionEntryMatch): boolean {
+function entryMatches(
+	entry: NativeCompactionEntry,
+	match: NativeCompactionEntryMatch,
+): boolean {
 	const details = entry.details;
 	if (!details) {
 		return false;
@@ -46,9 +52,11 @@ export function isPersistedNativeCompactionEntry(
 	return isNativeCompactionEntry(entry);
 }
 
-export function findLatestCompactionEntryIndex(entries: readonly SessionEntry[]): number | undefined {
+export function findLatestCompactionEntryIndex(
+	entries: readonly SessionEntry[],
+): number | undefined {
 	for (let index = entries.length - 1; index >= 0; index--) {
-		if (entries[index]!?.type === "compaction") {
+		if (entries[index]?.type === "compaction") {
 			return index;
 		}
 	}
@@ -56,7 +64,9 @@ export function findLatestCompactionEntryIndex(entries: readonly SessionEntry[])
 	return undefined;
 }
 
-export function findLatestCompactionEntry(entries: readonly SessionEntry[]): CompactionEntry | undefined {
+export function findLatestCompactionEntry(
+	entries: readonly SessionEntry[],
+): CompactionEntry | undefined {
 	const index = findLatestCompactionEntryIndex(entries);
 	return index === undefined ? undefined : (entries[index]! as CompactionEntry);
 }
@@ -74,7 +84,11 @@ export function resolveLatestNativeCompactionEntry(
 	}
 
 	const latestCompaction = entries[latestCompactionIndex]!;
-	if (!latestCompaction || latestCompaction.type !== "compaction" || !isPersistedNativeCompactionEntry(latestCompaction)) {
+	if (
+		!latestCompaction ||
+		latestCompaction.type !== "compaction" ||
+		!isPersistedNativeCompactionEntry(latestCompaction)
+	) {
 		return {
 			ok: false,
 			reason: "latest-compaction-not-native",

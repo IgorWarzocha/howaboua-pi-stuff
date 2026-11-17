@@ -1,6 +1,6 @@
 # GitHub Watch
 
-Opt-in GitHub watches that wake the same Pi session for unresolved PR feedback, conversation changes and completed Actions runs. Notifications contain links, counts or run conclusions, never comment bodies or job logs. The agent reads the details with `gh`.
+Opt-in GitHub watches that wake the same Pi session for PR commit changes, unresolved feedback, conversation changes and completed Actions runs. Notifications contain commit hashes, links, counts or run conclusions, never comment bodies or job logs. The agent reads the details with `gh`.
 
 ## Install
 
@@ -17,6 +17,8 @@ Ask the agent to watch a worthwhile thread, such as an issue awaiting an answer 
 The `github_watch` tool accepts a GitHub URL in its `thread` field, `owner/repo#123`, or a bare issue/PR number resolved through `gh repo view` in the current working directory. Call it without arguments for help. Its actions are `watch`, `status` and `cancel`.
 
 Issues are checked every minute. PRs take an initial snapshot immediately, wait seven minutes before the first check, then check every minute.
+
+PR watches notify when the head commit changes, even without a new comment or review. The initial commit is baselined; unchanged commits stay quiet.
 
 The first PR check surfaces all unresolved review threads, including ones that existed before the watch. Later checks notify when a thread appears, reopens or receives changed feedback, showing the current unresolved list. Unchanged threads and resolution alone do not wake the session. Resolved threads are excluded, but outdated threads remain visible until resolved.
 

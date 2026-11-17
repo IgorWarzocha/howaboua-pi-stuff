@@ -54,8 +54,8 @@ export function createNotesContextOwner(
 						| undefined;
 					return Boolean(
 						data?.version === 2 &&
-							Array.isArray(data.agents) &&
-							data.agents.length === 0,
+						Array.isArray(data.agents) &&
+						data.agents.length === 0,
 					);
 				}
 				// Foreign plain custom entries may be startup metadata. Notes state
@@ -87,9 +87,9 @@ export function createNotesContextOwner(
 				const details = windowDetails(entry);
 				return Boolean(
 					details &&
-						details.identity.windowNumber === 0 &&
-						!details.trim &&
-						(details.kind === "window" || details.kind === "identity"),
+					details.identity.windowNumber === 0 &&
+					!details.trim &&
+					(details.kind === "window" || details.kind === "identity"),
 				);
 			}),
 		snapshotNotes: exportNotesSnapshot,

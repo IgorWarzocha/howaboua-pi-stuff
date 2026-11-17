@@ -12,14 +12,17 @@ export interface CodexDiagnosticsLog {
 }
 
 function safeFilenamePart(value: string): string {
-	return value
-		.normalize("NFKC")
-		.replace(/[\u0000-\u001f\u007f/\\:]+/g, "-")
-		.replace(/\s+/g, "-")
-		.replace(/[^\p{L}\p{N}._-]+/gu, "-")
-		.replace(/^[.-]+|[.-]+$/g, "")
-		.replace(/-{2,}/g, "-")
-		.slice(0, 80);
+	return (
+		value
+			.normalize("NFKC")
+			// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
+			.replace(/[\u0000-\u001f\u007f/\\:]+/g, "-")
+			.replace(/\s+/g, "-")
+			.replace(/[^\p{L}\p{N}._-]+/gu, "-")
+			.replace(/^[.-]+|[.-]+$/g, "")
+			.replace(/-{2,}/g, "-")
+			.slice(0, 80)
+	);
 }
 
 export function codexDiagnosticsLogPath(options: {
@@ -32,11 +35,18 @@ export function codexDiagnosticsLogPath(options: {
 	const sessionFileStem = options.sessionFile
 		? safeFilenamePart(basename(options.sessionFile, ".jsonl"))
 		: "";
-	const identity = sessionFileStem || safeFilenamePart(options.sessionId) || "session";
+	const identity =
+		sessionFileStem || safeFilenamePart(options.sessionId) || "session";
 	const name = options.logName
 		? safeFilenamePart(options.logName)
-		: options.sessionName ? safeFilenamePart(options.sessionName) : "";
-	return join(options.agentDir, LOG_DIRECTORY_BASENAME, `${name ? `${name}--` : ""}${identity}.log`);
+		: options.sessionName
+			? safeFilenamePart(options.sessionName)
+			: "";
+	return join(
+		options.agentDir,
+		LOG_DIRECTORY_BASENAME,
+		`${name ? `${name}--` : ""}${identity}.log`,
+	);
 }
 
 function safeText(value: string): string {
@@ -48,72 +58,128 @@ function safeText(value: string): string {
 		.slice(0, 500);
 }
 
-function field(key: string, value: string | number | boolean | null | undefined): string | undefined {
+function field(
+	key: string,
+	value: string | number | boolean | null | undefined,
+): string | undefined {
 	if (value === undefined) return undefined;
 	return `${key}=${typeof value === "string" ? JSON.stringify(safeText(value)) : String(value)}`;
 }
 
 function eventFields(event: CodexDiagnosticsEvent): Array<string | undefined> {
-	if (event.type === "connection") return [
-		field("event", event.type), field("socket_id", event.socketId), field("phase", event.phase),
-		field("initiator", event.initiator), field("cause", event.cause),
-		field("close_code", event.closeCode), field("close_reason", event.closeReason),
-	];
-	if (event.type === "timing") return [
-		field("event", event.type), field("lane", event.lane), field("transport", event.transport),
-		field("attempt", event.attempt), field("outcome", event.outcome),
-		field("request_elapsed_ms", event.requestElapsedMs), field("attempt_elapsed_ms", event.attemptElapsedMs),
-		field("send_ms", event.sendMs), field("first_event_ms", event.firstEventMs),
-		field("first_visible_text_ms", event.firstVisibleTextMs), field("completion_ms", event.completionMs),
-		field("output_tokens", event.outputTokens), field("reasoning_tokens", event.reasoningTokens),
-		field("output_tokens_per_second", event.outputTokensPerSecond),
-		...CODEX_BACKEND_TIMING_KEYS.map(key => field(key, event.backend[key] === undefined ? "missing" : event.backend[key])),
-	];
-	if (event.type === "request") return [
-		field("event", event.type),
-		field("lane", event.lane),
-		field("transport", event.transport),
-		field("attempt", event.attempt),
-		field("socket", event.socketReused === undefined ? undefined : event.socketReused ? "reused" : "new"),
-		field("socket_age_ms", event.socketAgeMs),
-		field("socket_request_ordinal", event.socketRequestOrdinal),
-		field("socket_id", event.socketId),
-		field("instructions_fingerprint", event.requestMetadata?.instructionsFingerprint),
-		field("tools_fingerprint", event.requestMetadata?.toolsFingerprint),
-		field("cache_key_fingerprint", event.requestMetadata?.cacheKeyFingerprint),
-		field("routing_fingerprint", event.requestMetadata?.routingFingerprint),
-		field("options_fingerprint", event.requestMetadata?.optionsFingerprint),
-		field("socket_lane", event.socketLane),
-		field("continuation", event.continuation),
-		field("continuation_previous_item_type", event.continuationMismatch?.previousItemType),
-		field("continuation_current_item_type", event.continuationMismatch?.currentItemType),
-		field("continuation_input_items", event.continuationBaselineInputItems),
-		field("continuation_response_items", event.continuationBaselineResponseItems),
-		field("canonical_history", event.canonicalHistory),
-		field("prewarm_kind", event.prewarm?.kind),
-		field("keepalive_strategy", event.prewarm?.keepaliveStrategy),
-		field("request_source", event.prewarm?.requestSource),
-		field("previous_response_present", event.previousResponseId),
-		field("full_input_items", event.fullInputItems),
-		field("sent_input_items", event.sentInputItems),
-		field("model", event.model),
-		field("reasoning_effort", event.requestMetadata?.reasoningEffort),
-		field("service_tier", event.requestMetadata?.serviceTier),
-		field("access_program", event.requestMetadata?.accessProgram),
-		field("responses_lite", event.requestMetadata?.responsesLite),
-		field("routing_hint", event.requestMetadata?.routingHint),
-		field("request_headers_sent", event.requestMetadata?.headersSent),
-		field("guardian_reviewer", event.requestMetadata?.guardianReviewer),
-		field("parent_thread_linked", event.requestMetadata?.parentThreadLinked),
-		field("subagent_kind", event.requestMetadata?.subagentKind),
-		field("compaction_source", event.compaction?.inputSource),
-		field("compaction_replay", event.compaction?.canonicalReplay),
-		field("checkpoint_reused", event.compaction?.checkpointReused),
-		field("checkpoint_model", event.compaction?.checkpointModel),
-		field("rewritten_tool_outputs", event.compaction?.rewrittenToolOutputs),
-	];
+	if (event.type === "connection")
+		return [
+			field("event", event.type),
+			field("socket_id", event.socketId),
+			field("phase", event.phase),
+			field("initiator", event.initiator),
+			field("cause", event.cause),
+			field("close_code", event.closeCode),
+			field("close_reason", event.closeReason),
+		];
+	if (event.type === "timing")
+		return [
+			field("event", event.type),
+			field("lane", event.lane),
+			field("transport", event.transport),
+			field("attempt", event.attempt),
+			field("outcome", event.outcome),
+			field("request_elapsed_ms", event.requestElapsedMs),
+			field("attempt_elapsed_ms", event.attemptElapsedMs),
+			field("send_ms", event.sendMs),
+			field("first_event_ms", event.firstEventMs),
+			field("first_visible_text_ms", event.firstVisibleTextMs),
+			field("completion_ms", event.completionMs),
+			field("output_tokens", event.outputTokens),
+			field("reasoning_tokens", event.reasoningTokens),
+			field("output_tokens_per_second", event.outputTokensPerSecond),
+			...CODEX_BACKEND_TIMING_KEYS.map((key) =>
+				field(
+					key,
+					event.backend[key] === undefined ? "missing" : event.backend[key],
+				),
+			),
+		];
+	if (event.type === "request")
+		return [
+			field("event", event.type),
+			field("lane", event.lane),
+			field("transport", event.transport),
+			field("attempt", event.attempt),
+			field(
+				"socket",
+				event.socketReused === undefined
+					? undefined
+					: event.socketReused
+						? "reused"
+						: "new",
+			),
+			field("socket_age_ms", event.socketAgeMs),
+			field("socket_request_ordinal", event.socketRequestOrdinal),
+			field("socket_id", event.socketId),
+			field(
+				"instructions_fingerprint",
+				event.requestMetadata?.instructionsFingerprint,
+			),
+			field(
+				"instruction_items",
+				event.requestMetadata?.instructionItems.length,
+			),
+			...(event.requestMetadata?.instructionItems.flatMap((item, index) => [
+				field(`instruction_${index}_fingerprint`, item.fingerprint),
+				field(`instruction_${index}_text_bytes`, item.textBytes),
+				...item.textBlockFingerprints.map((hash, block) =>
+					field(`instruction_${index}_text_block_${block}`, hash),
+				),
+			]) ?? []),
+			field("tools_fingerprint", event.requestMetadata?.toolsFingerprint),
+			field(
+				"cache_key_fingerprint",
+				event.requestMetadata?.cacheKeyFingerprint,
+			),
+			field("routing_fingerprint", event.requestMetadata?.routingFingerprint),
+			field("options_fingerprint", event.requestMetadata?.optionsFingerprint),
+			field("socket_lane", event.socketLane),
+			field("continuation", event.continuation),
+			field(
+				"continuation_previous_item_type",
+				event.continuationMismatch?.previousItemType,
+			),
+			field(
+				"continuation_current_item_type",
+				event.continuationMismatch?.currentItemType,
+			),
+			field("continuation_input_items", event.continuationBaselineInputItems),
+			field(
+				"continuation_response_items",
+				event.continuationBaselineResponseItems,
+			),
+			field("canonical_history", event.canonicalHistory),
+			field("prewarm_kind", event.prewarm?.kind),
+			field("keepalive_strategy", event.prewarm?.keepaliveStrategy),
+			field("request_source", event.prewarm?.requestSource),
+			field("previous_response_present", event.previousResponseId),
+			field("full_input_items", event.fullInputItems),
+			field("sent_input_items", event.sentInputItems),
+			field("model", event.model),
+			field("reasoning_effort", event.requestMetadata?.reasoningEffort),
+			field("service_tier", event.requestMetadata?.serviceTier),
+			field("access_program", event.requestMetadata?.accessProgram),
+			field("responses_lite", event.requestMetadata?.responsesLite),
+			field("routing_hint", event.requestMetadata?.routingHint),
+			field("request_headers_sent", event.requestMetadata?.headersSent),
+			field("guardian_reviewer", event.requestMetadata?.guardianReviewer),
+			field("parent_thread_linked", event.requestMetadata?.parentThreadLinked),
+			field("subagent_kind", event.requestMetadata?.subagentKind),
+			field("compaction_source", event.compaction?.inputSource),
+			field("compaction_replay", event.compaction?.canonicalReplay),
+			field("checkpoint_reused", event.compaction?.checkpointReused),
+			field("checkpoint_model", event.compaction?.checkpointModel),
+			field("rewritten_tool_outputs", event.compaction?.rewrittenToolOutputs),
+		];
 	if (event.type === "usage") {
-		const totalInput = event.inputTokens + event.cachedInputTokens + event.cacheWriteInputTokens;
+		const totalInput =
+			event.inputTokens + event.cachedInputTokens + event.cacheWriteInputTokens;
 		return [
 			field("event", event.type),
 			field("lane", event.lane),
@@ -124,23 +190,41 @@ function eventFields(event: CodexDiagnosticsEvent): Array<string | undefined> {
 			field("output_tokens", event.outputTokens),
 		];
 	}
-	if (event.type === "retry") return [
-		field("event", event.type), field("lane", event.lane), field("transport", event.transport),
-		field("attempt", event.attempt), field("delay_ms", event.delayMs),
-		field("failure", event.failure.category), field("code", event.failure.code), field("status", event.failure.status),
-	];
-	if (event.type === "fallback") return [
-		field("event", event.type), field("lane", event.lane), field("from", event.from),
-		field("to", event.to), field("reason", event.reason),
-	];
-	if (event.type === "failure") return [
-		field("event", event.type), field("lane", event.lane), field("transport", event.transport),
-		field("failure", event.failure.category), field("code", event.failure.code), field("status", event.failure.status),
-	];
+	if (event.type === "retry")
+		return [
+			field("event", event.type),
+			field("lane", event.lane),
+			field("transport", event.transport),
+			field("attempt", event.attempt),
+			field("delay_ms", event.delayMs),
+			field("failure", event.failure.category),
+			field("code", event.failure.code),
+			field("status", event.failure.status),
+		];
+	if (event.type === "fallback")
+		return [
+			field("event", event.type),
+			field("lane", event.lane),
+			field("from", event.from),
+			field("to", event.to),
+			field("reason", event.reason),
+		];
+	if (event.type === "failure")
+		return [
+			field("event", event.type),
+			field("lane", event.lane),
+			field("transport", event.transport),
+			field("failure", event.failure.category),
+			field("code", event.failure.code),
+			field("status", event.failure.status),
+		];
 	if (event.type === "prewarm-ready") {
-		const generatedRefresh = event.prewarm.keepaliveStrategy === "generated-current";
+		const generatedRefresh =
+			event.prewarm.keepaliveStrategy === "generated-current";
 		const totalInput = event.usage
-			? event.usage.inputTokens + event.usage.cachedInputTokens + event.usage.cacheWriteInputTokens
+			? event.usage.inputTokens +
+				event.usage.cachedInputTokens +
+				event.usage.cacheWriteInputTokens
 			: undefined;
 		return [
 			field("event", event.type),
@@ -156,7 +240,14 @@ function eventFields(event: CodexDiagnosticsEvent): Array<string | undefined> {
 			field("cache_read", event.usage?.cachedInputTokens),
 			field("cache_write", event.usage?.cacheWriteInputTokens),
 			field("output_tokens", event.usage?.outputTokens),
-			field("cache_usage", event.usage ? generatedRefresh ? "authoritative" : "non_authoritative" : "unavailable"),
+			field(
+				"cache_usage",
+				event.usage
+					? generatedRefresh
+						? "authoritative"
+						: "non_authoritative"
+					: "unavailable",
+			),
 		];
 	}
 	return [
@@ -170,10 +261,15 @@ function eventFields(event: CodexDiagnosticsEvent): Array<string | undefined> {
 }
 
 function formatEvent(event: CodexDiagnosticsEvent): string {
-	return `${new Date().toISOString()} ${[field("local_request_id", event.requestId),
+	return `${new Date().toISOString()} ${[
+		field("local_request_id", event.requestId),
 		field("scope", event.scope),
-		field("request_counter_process_id", event.requestCounterProcessId), field("session_request_ordinal", event.sessionRequestOrdinal),
-		...eventFields(event)].filter((value): value is string => value !== undefined).join(" ")}\n`;
+		field("request_counter_process_id", event.requestCounterProcessId),
+		field("session_request_ordinal", event.sessionRequestOrdinal),
+		...eventFields(event),
+	]
+		.filter((value): value is string => value !== undefined)
+		.join(" ")}\n`;
 }
 
 export async function createCodexDiagnosticsLog(options: {
@@ -195,12 +291,16 @@ export async function createCodexDiagnosticsLog(options: {
 		sessionName: options.sessionName,
 		logName: options.logName,
 	});
-	await mkdir(join(agentDir, LOG_DIRECTORY_BASENAME), { recursive: true, mode: 0o700 });
+	await mkdir(join(agentDir, LOG_DIRECTORY_BASENAME), {
+		recursive: true,
+		mode: 0o700,
+	});
 	const header = [
 		"# Pi Codex diagnostics",
 		"# Metadata only: prompts, messages, tool arguments, images, credentials, and response IDs are omitted.",
 		"# session_request_ordinal: native session within this live process; response/compaction attempts only; retries/fallback share an ordinal; prewarm/keepalive excluded. Counts with logging off; resets on process restart, not compaction/window/socket reset or same-process resume. Missing without a native session ID.",
 		"# socket_request_ordinal: response.create attempts on this physical socket, including labelled prewarm/keepalive; resets on socket replacement. Request ordinals count attempted sends, not successful responses.",
+		"# instruction_N: ordered leading developer items (or top-level instructions), excluding Responses Lite tools. Item fingerprints include structure; text_block_K hashes concatenated input_text UTF-8 bytes [K*1024, (K+1)*1024), with a possibly shorter final block. These are local byte blocks, not provider tokens or proof of cache eligibility.",
 		`# opened=${new Date().toISOString()}`,
 		`# session_id=${JSON.stringify(options.sessionId)}`,
 		`# session_name=${JSON.stringify(options.sessionName ?? "")}`,
@@ -227,7 +327,7 @@ export async function createCodexDiagnosticsLog(options: {
 			if (failed || closing) return;
 			const line = formatEvent(event);
 			pending = pending
-				.then(() => failed ? undefined : handle.appendFile(line, "utf8"))
+				.then(() => (failed ? undefined : handle.appendFile(line, "utf8")))
 				.catch((error: unknown) => {
 					failed = true;
 					try {
@@ -238,6 +338,8 @@ export async function createCodexDiagnosticsLog(options: {
 				});
 		},
 		close() {
+			// Promise.finally awaits the returned close promise before settling.
+			// oxlint-disable-next-line typescript/no-misused-promises
 			closing ??= pending.finally(() => handle.close());
 			return closing;
 		},

@@ -31,10 +31,10 @@ type ShortcutDefaults = {
 export type GptSwitcherConfig = Record<ShortcutAlias, ShortcutDefaults>;
 
 const DEFAULT_GPT_SWITCHER_CONFIG: GptSwitcherConfig = {
-	sol: { contextWindow: 272_000, reasoning: "high" },
-	terra: { contextWindow: 272_000, reasoning: "high" },
-	luna: { contextWindow: 472_000, reasoning: "xhigh" },
-	astra: { contextWindow: 272_000, reasoning: "low" },
+	sol: { contextWindow: 500_000, reasoning: "high" },
+	terra: { contextWindow: 500_000, reasoning: "high" },
+	luna: { contextWindow: 500_000, reasoning: "xhigh" },
+	astra: { contextWindow: 256_000, reasoning: "low" },
 };
 
 const CONFIG_BASENAME = "pi-gpt-switcher.json";

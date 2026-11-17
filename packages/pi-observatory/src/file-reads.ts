@@ -133,7 +133,7 @@ function prepareShell(source: string): { text: string; unsafe: boolean } {
 		if (!quote && char === "}" && expansion) expansion = false;
 		else if (
 			!quote &&
-			(/[\[\]}]/.test(char) || (char === "{" && source[i - 1] !== "$"))
+			(/[[\]}]/.test(char) || (char === "{" && source[i - 1] !== "$"))
 		)
 			unsafe = true;
 		// shell-quote treats even a mid-word hash as a comment; shells do not.

@@ -1,5 +1,8 @@
 import { spawn } from "node:child_process";
-import { formatNativeBinaryError, nativeBinaryRecoveryMessage } from "../../native-binary-error.ts";
+import {
+	formatNativeBinaryError,
+	nativeBinaryRecoveryMessage,
+} from "../../native-binary-error.ts";
 
 export interface RunBundledToolOptions {
 	binary: string;
@@ -20,7 +23,16 @@ export interface BundledToolResult {
 
 const DEFAULT_MAX_BUFFER = 64 * 1024 * 1024;
 
-export function runBundledTool({ binary, args, stdin, cwd, env, maxBuffer, signal, label }: RunBundledToolOptions): Promise<BundledToolResult> {
+export function runBundledTool({
+	binary,
+	args,
+	stdin,
+	cwd,
+	env,
+	maxBuffer,
+	signal,
+	label,
+}: RunBundledToolOptions): Promise<BundledToolResult> {
 	return new Promise((resolve, reject) => {
 		const toolLabel = label ?? "tool";
 		if (signal?.aborted) {
@@ -56,7 +68,11 @@ export function runBundledTool({ binary, args, stdin, cwd, env, maxBuffer, signa
 			outputBytes += Buffer.byteLength(text, "utf8");
 			if (outputBytes > outputLimit) {
 				child.kill();
-				finish(() => reject(new Error(`${toolLabel} output exceeded ${outputLimit} bytes`)));
+				finish(() =>
+					reject(
+						new Error(`${toolLabel} output exceeded ${outputLimit} bytes`),
+					),
+				);
 				return;
 			}
 			if (target === "stdout") stdout += text;
@@ -71,13 +87,26 @@ export function runBundledTool({ binary, args, stdin, cwd, env, maxBuffer, signa
 		child.stderr?.setEncoding("utf8");
 		child.stdout?.on("data", (chunk) => append("stdout", chunk));
 		child.stderr?.on("data", (chunk) => append("stderr", chunk));
-		child.on("error", (error) => finish(() => reject(new Error(formatNativeBinaryError(toolLabel, error, { binaryPath: binary })))));
-		child.on("close", (status) => finish(() => {
-			const nativeFailure = status === 0 ? undefined : nativeBinaryRecoveryMessage(toolLabel, stderr || stdout);
-			if (nativeFailure) reject(new Error(nativeFailure));
-			else if (stdinError) reject(stdinError);
-			else resolve({ stdout, stderr, status });
-		}));
+		child.on("error", (error) =>
+			finish(() =>
+				reject(
+					new Error(
+						formatNativeBinaryError(toolLabel, error, { binaryPath: binary }),
+					),
+				),
+			),
+		);
+		child.on("close", (status) =>
+			finish(() => {
+				const nativeFailure =
+					status === 0
+						? undefined
+						: nativeBinaryRecoveryMessage(toolLabel, stderr || stdout);
+				if (nativeFailure) reject(new Error(nativeFailure));
+				else if (stdinError) reject(stdinError);
+				else resolve({ stdout, stderr, status });
+			}),
+		);
 		signal?.addEventListener("abort", onAbort, { once: true });
 		if (stdin !== undefined) {
 			child.stdin?.on("error", (error) => {
@@ -96,6 +125,7 @@ export function parseSingleJsonLine<T>(stdout: string, label: string): T {
 		.trimEnd()
 		.split("\n")
 		.findLast((line) => line.trimStart().startsWith("{"));
-	if (!jsonLine) throw new Error(`${label} did not return structured JSON output`);
+	if (!jsonLine)
+		throw new Error(`${label} did not return structured JSON output`);
 	return JSON.parse(jsonLine) as T;
 }

@@ -123,6 +123,7 @@ async function openInbox(
 		socket.on("close", () => sockets.delete(socket));
 		let buffer = "";
 		let received = false;
+		// oxlint-disable-next-line typescript/no-misused-promises -- Async delivery branches return explicit peer rejection/failure replies.
 		socket.on("data", async (chunk: string) => {
 			if (received) return;
 			buffer += chunk;

@@ -1,6 +1,11 @@
 import type { ResponsesCompatibleRequestPayload } from "../compaction/compaction-runtime.ts";
 import type { ResponsesInputMessageItem } from "../compaction/serializer.js";
-import { areEquivalentValues, cloneResponsesInputMessageItem, isPreambleRole, isResponsesInputMessageItem } from "./payload-structured.ts";
+import {
+	areEquivalentValues,
+	cloneResponsesInputMessageItem,
+	isPreambleRole,
+	isResponsesInputMessageItem,
+} from "./payload-structured.ts";
 
 export type FreshAuthoritativePreamble = {
 	instructions?: string | undefined;
@@ -8,25 +13,56 @@ export type FreshAuthoritativePreamble = {
 	trailingInput: ResponsesInputMessageItem[];
 };
 
-function isPromptEnvelopeItem(item: unknown, persisted: readonly unknown[]): item is ResponsesInputMessageItem {
-	return isResponsesInputMessageItem(item) && isPreambleRole(item.role) &&
-		!persisted.some((known) => areEquivalentValues(item, known));
+function isPromptEnvelopeItem(
+	item: unknown,
+	persisted: readonly unknown[],
+): item is ResponsesInputMessageItem {
+	return (
+		isResponsesInputMessageItem(item) &&
+		isPreambleRole(item.role) &&
+		!persisted.some((known) => areEquivalentValues(item, known))
+	);
 }
 
-export function extractFreshAuthoritativePreamble(payload: ResponsesCompatibleRequestPayload, persisted: readonly unknown[] = []): FreshAuthoritativePreamble | undefined {
-	if (payload.instructions !== undefined && typeof payload.instructions !== "string") return undefined;
+export function extractFreshAuthoritativePreamble(
+	payload: ResponsesCompatibleRequestPayload,
+	persisted: readonly unknown[] = [],
+): FreshAuthoritativePreamble | undefined {
+	if (
+		payload.instructions !== undefined &&
+		typeof payload.instructions !== "string"
+	)
+		return undefined;
 
 	let leadingBoundary = 0;
-	while (leadingBoundary < payload.input.length && isPromptEnvelopeItem(payload.input[leadingBoundary]!, persisted)) leadingBoundary += 1;
+	while (
+		leadingBoundary < payload.input.length &&
+		isPromptEnvelopeItem(payload.input[leadingBoundary]!, persisted)
+	)
+		leadingBoundary += 1;
 
 	let trailingBoundary = payload.input.length;
-	while (trailingBoundary > leadingBoundary && isPromptEnvelopeItem(payload.input[trailingBoundary - 1]!, persisted)) trailingBoundary -= 1;
+	while (
+		trailingBoundary > leadingBoundary &&
+		isPromptEnvelopeItem(payload.input[trailingBoundary - 1]!, persisted)
+	)
+		trailingBoundary -= 1;
 
 	// Chronological developer/system additions in the middle belong to the live
 	// conversation. They are not grounds to rebuild or reject another extension's context.
 	return {
-		...(typeof payload.instructions === "string" ? { instructions: payload.instructions } : {}),
-		leadingInput: payload.input.slice(0, leadingBoundary).map((item) => cloneResponsesInputMessageItem(item as ResponsesInputMessageItem)),
-		trailingInput: payload.input.slice(trailingBoundary).map((item) => cloneResponsesInputMessageItem(item as ResponsesInputMessageItem)),
+		...(typeof payload.instructions === "string"
+			? { instructions: payload.instructions }
+			: {}),
+		leadingInput: payload.input
+			.slice(0, leadingBoundary)
+			.map((item) =>
+				cloneResponsesInputMessageItem(item as ResponsesInputMessageItem),
+			),
+		trailingInput: payload.input
+			.slice(trailingBoundary)
+			.map((item) =>
+				cloneResponsesInputMessageItem(item as ResponsesInputMessageItem),
+			),
 	};
 }

@@ -47,54 +47,109 @@ async function main(): Promise<void> {
 	const { values, positionals } = parseArgs({
 		allowPositionals: true,
 		options: {
-			help: { type: "boolean", short: "h" }, account: { type: "string" }, file: { type: "string" },
-			from: { type: "string" }, to: { type: "string" }, root: { type: "string" }, model: { type: "string" }, limit: { type: "string" },
-			"window-start": { type: "string" }, cwd: { type: "string" },
+			help: { type: "boolean", short: "h" },
+			account: { type: "string" },
+			file: { type: "string" },
+			from: { type: "string" },
+			to: { type: "string" },
+			root: { type: "string" },
+			model: { type: "string" },
+			limit: { type: "string" },
+			"window-start": { type: "string" },
+			cwd: { type: "string" },
 		},
 	});
-	if (values.help) { process.stdout.write(`${HELP}\n`); return; }
+	if (values.help) {
+		process.stdout.write(`${HELP}\n`);
+		return;
+	}
 	const action = positionals[0] ?? "summary";
-	if (positionals.length > 1 || !["summary", "windows", "months", "sessions", "history"].includes(action)) throw new Error("Expected summary, windows, months, sessions or history. Use --help.");
+	if (
+		positionals.length > 1 ||
+		!["summary", "windows", "months", "sessions", "history"].includes(action)
+	)
+		throw new Error(
+			"Expected summary, windows, months, sessions or history. Use --help.",
+		);
 	const from = values.from ? Date.parse(values.from) : 0;
 	const to = values.to ? Date.parse(values.to) : Date.now();
-	if (!Number.isFinite(from) || !Number.isFinite(to) || from >= to) throw new Error("Provide valid ISO dates with --from before --to.");
-	if (values["window-start"] && action !== "history") throw new Error("--window-start applies only to history.");
-	if (values.cwd !== undefined && action !== "sessions") throw new Error("--cwd applies only to sessions.");
-	if (values.cwd !== undefined && !values.cwd.trim()) throw new Error("--cwd requires a directory.");
+	if (!Number.isFinite(from) || !Number.isFinite(to) || from >= to)
+		throw new Error("Provide valid ISO dates with --from before --to.");
+	if (values["window-start"] && action !== "history")
+		throw new Error("--window-start applies only to history.");
+	if (values.cwd !== undefined && action !== "sessions")
+		throw new Error("--cwd applies only to sessions.");
+	if (values.cwd !== undefined && !values.cwd.trim())
+		throw new Error("--cwd requires a directory.");
 	let result: unknown;
 	if (action === "history" || action === "sessions") {
-		if (!values.from || !values.to) throw new Error(`${action} requires --from and --to to bound the scan.`);
-		if (values.account || values.file) throw new Error("Session files cannot be reliably filtered by ledger account.");
+		if (!values.from || !values.to)
+			throw new Error(`${action} requires --from and --to to bound the scan.`);
+		if (values.account || values.file)
+			throw new Error(
+				"Session files cannot be reliably filtered by ledger account.",
+			);
 		if (!values.root) throw new Error(`${action} requires --root. Use --help.`);
 		const root = values.root;
 		if (action === "history") {
 			const windowStart = Date.parse(values["window-start"] ?? "");
-			if (!Number.isFinite(windowStart) || windowStart <= from) throw new Error("history requires --window-start after --from.");
-			if (values.model || values.limit) throw new Error("--model and --limit apply only to sessions.");
+			if (!Number.isFinite(windowStart) || windowStart <= from)
+				throw new Error("history requires --window-start after --from.");
+			if (values.model || values.limit)
+				throw new Error("--model and --limit apply only to sessions.");
 			result = await scanUsageHistory(root, from, to, windowStart);
 		} else {
 			const limit = values.limit === undefined ? 20 : Number(values.limit);
-			if (!Number.isInteger(limit) || limit < 1 || limit > 1000) throw new Error("--limit must be an integer from 1 to 1000.");
-			result = await analyseSessions({ root, from, to, cwd: values.cwd, model: values.model, limit });
+			if (!Number.isInteger(limit) || limit < 1 || limit > 1000)
+				throw new Error("--limit must be an integer from 1 to 1000.");
+			result = await analyseSessions({
+				root,
+				from,
+				to,
+				cwd: values.cwd,
+				model: values.model,
+				limit,
+			});
 		}
 	} else {
-		if (values.root || values.model || values.limit) throw new Error("--root applies only to session scans; --model and --limit apply only to sessions.");
+		if (values.root || values.model || values.limit)
+			throw new Error(
+				"--root applies only to session scans; --model and --limit apply only to sessions.",
+			);
 		if (!values.file) throw new Error(`${action} requires --file. Use --help.`);
 		const path = values.file;
 		const ledger = readUsageLedgerFile(path);
-		if (values.account && !Object.hasOwn(ledger.accounts, values.account)) throw new Error("Account not found in the ledger.");
+		if (values.account && !Object.hasOwn(ledger.accounts, values.account))
+			throw new Error("Account not found in the ledger.");
 		result = {
 			file: path,
-			accounts: Object.fromEntries(Object.entries(ledger.accounts).filter(([key]) => !values.account || key === values.account).map(([key, account]) => [
-				key, action === "summary" ? usageReport(account)
-					: action === "months" ? { since: account.since, months: account.months }
-						: Object.values(account.closed).filter((window) => window.start < to && window.end > from).sort((a, b) => a.start - b.start),
-			])),
+			accounts: Object.fromEntries(
+				Object.entries(ledger.accounts)
+					.filter(([key]) => !values.account || key === values.account)
+					.map(([key, account]) => [
+						key,
+						action === "summary"
+							? usageReport(account)
+							: action === "months"
+								? { since: account.since, months: account.months }
+								: Object.values(account.closed)
+										.filter((window) => window.start < to && window.end > from)
+										.sort((a, b) => a.start - b.start),
+					]),
+			),
 		};
 	}
 	process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-	main().catch((error: unknown) => { process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`); process.exitCode = 1; });
+if (
+	process.argv[1] &&
+	resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+	main().catch((error: unknown) => {
+		process.stderr.write(
+			`${error instanceof Error ? error.message : String(error)}\n`,
+		);
+		process.exitCode = 1;
+	});
 }

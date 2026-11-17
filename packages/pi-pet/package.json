@@ -55,18 +55,21 @@
     "pet:prepare": "node dist/authoring/prepare.mjs",
     "pet:rebuild": "node dist/authoring/rebuild.mjs",
     "pet:validate": "node dist/authoring/validate.mjs",
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "tsrs --noEmit",
     "test": "node --test --experimental-strip-types tests/*.test.ts",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
-    "lint:strict": "biome check --error-on-warnings .",
+    "lint": "bun run format:check && oxlint --type-aware && bun run lint:html && bun run lint:css",
+    "lint:fix": "oxfmt --write '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}' && oxlint --type-aware --fix",
+    "lint:strict": "bun run lint",
     "knip": "knip",
     "deadcode": "knip",
-    "ai:check": "biome check . && tsgo --noEmit --noCheck && knip && bun run test && bun run build",
-    "ai:check:strict": "biome check --error-on-warnings . && tsgo --noEmit && knip && bun run test && bun run build",
+    "ai:check": "bun run lint && tsrs --noEmit --noCheck && knip && bun run test && bun run build",
+    "ai:check:strict": "bun run lint:strict && bun run typecheck && knip && bun run test && bun run build",
     "check": "bun run ai:check:strict",
     "prepack": "bun run check",
-    "pack:dry": "npm pack --dry-run"
+    "pack:dry": "npm pack --dry-run",
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'",
+    "lint:html": "html-validate 'src/**/*.html' --max-warnings 0",
+    "lint:css": "stylelint 'src/**/*.css' --max-warnings 0"
   },
   "engines": {
     "node": ">=22.19.0"
@@ -87,15 +90,19 @@
     }
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.6",
     "@earendil-works/pi-coding-agent": "1.5.2",
     "@earendil-works/pi-tui": "1.5.2",
     "@types/node": "^26.6.6",
     "electron": "44.10.2",
     "knip": "^6.45.0",
-    "@typescript/native-preview": "^7.0.0-dev.20260707.2",
     "typescript": "^7.0.2",
-    "@howaboua/pi-codex-conversion": "5.0.0"
+    "@howaboua/pi-codex-conversion": "5.0.0",
+    "oxfmt": "^0.78.0",
+    "tsrs": "0.25.0-ts7.1.0-beta",
+    "oxlint": "1.94.0",
+    "html-validate": "11.4.0",
+    "stylelint": "17.16.0",
+    "aria-query": "5.3.2"
   },
   "publishConfig": {
     "access": "public"

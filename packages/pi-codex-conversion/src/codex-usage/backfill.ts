@@ -14,28 +14,71 @@ export function usageSessionRoot(sessionDir: string): string {
 	return path.startsWith("..") || isAbsolute(path) ? sessionDir : standardRoot;
 }
 
-function scanInChild(root: string, from: number, to: number, windowStart: number, signal: AbortSignal): Promise<UsageHistoryScan> {
-	const script = fileURLToPath(new URL(`./analyse.${import.meta.url.endsWith(".ts") ? "ts" : "js"}`, import.meta.url));
+function scanInChild(
+	root: string,
+	from: number,
+	to: number,
+	windowStart: number,
+	signal: AbortSignal,
+): Promise<UsageHistoryScan> {
+	const script = fileURLToPath(
+		new URL(
+			`./analyse.${import.meta.url.endsWith(".ts") ? "ts" : "js"}`,
+			import.meta.url,
+		),
+	);
 	return new Promise((resolve, reject) => {
-		const child = spawn("node", [script, "history", "--root", root, "--from", new Date(from).toISOString(), "--to", new Date(to).toISOString(), "--window-start", new Date(windowStart).toISOString()], {
-			stdio: ["ignore", "pipe", "pipe"], signal,
-		});
-		let output = "", error = "", bytes = 0;
+		const child = spawn(
+			"node",
+			[
+				script,
+				"history",
+				"--root",
+				root,
+				"--from",
+				new Date(from).toISOString(),
+				"--to",
+				new Date(to).toISOString(),
+				"--window-start",
+				new Date(windowStart).toISOString(),
+			],
+			{
+				stdio: ["ignore", "pipe", "pipe"],
+				signal,
+			},
+		);
+		let output = "",
+			error = "",
+			bytes = 0;
 		child.stdout.setEncoding("utf8");
 		child.stderr.setEncoding("utf8");
 		child.stdout.on("data", (chunk: string) => {
 			bytes += Buffer.byteLength(chunk);
 			if (bytes > 32 * 1024 * 1024) {
 				child.kill();
-				reject(new Error("Session history exceeds the 32 MiB import limit; no history was imported."));
+				reject(
+					new Error(
+						"Session history exceeds the 32 MiB import limit; no history was imported.",
+					),
+				);
 			} else output += chunk;
 		});
-		child.stderr.on("data", (chunk: string) => { error = (error + chunk).slice(-4096); });
+		child.stderr.on("data", (chunk: string) => {
+			error = (error + chunk).slice(-4096);
+		});
 		child.once("error", reject);
 		child.once("close", (code) => {
-			if (code !== 0) { reject(new Error(error.trim() || `Session history scan exited ${code}`)); return; }
-			try { resolve(parseUsageHistory(JSON.parse(output))); }
-			catch (failure) { reject(failure); }
+			if (code !== 0) {
+				reject(
+					new Error(error.trim() || `Session history scan exited ${code}`),
+				);
+				return;
+			}
+			try {
+				resolve(parseUsageHistory(JSON.parse(output)));
+			} catch (failure) {
+				reject(failure);
+			}
 		});
 	});
 }

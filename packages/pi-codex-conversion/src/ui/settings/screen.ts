@@ -1,6 +1,14 @@
-import { type ExtensionContext, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+	type ExtensionContext,
+	type ExtensionAPI,
+} from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey } from "@earendil-works/pi-tui";
-import type { CodexConversionConfig, LunaCacheKeepaliveMinutes, LunaCacheKeepaliveIntervalMinutes, CacheKeepaliveIntervalMinutes } from "../../adapter/activation/config.ts";
+import type {
+	CodexConversionConfig,
+	LunaCacheKeepaliveMinutes,
+	LunaCacheKeepaliveIntervalMinutes,
+	CacheKeepaliveIntervalMinutes,
+} from "../../adapter/activation/config.ts";
 import type { CodexConversionConfigScope } from "../../adapter/activation/config-store.ts";
 import type { CodexLanVoiceServerStatus } from "../../voice/lan/controller.ts";
 import { handleAboutTabInput } from "./about-tab.ts";
@@ -15,17 +23,29 @@ export interface CodexSettingsScreenOptions extends UsageTabOptions {
 	waitForIdle: () => Promise<void>;
 	initialConfig: CodexConversionConfig;
 	onChange: (nextConfig: CodexConversionConfig) => boolean;
-	onGlobalNotebookJournals: (retention: CodexConversionConfig["notebook"]["journals"]) => CodexConversionConfig | undefined;
-	onGlobalNotebookCheckpointCleanup: (retention: CodexConversionConfig["notebook"]["checkpointCleanup"]) => CodexConversionConfig | undefined;
-	onGlobalLunaCacheKeepalive: (minutes: LunaCacheKeepaliveMinutes, interval: LunaCacheKeepaliveIntervalMinutes) => CodexConversionConfig | undefined;
-	onProjectCacheKeepalive: (enabled: boolean, interval: CacheKeepaliveIntervalMinutes) => CodexConversionConfig | undefined;
+	onGlobalNotebookJournals: (
+		retention: CodexConversionConfig["notebook"]["journals"],
+	) => CodexConversionConfig | undefined;
+	onGlobalNotebookCheckpointCleanup: (
+		retention: CodexConversionConfig["notebook"]["checkpointCleanup"],
+	) => CodexConversionConfig | undefined;
+	onGlobalLunaCacheKeepalive: (
+		minutes: LunaCacheKeepaliveMinutes,
+		interval: LunaCacheKeepaliveIntervalMinutes,
+	) => CodexConversionConfig | undefined;
+	onProjectCacheKeepalive: (
+		enabled: boolean,
+		interval: CacheKeepaliveIntervalMinutes,
+	) => CodexConversionConfig | undefined;
 	initialTab?: SettingsTab | undefined;
 	configScope: {
 		current: () => CodexConversionConfigScope;
 		canUseFolder: boolean;
 		path: () => string;
 		reload: () => CodexConversionConfig;
-		set: (scope: CodexConversionConfigScope) => CodexConversionConfig | undefined;
+		set: (
+			scope: CodexConversionConfigScope,
+		) => CodexConversionConfig | undefined;
 	};
 	lanVoiceServer?:
 		| {
@@ -45,52 +65,71 @@ export async function openCodexSettingsScreen(
 		.map((model) => ({ provider: model.provider, modelId: model.id }));
 
 	const usageAbort = new AbortController();
-	const usageSignal = ctx.signal ? AbortSignal.any([ctx.signal, usageAbort.signal]) : usageAbort.signal;
-	await ctx.ui.custom<void>((tui, theme, _kb, done) => {
-		const usageTab = createUsageTab(ctx, options, () => tui.requestRender(), usageSignal);
-		const settings = createSettingsConfiguration(ctx, options, tui, theme, done, availableContextModels);
-		const activateTab = (tab: SettingsTab) => {
-			settings.activateTab(tab);
-			if (tab === "usage") usageTab.ensureLoaded();
-			tui.requestRender();
-		};
-		if (settings.activeTab === "usage") usageTab.ensureLoaded();
-
-		return {
-			render: (width: number) => renderSettingsScreen(width, theme, options, settings, usageTab),
-			invalidate: () => settings.list.invalidate(),
-			handleInput: (data: string) => {
-				if (settings.pickerOpen) {
-					settings.list.handleInput(data);
-					tui.requestRender();
-					return;
-				}
-				if (matchesKey(data, Key.shift(Key.tab))) {
-					const currentIndex = SETTINGS_TABS.findIndex(
-						({ id }) => id === settings.activeTab,
-					);
-					activateTab(
-						SETTINGS_TABS[
-							(currentIndex - 1 + SETTINGS_TABS.length) % SETTINGS_TABS.length
-						]?.id ?? "adapter",
-					);
-					return;
-				}
-				if (matchesKey(data, Key.tab)) {
-					const currentIndex = SETTINGS_TABS.findIndex(
-						({ id }) => id === settings.activeTab,
-					);
-					activateTab(
-						SETTINGS_TABS[(currentIndex + 1) % SETTINGS_TABS.length]?.id ??
-							"adapter",
-					);
-					return;
-				}
-				if (settings.activeTab === "about" && handleAboutTabInput(data, ctx)) return;
-				if (settings.activeTab === "usage" && usageTab.handleInput(data)) return;
-				settings.list.handleInput?.(data);
+	const usageSignal = ctx.signal
+		? AbortSignal.any([ctx.signal, usageAbort.signal])
+		: usageAbort.signal;
+	await ctx.ui
+		.custom<void>((tui, theme, _kb, done) => {
+			const usageTab = createUsageTab(
+				ctx,
+				options,
+				() => tui.requestRender(),
+				usageSignal,
+			);
+			const settings = createSettingsConfiguration(
+				ctx,
+				options,
+				tui,
+				theme,
+				done,
+				availableContextModels,
+			);
+			const activateTab = (tab: SettingsTab) => {
+				settings.activateTab(tab);
+				if (tab === "usage") usageTab.ensureLoaded();
 				tui.requestRender();
-			},
-		};
-	}).finally(() => usageAbort.abort());
+			};
+			if (settings.activeTab === "usage") usageTab.ensureLoaded();
+
+			return {
+				render: (width: number) =>
+					renderSettingsScreen(width, theme, options, settings, usageTab),
+				invalidate: () => settings.list.invalidate(),
+				handleInput: (data: string) => {
+					if (settings.pickerOpen) {
+						settings.list.handleInput(data);
+						tui.requestRender();
+						return;
+					}
+					if (matchesKey(data, Key.shift(Key.tab))) {
+						const currentIndex = SETTINGS_TABS.findIndex(
+							({ id }) => id === settings.activeTab,
+						);
+						activateTab(
+							SETTINGS_TABS[
+								(currentIndex - 1 + SETTINGS_TABS.length) % SETTINGS_TABS.length
+							]?.id ?? "adapter",
+						);
+						return;
+					}
+					if (matchesKey(data, Key.tab)) {
+						const currentIndex = SETTINGS_TABS.findIndex(
+							({ id }) => id === settings.activeTab,
+						);
+						activateTab(
+							SETTINGS_TABS[(currentIndex + 1) % SETTINGS_TABS.length]?.id ??
+								"adapter",
+						);
+						return;
+					}
+					if (settings.activeTab === "about" && handleAboutTabInput(data, ctx))
+						return;
+					if (settings.activeTab === "usage" && usageTab.handleInput(data))
+						return;
+					settings.list.handleInput?.(data);
+					tui.requestRender();
+				},
+			};
+		})
+		.finally(() => usageAbort.abort());
 }

@@ -12,9 +12,9 @@ export interface ApplyPatchDisplayBroker {
 export function isApplyPatchDisplayRequest(value: unknown): boolean {
 	return Boolean(
 		value &&
-			typeof value === "object" &&
-			"protocol" in value &&
-			value.protocol === APPLY_PATCH_DISPLAY_PROTOCOL,
+		typeof value === "object" &&
+		"protocol" in value &&
+		value.protocol === APPLY_PATCH_DISPLAY_PROTOCOL,
 	);
 }
 
@@ -23,12 +23,12 @@ export function isApplyPatchDisplayBroker(
 ): value is ApplyPatchDisplayBroker {
 	return Boolean(
 		value &&
-			typeof value === "object" &&
-			"protocol" in value &&
-			value.protocol === APPLY_PATCH_DISPLAY_PROTOCOL &&
-			"isActive" in value &&
-			typeof value.isActive === "function" &&
-			"register" in value &&
-			typeof value.register === "function",
+		typeof value === "object" &&
+		"protocol" in value &&
+		value.protocol === APPLY_PATCH_DISPLAY_PROTOCOL &&
+		"isActive" in value &&
+		typeof value.isActive === "function" &&
+		"register" in value &&
+		typeof value.register === "function",
 	);
 }

@@ -1,12 +1,24 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { renderTerminalOutput } from "../tools/exec/output.ts";
-import type { ExecSessionManager, ExecSessionSnapshot } from "../tools/exec/session-manager.ts";
+import type {
+	ExecSessionManager,
+	ExecSessionSnapshot,
+} from "../tools/exec/session-manager.ts";
 
 export const BACKGROUND_BASH_WIDGET_ID = "codex-background-bashes";
 const OUTPUT_TAIL_CHARS = 4_000;
 
-type BackgroundShellShortcuts = Pick<CodexConversionConfig["ui"], "backgroundShellCloseShortcut" | "backgroundShellNextShortcut" | "backgroundShellPrevShortcut" | "backgroundShellToggleShortcut">;
+type BackgroundShellShortcuts = Pick<
+	CodexConversionConfig["ui"],
+	| "backgroundShellCloseShortcut"
+	| "backgroundShellNextShortcut"
+	| "backgroundShellPrevShortcut"
+	| "backgroundShellToggleShortcut"
+>;
 
 export interface BackgroundBashWidgetState {
 	activeSessionId?: number | undefined;
@@ -26,14 +38,21 @@ function ageLabel(timestamp: number): string {
 	return `${Math.floor(minutes / 60)}h`;
 }
 
-function statusLabel(session: ExecSessionSnapshot): { text: string; tone: "warning" | "success" | "error" } {
+function statusLabel(session: ExecSessionSnapshot): {
+	text: string;
+	tone: "warning" | "success" | "error";
+} {
 	if (session.terminating) return { text: "terminating", tone: "warning" };
 	if (session.running) return { text: "running", tone: "warning" };
 	if (session.exitCode === 0) return { text: "exited 0", tone: "success" };
 	return { text: `failed ${session.exitCode ?? "?"}`, tone: "error" };
 }
 
-function sessionLabel(ctx: ExtensionContext, session: ExecSessionSnapshot, activeSessionId: number): string {
+function sessionLabel(
+	ctx: ExtensionContext,
+	session: ExecSessionSnapshot,
+	activeSessionId: number,
+): string {
 	const theme = ctx.ui.theme;
 	const label = String(session.id);
 	if (session.id === activeSessionId) return theme.fg("accent", `[${label}]`);
@@ -41,15 +60,27 @@ function sessionLabel(ctx: ExtensionContext, session: ExecSessionSnapshot, activ
 	return theme.fg(session.exitCode === 0 ? "success" : "error", label);
 }
 
-function resolveActiveSessionId(state: BackgroundBashWidgetState, snapshots: ExecSessionSnapshot[]): number {
+function resolveActiveSessionId(
+	state: BackgroundBashWidgetState,
+	snapshots: ExecSessionSnapshot[],
+): number {
 	const requested = state.activeSessionId;
-	if (requested !== undefined && snapshots.some((session) => session.id === requested)) return requested;
+	if (
+		requested !== undefined &&
+		snapshots.some((session) => session.id === requested)
+	)
+		return requested;
 	const fallback = snapshots[0]!.id;
 	state.activeSessionId = fallback;
 	return fallback;
 }
 
-export function renderBackgroundBashWidget(ctx: ExtensionContext, state: BackgroundBashWidgetState, sessions: ExecSessionManager, config: BackgroundShellShortcuts): void {
+export function renderBackgroundBashWidget(
+	ctx: ExtensionContext,
+	state: BackgroundBashWidgetState,
+	sessions: ExecSessionManager,
+	config: BackgroundShellShortcuts,
+): void {
 	if (ctx.mode !== "tui") return;
 	const snapshots = sessions.listSessions(OUTPUT_TAIL_CHARS);
 	if (snapshots.length === 0) {
@@ -59,10 +90,14 @@ export function renderBackgroundBashWidget(ctx: ExtensionContext, state: Backgro
 		return;
 	}
 	const activeSessionId = resolveActiveSessionId(state, snapshots);
-	const active = snapshots.find((session) => session.id === activeSessionId) ?? snapshots[0]!;
+	const active =
+		snapshots.find((session) => session.id === activeSessionId) ??
+		snapshots[0]!;
 	const activeStatus = statusLabel(active);
 	const theme = ctx.ui.theme;
-	const sessionNumbers = snapshots.map((session) => sessionLabel(ctx, session, active.id)).join(" ");
+	const sessionNumbers = snapshots
+		.map((session) => sessionLabel(ctx, session, active.id))
+		.join(" ");
 	const lines = [
 		`${theme.fg("accent", "╭─ codex shell")} ${theme.fg(activeStatus.tone, activeStatus.text)} ${theme.fg("dim", `sessions ${sessionNumbers}`)}`,
 	];
@@ -72,16 +107,26 @@ export function renderBackgroundBashWidget(ctx: ExtensionContext, state: Backgro
 		const output = renderTerminalOutput(active.outputTail).trimEnd();
 		if (output) {
 			for (const line of output.split("\n").slice(-6)) {
-				lines.push(`${theme.fg("muted", "│")} ${theme.fg("dim", truncate(line, 160))}`);
+				lines.push(
+					`${theme.fg("muted", "│")} ${theme.fg("dim", truncate(line, 160))}`,
+				);
 			}
 		} else {
-			lines.push(`${theme.fg("muted", "│")} ${theme.fg("dim", "(no output yet)")}`);
+			lines.push(
+				`${theme.fg("muted", "│")} ${theme.fg("dim", "(no output yet)")}`,
+			);
 		}
-		lines.push(`${theme.fg("muted", "│")} ${theme.fg("dim", `session ${active.id} · updated ${ageLabel(active.updatedAt)} ago`)}`);
+		lines.push(
+			`${theme.fg("muted", "│")} ${theme.fg("dim", `session ${active.id} · updated ${ageLabel(active.updatedAt)} ago`)}`,
+		);
 	}
 
-	lines.push(`${theme.fg("muted", "╰─")} ${theme.fg("dim", `${config.backgroundShellPrevShortcut}/${config.backgroundShellNextShortcut} select · ${config.backgroundShellToggleShortcut} fold/open · ${config.backgroundShellCloseShortcut} close`)}`);
-	ctx.ui.setWidget(BACKGROUND_BASH_WIDGET_ID, lines, { placement: "aboveEditor" });
+	lines.push(
+		`${theme.fg("muted", "╰─")} ${theme.fg("dim", `${config.backgroundShellPrevShortcut}/${config.backgroundShellNextShortcut} select · ${config.backgroundShellToggleShortcut} fold/open · ${config.backgroundShellCloseShortcut} close`)}`,
+	);
+	ctx.ui.setWidget(BACKGROUND_BASH_WIDGET_ID, lines, {
+		placement: "aboveEditor",
+	});
 }
 
 export function registerBackgroundBashWidgetShortcuts(
@@ -112,8 +157,14 @@ export function registerBackgroundBashWidgetShortcuts(
 			const snapshots = sessions.listSessions();
 			const count = snapshots.length;
 			if (count > 0) {
-				const activeIndex = Math.max(0, snapshots.findIndex((session) => session.id === state.activeSessionId));
-				state.activeSessionId = snapshots[(activeIndex + count - 1) % count]!.id;
+				const activeIndex = Math.max(
+					0,
+					snapshots.findIndex(
+						(session) => session.id === state.activeSessionId,
+					),
+				);
+				state.activeSessionId =
+					snapshots[(activeIndex + count - 1) % count]!.id;
 			}
 			rerender(ctx);
 		},
@@ -125,7 +176,12 @@ export function registerBackgroundBashWidgetShortcuts(
 			const snapshots = sessions.listSessions();
 			const count = snapshots.length;
 			if (count > 0) {
-				const activeIndex = Math.max(0, snapshots.findIndex((session) => session.id === state.activeSessionId));
+				const activeIndex = Math.max(
+					0,
+					snapshots.findIndex(
+						(session) => session.id === state.activeSessionId,
+					),
+				);
 				state.activeSessionId = snapshots[(activeIndex + 1) % count]!.id;
 			}
 			rerender(ctx);
@@ -136,7 +192,9 @@ export function registerBackgroundBashWidgetShortcuts(
 		handler: async (ctx) => {
 			if (!isEnabled()) return;
 			const snapshots = sessions.listSessions();
-			const snapshot = snapshots.find((session) => session.id === state.activeSessionId) ?? snapshots[0];
+			const snapshot =
+				snapshots.find((session) => session.id === state.activeSessionId) ??
+				snapshots[0];
 			if (snapshot) sessions.terminateSession(snapshot.id);
 			rerender(ctx);
 		},

@@ -31,8 +31,8 @@ const HISTORY_ACTIONS = [
 	"read",
 	"search",
 ] as const;
-export const NOTES_USAGE = "await tools.notes()";
-export const HISTORY_USAGE = "await tools.history()";
+export const NOTES_USAGE = "tools.notes()";
+export const HISTORY_USAGE = "tools.history()";
 export const NOTES_DESCRIPTION = "Virtual filesystem task checkpoints";
 export const NOTES_ROUTING_GUIDELINE =
 	"notes: task checkpoints and internal handoffs. MUST revise via write/append actions. Paths are virtual: read/write only through notes, never shell/filesystem tools. MUST NOT store project files or deliverables";
@@ -68,6 +68,7 @@ export const NOTES_SCHEMA = obj(
 );
 const NEW_CONTEXT_SCHEMA = obj(
 	{
+		resume: opt(bool()),
 		role: opt(
 			str({
 				minLength: 1,
@@ -81,9 +82,27 @@ const NEW_CONTEXT_SCHEMA = obj(
 
 const newContextSchemaValidator = compile(NEW_CONTEXT_SCHEMA);
 
-export function newContextSchema(roleIds: string[]) {
+export function newContextSchema(
+	roleIds: string[],
+	taskCompletionRollover = false,
+) {
 	return obj(
-		roleIds.length ? { role: opt({ ...oneOf(roleIds), type: "string" }) } : {},
+		{
+			...(roleIds.length
+				? { role: opt({ ...oneOf(roleIds), type: "string" }) }
+				: {}),
+			...(taskCompletionRollover
+				? {
+						resume: opt(
+							bool({
+								default: true,
+								description:
+									"False: task complete; finish reply, then wait in fresh context. True: continue immediately",
+							}),
+						),
+					}
+				: {}),
+		},
 		{ open: false },
 	);
 }
@@ -92,7 +111,7 @@ export function prepareNewContextArguments(input: unknown) {
 	const args = input ?? {};
 	if (!newContextSchemaValidator.check(args))
 		throw new Error(
-			'Use {} to keep the current model, or {role: "name"} for a configured role.',
+			"Use {} to continue in fresh context; optional role selects a configured preset. resume must be true or false.",
 		);
 	return args;
 }

@@ -11,6 +11,7 @@ import {
 	type RenderedToolContent,
 } from "./render-content.js";
 import type { CodeModeRenderTracker } from "./render-tracker.js";
+import type { NestedRenderState } from "./trace-render-state.js";
 import { formatNotebookMemoryWarning } from "./tool-result.js";
 import {
 	type CodeModeNestedRenderStore,
@@ -36,6 +37,11 @@ interface CodeModeResultDetails {
 	notebookMemory?: NotebookMemoryUsage | undefined;
 }
 
+class CodeModeResult extends Container {
+	// UI instances belong to this row, not the evictable capture store shared by history.
+	readonly traces = new Map<string, NestedRenderState>();
+}
+
 export function renderTrackedCodeModeResult(
 	result: { content: RenderedToolContent[]; details?: unknown },
 	options: { expanded: boolean; isPartial: boolean },
@@ -47,20 +53,36 @@ export function renderTrackedCodeModeResult(
 	richRendering = true,
 	minimalOutput = false,
 ): Component {
+	const component =
+		context?.lastComponent instanceof CodeModeResult
+			? context.lastComponent
+			: new CodeModeResult();
+	const details = asDetails(result.details);
 	if (!options.isPartial && context?.toolCallId) {
-		const details = asDetails(result.details);
-		tracker.finish(context.toolCallId, details.status === "yielded" ? "yielded" : "done");
+		tracker.finish(
+			context.toolCallId,
+			details.status === "yielded" ? "yielded" : "done",
+		);
 	}
-	return renderCodeModeResult(
-		result,
-		options,
-		theme,
-		context,
-		tools,
-		renderStore,
-		richRendering,
-		minimalOutput,
+	const retained = new Set(details.traces?.map((trace) => trace.id));
+	for (const id of component.traces.keys()) {
+		if (!retained.has(id)) component.traces.delete(id);
+	}
+	component.clear();
+	component.addChild(
+		renderCodeModeResult(
+			result,
+			options,
+			theme,
+			context,
+			tools,
+			renderStore,
+			richRendering,
+			minimalOutput,
+			component.traces,
+		),
 	);
+	return component;
 }
 
 function renderCodeModeResult(
@@ -72,47 +94,75 @@ function renderCodeModeResult(
 	renderStore: CodeModeNestedRenderStore,
 	richRendering: boolean,
 	minimalOutput: boolean,
+	traceStates: Map<string, NestedRenderState>,
 ): Component {
 	const details = asDetails(result.details);
 	// Older results always carried a leading status block. Never strip user output from new results.
-	const hasStatusPrefix = details.statusPrefix ?? (details.status !== undefined && !details.notification);
+	const hasStatusPrefix =
+		details.statusPrefix ??
+		(details.status !== undefined && !details.notification);
 	const content = hasStatusPrefix ? result.content.slice(1) : result.content;
-	const notebookMemoryText = details.notebookMemory ? formatNotebookMemoryWarning(details.notebookMemory) : undefined;
-	const renderedContent = notebookMemoryText
-		&& content[0]?.type === "text"
-		&& content[0].text === notebookMemoryText
-		? content.slice(1)
-		: content;
+	const notebookMemoryText = details.notebookMemory
+		? formatNotebookMemoryWarning(details.notebookMemory)
+		: undefined;
+	const renderedContent =
+		notebookMemoryText &&
+		content[0]?.type === "text" &&
+		content[0].text === notebookMemoryText
+			? content.slice(1)
+			: content;
 	const text = renderedContent
 		.filter((item) => item.type === "text" && typeof item.text === "string")
 		.map((item) => item.text)
 		.join("\n");
 	const scriptErrorRenderedByTrace = Boolean(
-		details.scriptError
-		&& details.traces?.some((trace) => trace.status === "error" && trace.error === details.scriptError),
+		details.scriptError &&
+		details.traces?.some(
+			(trace) =>
+				trace.status === "error" && trace.error === details.scriptError,
+		),
 	);
 	const status = scriptErrorRenderedByTrace ? "" : statusText(details);
 	const outputText = [text, status].filter(Boolean).join("\n");
-	const tone = context?.isError ? "error" : details.status === "yielded" ? "accent" : "dim";
+	const tone = context?.isError
+		? "error"
+		: details.status === "yielded"
+			? "accent"
+			: "dim";
 	const renderedText = outputText ? theme.fg(tone, outputText) : "";
 	const images = renderedContent.filter(
 		(item): item is RenderedToolContent & { data: string; mimeType: string } =>
-			item.type === "image" && typeof item.data === "string" && typeof item.mimeType === "string",
+			item.type === "image" &&
+			typeof item.data === "string" &&
+			typeof item.mimeType === "string",
 	);
 	const emittedImages = imagesByMimeType(images);
-	const showOutput = richRendering
-		|| Boolean(details.scriptError && !scriptErrorRenderedByTrace)
-		|| details.notification === true
-		|| images.length > 0;
-	const hidePreview = minimalOutput && !options.expanded
-		&& !context?.isError && !details.scriptError && !details.notification;
-	const displayText = !showOutput ? "" : hidePreview
-		? [
-			previewText(text ? theme.fg(tone, text) : "", theme, true, context),
-			status ? theme.fg(tone, status) : "",
-		].filter(Boolean).join("\n")
-		: options.expanded || options.isPartial ? renderedText : previewText(renderedText, theme, false, context);
-	const output = showOutput ? renderTextAndImages(displayText, [], theme) : new Container();
+	const showOutput =
+		richRendering ||
+		Boolean(details.scriptError && !scriptErrorRenderedByTrace) ||
+		details.notification === true ||
+		images.length > 0;
+	const hidePreview =
+		minimalOutput &&
+		!options.expanded &&
+		!context?.isError &&
+		!details.scriptError &&
+		!details.notification;
+	const displayText = !showOutput
+		? ""
+		: hidePreview
+			? [
+					previewText(text ? theme.fg(tone, text) : "", theme, true, context),
+					status ? theme.fg(tone, status) : "",
+				]
+					.filter(Boolean)
+					.join("\n")
+			: options.expanded || options.isPartial
+				? renderedText
+				: previewText(renderedText, theme, false, context);
+	const output = showOutput
+		? renderTextAndImages(displayText, [], theme)
+		: new Container();
 	const body = renderTraceAndOutput(
 		details.traces ?? [],
 		details.droppedTraceCount ?? 0,
@@ -124,20 +174,31 @@ function renderCodeModeResult(
 		context,
 		emittedImages,
 		renderStore,
+		traceStates,
 	);
 	if (!details.notebookMemory || !notebookMemoryText) return body;
 	const container = new Container();
-	const ratio = details.notebookMemory.heapLimitBytes > 0
-		? details.notebookMemory.heapUsedBytes / details.notebookMemory.heapLimitBytes
-		: 0;
+	const ratio =
+		details.notebookMemory.heapLimitBytes > 0
+			? details.notebookMemory.heapUsedBytes /
+				details.notebookMemory.heapLimitBytes
+			: 0;
 	container.addChild(
 		new Text(
-			theme.fg(ratio >= 0.9 ? "error" : ratio >= 0.8 ? "accent" : "muted", notebookMemoryText),
+			theme.fg(
+				ratio >= 0.9 ? "error" : ratio >= 0.8 ? "accent" : "muted",
+				notebookMemoryText,
+			),
 			0,
 			0,
 		),
 	);
-	if (details.traces?.length || details.droppedTraceCount || renderedText || images.length) {
+	if (
+		details.traces?.length ||
+		details.droppedTraceCount ||
+		renderedText ||
+		images.length
+	) {
 		container.addChild(new Spacer(1));
 		container.addChild(body);
 	}
@@ -145,13 +206,20 @@ function renderCodeModeResult(
 }
 
 function asDetails(value: unknown): CodeModeResultDetails {
-	return value && typeof value === "object" ? value as CodeModeResultDetails : {};
+	return value && typeof value === "object"
+		? (value as CodeModeResultDetails)
+		: {};
 }
 
 function statusText(details: CodeModeResultDetails): string {
-	if (details.deliveryPending) return `Cell #${details.cellId} complete; results pending delivery`;
+	if (details.deliveryPending)
+		return `Cell #${details.cellId} complete; results pending delivery`;
 	if (details.scriptError) return `Script error: ${details.scriptError}`;
-	if (details.status === "yielded" && details.cellId) return `Cell #${details.cellId} still running`;
-	if (details.status === "terminated") return details.cellId ? `Cell #${details.cellId} terminated` : "Cell terminated";
+	if (details.status === "yielded" && details.cellId)
+		return `Cell #${details.cellId} still running`;
+	if (details.status === "terminated")
+		return details.cellId
+			? `Cell #${details.cellId} terminated`
+			: "Cell terminated";
 	return "";
 }

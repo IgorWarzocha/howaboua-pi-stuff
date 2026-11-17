@@ -1,6 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-export const PREFLIGHT_PROTOCOL = "@howaboua/pi-codex-conversion/code-mode-preflight/v1";
+export const PREFLIGHT_PROTOCOL =
+	"@howaboua/pi-codex-conversion/code-mode-preflight/v1";
 export const PREFLIGHT_REQUEST_CHANNEL = `${PREFLIGHT_PROTOCOL}/request`;
 export const PREFLIGHT_AVAILABLE_CHANNEL = `${PREFLIGHT_PROTOCOL}/available`;
 
@@ -26,10 +27,16 @@ export type CodeModeToolPreflight = (
 	| void
 	| Promise<CodeModeToolPreflightResult | void>;
 
-export type CodeModeToolCompletionCall = CodeModeToolPreflightCall & (
-	| { status: "success"; result: unknown }
-	| { status: "error"; phase: "preflight" | "execution"; error: string; result: unknown }
-);
+export type CodeModeToolCompletionCall = CodeModeToolPreflightCall &
+	(
+		| { status: "success"; result: unknown }
+		| {
+				status: "error";
+				phase: "preflight" | "execution";
+				error: string;
+				result: unknown;
+		  }
+	);
 
 export type CodeModeToolCompletion = (
 	call: CodeModeToolCompletionCall,
@@ -45,21 +52,21 @@ export interface PreflightBroker {
 export function isProtocolRequest(value: unknown): boolean {
 	return Boolean(
 		value &&
-			typeof value === "object" &&
-			"protocol" in value &&
-			value.protocol === PREFLIGHT_PROTOCOL,
+		typeof value === "object" &&
+		"protocol" in value &&
+		value.protocol === PREFLIGHT_PROTOCOL,
 	);
 }
 
 export function isPreflightBroker(value: unknown): value is PreflightBroker {
 	return Boolean(
 		value &&
-			typeof value === "object" &&
-			"protocol" in value &&
-			value.protocol === PREFLIGHT_PROTOCOL &&
-			"isActive" in value &&
-			typeof value.isActive === "function" &&
-			"register" in value &&
-			typeof value.register === "function",
+		typeof value === "object" &&
+		"protocol" in value &&
+		value.protocol === PREFLIGHT_PROTOCOL &&
+		"isActive" in value &&
+		typeof value.isActive === "function" &&
+		"register" in value &&
+		typeof value.register === "function",
 	);
 }
