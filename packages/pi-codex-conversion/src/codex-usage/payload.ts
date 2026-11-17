@@ -146,7 +146,7 @@ export function parseCodexUsagePayload(payload: unknown): CodexUsageSnapshot {
 export function codexUsageStatus(snapshot: CodexUsageSnapshot): CodexUsageStatus {
 	const limit = snapshot.limits.find(({ limitId }) => limitId === "codex");
 	const usageLeft = (minutes: number): number | undefined => {
-		const window = [limit?.primary, limit?.secondary].find(({ windowMinutes } = {}) => windowMinutes === minutes);
+		const window = [limit?.primary, limit?.secondary].find(({ windowMinutes }: CodexUsageWindow = {}) => windowMinutes === minutes);
 		return window?.usedPercent === undefined ? undefined : 100 - Math.max(0, Math.min(100, window.usedPercent));
 	};
 	return {

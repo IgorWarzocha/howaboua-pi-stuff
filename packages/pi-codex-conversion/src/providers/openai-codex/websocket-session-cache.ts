@@ -3,6 +3,8 @@ import type { AcquiredWebSocket, CodexDiagnosticsSink, ProviderEnv, SessionWebSo
 import { closeWebSocketSilently, connectWebSocket, isWebSocketReusable, observeWebSocketDiagnostics, resolveWebSocketProxyForTarget } from "./websocket-connection.ts";
 import { clearCanonicalSessions } from "./session-continuity.ts";
 
+type ReleaseOptions = NonNullable<Parameters<AcquiredWebSocket["release"]>[0]>;
+
 const websocketSessionCache = new Map<string, Map<string, SessionWebSocketCacheEntry>>();
 const websocketPreparations = new Map<string, Set<AbortController>>();
 const websocketSseFallbackSessions = new Set<string>();
@@ -171,7 +173,7 @@ export async function acquireWebSocket(
 			socket,
 			reused: false,
 			socketAgeMs: 0,
-			release: ({ closeAfter } = {}) => closeReleasedWebSocket(socket, sessionId, closeAfter),
+			release: ({ closeAfter }: ReleaseOptions = {}) => closeReleasedWebSocket(socket, sessionId, closeAfter),
 		};
 	}
 
@@ -189,7 +191,7 @@ export async function acquireWebSocket(
 				entry: cached,
 				reused: true,
 				socketAgeMs: Math.max(0, Date.now() - cached.createdAtMs),
-				release: ({ keep, closeAfter } = {}) => {
+				release: ({ keep, closeAfter }: ReleaseOptions = {}) => {
 					if (!keep || !isWebSocketReusable(cached.socket)) {
 						closeReleasedWebSocket(cached.socket, sessionId, closeAfter);
 						const currentEntries = websocketSessionCache.get(sessionId);
@@ -209,7 +211,7 @@ export async function acquireWebSocket(
 				routeKey,
 				reused: false,
 				socketAgeMs: 0,
-				release: ({ closeAfter } = {}) => closeReleasedWebSocket(socket, sessionId, closeAfter),
+				release: ({ closeAfter }: ReleaseOptions = {}) => closeReleasedWebSocket(socket, sessionId, closeAfter),
 			};
 		}
 
@@ -238,7 +240,7 @@ export async function acquireWebSocket(
 		entry,
 		reused: false,
 		socketAgeMs: 0,
-		release: ({ keep, closeAfter } = {}) => {
+		release: ({ keep, closeAfter }: ReleaseOptions = {}) => {
 			if (!keep || !isWebSocketReusable(entry.socket)) {
 				closeReleasedWebSocket(entry.socket, sessionId, closeAfter);
 				const currentEntries = websocketSessionCache.get(sessionId);
