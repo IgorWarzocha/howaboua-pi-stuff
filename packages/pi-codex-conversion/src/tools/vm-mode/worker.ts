@@ -28,44 +28,18 @@ const factory: unknown = runInContext(VM_PRELUDE, context, {
 });
 if (typeof factory !== "function")
 	throw new Error("VM Code prelude did not start");
-const control = factory((kind: unknown, payload: unknown) =>
-	bridge(String(kind), payload === undefined ? "" : String(payload)),
-) as VmControl;
+// Only primitives cross back to the guest, including failures: host Errors expose Function.
+const control = factory((kind: unknown, payload: unknown) => {
+	try {
+		bridge(String(kind), payload === undefined ? "" : String(payload));
+		return undefined;
+	} catch (error) {
+		return errorMessage(error);
+	}
+}) as VmControl;
 const exported = new Map<string, string>();
 let cells = 0;
 const IDENTIFIER = /^[$_\p{ID_Start}][$_\u200C\u200D\p{ID_Continue}]*$/u;
-Object.defineProperty(context, Symbol.for("pi.vm-code/init"), {
-	value: {
-		bind(kind: unknown, name: unknown, read: unknown, write: unknown) {
-			if (
-				(kind !== "let" &&
-					kind !== "const" &&
-					kind !== "class" &&
-					kind !== "function" &&
-					kind !== "var") ||
-				typeof name !== "string" ||
-				!IDENTIFIER.test(name) ||
-				typeof read !== "function" ||
-				typeof write !== "function"
-			)
-				throw new Error("Invalid binding");
-			exported.set(name, kind);
-			Object.defineProperty(context, name, {
-				configurable: kind === "function" || kind === "var",
-				enumerable: false,
-				get() {
-					return (read as () => unknown)();
-				},
-				set(value: unknown) {
-					(write as (value: unknown) => void)(value);
-				},
-			});
-		},
-	},
-	writable: false,
-	configurable: false,
-	enumerable: false,
-});
 runInContext(
 	`Object.defineProperty(globalThis, "content", { value: (${contentOutputFactorySource})(globalThis.text, globalThis.image), configurable: false, writable: false })`,
 	context,
@@ -118,6 +92,20 @@ function bridge(kind: string, value: string): void {
 	if (active === undefined)
 		throw new Error("Start this operation in an active exec");
 	switch (kind) {
+		case "bind": {
+			const binding: unknown = JSON.parse(value);
+			if (
+				!record(binding) ||
+				typeof binding["name"] !== "string" ||
+				!IDENTIFIER.test(binding["name"]) ||
+				!["let", "const", "class", "function", "var"].includes(
+					String(binding["kind"]),
+				)
+			)
+				throw new Error("Invalid binding");
+			exported.set(binding["name"], String(binding["kind"]));
+			break;
+		}
 		case "call": {
 			const call: unknown = JSON.parse(value);
 			if (

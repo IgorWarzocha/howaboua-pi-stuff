@@ -3,8 +3,32 @@ import { VM_STORE_TOTAL_MAX, VM_STORE_VALUE_MAX } from "./limits.ts";
 
 // Same tools.name binding as QuickJS Code. The host bridge stays in this closure.
 // Later scripts see let, const, function and class because they run in this same context.
-export const VM_PRELUDE = String.raw`(bridge => {
+export const VM_PRELUDE = String.raw`(hostBridge => {
   const parse = JSON.parse, stringify = JSON.stringify;
+  const GuestError = Error, define = Object.defineProperty;
+  const bridge = (kind, payload) => {
+    const error = hostBridge(kind, payload);
+    if (error !== undefined) throw new GuestError(error);
+  };
+  // The binder and every published accessor must belong to this realm, not the worker.
+  const identifier = /^[$_\p{ID_Start}][$_\u200C\u200D\p{ID_Continue}]*$/u;
+  define(globalThis, Symbol.for('pi.vm-code/init'), {
+    value: Object.freeze({
+      bind(kind, name, read, write) {
+        if (!['let','const','class','function','var'].includes(kind) ||
+            typeof name !== 'string' || !identifier.test(name) ||
+            typeof read !== 'function' || typeof write !== 'function')
+          throw new GuestError('Invalid binding');
+        define(globalThis, name, {
+          configurable: kind === 'function' || kind === 'var', enumerable: false,
+          get() { return read(); },
+          set(value) { write(value); }
+        });
+        bridge('bind', stringify({ kind, name }));
+      }
+    }),
+    writable: false, configurable: false, enumerable: false
+  });
   const formatCommand = ${commandOutputFormatterSource};
   const VALUE_MAX = ${VM_STORE_VALUE_MAX}, TOTAL_MAX = ${VM_STORE_TOTAL_MAX};
   const pending = new Map(), stored = new Map(), outputs = new WeakMap();
