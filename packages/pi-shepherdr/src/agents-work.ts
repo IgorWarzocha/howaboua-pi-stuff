@@ -130,7 +130,6 @@ export async function dispatchAgentWork(
 	send: () => Promise<PeerDelivery | void>,
 	options: {
 		expectUserMessage?: boolean;
-		onAccepted?: () => void;
 		replyingTo?: ExtensionReply;
 	} = {},
 ): Promise<{
@@ -211,7 +210,6 @@ export async function dispatchAgentWork(
 		} else {
 			runtime.monitor.acceptWork(attempt);
 			runtime.monitor.noteMessage(panel.pane_id, task);
-			options.onAccepted?.();
 		}
 		await runtime.monitor.reconcileNow();
 	} catch (error) {
