@@ -1,9 +1,18 @@
-import type { Api, AssistantMessage, Model, SimpleStreamOptions, TranscriptContext } from "@earendil-works/pi-ai";
+import type {
+	Api,
+	AssistantMessage,
+	Model,
+	SimpleStreamOptions,
+	TranscriptContext,
+} from "@earendil-works/pi-ai";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexCompactionDiagnostic } from "../../adapter/compaction/diagnostics.ts";
 import type { CodexCacheKeepaliveStrategy } from "../../adapter/activation/cache-keepalive.ts";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { WebSocketContinuationDecision, WebSocketContinuationMismatch } from "./continuation-diagnostics.ts";
+import type {
+	WebSocketContinuationDecision,
+	WebSocketContinuationMismatch,
+} from "./continuation-diagnostics.ts";
 export type { WebSocketContinuationDecision } from "./continuation-diagnostics.ts";
 
 export interface WebSocketLike {
@@ -15,7 +24,13 @@ export interface WebSocketLike {
 }
 
 export interface WebSocketConstructorLike {
-	new (url: string, options?: { headers?: Record<string, string> | undefined } | string | string[]): WebSocketLike;
+	new (
+		url: string,
+		options?:
+			| { headers?: Record<string, string> | undefined }
+			| string
+			| string[],
+	): WebSocketLike;
 }
 
 export interface SessionWebSocketCacheEntry {
@@ -31,7 +46,10 @@ export interface AcquiredWebSocket {
 	entry?: SessionWebSocketCacheEntry | undefined;
 	reused: boolean;
 	socketAgeMs: number;
-	release: (options?: { keep?: boolean | undefined; closeAfter?: Promise<void> | undefined }) => void;
+	release: (options?: {
+		keep?: boolean | undefined;
+		closeAfter?: Promise<void> | undefined;
+	}) => void;
 }
 
 export interface CachedWebSocketContinuationState {
@@ -109,7 +127,13 @@ export type CodexDiagnosticsEvent = {
 			initiator: "client" | "peer_or_unknown";
 			cause?: string | undefined;
 			closeCode?: number | undefined;
-			closeReason?: "normal" | "going_away" | "message_too_big" | "abnormal" | "other" | undefined;
+			closeReason?:
+				| "normal"
+				| "going_away"
+				| "message_too_big"
+				| "abnormal"
+				| "other"
+				| undefined;
 	  }
 	| {
 			type: "timing";
@@ -174,7 +198,11 @@ export type CodexDiagnosticsEvent = {
 			lane: CodexDiagnosticsLane;
 			from: CodexDiagnosticsTransport;
 			to: CodexDiagnosticsTransport;
-			reason: "upgrade_required" | "message_too_big" | "unauthorized" | "retry_budget_exhausted";
+			reason:
+				| "upgrade_required"
+				| "message_too_big"
+				| "unauthorized"
+				| "retry_budget_exhausted";
 	  }
 	| {
 			type: "failure";
@@ -199,11 +227,16 @@ export type CodexDiagnosticsEvent = {
 			intervalMs?: number | undefined;
 			requestSource?: "captured" | "reconstructed" | undefined;
 			action?: "generated-refresh" | undefined;
-	  });
+	  }
+);
 
 export type CodexDiagnosticsSink = (event: CodexDiagnosticsEvent) => void;
 
-export type CodexUsageRecorder = (accountId: string, model: Model<Api>, usage: AssistantMessage["usage"]) => Promise<void>;
+export type CodexUsageRecorder = (
+	accountId: string,
+	model: Model<Api>,
+	usage: AssistantMessage["usage"],
+) => Promise<void>;
 
 export interface CachedWebSocketRequestBodyResult {
 	body: ResponsesBody;
@@ -211,19 +244,31 @@ export interface CachedWebSocketRequestBodyResult {
 	mismatch?: WebSocketContinuationMismatch | undefined;
 }
 
-export type ServiceTier = ResponseCreateParamsStreaming["service_tier"] | "ultrafast";
+export type ServiceTier =
+	| ResponseCreateParamsStreaming["service_tier"]
+	| "ultrafast";
 export interface AccessPrograms {
 	cyber: "standard" | "daybreak_blue" | "daybreak_red";
 }
 export type ProviderEnv = Record<string, string>;
-export type CodexProviderStreamOptions = Omit<SimpleStreamOptions, "toolChoice"> & {
+export type CodexProviderStreamOptions = Omit<
+	SimpleStreamOptions,
+	"toolChoice"
+> & {
 	serviceTier?: ServiceTier | undefined;
 	accessPrograms?: AccessPrograms | undefined;
 	textVerbosity?: string | undefined;
 	reasoningSummary?: string | null | undefined;
 	toolChoice?: "auto" | "none" | "required" | undefined;
 };
-export type CodexReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+export type CodexReasoningEffort =
+	| "none"
+	| "minimal"
+	| "low"
+	| "medium"
+	| "high"
+	| "xhigh"
+	| "max";
 export type OpenAICodexStreamOptions = CodexProviderStreamOptions & {
 	reasoningEffort?: CodexReasoningEffort | undefined;
 	responsesLite?: boolean | undefined;
@@ -253,11 +298,13 @@ export interface ResponsesBody {
 	service_tier?: string | undefined;
 	access_programs?: AccessPrograms | undefined;
 	tools?: unknown[] | undefined;
-	reasoning?: {
-		effort?: string | undefined;
-		summary?: string | undefined;
-		context?: "all_turns" | undefined;
-	} | undefined;
+	reasoning?:
+		| {
+				effort?: string | undefined;
+				summary?: string | undefined;
+				context?: "all_turns" | undefined;
+		  }
+		| undefined;
 	client_metadata?: Record<string, string> | undefined;
 	[key: string]: unknown;
 }
@@ -285,22 +332,33 @@ export interface CodexPrewarmResult {
 export interface ResponseEnvelope {
 	id?: string | undefined;
 	status?: string | undefined;
-	usage?: {
-		input_tokens?: number | undefined;
-		output_tokens?: number | undefined;
-		total_tokens?: number | undefined;
-		input_tokens_details?: { cached_tokens?: number | undefined; cache_write_tokens?: number | undefined } | undefined;
-		output_tokens_details?: { reasoning_tokens?: number | undefined } | undefined;
-	} | undefined;
+	usage?:
+		| {
+				input_tokens?: number | undefined;
+				output_tokens?: number | undefined;
+				total_tokens?: number | undefined;
+				input_tokens_details?:
+					| {
+							cached_tokens?: number | undefined;
+							cache_write_tokens?: number | undefined;
+					  }
+					| undefined;
+				output_tokens_details?:
+					| { reasoning_tokens?: number | undefined }
+					| undefined;
+		  }
+		| undefined;
 	service_tier?: string | undefined;
-	error?: {
-		code?: string | undefined;
-		type?: string | undefined;
-		message?: string | undefined;
-		status?: number | string | undefined;
-		status_code?: number | string | undefined;
-		[key: string]: unknown;
-	} | undefined;
+	error?:
+		| {
+				code?: string | undefined;
+				type?: string | undefined;
+				message?: string | undefined;
+				status?: number | string | undefined;
+				status_code?: number | string | undefined;
+				[key: string]: unknown;
+		  }
+		| undefined;
 	[key: string]: unknown;
 }
 
@@ -308,21 +366,26 @@ export interface StreamEventShape {
 	type?: string | undefined;
 	headers?: Record<string, unknown> | undefined;
 	response?: ResponseEnvelope | undefined;
-	item?: {
-		id?: string | undefined;
-		type?: string | undefined;
-		result?: string | null | undefined;
-		output_format?: string | undefined;
-		revised_prompt?: string | undefined;
-		status?: string | undefined;
-		[key: string]: unknown;
-	} | undefined;
+	item?:
+		| {
+				id?: string | undefined;
+				type?: string | undefined;
+				result?: string | null | undefined;
+				output_format?: string | undefined;
+				revised_prompt?: string | undefined;
+				status?: string | undefined;
+				[key: string]: unknown;
+		  }
+		| undefined;
 	code?: string | undefined;
 	message?: string | undefined;
 	[key: string]: unknown;
 }
 
-export function createInitialAssistantMessage(model: { provider: string; id: string }): AssistantMessage {
+export function createInitialAssistantMessage(model: {
+	provider: string;
+	id: string;
+}): AssistantMessage {
 	return {
 		role: "assistant",
 		content: [],

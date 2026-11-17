@@ -4,7 +4,9 @@ const RETAINED_MESSAGE_TOKEN_BUDGET = 64_000;
 const APPROX_BYTES_PER_TOKEN = 4;
 // Match Codex's coarse model-visible estimate for resized and auto-detail images.
 const RESIZED_IMAGE_BYTES_ESTIMATE = 7_373;
-const RETAINED_IMAGE_TOKEN_ESTIMATE = Math.ceil(RESIZED_IMAGE_BYTES_ESTIMATE / APPROX_BYTES_PER_TOKEN);
+const RETAINED_IMAGE_TOKEN_ESTIMATE = Math.ceil(
+	RESIZED_IMAGE_BYTES_ESTIMATE / APPROX_BYTES_PER_TOKEN,
+);
 
 const CONTEXTUAL_USER_MARKERS: ReadonlyArray<readonly [string, string]> = [
 	["# AGENTS.md instructions", "</INSTRUCTIONS>"],
@@ -21,29 +23,56 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function validMetadata(value: unknown): boolean {
-	return value === undefined || value === null || (
-		isRecord(value)
-		&& (value["turn_id"] === undefined || value["turn_id"] === null || typeof value["turn_id"] === "string")
+	return (
+		value === undefined ||
+		value === null ||
+		(isRecord(value) &&
+			(value["turn_id"] === undefined ||
+				value["turn_id"] === null ||
+				typeof value["turn_id"] === "string"))
 	);
 }
 
-export function canonicalCompactionOutput(item: unknown): Record<string, unknown> | undefined {
-	if (!isRecord(item) || (item["type"] !== "compaction" && item["type"] !== "compaction_summary")) return undefined;
-	if (typeof item["encrypted_content"] !== "string" || item["encrypted_content"].trim() === "") return undefined;
-	if (item["id"] !== undefined && item["id"] !== null && typeof item["id"] !== "string") return undefined;
-	if (!validMetadata(item["internal_chat_message_metadata_passthrough"])) return undefined;
+export function canonicalCompactionOutput(
+	item: unknown,
+): Record<string, unknown> | undefined {
+	if (
+		!isRecord(item) ||
+		(item["type"] !== "compaction" && item["type"] !== "compaction_summary")
+	)
+		return undefined;
+	if (
+		typeof item["encrypted_content"] !== "string" ||
+		item["encrypted_content"].trim() === ""
+	)
+		return undefined;
+	if (
+		item["id"] !== undefined &&
+		item["id"] !== null &&
+		typeof item["id"] !== "string"
+	)
+		return undefined;
+	if (!validMetadata(item["internal_chat_message_metadata_passthrough"]))
+		return undefined;
 	const metadata = item["internal_chat_message_metadata_passthrough"];
 	return {
 		type: "compaction",
 		...(typeof item["id"] === "string" ? { id: item["id"] } : {}),
 		encrypted_content: item["encrypted_content"],
 		...(isRecord(metadata)
-			? { internal_chat_message_metadata_passthrough: typeof metadata["turn_id"] === "string" ? { turn_id: metadata["turn_id"] } : {} }
+			? {
+					internal_chat_message_metadata_passthrough:
+						typeof metadata["turn_id"] === "string"
+							? { turn_id: metadata["turn_id"] }
+							: {},
+				}
 			: {}),
 	};
 }
 
-export function normalizeRemoteCompactionV2PromptInput(input: readonly unknown[]): Record<string, unknown>[] {
+export function normalizeRemoteCompactionV2PromptInput(
+	input: readonly unknown[],
+): Record<string, unknown>[] {
 	return normalizeResponsesToolHistory(input)
 		.filter((item): item is Record<string, unknown> => isRecord(item))
 		.map((item) => structuredClone(item));
@@ -51,12 +80,17 @@ export function normalizeRemoteCompactionV2PromptInput(input: readonly unknown[]
 
 function matchesMarkedText(text: string, start: string, end: string): boolean {
 	const trimmed = text.trim();
-	return trimmed.slice(0, start.length).toLowerCase() === start.toLowerCase()
-		&& trimmed.slice(-end.length).toLowerCase() === end.toLowerCase();
+	return (
+		trimmed.slice(0, start.length).toLowerCase() === start.toLowerCase() &&
+		trimmed.slice(-end.length).toLowerCase() === end.toLowerCase()
+	);
 }
 
 function isHookPrompt(text: string): boolean {
-	const match = /^\s*<hook_prompt\s+hook_run_id=(?:"([^"]*)"|'([^']*)')\s*>[\s\S]*<\/hook_prompt>\s*$/.exec(text);
+	const match =
+		/^\s*<hook_prompt\s+hook_run_id=(?:"([^"]*)"|'([^']*)')\s*>[\s\S]*<\/hook_prompt>\s*$/.exec(
+			text,
+		);
 	return (match?.[1] ?? match?.[2] ?? "").trim() !== "";
 }
 
@@ -71,34 +105,66 @@ function isAdditionalContext(text: string): boolean {
 
 function isInternalModelContext(text: string): boolean {
 	const trimmed = text.trim();
-	if (trimmed.startsWith("<goal_context>") && trimmed.endsWith("</goal_context>")) return true;
-	const match = /^<codex_internal_context source="([a-z][a-z0-9_]*)">[\s\S]*<\/codex_internal_context>$/.exec(trimmed);
+	if (
+		trimmed.startsWith("<goal_context>") &&
+		trimmed.endsWith("</goal_context>")
+	)
+		return true;
+	const match =
+		/^<codex_internal_context source="([a-z][a-z0-9_]*)">[\s\S]*<\/codex_internal_context>$/.exec(
+			trimmed,
+		);
 	return match !== null;
 }
 
 function isLegacyContextWarning(text: string): boolean {
 	const trimmed = text.trim();
-	return trimmed.startsWith("Warning: The maximum number of unified exec processes you can keep open is")
-		|| trimmed.startsWith("Warning: Your account was flagged for potentially high-risk cyber activity")
-		|| (trimmed.startsWith("Warning: apply_patch was requested via ")
-			&& trimmed.endsWith("Use the apply_patch tool instead of exec_command."));
+	return (
+		trimmed.startsWith(
+			"Warning: The maximum number of unified exec processes you can keep open is",
+		) ||
+		trimmed.startsWith(
+			"Warning: Your account was flagged for potentially high-risk cyber activity",
+		) ||
+		(trimmed.startsWith("Warning: apply_patch was requested via ") &&
+			trimmed.endsWith("Use the apply_patch tool instead of exec_command."))
+	);
 }
 
 function isContextualText(text: string): boolean {
-	return CONTEXTUAL_USER_MARKERS.some(([start, end]) => matchesMarkedText(text, start, end))
-		|| isAdditionalContext(text)
-		|| isInternalModelContext(text)
-		|| isLegacyContextWarning(text);
+	return (
+		CONTEXTUAL_USER_MARKERS.some(([start, end]) =>
+			matchesMarkedText(text, start, end),
+		) ||
+		isAdditionalContext(text) ||
+		isInternalModelContext(text) ||
+		isLegacyContextWarning(text)
+	);
 }
 
-function retainedRealUserMessage(item: unknown): Record<string, unknown> | undefined {
-	if (!isRecord(item) || (item["type"] !== undefined && item["type"] !== "message") || item["role"] !== "user" || !Array.isArray(item["content"])) return undefined;
+function retainedRealUserMessage(
+	item: unknown,
+): Record<string, unknown> | undefined {
+	if (
+		!isRecord(item) ||
+		(item["type"] !== undefined && item["type"] !== "message") ||
+		item["role"] !== "user" ||
+		!Array.isArray(item["content"])
+	)
+		return undefined;
 	const content = item["content"].filter((part) => {
 		if (!isRecord(part)) return false;
-		if (part["type"] !== "input_text" || typeof part["text"] !== "string") return true;
+		if (part["type"] !== "input_text" || typeof part["text"] !== "string")
+			return true;
 		return !isHookPrompt(part["text"]) && !isContextualText(part["text"]);
 	});
-	return content.length > 0 ? { ...structuredClone(item), type: "message", content: structuredClone(content) } : undefined;
+	return content.length > 0
+		? {
+				...structuredClone(item),
+				type: "message",
+				content: structuredClone(content),
+			}
+		: undefined;
 }
 
 function utf8Bytes(value: string): number {
@@ -113,10 +179,15 @@ function messageContentTokenCount(item: Record<string, unknown>): number {
 	if (!Array.isArray(item["content"])) return 0;
 	return item["content"].reduce((tokens, part) => {
 		if (!isRecord(part)) return tokens;
-		if ((part["type"] === "input_text" || part["type"] === "output_text") && typeof part["text"] === "string") {
+		if (
+			(part["type"] === "input_text" || part["type"] === "output_text") &&
+			typeof part["text"] === "string"
+		) {
 			return tokens + approxTokenCount(part["text"]);
 		}
-		return part["type"] === "input_image" ? tokens + RETAINED_IMAGE_TOKEN_ESTIMATE : tokens;
+		return part["type"] === "input_image"
+			? tokens + RETAINED_IMAGE_TOKEN_ESTIMATE
+			: tokens;
 	}, 0);
 }
 
@@ -126,7 +197,14 @@ export function buildRemoteCompactionV2Window(
 	maxTokens = RETAINED_MESSAGE_TOKEN_BUDGET,
 ): Record<string, unknown>[] {
 	const retained = promptInput
-		.filter((item) => isRecord(item) && (item["type"] === undefined || item["type"] === "message") && (item["role"] === "user" || item["role"] === "developer" || item["role"] === "system"))
+		.filter(
+			(item) =>
+				isRecord(item) &&
+				(item["type"] === undefined || item["type"] === "message") &&
+				(item["role"] === "user" ||
+					item["role"] === "developer" ||
+					item["role"] === "system"),
+		)
 		.map(retainedRealUserMessage)
 		.filter((item): item is Record<string, unknown> => item !== undefined);
 	let remaining = Math.max(0, Math.floor(maxTokens));

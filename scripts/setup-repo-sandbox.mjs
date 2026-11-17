@@ -31,8 +31,13 @@ for (let i = 0; i < args.length; i++) {
 	else throw new Error(usage);
 }
 if (!name || !/^[a-z][a-z0-9-]{0,39}$/.test(name)) throw new Error(usage);
-if (args.includes("--live-model") && !/^openai-codex\/[a-zA-Z0-9._-]+$/.test(liveModel ?? ""))
-	throw new Error("--live-model requires openai-codex/MODEL. Other providers are not supported by this access-token sync.");
+if (
+	args.includes("--live-model") &&
+	!/^openai-codex\/[a-zA-Z0-9._-]+$/.test(liveModel ?? "")
+)
+	throw new Error(
+		"--live-model requires openai-codex/MODEL. Other providers are not supported by this access-token sync.",
+	);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;
 const host = (command, argv) => execFileSync(command, argv, { cwd: root });
@@ -119,15 +124,37 @@ try {
 	let accessExpires;
 	if (liveModel) {
 		try {
-			accessToken = execFileSync(join(root, "node_modules/.bin/pi"), [
-				"auth", "print-bearer-token", "--provider", "openai-codex", "--min-expiry", "30m",
-			], { cwd: root, encoding: "utf8", timeout: 30000, stdio: ["ignore", "pipe", "pipe"] }).trim();
-			const claims = JSON.parse(Buffer.from(accessToken.split(".")[1] ?? "", "base64url").toString());
-			if (!claims["https://api.openai.com/auth"]?.chatgpt_account_id || !Number.isFinite(claims.exp) || claims.exp * 1000 < Date.now() + 300000)
+			accessToken = execFileSync(
+				join(root, "node_modules/.bin/pi"),
+				[
+					"auth",
+					"print-bearer-token",
+					"--provider",
+					"openai-codex",
+					"--min-expiry",
+					"30m",
+				],
+				{
+					cwd: root,
+					encoding: "utf8",
+					timeout: 30000,
+					stdio: ["ignore", "pipe", "pipe"],
+				},
+			).trim();
+			const claims = JSON.parse(
+				Buffer.from(accessToken.split(".")[1] ?? "", "base64url").toString(),
+			);
+			if (
+				!claims["https://api.openai.com/auth"]?.chatgpt_account_id ||
+				!Number.isFinite(claims.exp) ||
+				claims.exp * 1000 < Date.now() + 300000
+			)
 				throw new Error("Unusable Codex access token");
 			accessExpires = new Date(claims.exp * 1000).toISOString();
 		} catch {
-			throw new Error("Live setup could not resolve a usable host Codex OAuth access token. Check the host Pi login, then rerun --live-model. No credentials were transferred.");
+			throw new Error(
+				"Live setup could not resolve a usable host Codex OAuth access token. Check the host Pi login, then rerun --live-model. No credentials were transferred.",
+			);
 		}
 	}
 	await execute(`set -eu
@@ -189,9 +216,11 @@ rm -rf .install-tmp
 	// Shepherdr reports Core status itself. No global Pi integration is installed.
 	await execute(`mkdir -p ${quote(`${home}/agent`)}`);
 	const settings = `${home}/agent/settings.json`;
-	const packages = ["pi-codex-conversion", "pi-shepherdr", "pi-agent-comms"].map(
-		(p) => `${home}/current/packages/${p}`,
-	);
+	const packages = [
+		"pi-codex-conversion",
+		"pi-shepherdr",
+		"pi-agent-comms",
+	].map((p) => `${home}/current/packages/${p}`);
 	await execute(
 		`python3 -c ${quote(`import json,pathlib
 p=pathlib.Path(${JSON.stringify(settings)})
@@ -257,7 +286,9 @@ JS`);
 			accessToken = undefined;
 			await execute(`rm -f ${quote(transfer)}`);
 		}
-		console.log(`Guest Codex access token expires ${accessExpires}. Rerun --live-model to resync; the guest cannot refresh it.`);
+		console.log(
+			`Guest Codex access token expires ${accessExpires}. Rerun --live-model to resync; the guest cannot refresh it.`,
+		);
 		await execute(`cd ${quote(`${home}/current`)} && PI_CODING_AGENT_DIR=${quote(`${home}/agent`)} node --input-type=module <<'JS'
 import { spawnSync } from 'node:child_process';
 const result = spawnSync(${JSON.stringify(`${home}/pi`)}, ['--mode','json','--print','--no-session','--no-tools','--no-skills','--no-prompt-templates','--no-mcp','--model',${JSON.stringify(liveModel)},'--thinking','low','Reply only LIVE_SANDBOX_READY. Do not use tools.'], {encoding:'utf8',timeout:90000,maxBuffer:8*1024*1024});

@@ -21,7 +21,9 @@ export interface LazyCodexDiagnostics {
 		logName?: string | undefined;
 		announceLog?: boolean | undefined;
 	}): Promise<void>;
-	sink(request?: { sessionId: string | undefined }): CodexDiagnosticsSink | undefined;
+	sink(request?: {
+		sessionId: string | undefined;
+	}): CodexDiagnosticsSink | undefined;
 	shutdown(): Promise<void>;
 }
 
@@ -38,9 +40,11 @@ export function createLazyCodexDiagnostics(): LazyCodexDiagnostics {
 			.catch(() => undefined)
 			.then(() => previous.runtime.shutdown());
 		stopInFlight = current;
-		void current.finally(() => {
-			if (stopInFlight === current) stopInFlight = undefined;
-		}).catch(() => undefined);
+		void current
+			.finally(() => {
+				if (stopInFlight === current) stopInFlight = undefined;
+			})
+			.catch(() => undefined);
 		return current;
 	};
 	const stopForReconfigure = async (ctx: ExtensionContext) => {
@@ -82,14 +86,22 @@ export function createLazyCodexDiagnostics(): LazyCodexDiagnostics {
 			if (generation !== currentGeneration) return;
 			await stopForReconfigure(options.ctx);
 			if (generation !== currentGeneration) return;
-			const next = await module.createCodexDiagnosticsRuntime({ ...options, mode });
+			const next = await module.createCodexDiagnosticsRuntime({
+				...options,
+				mode,
+			});
 			if (generation !== currentGeneration) {
 				await next.shutdown();
 				return;
 			}
 			let sinkFailed = false;
 			const sink: CodexDiagnosticsSink = (event) => {
-				if (sinkFailed || generation !== currentGeneration || active?.runtime !== next) return;
+				if (
+					sinkFailed ||
+					generation !== currentGeneration ||
+					active?.runtime !== next
+				)
+					return;
 				try {
 					next.record(event);
 				} catch (error) {
@@ -110,8 +122,9 @@ export function createLazyCodexDiagnostics(): LazyCodexDiagnostics {
 			if (!active) return;
 			const { sink, sessionId } = active;
 			// Omitted request identifies owned prewarm/keepalive work, not an anonymous provider call.
-			const scope = !request || request.sessionId === sessionId ? "session" : "auxiliary";
-			return event => sink({ ...event, scope });
+			const scope =
+				!request || request.sessionId === sessionId ? "session" : "auxiliary";
+			return (event) => sink({ ...event, scope });
 		},
 		async shutdown() {
 			generation++;

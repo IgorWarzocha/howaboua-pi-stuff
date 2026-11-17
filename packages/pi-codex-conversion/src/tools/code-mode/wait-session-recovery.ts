@@ -43,15 +43,23 @@ export async function continueExecSessionFromMistakenWait(
 			invoked = true;
 			return writeStdin.invoke(input, hookContext, nestedSignal);
 		};
-		value = writeStdin.executionPipeline === "adapter"
-			? await invoke(context)
-			: await runCodeModeToolWithHooks(writeStdin.name, input, context, nestedSignal, invoke);
+		value =
+			writeStdin.executionPipeline === "adapter"
+				? await invoke(context)
+				: await runCodeModeToolWithHooks(
+						writeStdin.name,
+						input,
+						context,
+						nestedSignal,
+						invoke,
+					);
 	} catch (fallbackError) {
 		const fallbackMessage =
 			fallbackError instanceof Error
 				? fallbackError.message
 				: String(fallbackError);
-		if (invoked && /unknown process id/i.test(fallbackMessage)) return undefined;
+		if (invoked && /unknown process id/i.test(fallbackMessage))
+			return undefined;
 		throw fallbackError;
 	}
 	if (!value || typeof value !== "object" || !("output" in value))
@@ -61,8 +69,7 @@ export async function continueExecSessionFromMistakenWait(
 		"exit_code" in value && typeof value.exit_code === "number"
 			? value.exit_code
 			: undefined;
-	const running =
-		"session_id" in value && typeof value.session_id === "number";
+	const running = "session_id" in value && typeof value.session_id === "number";
 	return {
 		running,
 		result: {

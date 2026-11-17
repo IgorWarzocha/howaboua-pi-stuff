@@ -1,4 +1,7 @@
-type ContentImage = { image_url: string; detail: "auto" | "low" | "high" | "original" };
+type ContentImage = {
+	image_url: string;
+	detail: "auto" | "low" | "high" | "original";
+};
 
 // Literal source keeps all four runtimes independent of host transpiler helpers.
 export const contentOutputFactorySource = String.raw`(text, image) => {
@@ -43,9 +46,19 @@ export const contentOutputFactorySource = String.raw`(text, image) => {
 	};
 }`;
 
-export const createContentOutput = new Function("return (" + contentOutputFactorySource + ")")() as
-	(text: (value: unknown) => unknown, image: (value: ContentImage) => unknown) => (value: unknown) => void;
+// oxlint-disable-next-line typescript/no-implied-eval -- Compile the trusted, literal helper shared by the execution runtimes.
+export const createContentOutput = new Function(
+	"return (" + contentOutputFactorySource + ")",
+)() as (
+	text: (value: unknown) => unknown,
+	image: (value: ContentImage) => unknown,
+) => (value: unknown) => void;
 
 export function withContentOutput(source: string): string {
-	return "(() => { globalThis.content = (" + contentOutputFactorySource.replaceAll("\n", "") + ")(globalThis.text, globalThis.image); })();" + source;
+	return (
+		"(() => { globalThis.content = (" +
+		contentOutputFactorySource.replaceAll("\n", "") +
+		")(globalThis.text, globalThis.image); })();" +
+		source
+	);
 }

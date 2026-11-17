@@ -26,25 +26,23 @@ export function buildGippitySettings(
 	webSearchAvailable?: boolean,
 ): Setting[] {
 	return [
-		...(["inputDevice", "outputDevice"] as const).map(
-			(key): Setting => ({
-				id: key,
-				label: key === "inputDevice" ? "Microphone" : "Speaker",
-				description:
-					"Native audio only; applies on the next local start. Browser and handed-off audio keep their own devices.",
-				currentValue: config.voice[key] ?? "System default",
-				submenu: (_value, back) =>
-					nativeDevicePicker(key, config.voice[key], back, theme, () =>
-						tui.requestRender(),
-					),
-				update: (value, current) => {
-					const voice = { ...current.voice, audioSetupCompleted: true };
-					if (value) voice[key] = value;
-					else delete voice[key];
-					return { ...current, voice };
-				},
-			}),
-		),
+		...(["inputDevice", "outputDevice"] as const).map((key): Setting => ({
+			id: key,
+			label: key === "inputDevice" ? "Microphone" : "Speaker",
+			description:
+				"Native audio only; applies on the next local start. Browser and handed-off audio keep their own devices.",
+			currentValue: config.voice[key] ?? "System default",
+			submenu: (_value, back) =>
+				nativeDevicePicker(key, config.voice[key], back, theme, () =>
+					tui.requestRender(),
+				),
+			update: (value, current) => {
+				const voice = { ...current.voice, audioSetupCompleted: true };
+				if (value) voice[key] = value;
+				else delete voice[key];
+				return { ...current, voice };
+			},
+		})),
 		{
 			id: "server",
 			label: "Control server",

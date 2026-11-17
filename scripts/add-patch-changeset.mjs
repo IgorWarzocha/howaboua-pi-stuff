@@ -76,7 +76,10 @@ const packageDirs = new Set(
 		.map((path) => /^packages\/([^/]+)\//.exec(path)?.[1])
 		.filter(Boolean),
 );
-const changedPackages = includeCommsStandalones(packageDirs, diff.stdout.split("\n"))
+const changedPackages = includeCommsStandalones(
+	packageDirs,
+	diff.stdout.split("\n"),
+)
 	.map((dir) => {
 		const path = join(root, "packages", dir, "package.json");
 		return existsSync(path)

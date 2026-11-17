@@ -1,4 +1,8 @@
-import { summarizeShellCommand, type CommandSummary, type ShellAction } from "../../shell/summary.ts";
+import {
+	summarizeShellCommand,
+	type CommandSummary,
+	type ShellAction,
+} from "../../shell/summary.ts";
 
 export type ExecCommandStatus = "running" | "done";
 
@@ -27,8 +31,14 @@ interface ExecGroup {
 
 export interface ExecCommandTracker {
 	getState(command: string): ExecCommandStatus;
-	getRenderInfo(toolCallId: string | undefined, command: string): ExecCommandRenderInfo;
-	registerRenderContext(toolCallId: string | undefined, invalidate: () => void): void;
+	getRenderInfo(
+		toolCallId: string | undefined,
+		command: string,
+	): ExecCommandRenderInfo;
+	registerRenderContext(
+		toolCallId: string | undefined,
+		invalidate: () => void,
+	): void;
 	recordStart(toolCallId: string, command: string): void;
 	recordPersistentSession(toolCallId: string, sessionId: number): void;
 	recordEnd(toolCallId: string): void;
@@ -48,7 +58,10 @@ export function createExecCommandTracker(): ExecCommandTracker {
 	let nextGroupId = 1;
 
 	function incrementCommand(command: string): void {
-		runningCountsByCommand.set(command, (runningCountsByCommand.get(command) ?? 0) + 1);
+		runningCountsByCommand.set(
+			command,
+			(runningCountsByCommand.get(command) ?? 0) + 1,
+		);
 	}
 
 	function decrementCommand(command: string): void {
@@ -65,29 +78,42 @@ export function createExecCommandTracker(): ExecCommandTracker {
 		entriesByToolCallId.get(toolCallId)?.invalidate?.();
 	}
 
-
-	function getGroupForEntry(entry: ExecEntry | undefined): ExecGroup | undefined {
+	function getGroupForEntry(
+		entry: ExecEntry | undefined,
+	): ExecGroup | undefined {
 		if (!entry?.groupId) return undefined;
 		return groupsById.get(entry.groupId);
 	}
 
-	function getVisibleEntry(group: ExecGroup | undefined): ExecEntry | undefined {
+	function getVisibleEntry(
+		group: ExecGroup | undefined,
+	): ExecEntry | undefined {
 		if (!group) return undefined;
 		return entriesByToolCallId.get(group.visibleEntryId);
 	}
 
 	return {
 		getState(command) {
-			return (runningCountsByCommand.get(command) ?? 0) > 0 ? "running" : "done";
+			return (runningCountsByCommand.get(command) ?? 0) > 0
+				? "running"
+				: "done";
 		},
 		getRenderInfo(toolCallId, command) {
 			if (!toolCallId) {
-				return { hidden: false, status: (runningCountsByCommand.get(command) ?? 0) > 0 ? "running" : "done" };
+				return {
+					hidden: false,
+					status:
+						(runningCountsByCommand.get(command) ?? 0) > 0 ? "running" : "done",
+				};
 			}
 
 			const entry = entriesByToolCallId.get(toolCallId);
 			if (!entry) {
-				return { hidden: false, status: (runningCountsByCommand.get(command) ?? 0) > 0 ? "running" : "done" };
+				return {
+					hidden: false,
+					status:
+						(runningCountsByCommand.get(command) ?? 0) > 0 ? "running" : "done",
+				};
 			}
 
 			if (entry.hidden) {
@@ -99,7 +125,9 @@ export function createExecCommandTracker(): ExecCommandTracker {
 				return {
 					hidden: false,
 					status: entry.status,
-					actionGroups: entry.summary.maskAsExplored ? [entry.summary.actions] : undefined,
+					actionGroups: entry.summary.maskAsExplored
+						? [entry.summary.actions]
+						: undefined,
 				};
 			}
 
@@ -108,7 +136,9 @@ export function createExecCommandTracker(): ExecCommandTracker {
 				.filter((groupEntry): groupEntry is ExecEntry => Boolean(groupEntry));
 			return {
 				hidden: false,
-				status: entries.some((groupEntry) => groupEntry.status === "running") ? "running" : "done",
+				status: entries.some((groupEntry) => groupEntry.status === "running")
+					? "running"
+					: "done",
 				actionGroups: entries.map((groupEntry) => groupEntry.summary.actions),
 				commands: entries.map((groupEntry) => groupEntry.command),
 			};
@@ -138,9 +168,15 @@ export function createExecCommandTracker(): ExecCommandTracker {
 				return;
 			}
 
-			let group = activeExplorationGroupId ? groupsById.get(activeExplorationGroupId) : undefined;
+			let group = activeExplorationGroupId
+				? groupsById.get(activeExplorationGroupId)
+				: undefined;
 			if (!group) {
-				group = { id: nextGroupId++, entryIds: [toolCallId], visibleEntryId: toolCallId };
+				group = {
+					id: nextGroupId++,
+					entryIds: [toolCallId],
+					visibleEntryId: toolCallId,
+				};
 				groupsById.set(group.id, group);
 				activeExplorationGroupId = group.id;
 				entry.groupId = group.id;

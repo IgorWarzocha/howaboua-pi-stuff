@@ -1,12 +1,23 @@
-import { getSettingsListTheme, type ExtensionContext, type Theme } from "@earendil-works/pi-coding-agent";
+import {
+	getSettingsListTheme,
+	type ExtensionContext,
+	type Theme,
+} from "@earendil-works/pi-coding-agent";
 import { SettingsList, type TUI } from "@earendil-works/pi-tui";
 import { normalizeVoiceApiProvider } from "../../../adapter/activation/config.ts";
-import type { CodexConversionConfig, VoiceContextModel, LunaCacheKeepaliveMinutes } from "../../../adapter/activation/config.ts";
+import type {
+	CodexConversionConfig,
+	VoiceContextModel,
+	LunaCacheKeepaliveMinutes,
+} from "../../../adapter/activation/config.ts";
 import type { ExecutionMode } from "../../../adapter/activation/execution-mode.ts";
 import type { CodexSettingsScreenOptions } from "../screen.ts";
 import { openCodexConfigInExternalEditor } from "../config-editor.ts";
 import { buildConfigSettings, type ConfigSetting } from "../config-items.ts";
-import { ChoiceSettingSubmenu, TextSettingSubmenu } from "../config-items-shared.ts";
+import {
+	ChoiceSettingSubmenu,
+	TextSettingSubmenu,
+} from "../config-items-shared.ts";
 import type { SettingsTab } from "../tabs.ts";
 import { nativeDevicePicker } from "../native-device-picker.ts";
 import { contextWindowPicker } from "../context-window-picker.ts";
@@ -29,10 +40,7 @@ export function createSettingsConfiguration(
 
 	const runEditConfig = async () => {
 		if (!options.onChange(draft)) {
-			ctx.ui.notify(
-				"Could not save settings before opening editor",
-				"warning",
-			);
+			ctx.ui.notify("Could not save settings before opening editor", "warning");
 			return;
 		}
 		const result = await openCodexConfigInExternalEditor(
@@ -58,35 +66,49 @@ export function createSettingsConfiguration(
 			{
 				item: {
 					id: "configScope",
-					description: "Choose where changes are saved. Switching to Global removes this project\u0027s overrides.",
+					description:
+						"Choose where changes are saved. Switching to Global removes this project\u0027s overrides.",
 					label: "Editing",
-					currentValue: options.configScope.current() === "folder" ? "This project" : "Global",
+					currentValue:
+						options.configScope.current() === "folder"
+							? "This project"
+							: "Global",
 					values: options.configScope.canUseFolder
 						? ["Global", "This project"]
 						: ["Global"],
 				},
 			},
 			...(activeTab === "adapter"
-				? [{
-						item: {
-							id: "executionMode",
-							description: "Structured: standard JSON schemas. Code: JavaScript. QuickJS Code: independent JavaScript sandboxes. Notebook: persistent Deno shell with checkpoints. TS: persistent TypeScript with concurrent cells.",
-							label: "Execution mode",
-							currentValue: formatExecutionMode(draft.executionMode),
-							values: ["Structured", "Code", "QuickJS Code", "Notebook (recommended)", "TS"],
+				? [
+						{
+							item: {
+								id: "executionMode",
+								description:
+									"Structured: standard JSON schemas. Code: JavaScript. QuickJS Code: independent JavaScript sandboxes. Notebook: persistent Deno shell with checkpoints. TS: persistent TypeScript with concurrent cells.",
+								label: "Execution mode",
+								currentValue: formatExecutionMode(draft.executionMode),
+								values: [
+									"Structured",
+									"Code",
+									"QuickJS Code",
+									"Notebook (recommended)",
+									"TS",
+								],
+							},
+							update: (value: string, current: CodexConversionConfig) => ({
+								...current,
+								executionMode: parseExecutionMode(value),
+							}),
 						},
-						update: (value: string, current: CodexConversionConfig) => ({
-							...current,
-							executionMode: parseExecutionMode(value),
-						}),
-					}]
+					]
 				: []),
 			...(activeTab === "voice" && options.lanVoiceServer
 				? [
 						{
 							item: {
 								id: "lanVoiceServer",
-								description: "Serve this session\u0027s voice interface to a browser on your local network. Stops when the session changes.",
+								description:
+									"Serve this session\u0027s voice interface to a browser on your local network. Stops when the session changes.",
 								label: "LAN voice server",
 								currentValue: options.lanVoiceServer.status().running
 									? "on"
@@ -104,64 +126,119 @@ export function createSettingsConfiguration(
 				ctx,
 				options.hasWebSearch?.(),
 			).map((definition): ConfigSetting => {
-				if (definition.item.id === "apiProvider") return {
-					...definition, item: { ...definition.item, submenu: (value, back) => {
-						apiProviderPickerOpen = true;
-						return new TextSettingSubmenu(definition.item.label, definition.item.description, value, (selected) => {
-							if (!normalizeVoiceApiProvider(selected)) {
-								ctx.ui.notify("Enter a name, at most 512 bytes, without surrounding whitespace or control characters.", "error");
-								return;
-							}
-							apiProviderPickerOpen = false;
-							back(selected);
-						}, () => { apiProviderPickerOpen = false; back(); }, theme);
-					} },
-				};
-				if (definition.action !== "global-notebook-journals" && definition.action !== "global-notebook-checkpoint-cleanup") return definition;
+				if (definition.item.id === "apiProvider")
+					return {
+						...definition,
+						item: {
+							...definition.item,
+							submenu: (value, back) => {
+								apiProviderPickerOpen = true;
+								return new TextSettingSubmenu(
+									definition.item.label,
+									definition.item.description,
+									value,
+									(selected) => {
+										if (!normalizeVoiceApiProvider(selected)) {
+											ctx.ui.notify(
+												"Enter a name, at most 512 bytes, without surrounding whitespace or control characters.",
+												"error",
+											);
+											return;
+										}
+										apiProviderPickerOpen = false;
+										back(selected);
+									},
+									() => {
+										apiProviderPickerOpen = false;
+										back();
+									},
+									theme,
+								);
+							},
+						},
+					};
+				if (
+					definition.action !== "global-notebook-journals" &&
+					definition.action !== "global-notebook-checkpoint-cleanup"
+				)
+					return definition;
 				return {
 					...definition,
 					item: {
 						...definition.item,
 						submenu: (value, back) => {
 							retentionPickerOpen = true;
-							return new ChoiceSettingSubmenu(definition.item, value, (selected) => {
-								retentionPickerOpen = false;
-								back(selected);
-							}, theme);
+							return new ChoiceSettingSubmenu(
+								definition.item,
+								value,
+								(selected) => {
+									retentionPickerOpen = false;
+									back(selected);
+								},
+								theme,
+							);
 						},
 					},
 				};
 			}),
-			...(activeTab === "context" ? [{ item: {
-				id: "contextWindows", label: "Context windows (openai-codex)", currentValue: "",
-				description: "Set local capacity per model in Pi models.json. Global, regardless of the Editing scope above.",
-				submenu: (_value: string, back: () => void) => {
-					contextWindowPickerOpen = true;
-					return contextWindowPicker(ctx, theme, options.setModel, options.waitForIdle, () => { contextWindowPickerOpen = false; back(); });
-				},
-			} }] : []),
-			...(activeTab === "voice"
-				? (["inputDevice", "outputDevice"] as const).map((key): ConfigSetting => ({
-						item: {
-							id: key,
-							label: key === "inputDevice" ? "Microphone" : "Speaker",
-							description: "Native audio only; applies on the next local start. Browser and handed-off audio keep their own devices.",
-							currentValue: draft.voice[key] ?? "System default",
-							submenu: (_value, back) => {
-								devicePickerOpen = true;
-								return nativeDevicePicker(key, draft.voice[key], (value) => {
-									devicePickerOpen = false;
-									back(value);
-								}, theme, () => tui.requestRender(), draft.tools.customRustBinariesDir);
+			...(activeTab === "context"
+				? [
+						{
+							item: {
+								id: "contextWindows",
+								label: "Context windows (openai-codex)",
+								currentValue: "",
+								description:
+									"Set local capacity per model in Pi models.json. Global, regardless of the Editing scope above.",
+								submenu: (_value: string, back: () => void) => {
+									contextWindowPickerOpen = true;
+									return contextWindowPicker(
+										ctx,
+										theme,
+										options.setModel,
+										options.waitForIdle,
+										() => {
+											contextWindowPickerOpen = false;
+											back();
+										},
+									);
+								},
 							},
 						},
-						update: (value, current) => {
-							const voice = { ...current.voice, audioSetupCompleted: true };
-							if (value) voice[key] = value;
-							else delete voice[key];
-							return { ...current, voice };
-						},
-					}))
+					]
+				: []),
+			...(activeTab === "voice"
+				? (["inputDevice", "outputDevice"] as const).map(
+						(key): ConfigSetting => ({
+							item: {
+								id: key,
+								label: key === "inputDevice" ? "Microphone" : "Speaker",
+								description:
+									"Native audio only; applies on the next local start. Browser and handed-off audio keep their own devices.",
+								currentValue: draft.voice[key] ?? "System default",
+								submenu: (_value, back) => {
+									devicePickerOpen = true;
+									return nativeDevicePicker(
+										key,
+										draft.voice[key],
+										(value) => {
+											devicePickerOpen = false;
+											back(value);
+										},
+										theme,
+										() => tui.requestRender(),
+										draft.tools.customRustBinariesDir,
+									);
+								},
+							},
+							update: (value, current) => {
+								const voice = { ...current.voice, audioSetupCompleted: true };
+								if (value) voice[key] = value;
+								else delete voice[key];
+								return { ...current, voice };
+							},
+						}),
+					)
 				: []),
 		];
 		list = new SettingsList(
@@ -170,16 +247,28 @@ export function createSettingsConfiguration(
 			getSettingsListTheme(),
 			(id, value) => {
 				const definition = buildSettings().find(({ item }) => item.id === id);
-				if (definition?.action === "edit-config" || (id === "taskBoundaryReminder" && value === "custom (edit JSON)")) {
+				if (
+					definition?.action === "edit-config" ||
+					(id === "taskBoundaryReminder" && value === "custom (edit JSON)")
+				) {
 					void runEditConfig();
 					return;
 				}
 				if (definition?.action === "project-cache-keepalive") {
-					const interval = value === "off" ? draft.openai.cacheKeepaliveIntervalMinutes : value === "55 mins" ? 55 : 25;
-					const nextDraft = options.onProjectCacheKeepalive(value !== "off", interval);
+					const interval =
+						value === "off"
+							? draft.openai.cacheKeepaliveIntervalMinutes
+							: value === "55 mins"
+								? 55
+								: 25;
+					const nextDraft = options.onProjectCacheKeepalive(
+						value !== "off",
+						interval,
+					);
 					if (nextDraft) {
 						draft = nextDraft;
-						for (const { item } of buildSettings()) list.updateValue(item.id, item.currentValue);
+						for (const { item } of buildSettings())
+							list.updateValue(item.id, item.currentValue);
 					} else {
 						list.updateValue(id, definition.item.currentValue);
 					}
@@ -187,32 +276,57 @@ export function createSettingsConfiguration(
 					return;
 				}
 				if (definition?.action === "global-notebook-journals") {
-					const nextDraft = options.onGlobalNotebookJournals(value === "Off & remove" ? "off" : value === "On" ? "on" : "week");
+					const nextDraft = options.onGlobalNotebookJournals(
+						value === "Off & remove" ? "off" : value === "On" ? "on" : "week",
+					);
 					if (nextDraft) {
 						draft = nextDraft;
-						for (const { item } of buildSettings()) list.updateValue(item.id, item.currentValue);
+						for (const { item } of buildSettings())
+							list.updateValue(item.id, item.currentValue);
 					} else list.updateValue(id, definition.item.currentValue);
 					tui.requestRender();
 					return;
 				}
 				if (definition?.action === "global-notebook-checkpoint-cleanup") {
-					const nextDraft = options.onGlobalNotebookCheckpointCleanup(value === "1 month" ? "month" : value === "1 week" ? "week" : "never");
+					const nextDraft = options.onGlobalNotebookCheckpointCleanup(
+						value === "1 month"
+							? "month"
+							: value === "1 week"
+								? "week"
+								: "never",
+					);
 					if (nextDraft) {
 						draft = nextDraft;
-						for (const { item } of buildSettings()) list.updateValue(item.id, item.currentValue);
+						for (const { item } of buildSettings())
+							list.updateValue(item.id, item.currentValue);
 					} else list.updateValue(id, definition.item.currentValue);
 					tui.requestRender();
 					return;
 				}
-				if (definition?.action === "global-luna-cache-keepalive" || definition?.action === "global-luna-cache-keepalive-interval") {
-					const editingInterval = definition.action === "global-luna-cache-keepalive-interval";
-					const minutes = editingInterval ? draft.openai.lunaCacheKeepaliveMinutes
-						: (value === "off" ? 0 : Number.parseInt(value, 10)) as LunaCacheKeepaliveMinutes;
-					const interval = editingInterval ? (value === "4.5 mins" ? 4.5 : 2.5) : draft.openai.lunaCacheKeepaliveIntervalMinutes;
-					const nextDraft = options.onGlobalLunaCacheKeepalive(minutes, interval);
+				if (
+					definition?.action === "global-luna-cache-keepalive" ||
+					definition?.action === "global-luna-cache-keepalive-interval"
+				) {
+					const editingInterval =
+						definition.action === "global-luna-cache-keepalive-interval";
+					const minutes = editingInterval
+						? draft.openai.lunaCacheKeepaliveMinutes
+						: ((value === "off"
+								? 0
+								: Number.parseInt(value, 10)) as LunaCacheKeepaliveMinutes);
+					const interval = editingInterval
+						? value === "4.5 mins"
+							? 4.5
+							: 2.5
+						: draft.openai.lunaCacheKeepaliveIntervalMinutes;
+					const nextDraft = options.onGlobalLunaCacheKeepalive(
+						minutes,
+						interval,
+					);
 					if (nextDraft) {
 						draft = nextDraft;
-						for (const { item } of buildSettings()) list.updateValue(item.id, item.currentValue);
+						for (const { item } of buildSettings())
+							list.updateValue(item.id, item.currentValue);
 					} else {
 						list.updateValue(id, definition.item.currentValue);
 					}
@@ -220,8 +334,13 @@ export function createSettingsConfiguration(
 					return;
 				}
 				if (id === "configScope") {
-					const previousValue = options.configScope.current() === "folder" ? "This project" : "Global";
-					const nextDraft = options.configScope.set(value === "This project" ? "folder" : "global");
+					const previousValue =
+						options.configScope.current() === "folder"
+							? "This project"
+							: "Global";
+					const nextDraft = options.configScope.set(
+						value === "This project" ? "folder" : "global",
+					);
 					if (nextDraft) {
 						draft = nextDraft;
 						settingsList = createSettingsList();
@@ -271,12 +390,29 @@ export function createSettingsConfiguration(
 
 	settingsList = createSettingsList();
 	return {
-		get draft() { return draft; },
-		get activeTab() { return activeTab; },
-		get list() { return settingsList; },
-		get contextWindowPickerOpen() { return contextWindowPickerOpen; },
-		get retentionPickerOpen() { return retentionPickerOpen; },
-		get pickerOpen() { return devicePickerOpen || contextWindowPickerOpen || retentionPickerOpen || apiProviderPickerOpen; },
+		get draft() {
+			return draft;
+		},
+		get activeTab() {
+			return activeTab;
+		},
+		get list() {
+			return settingsList;
+		},
+		get contextWindowPickerOpen() {
+			return contextWindowPickerOpen;
+		},
+		get retentionPickerOpen() {
+			return retentionPickerOpen;
+		},
+		get pickerOpen() {
+			return (
+				devicePickerOpen ||
+				contextWindowPickerOpen ||
+				retentionPickerOpen ||
+				apiProviderPickerOpen
+			);
+		},
 		activateTab(tab: SettingsTab) {
 			activeTab = tab;
 			settingsList = createSettingsList();
@@ -284,7 +420,9 @@ export function createSettingsConfiguration(
 	};
 }
 
-export type SettingsConfiguration = ReturnType<typeof createSettingsConfiguration>;
+export type SettingsConfiguration = ReturnType<
+	typeof createSettingsConfiguration
+>;
 
 function formatExecutionMode(mode: ExecutionMode): string {
 	if (mode === "js") return "QuickJS Code";

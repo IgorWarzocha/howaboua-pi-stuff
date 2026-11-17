@@ -3,7 +3,10 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 import { sessionCheckpointProjectExclusions } from "../src/tools/notebook-mode/checkpoint.ts";
 import { mergeProjectState } from "../src/tools/notebook-mode/project-state-merge.ts";
-import type { ProjectStateCandidate, ProjectStateManifest } from "../src/tools/notebook-mode/project-state-format.ts";
+import type {
+	ProjectStateCandidate,
+	ProjectStateManifest,
+} from "../src/tools/notebook-mode/project-state-format.ts";
 
 test("project notebook merge preserves a concurrent same-name edit", () => {
 	const base = Buffer.from("base");
@@ -11,7 +14,10 @@ test("project notebook merge preserves a concurrent same-name edit", () => {
 	const candidate = Buffer.from("candidate");
 	const manifest = projectManifest("current-generation", current);
 	const merged = mergeProjectState({
-		baseline: { generation: "base-generation", entries: [{ name: "shared", hash: hash(base) }] },
+		baseline: {
+			generation: "base-generation",
+			entries: [{ name: "shared", hash: hash(base) }],
+		},
 		current: manifest,
 		candidate: projectCandidate(candidate),
 		candidatePayload: candidate,
@@ -20,12 +26,23 @@ test("project notebook merge preserves a concurrent same-name edit", () => {
 
 	assert.deepEqual(merged.conflicts, ["shared"]);
 	assert.equal(merged.payload.toString(), "current");
-	assert.deepEqual(merged.baseline.entries, [{ name: "shared", hash: hash(candidate) }]);
-	assert.deepEqual(merged.entries.map(({ name, kind, hash: entryHash }) => ({ name, kind, entryHash })), [{
-		name: "shared",
-		kind: "function",
-		entryHash: hash(current),
-	}]);
+	assert.deepEqual(merged.baseline.entries, [
+		{ name: "shared", hash: hash(candidate) },
+	]);
+	assert.deepEqual(
+		merged.entries.map(({ name, kind, hash: entryHash }) => ({
+			name,
+			kind,
+			entryHash,
+		})),
+		[
+			{
+				name: "shared",
+				kind: "function",
+				entryHash: hash(current),
+			},
+		],
+	);
 	const repeated = mergeProjectState({
 		baseline: merged.baseline,
 		current: manifest,
@@ -38,15 +55,34 @@ test("project notebook merge preserves a concurrent same-name edit", () => {
 });
 
 test("stale session recovery cannot overwrite a newer project generation", () => {
-	const project = { generation: "new", entries: [{ name: "shared", hash: "hash" }] };
+	const project = {
+		generation: "new",
+		entries: [{ name: "shared", hash: "hash" }],
+	};
 	assert.deepEqual(
-		[...sessionCheckpointProjectExclusions({ projectGeneration: "old", projectNames: ["deleted"] }, project)],
+		[
+			...sessionCheckpointProjectExclusions(
+				{ projectGeneration: "old", projectNames: ["deleted"] },
+				project,
+			),
+		],
 		["shared", "deleted"],
 	);
-	assert.deepEqual([...sessionCheckpointProjectExclusions({ projectGeneration: "new" }, project)], []);
+	assert.deepEqual(
+		[
+			...sessionCheckpointProjectExclusions(
+				{ projectGeneration: "new" },
+				project,
+			),
+		],
+		[],
+	);
 });
 
-function projectCandidate(payload: Buffer, kind: "value" | "function" = "function"): ProjectStateCandidate {
+function projectCandidate(
+	payload: Buffer,
+	kind: "value" | "function" = "function",
+): ProjectStateCandidate {
 	return {
 		deno: "2.9.5",
 		v8: "test",
@@ -55,7 +91,10 @@ function projectCandidate(payload: Buffer, kind: "value" | "function" = "functio
 	};
 }
 
-function projectManifest(generation: string, payload: Buffer): ProjectStateManifest {
+function projectManifest(
+	generation: string,
+	payload: Buffer,
+): ProjectStateManifest {
 	return {
 		schema: 1,
 		project: "/project",
@@ -65,13 +104,15 @@ function projectManifest(generation: string, payload: Buffer): ProjectStateManif
 		payload: "project-test.bin",
 		createdAt: "2026-01-01T00:00:00.000Z",
 		sourceSession: "session",
-		entries: [{
-			name: "shared",
-			kind: "function",
-			offset: 0,
-			length: payload.length,
-			hash: hash(payload),
-		}],
+		entries: [
+			{
+				name: "shared",
+				kind: "function",
+				offset: 0,
+				length: payload.length,
+				hash: hash(payload),
+			},
+		],
 		skipped: [],
 	};
 }

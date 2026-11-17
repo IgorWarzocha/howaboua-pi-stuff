@@ -1,85 +1,85 @@
 {
-	"name": "@howaboua/pi-shepherdr",
-	"version": "1.0.1",
-	"description": "Persistent blocking and asynchronous Pi agents through Herdr.",
-	"type": "module",
-	"license": "MIT",
-	"author": "Igor Warzocha",
-	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-shepherdr#readme",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-shepherdr"
-	},
-	"bugs": {
-		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
-	},
-	"keywords": [
-		"pi-package",
-		"pi-extension",
-		"pi",
-		"herdr",
-		"shepherdr",
-		"agents",
-		"orchestration"
-	],
-	"files": [
-		"index.ts",
-		"worker-api.ts",
-		"src",
-		"profiles",
-		"README.md",
-		"LICENSE",
-		"tsconfig.json",
-		"biome.json",
-		"CHANGELOG.md"
-	],
-	"scripts": {
-		"check": "bun run lint && bun run typecheck",
-		"prepack": "bun run check",
-		"typecheck": "tsgo --noEmit",
-		"lint": "biome check .",
-		"format": "biome check --write .",
-		"pack:dry": "npm pack --dry-run"
-	},
-	"peerDependencies": {
-		"@howaboua/pi-codex-conversion": ">=5.0.0",
-		"@earendil-works/pi-ai": ">=1.1.0",
-		"@earendil-works/pi-coding-agent": ">=1.5.0",
-		"@earendil-works/pi-tui": ">=1.1.0"
-	},
-	"peerDependenciesMeta": {
-		"@howaboua/pi-codex-conversion": {
-			"optional": true
-		}
-	},
-	"devDependencies": {
-		"@howaboua/pi-agent-comms": "0.0.2",
-		"@howaboua/pi-codex-conversion": "5.0.0",
-		"@biomejs/biome": "^2.6.6",
-		"@earendil-works/pi-ai": "1.5.2",
-		"@earendil-works/pi-coding-agent": "1.5.2",
-		"@earendil-works/pi-tui": "1.5.2",
-		"@types/node": "^26.6.6",
-		"typescript": "^7.0.2"
-	},
-	"pi": {
-		"extensions": [
-			"./index.ts"
-		]
-	},
-	"engines": {
-		"node": ">=22.19.0"
-	},
-	"main": "index.ts",
-	"exports": {
-		".": "./index.ts",
-		"./worker-api": "./worker-api.ts"
-	},
-	"publishConfig": {
-		"access": "public"
-	},
-	"dependencies": {
-		"@earendil-works/pi-schema": "1.5.2"
-	}
+  "name": "@howaboua/pi-shepherdr",
+  "version": "1.0.1",
+  "description": "Persistent blocking and asynchronous Pi agents through Herdr.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Igor Warzocha",
+  "homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-shepherdr#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+    "directory": "packages/pi-shepherdr"
+  },
+  "bugs": {
+    "url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "herdr",
+    "shepherdr",
+    "agents",
+    "orchestration"
+  ],
+  "files": [
+    "index.ts",
+    "worker-api.ts",
+    "src",
+    "profiles",
+    "README.md",
+    "LICENSE",
+    "tsconfig.json",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "check": "bun run lint && bun run typecheck",
+    "prepack": "bun run check",
+    "typecheck": "tsrs --noEmit",
+    "lint": "bun run format:check && oxlint --type-aware",
+    "format": "oxfmt --write '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'",
+    "pack:dry": "npm pack --dry-run",
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'"
+  },
+  "peerDependencies": {
+    "@howaboua/pi-codex-conversion": ">=5.0.0",
+    "@earendil-works/pi-ai": ">=1.1.0",
+    "@earendil-works/pi-coding-agent": ">=1.5.0",
+    "@earendil-works/pi-tui": ">=1.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@howaboua/pi-codex-conversion": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@howaboua/pi-agent-comms": "0.0.2",
+    "@howaboua/pi-codex-conversion": "5.0.0",
+    "@earendil-works/pi-ai": "1.5.2",
+    "@earendil-works/pi-coding-agent": "1.5.2",
+    "@earendil-works/pi-tui": "1.5.2",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "oxfmt": "^0.78.0"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./worker-api": "./worker-api.ts"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@earendil-works/pi-schema": "1.5.2"
+  }
 }

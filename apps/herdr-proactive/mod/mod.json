@@ -1,5 +1,5 @@
 {
-  "title": "Proactive",
-  "place": "none",
-  "overlay": { "kind": "dialog", "width": 740 }
+	"title": "Proactive",
+	"place": "none",
+	"overlay": { "kind": "dialog", "width": 740 }
 }

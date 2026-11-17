@@ -17,7 +17,9 @@ export interface KernelExecutionResult {
 
 export interface ActiveKernelExecution {
 	requestId: string;
-	drain?: { requestId: string; marker: string; idle: boolean; seen: boolean } | undefined;
+	drain?:
+		| { requestId: string; marker: string; idle: boolean; seen: boolean }
+		| undefined;
 	items: RuntimeContentItem[];
 	outputChars: number;
 	outputTruncated: boolean;
@@ -30,11 +32,17 @@ export interface ActiveKernelExecution {
 	reject(error: Error): void;
 }
 
-export function applyKernelOutput(message: JupyterMessage, execution: ActiveKernelExecution): "idle" | undefined {
+export function applyKernelOutput(
+	message: JupyterMessage,
+	execution: ActiveKernelExecution,
+): "idle" | undefined {
 	const type = message.header.msg_type;
 	if (type === OUTPUT_DRAIN_MESSAGE) {
-		if (execution.drain && message.parent_header["msg_id"] === execution.drain.requestId
-			&& message.content["marker"] === execution.drain.marker) {
+		if (
+			execution.drain &&
+			message.parent_header["msg_id"] === execution.drain.requestId &&
+			message.content["marker"] === execution.drain.marker
+		) {
 			execution.drain.seen = true;
 			return execution.drain.idle ? "idle" : undefined;
 		}
@@ -42,22 +50,28 @@ export function applyKernelOutput(message: JupyterMessage, execution: ActiveKern
 	}
 	if (type === "stream") {
 		const text = message.content["text"];
-		if (typeof text === "string" && text) emit(execution, { type: "input_text", text });
+		if (typeof text === "string" && text)
+			emit(execution, { type: "input_text", text });
 		return undefined;
 	}
 	if (type === "execute_result" || type === "display_data") {
 		const data = message.content["data"];
-		if (!data || typeof data !== "object" || Array.isArray(data)) return undefined;
+		if (!data || typeof data !== "object" || Array.isArray(data))
+			return undefined;
 		const bundle = data as Record<string, unknown>;
 		for (const mime of ["image/png", "image/jpeg", "image/gif"] as const) {
 			const encoded = bundle[mime];
 			if (typeof encoded === "string") {
-				emit(execution, { type: "input_image", image_url: `data:${mime};base64,${encoded}` });
+				emit(execution, {
+					type: "input_image",
+					image_url: `data:${mime};base64,${encoded}`,
+				});
 				return undefined;
 			}
 		}
 		const text = bundle["text/markdown"] ?? bundle["text/plain"];
-		if (typeof text === "string" && text !== "undefined") emit(execution, { type: "input_text", text });
+		if (typeof text === "string" && text !== "undefined")
+			emit(execution, { type: "input_text", text });
 		return undefined;
 	}
 	if (type === "error") {
@@ -68,14 +82,18 @@ export function applyKernelOutput(message: JupyterMessage, execution: ActiveKern
 		execution.errorText = error.errorText;
 		return undefined;
 	}
-	if (type !== "status" || message.content["execution_state"] !== "idle") return undefined;
+	if (type !== "status" || message.content["execution_state"] !== "idle")
+		return undefined;
 	if (!execution.drain) return "idle";
-	if (message.parent_header["msg_id"] !== execution.drain.requestId) return undefined;
+	if (message.parent_header["msg_id"] !== execution.drain.requestId)
+		return undefined;
 	execution.drain.idle = true;
 	return execution.drain.seen ? "idle" : undefined;
 }
 
-export function finishKernelExecution(execution: ActiveKernelExecution): KernelExecutionResult {
+export function finishKernelExecution(
+	execution: ActiveKernelExecution,
+): KernelExecutionResult {
 	return {
 		status: execution.status,
 		items: execution.items,
@@ -89,19 +107,32 @@ export function applyExecuteReplyError(
 	result: KernelExecutionResult,
 	reply: JupyterMessage,
 ): KernelExecutionResult {
-	if (result.status !== "ok" || reply.content["status"] !== "error") return result;
+	if (result.status !== "ok" || reply.content["status"] !== "error")
+		return result;
 	return { ...result, status: "error", ...readKernelError(reply.content) };
 }
 
-function emit(execution: ActiveKernelExecution, item: RuntimeContentItem): void {
+function emit(
+	execution: ActiveKernelExecution,
+	item: RuntimeContentItem,
+): void {
 	if (execution.outputTruncated) return;
-	const size = item.type === "input_text" ? item.text?.length ?? 0 : item.image_url?.length ?? 0;
-	if (execution.items.length >= MAX_EXECUTION_OUTPUT_ITEMS || execution.outputChars + size > MAX_EXECUTION_OUTPUT_CHARS) {
+	const size =
+		item.type === "input_text"
+			? (item.text?.length ?? 0)
+			: (item.image_url?.length ?? 0);
+	if (
+		execution.items.length >= MAX_EXECUTION_OUTPUT_ITEMS ||
+		execution.outputChars + size > MAX_EXECUTION_OUTPUT_CHARS
+	) {
 		item = { type: "input_text", text: "[Notebook cell output truncated]" };
 		execution.outputTruncated = true;
 	}
 	execution.items.push(item);
-	execution.outputChars += item.type === "input_text" ? item.text?.length ?? 0 : item.image_url?.length ?? 0;
+	execution.outputChars +=
+		item.type === "input_text"
+			? (item.text?.length ?? 0)
+			: (item.image_url?.length ?? 0);
 	execution.onOutput?.(item);
 }
 
@@ -119,17 +150,25 @@ function boundedTraceback(value: unknown): string | undefined {
 	return output || undefined;
 }
 
-function readKernelError(content: Record<string, unknown>): Required<
+function readKernelError(
+	content: Record<string, unknown>,
+): Required<
 	Pick<KernelExecutionResult, "errorText" | "errorName" | "errorValue">
 > {
-	const errorName = truncateErrorField(typeof content["ename"] === "string" ? content["ename"] : "Error");
+	const errorName = truncateErrorField(
+		typeof content["ename"] === "string" ? content["ename"] : "Error",
+	);
 	const errorValue = truncateErrorField(
-		typeof content["evalue"] === "string" ? content["evalue"] : "Notebook cell failed",
+		typeof content["evalue"] === "string"
+			? content["evalue"]
+			: "Notebook cell failed",
 	);
 	return {
 		errorName,
 		errorValue,
-		errorText: boundedTraceback(content["traceback"]) ?? truncateErrorText(`${errorName}: ${errorValue}`),
+		errorText:
+			boundedTraceback(content["traceback"]) ??
+			truncateErrorText(`${errorName}: ${errorValue}`),
 	};
 }
 

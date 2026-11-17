@@ -15,9 +15,9 @@ export function terminalPane(value: unknown): PaneInfo {
 		state === "error"
 			? "done"
 			: state === "idle" ||
-					state === "working" ||
-					state === "blocked" ||
-					state === "done"
+				  state === "working" ||
+				  state === "blocked" ||
+				  state === "done"
 				? state
 				: "unknown";
 	const session = livePiSession(terminal);

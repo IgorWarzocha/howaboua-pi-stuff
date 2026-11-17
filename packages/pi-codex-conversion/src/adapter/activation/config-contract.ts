@@ -1,9 +1,13 @@
 // Invalid explicit selections stay invalid instead of switching accounts to openai.
 export function normalizeVoiceApiProvider(value: unknown): string | undefined {
-	return typeof value === "string" && value.trim() === value &&
-		value.length > 0 && Buffer.byteLength(value) <= 512 &&
+	return typeof value === "string" &&
+		value.trim() === value &&
+		value.length > 0 &&
+		Buffer.byteLength(value) <= 512 &&
+		// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
 		!/[\u0000-\u001f\u007f]/u.test(value)
-		? value : undefined;
+		? value
+		: undefined;
 }
 
 export const GIPPITY_VOICE_MODELS = [

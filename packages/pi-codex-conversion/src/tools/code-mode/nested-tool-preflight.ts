@@ -57,11 +57,13 @@ export function registerCodeModePreflightBroker(
 			for (const completion of [...completions]) {
 				if (!active) break;
 				try {
-					await completion(Object.freeze({
-						...call,
-						input: structuredClone(call.input),
-						result: structuredClone(call.result),
-					}));
+					await completion(
+						Object.freeze({
+							...call,
+							input: structuredClone(call.input),
+							result: structuredClone(call.result),
+						}),
+					);
 				} catch (error) {
 					console.error("Code Mode completion subscriber failed", error);
 				}

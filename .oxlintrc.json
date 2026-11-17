@@ -1,0 +1,110 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y"],
+	"categories": {
+		"correctness": "error"
+	},
+	"options": {
+		"typeAware": true,
+		"denyWarnings": true,
+		"reportUnusedDisableDirectives": "error"
+	},
+	"ignorePatterns": ["**/dist/**", "**/vendor/**"],
+	"rules": {
+		"typescript/no-floating-promises": [
+			"error",
+			{
+				"allowForKnownSafeCalls": [
+					{
+						"from": "package",
+						"package": "node:test",
+						"name": ["test", "it", "describe"]
+					}
+				]
+			}
+		],
+		"typescript/no-misused-promises": "error",
+		"typescript/unbound-method": "off",
+		"typescript/no-base-to-string": "off",
+		"typescript/restrict-template-expressions": "off",
+		"typescript/await-thenable": "off",
+		"typescript/no-duplicate-type-constituents": "off",
+		"typescript/no-redundant-type-constituents": "off",
+		"typescript/require-array-sort-compare": "off",
+		"typescript/no-misused-spread": "off",
+		"unicorn/no-useless-spread": "off",
+		"unicorn/no-useless-fallback-in-spread": "off",
+		"unicorn/prefer-string-starts-ends-with": "off",
+		"typescript/no-useless-default-assignment": "off"
+	},
+	"overrides": [
+		{
+			"files": ["**/*.ts", "**/*.tsx"],
+			"rules": {
+				"typescript/no-useless-default-assignment": "error"
+			}
+		},
+		{
+			"files": ["packages/pi-pet/**"],
+			"rules": {
+				"no-eval": "error",
+				"no-implied-eval": "error",
+				"no-script-url": "error",
+				"no-param-reassign": "error",
+				"no-unused-private-class-members": "error",
+				"oxc/no-accumulating-spread": "error",
+				"typescript/no-namespace": "error",
+				"typescript/only-throw-error": "error",
+				"unicorn/error-message": "error",
+				"unicorn/throw-new-error": "error",
+				"react/rules-of-hooks": "error",
+				"react/no-danger": "error",
+				"react/jsx-no-script-url": "error",
+				"react/button-has-type": "error",
+				"react/jsx-no-target-blank": "error",
+				"no-new-wrappers": "error",
+				"unicorn/no-new-array": "error",
+				"typescript/no-explicit-any": "error",
+				"no-restricted-globals": ["error", "event", "error"],
+				"no-restricted-imports": [
+					"error",
+					{
+						"paths": [
+							{
+								"name": "node:assert",
+								"allowImportNames": ["strict"],
+								"message": "Use node:assert/strict for strict comparisons."
+							},
+							{
+								"name": "assert",
+								"allowImportNames": ["strict"],
+								"message": "Use node:assert/strict for strict comparisons."
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": ["packages/pi-pet/**/*.ts", "packages/pi-pet/**/*.tsx"],
+			"rules": {
+				"typescript/no-unsafe-assignment": "error",
+				"typescript/no-unsafe-argument": "error",
+				"typescript/no-unsafe-call": "error",
+				"typescript/no-unsafe-member-access": "error",
+				"typescript/no-unsafe-return": "error",
+				"typescript/no-unsafe-function-type": "error"
+			}
+		},
+		{
+			"files": [
+				"packages/pi-pet/**/*.test.ts",
+				"packages/pi-pet/**/*.spec.ts",
+				"packages/pi-pet/src/test/**"
+			],
+			"rules": {
+				"typescript/no-explicit-any": "off"
+			}
+		}
+	]
+}

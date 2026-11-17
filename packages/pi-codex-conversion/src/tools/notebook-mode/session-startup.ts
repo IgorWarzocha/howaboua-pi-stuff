@@ -11,15 +11,25 @@ import {
 import { ensureNotebookDenoBinary } from "./deno-binary.ts";
 import { initializeNotebookJournal, type NotebookJournal } from "./journal.ts";
 import { DenoJupyterKernel } from "./jupyter-kernel.ts";
-import { notebookBootstrapSource, notebookExampleSource, notebookToolHooksSource } from "./kernel-runtime.ts";
-import { formatNotebookNpmImportsNotice, readNotebookNpmImports } from "./npm-imports.ts";
+import {
+	notebookBootstrapSource,
+	notebookExampleSource,
+	notebookToolHooksSource,
+} from "./kernel-runtime.ts";
+import {
+	formatNotebookNpmImportsNotice,
+	readNotebookNpmImports,
+} from "./npm-imports.ts";
 import {
 	formatProjectStateNotice,
 	restoreProjectState,
 	type ProjectStateBaseline,
 } from "./project-state.ts";
 import { resolveNotebookProject } from "./project-identity.ts";
-import { loadNotebookProfile, NotebookProfileRestoreError } from "./profile-state.ts";
+import {
+	loadNotebookProfile,
+	NotebookProfileRestoreError,
+} from "./profile-state.ts";
 import { notebookSessionIdentity } from "./session-identity.ts";
 import { withNotebookRecoveryGuidance } from "./runtime-health.ts";
 
@@ -38,13 +48,20 @@ export async function startNotebookSession(options: {
 	runtime: NotebookRuntimeOptions;
 	bridge: NotebookBridgeServer;
 	checkpointMaxBytes: number;
-	onKernelFailure?: ((kernel: DenoJupyterKernel, error: Error) => void) | undefined;
+	onKernelFailure?:
+		| ((kernel: DenoJupyterKernel, error: Error) => void)
+		| undefined;
 	signal?: AbortSignal | undefined;
 }): Promise<StartedNotebookSession> {
 	const { context, runtime, bridge, signal } = options;
 	const startupAbort = new AbortController();
-	const startupSignal = signal ? AbortSignal.any([signal, startupAbort.signal]) : startupAbort.signal;
-	const denoPending = ensureNotebookDenoBinary({ agentDir: runtime.agentDir }, startupSignal);
+	const startupSignal = signal
+		? AbortSignal.any([signal, startupAbort.signal])
+		: startupAbort.signal;
+	const denoPending = ensureNotebookDenoBinary(
+		{ agentDir: runtime.agentDir },
+		startupSignal,
+	);
 	const bridgePending = bridge.start();
 	let deno: string;
 	let origin: string;
@@ -59,12 +76,26 @@ export async function startNotebookSession(options: {
 		throw notebookStartupError(error);
 	}
 
-	const kernel = new DenoJupyterKernel({ deno, maxHeapMiB: runtime.maxHeapMiB, onFailure: options.onKernelFailure });
+	const kernel = new DenoJupyterKernel({
+		deno,
+		maxHeapMiB: runtime.maxHeapMiB,
+		onFailure: options.onKernelFailure,
+	});
 	try {
 		await kernel.start(signal);
-		const bootstrap = await kernel.execute(notebookBootstrapSource(origin, bridge.token, bridge.exitToken, context.cwd), { signal });
+		const bootstrap = await kernel.execute(
+			notebookBootstrapSource(
+				origin,
+				bridge.token,
+				bridge.exitToken,
+				context.cwd,
+			),
+			{ signal },
+		);
 		if (bootstrap.status !== "ok") {
-			throw new Error(`Notebook bootstrap failed: ${bootstrap.errorText ?? "unknown error"}`);
+			throw new Error(
+				`Notebook bootstrap failed: ${bootstrap.errorText ?? "unknown error"}`,
+			);
 		}
 		const project = resolveNotebookProject(context.cwd);
 		const checkpointIdentity = {
@@ -74,7 +105,12 @@ export async function startNotebookSession(options: {
 		};
 		let journal: NotebookJournal | undefined;
 		let journalNotice: string | undefined;
-		try { journal = initializeNotebookJournal(checkpointIdentity, options.checkpointMaxBytes); } catch (error) {
+		try {
+			journal = initializeNotebookJournal(
+				checkpointIdentity,
+				options.checkpointMaxBytes,
+			);
+		} catch (error) {
 			journalNotice = `Notebook journal is unavailable; execution and saved binding recovery remain available. Check Notebook journals in /codex: ${error instanceof Error ? error.message : String(error)}`;
 		}
 		const baselineNames = new Set(await kernel.complete("", 0, signal));
@@ -84,7 +120,13 @@ export async function startNotebookSession(options: {
 			maxBytes: options.checkpointMaxBytes,
 			signal,
 		});
-		const restored = await restoreNotebookCheckpoint(kernel, checkpointIdentity, options.checkpointMaxBytes, projectState.baseline, signal);
+		const restored = await restoreNotebookCheckpoint(
+			kernel,
+			checkpointIdentity,
+			options.checkpointMaxBytes,
+			projectState.baseline,
+			signal,
+		);
 		let profileNotice: string | undefined;
 		let configuredProfileLoaded = false;
 		if (runtime.profile) {
@@ -97,33 +139,64 @@ export async function startNotebookSession(options: {
 					maxBytes: options.checkpointMaxBytes,
 					signal,
 				});
-				profileNotice = profile.collisions.length > 0
-					? `Notebook profile ${runtime.profile} was not loaded because ${profile.collisions.length} binding collision(s) already exist`
-					: `Notebook profile ${runtime.profile} loaded ${profile.loaded.length} binding(s)`;
+				profileNotice =
+					profile.collisions.length > 0
+						? `Notebook profile ${runtime.profile} was not loaded because ${profile.collisions.length} binding collision(s) already exist`
+						: `Notebook profile ${runtime.profile} loaded ${profile.loaded.length} binding(s)`;
 				configuredProfileLoaded = profile.collisions.length === 0;
 			} catch (error) {
-				if (signal?.aborted || error instanceof NotebookProfileRestoreError) throw error;
+				if (signal?.aborted || error instanceof NotebookProfileRestoreError)
+					throw error;
 				profileNotice = `Notebook profile ${runtime.profile} was not loaded: ${error instanceof Error ? error.message : String(error)}`;
 			}
 		}
 		const exampleNames = await installNotebookExamples(kernel, signal);
 		for (const name of exampleNames) baselineNames.add(name);
-		for (const { name } of projectState.restored.filter((entry) => entry.hook === "startup").sort((a, b) => a.name.localeCompare(b.name))) {
+		for (const { name } of projectState.restored
+			.filter((entry) => entry.hook === "startup")
+			.sort((a, b) => a.name.localeCompare(b.name))) {
 			try {
-				const result = await kernel.execute(`await (0, globalThis[${JSON.stringify(name)}])({type:"startup"}); undefined;`, { signal });
-				if (result.status !== "ok") throw new Error(result.errorText ?? result.status);
+				const result = await kernel.execute(
+					`await (0, globalThis[${JSON.stringify(name)}])({type:"startup"}); undefined;`,
+					{ signal },
+				);
+				if (result.status !== "ok")
+					throw new Error(result.errorText ?? result.status);
 			} catch (error) {
-				throw new Error(`Notebook startup hook ${JSON.stringify(name)} failed: ${error instanceof Error ? error.message : String(error)}. To unpin it, call notebook with ${JSON.stringify({ input: JSON.stringify({ action: "unpin", names: [name] }) })}; external side effects were not rolled back`, { cause: error });
+				throw new Error(
+					`Notebook startup hook ${JSON.stringify(name)} failed: ${error instanceof Error ? error.message : String(error)}. To unpin it, call notebook with ${JSON.stringify({ input: JSON.stringify({ action: "unpin", names: [name] }) })}; external side effects were not rolled back`,
+					{ cause: error },
+				);
 			}
 		}
-		const toolHooks = projectState.restored.filter((entry) => entry.hook === "tool_result").map(({ name }) => name);
+		const toolHooks = projectState.restored
+			.filter((entry) => entry.hook === "tool_result")
+			.map(({ name }) => name);
 		if (toolHooks.length > 0) {
-			const configured = await kernel.execute(notebookToolHooksSource(toolHooks, true), { signal });
-			if (configured.status !== "ok") throw new Error(`Notebook tool hooks could not be restored: ${configured.errorText ?? configured.status}`);
+			const configured = await kernel.execute(
+				notebookToolHooksSource(toolHooks, true),
+				{ signal },
+			);
+			if (configured.status !== "ok")
+				throw new Error(
+					`Notebook tool hooks could not be restored: ${configured.errorText ?? configured.status}`,
+				);
 		}
 		garbageCollectSupersededNotebookCheckpoints(checkpointIdentity);
-		const npmNotice = formatNotebookNpmImportsNotice(readNotebookNpmImports(checkpointIdentity));
-		const restoreNotice = [npmNotice, formatProjectStateNotice(projectState), restored.message, profileNotice, journalNotice, notebookExecStartupNotice()].filter(Boolean).join(". ") || undefined;
+		const npmNotice = formatNotebookNpmImportsNotice(
+			readNotebookNpmImports(checkpointIdentity),
+		);
+		const restoreNotice =
+			[
+				npmNotice,
+				formatProjectStateNotice(projectState),
+				restored.message,
+				profileNotice,
+				journalNotice,
+				notebookExecStartupNotice(),
+			]
+				.filter(Boolean)
+				.join(". ") || undefined;
 		return {
 			kernel,
 			journal,
@@ -142,24 +215,38 @@ export async function startNotebookSession(options: {
 }
 
 function notebookStartupError(error: unknown): Error {
-	const message = withNotebookRecoveryGuidance(error instanceof Error ? error.message : String(error));
+	const message = withNotebookRecoveryGuidance(
+		error instanceof Error ? error.message : String(error),
+	);
 	return error instanceof NotebookProfileRestoreError
 		? new NotebookProfileRestoreError(message, { cause: error })
 		: new Error(message, { cause: error });
 }
 
-async function installNotebookExamples(kernel: DenoJupyterKernel, signal?: AbortSignal): Promise<string[]> {
+async function installNotebookExamples(
+	kernel: DenoJupyterKernel,
+	signal?: AbortSignal,
+): Promise<string[]> {
 	const marker = `__PI_NOTEBOOK_EXAMPLES_${randomUUID()}__`;
 	signal?.throwIfAborted();
 	try {
 		const names = new Set(await kernel.complete("", 0, signal));
-		const result = await kernel.execute(notebookExampleSource(marker, names.has("foo") || names.has("bar")), { signal });
+		const result = await kernel.execute(
+			notebookExampleSource(marker, names.has("foo") || names.has("bar")),
+			{ signal },
+		);
 		if (result.status !== "ok") return [];
-		const output = result.items.filter(({ type }) => type === "input_text").map(({ text }) => text ?? "").join("");
+		const output = result.items
+			.filter(({ type }) => type === "input_text")
+			.map(({ text }) => text ?? "")
+			.join("");
 		const start = output.indexOf(marker);
 		if (start === -1) return [];
-		const value = JSON.parse(output.slice(start + marker.length).split("\n", 1)[0]!) as unknown;
-		return Array.isArray(value) && value.every((name) => name === "foo" || name === "bar")
+		const value = JSON.parse(
+			output.slice(start + marker.length).split("\n", 1)[0]!,
+		) as unknown;
+		return Array.isArray(value) &&
+			value.every((name) => name === "foo" || name === "bar")
 			? [...new Set(value)]
 			: [];
 	} catch {

@@ -1,5 +1,14 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { isKeyRelease, isKeyRepeat, matchesKey, parseKey, type KeyId } from "@earendil-works/pi-tui";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import {
+	isKeyRelease,
+	isKeyRepeat,
+	matchesKey,
+	parseKey,
+	type KeyId,
+} from "@earendil-works/pi-tui";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 
 const INITIAL_RELEASE_FALLBACK_MS = 650;
@@ -29,10 +38,16 @@ export function registerCodexVoiceShortcuts(
 	let dictationKeyDown: string | undefined;
 	let releaseFallbackTimer: ReturnType<typeof setTimeout> | undefined;
 
-	const enqueue = (ctx: ExtensionContext, action: () => Promise<void>): Promise<void> => {
+	const enqueue = (
+		ctx: ExtensionContext,
+		action: () => Promise<void>,
+	): Promise<void> => {
 		const next = operation.then(action, action);
 		operation = next.catch((error: unknown) => {
-			ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+			ctx.ui.notify(
+				error instanceof Error ? error.message : String(error),
+				"error",
+			);
 		});
 		return operation;
 	};
@@ -53,18 +68,19 @@ export function registerCodexVoiceShortcuts(
 
 	pi.registerShortcut(dictationShortcut, {
 		description: "Codex push-to-dictate",
-		handler: (ctx) => enqueue(ctx, async () => {
-			const mode = getConfig().voice.dictationShortcutMode;
-			if (mode === "toggle") {
-				dictationKeyDown = undefined;
-				clearReleaseFallback();
-				await actions.toggleDictation(ctx);
-			} else {
-				dictationKeyDown = keyIdentity(dictationShortcut);
-				armReleaseFallback(ctx, INITIAL_RELEASE_FALLBACK_MS);
-				await actions.startDictation(ctx);
-			}
-		}),
+		handler: (ctx) =>
+			enqueue(ctx, async () => {
+				const mode = getConfig().voice.dictationShortcutMode;
+				if (mode === "toggle") {
+					dictationKeyDown = undefined;
+					clearReleaseFallback();
+					await actions.toggleDictation(ctx);
+				} else {
+					dictationKeyDown = keyIdentity(dictationShortcut);
+					armReleaseFallback(ctx, INITIAL_RELEASE_FALLBACK_MS);
+					await actions.startDictation(ctx);
+				}
+			}),
 	});
 
 	pi.registerShortcut(realtimeShortcut, {
@@ -85,15 +101,26 @@ export function registerCodexVoiceShortcuts(
 		dictationKeyDown = undefined;
 		clearReleaseFallback();
 		removeTerminalInput = ctx.ui.onTerminalInput((data) => {
-			if ((matchesKey(data, realtimeShortcut) || matchesKey(data, muteShortcut) || matchesKey(data, serverShortcut)) && isKeyRepeat(data)) return { consume: true };
+			if (
+				(matchesKey(data, realtimeShortcut) ||
+					matchesKey(data, muteShortcut) ||
+					matchesKey(data, serverShortcut)) &&
+				isKeyRepeat(data)
+			)
+				return { consume: true };
 			const mode = getConfig().voice.dictationShortcutMode;
 			if (mode !== "push") {
 				dictationKeyDown = undefined;
 				clearReleaseFallback();
 			}
-			if (mode === "push" && dictationKeyDown && keyIdentity(parseKey(data)) === dictationKeyDown) {
+			if (
+				mode === "push" &&
+				dictationKeyDown &&
+				keyIdentity(parseKey(data)) === dictationKeyDown
+			) {
 				if (isKeyRelease(data)) finishPushDictation(ctx);
-				else if (matchesKey(data, dictationShortcut)) armReleaseFallback(ctx, REPEAT_RELEASE_FALLBACK_MS);
+				else if (matchesKey(data, dictationShortcut))
+					armReleaseFallback(ctx, REPEAT_RELEASE_FALLBACK_MS);
 				return { consume: true };
 			}
 			if (!matchesKey(data, dictationShortcut)) return undefined;

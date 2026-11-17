@@ -28,12 +28,20 @@ export const HOST_ASSETS = {
 } as const;
 
 export function codeModeHostBinaryName(platform: string): string {
-	return platform === "win32" ? "codex-code-mode-host.exe" : "codex-code-mode-host";
+	return platform === "win32"
+		? "codex-code-mode-host.exe"
+		: "codex-code-mode-host";
 }
 
-export function resolveCodeModeHostAsset(platform: string, arch: string): readonly [string, string] {
-	const asset = (HOST_ASSETS as Record<string, readonly [string, string]>)[`${platform}-${arch}`];
-	if (!asset) throw new Error(`Unsupported code-mode platform: ${platform}-${arch}`);
+export function resolveCodeModeHostAsset(
+	platform: string,
+	arch: string,
+): readonly [string, string] {
+	const asset = (HOST_ASSETS as Record<string, readonly [string, string]>)[
+		`${platform}-${arch}`
+	];
+	if (!asset)
+		throw new Error(`Unsupported code-mode platform: ${platform}-${arch}`);
 	return asset;
 }
 

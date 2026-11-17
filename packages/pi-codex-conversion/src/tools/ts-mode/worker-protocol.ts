@@ -16,20 +16,44 @@ export interface TsWorkerInput {
 	commandFormatter: string;
 	maxStateBytes: number;
 }
-export type TsWorkerCommand = { kind: "start"; runId: number; input: TsWorkerInput } | TsWorkerReply;
+export type TsWorkerCommand =
+	| { kind: "start"; runId: number; input: TsWorkerInput }
+	| TsWorkerReply;
 export type TsWorkerMessage =
 	| { kind: "output"; items: RuntimeContentItem[] }
 	| { kind: "notify"; text: string }
 	| { kind: "yield" }
-	| { kind: "request"; id: number; operation: "tool" | "import"; name: string; input: unknown }
+	| {
+			kind: "request";
+			id: number;
+			operation: "tool" | "import";
+			name: string;
+			input: unknown;
+	  }
 	| { kind: "done"; state: PortableState }
-	| { kind: "live-done"; state: PortableState; skipped: { name: string; reason: string }[]; sourceStarted: boolean; error?: string; captureError?: string; restoreFailed?: string[] }
+	| {
+			kind: "live-done";
+			state: PortableState;
+			skipped: { name: string; reason: string }[];
+			sourceStarted: boolean;
+			error?: string;
+			captureError?: string;
+			restoreFailed?: string[];
+	  }
 	| { kind: "error"; error: string };
 export type TsWorkerEnvelope = { runId: number; message: TsWorkerMessage };
-export type TsWorkerOutcome = Extract<TsWorkerMessage, {kind: "done" | "live-done"}>;
-export interface TsWorkerReply { id: number; value?: unknown; error?: string }
+export type TsWorkerOutcome = Extract<
+	TsWorkerMessage,
+	{ kind: "done" | "live-done" }
+>;
+export interface TsWorkerReply {
+	id: number;
+	value?: unknown;
+	error?: string;
+}
 
-export function tsGlobalDeclarations(contentOccupied = false): string { return `
+export function tsGlobalDeclarations(contentOccupied = false): string {
+	return `
 declare const ALL_TOOLS: ReadonlyArray<{name:keyof typeof tools;description:string}>;
 declare function text(value: unknown): void;
 declare function image(value: unknown, detail?: "auto" | "low" | "high" | "original" | null): void;
@@ -40,4 +64,5 @@ declare function yield_control(): void;
 declare function exit(): never;
 declare function store(key: string, value: unknown): void;
 declare function load<T = unknown>(key: string): T | undefined;
-`; }
+`;
+}

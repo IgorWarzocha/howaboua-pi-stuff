@@ -9,10 +9,6 @@
     "rewriteRelativeImportExtensions": true,
     "target": "ES2022"
   },
-  "include": [
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "tests/**/*.ts"
-  ]
+  "include": ["src/**/*.ts"],
+  "exclude": ["tests/**/*.ts"]
 }

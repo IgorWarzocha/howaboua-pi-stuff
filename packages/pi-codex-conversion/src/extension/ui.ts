@@ -1,13 +1,43 @@
-import { getMarkdownTheme, type KeybindingHints, type ExtensionAPI, type ExtensionContext, type Theme } from "@earendil-works/pi-coding-agent";
-import { Box, Markdown, MouseRegion, Text, TruncatedText, truncateToWidth } from "@earendil-works/pi-tui";
+import {
+	getMarkdownTheme,
+	type KeybindingHints,
+	type ExtensionAPI,
+	type ExtensionContext,
+	type Theme,
+} from "@earendil-works/pi-coding-agent";
+import {
+	Box,
+	Markdown,
+	MouseRegion,
+	Text,
+	TruncatedText,
+	truncateToWidth,
+} from "@earendil-works/pi-tui";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
-import { CODEX_TOOLKIT_UPDATE_TYPE, readToolkitUpdate } from "../adapter/code-mode/toolkit-updates.ts";
-import { CODEX_NOTEBOOK_STATUS_TYPE, readNotebookStatus } from "../adapter/notebook-status.ts";
-import { NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, type NativeCompactionDisplayEntry } from "../adapter/compaction/types.ts";
+import {
+	isAdapterRuntime,
+	resolveCodexRuntimePlanForState,
+} from "../adapter/activation/runtime-plan.ts";
+import {
+	CODEX_TOOLKIT_UPDATE_TYPE,
+	readToolkitUpdate,
+} from "../adapter/code-mode/toolkit-updates.ts";
+import {
+	CODEX_NOTEBOOK_STATUS_TYPE,
+	readNotebookStatus,
+} from "../adapter/notebook-status.ts";
+import {
+	NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
+	NATIVE_COMPACTION_DISPLAY_TEXT,
+	type NativeCompactionDisplayEntry,
+} from "../adapter/compaction/types.ts";
 import { fetchCodexUsageStatus } from "../codex-usage/client.ts";
 import { CODEX_DEVELOPER_MESSAGE_TYPE } from "../developer-messages.ts";
-import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget } from "../ui/background-bash-widget.ts";
+import {
+	BACKGROUND_BASH_WIDGET_ID,
+	registerBackgroundBashWidgetShortcuts,
+	renderBackgroundBashWidget,
+} from "../ui/background-bash-widget.ts";
 import { renderCodexStatus } from "../ui/status.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 
@@ -16,11 +46,18 @@ export interface CodexUiController {
 	invalidateBackgroundWidget(): void;
 	renderBackgroundWidget(): void;
 	invalidateUsageStatus(): void;
-	applyConfig(config: CodexConversionConfig, ctx: ExtensionContext, previousConfig: CodexConversionConfig): void;
+	applyConfig(
+		config: CodexConversionConfig,
+		ctx: ExtensionContext,
+		previousConfig: CodexConversionConfig,
+	): void;
 	refreshUsageStatus(ctx: ExtensionContext): Promise<void>;
 }
 
-export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime): CodexUiController {
+export function registerCodexUi(
+	pi: ExtensionAPI,
+	runtime: CodexExtensionRuntime,
+): CodexUiController {
 	// Labels must match registered bindings, not later folder config changes.
 	const backgroundShellShortcuts = { ...runtime.state.config.ui };
 	let renderTimer: ReturnType<typeof setTimeout> | undefined;
@@ -33,7 +70,10 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 	};
 	const clearBackgroundWidget = () => {
 		cancelScheduledBackgroundRender();
-		runtime.backgroundWidget.ctx?.ui.setWidget(BACKGROUND_BASH_WIDGET_ID, undefined);
+		runtime.backgroundWidget.ctx?.ui.setWidget(
+			BACKGROUND_BASH_WIDGET_ID,
+			undefined,
+		);
 	};
 	const invalidateBackgroundWidget = () => {
 		cancelScheduledBackgroundRender();
@@ -45,58 +85,131 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		if (generation !== backgroundWidgetGeneration) return;
 		const ctx = runtime.backgroundWidget.ctx;
 		if (!ctx) return;
-		if (runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.backgroundShellWidget) {
+		if (
+			runtime.state.config.voiceFeaturesOnly ||
+			!runtime.state.config.ui.backgroundShellWidget
+		) {
 			clearBackgroundWidget();
 			return;
 		}
-		renderBackgroundBashWidget(ctx, runtime.backgroundWidget, runtime.sessions, backgroundShellShortcuts);
+		renderBackgroundBashWidget(
+			ctx,
+			runtime.backgroundWidget,
+			runtime.sessions,
+			backgroundShellShortcuts,
+		);
 	};
 
-	registerBackgroundBashWidgetShortcuts(pi, runtime.backgroundWidget, runtime.sessions, backgroundShellShortcuts, () => !runtime.state.config.voiceFeaturesOnly && runtime.state.config.ui.backgroundShellWidget);
+	registerBackgroundBashWidgetShortcuts(
+		pi,
+		runtime.backgroundWidget,
+		runtime.sessions,
+		backgroundShellShortcuts,
+		() =>
+			!runtime.state.config.voiceFeaturesOnly &&
+			runtime.state.config.ui.backgroundShellWidget,
+	);
 	const renderNotice = createNoticeRenderer();
 	pi.on("session_shutdown", () => invalidateUsageStatus());
-	pi.registerMessageRenderer<{ title?: unknown }>(CODEX_DEVELOPER_MESSAGE_TYPE, (message, { expanded, outputPad, keyHint }, theme) =>
-		typeof message.content === "string" ? renderNotice(message,
-			typeof message.details?.title === "string" ? message.details.title : "Context update",
-			message.content, expanded, theme, keyHint, outputPad) : undefined);
+	pi.registerMessageRenderer<{ title?: unknown }>(
+		CODEX_DEVELOPER_MESSAGE_TYPE,
+		(message, { expanded, outputPad, keyHint }, theme) =>
+			typeof message.content === "string"
+				? renderNotice(
+						message,
+						typeof message.details?.title === "string"
+							? message.details.title
+							: "Context update",
+						message.content,
+						expanded,
+						theme,
+						keyHint,
+						outputPad,
+					)
+				: undefined,
+	);
 	// Toolkit entries already feed model context through projection. Render that
 	// same stored content without sending another message or queuing a turn.
-	pi.registerEntryRenderer(CODEX_TOOLKIT_UPDATE_TYPE, (entry, { expanded, keyHint }, theme) => {
-		const update = readToolkitUpdate(entry.data);
-		const title = `${update.id === update.rootId ? "Tools" : "Tools updated"} · ${update.tools.length}`;
-		return renderNotice(entry, title, update.content, expanded, theme, keyHint);
-	});
-	pi.registerEntryRenderer(CODEX_NOTEBOOK_STATUS_TYPE, (entry, { expanded, keyHint }, theme) => {
-		const status = readNotebookStatus(entry.data);
-		return renderNotice(entry, status.title, status.content, expanded, theme, keyHint);
-	});
+	pi.registerEntryRenderer(
+		CODEX_TOOLKIT_UPDATE_TYPE,
+		(entry, { expanded, keyHint }, theme) => {
+			const update = readToolkitUpdate(entry.data);
+			const title = `${update.id === update.rootId ? "Tools" : "Tools updated"} · ${update.tools.length}`;
+			return renderNotice(
+				entry,
+				title,
+				update.content,
+				expanded,
+				theme,
+				keyHint,
+			);
+		},
+	);
+	pi.registerEntryRenderer(
+		CODEX_NOTEBOOK_STATUS_TYPE,
+		(entry, { expanded, keyHint }, theme) => {
+			const status = readNotebookStatus(entry.data);
+			return renderNotice(
+				entry,
+				status.title,
+				status.content,
+				expanded,
+				theme,
+				keyHint,
+			);
+		},
+	);
 	const renderNativeCompaction = (
 		content: string,
 		kind: NativeCompactionDisplayEntry["kind"],
 		theme: Parameters<Parameters<ExtensionAPI["registerEntryRenderer"]>[1]>[2],
 	) => {
-		if (kind === "usage") return new Text(theme.fg("dim", `  ${content}`), 0, 0);
+		if (kind === "usage")
+			return new Text(theme.fg("dim", `  ${content}`), 0, 0);
 		const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
-		box.addChild(new Text(theme.fg("customMessageLabel", theme.bold("[compaction]")), 0, 0));
+		box.addChild(
+			new Text(
+				theme.fg("customMessageLabel", theme.bold("[compaction]")),
+				0,
+				0,
+			),
+		);
 		box.addChild(new Text(`\n${theme.fg("customMessageText", content)}`, 0, 0));
 		const render = box.render.bind(box);
-		box.render = (width) => render(width).map((line) => truncateToWidth(line, width, ""));
+		box.render = (width) =>
+			render(width).map((line) => truncateToWidth(line, width, ""));
 		return box;
 	};
 	// Legacy sessions stored display-only compaction records as custom messages.
-	pi.registerMessageRenderer<{ kind?: "usage" | undefined }>(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, (message, _options, theme) => {
-		const content = typeof message.content === "string" ? message.content : NATIVE_COMPACTION_DISPLAY_TEXT;
-		return renderNativeCompaction(content, message.details?.kind, theme);
-	});
-	pi.registerEntryRenderer<NativeCompactionDisplayEntry>(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, (entry, _options, theme) => {
-		return renderNativeCompaction(
-			typeof entry.data?.content === "string" ? entry.data.content : NATIVE_COMPACTION_DISPLAY_TEXT,
-			entry.data?.kind,
-			theme,
-		);
-	});
+	pi.registerMessageRenderer<{ kind?: "usage" | undefined }>(
+		NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
+		(message, _options, theme) => {
+			const content =
+				typeof message.content === "string"
+					? message.content
+					: NATIVE_COMPACTION_DISPLAY_TEXT;
+			return renderNativeCompaction(content, message.details?.kind, theme);
+		},
+	);
+	pi.registerEntryRenderer<NativeCompactionDisplayEntry>(
+		NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
+		(entry, _options, theme) => {
+			return renderNativeCompaction(
+				typeof entry.data?.content === "string"
+					? entry.data.content
+					: NATIVE_COMPACTION_DISPLAY_TEXT,
+				entry.data?.kind,
+				theme,
+			);
+		},
+	);
 	runtime.sessions.onSessionChange((reason) => {
-		if (!runtime.backgroundWidget.ctx || runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.backgroundShellWidget) return;
+		if (
+			!runtime.backgroundWidget.ctx ||
+			runtime.state.config.voiceFeaturesOnly ||
+			!runtime.state.config.ui.backgroundShellWidget
+		)
+			return;
 		if (reason === "output") {
 			if (renderTimer) return;
 			const generation = backgroundWidgetGeneration;
@@ -115,11 +228,16 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 	};
 	const refreshUsageStatus = async (ctx: ExtensionContext) => {
 		const generation = ++usageGeneration;
-		if (!ctx.hasUI || runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.statusLine) {
+		if (
+			!ctx.hasUI ||
+			runtime.state.config.voiceFeaturesOnly ||
+			!runtime.state.config.ui.statusLine
+		) {
 			runtime.state.usageStatus = undefined;
 			return;
 		}
-		if (!isAdapterRuntime(resolveCodexRuntimePlanForState(ctx, runtime.state))) return;
+		if (!isAdapterRuntime(resolveCodexRuntimePlanForState(ctx, runtime.state)))
+			return;
 		const usageStatus = await fetchCodexUsageStatus(ctx);
 		if (generation !== usageGeneration) return;
 		const plan = resolveCodexRuntimePlanForState(ctx, runtime.state);
@@ -128,7 +246,8 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 			runtime.state.config.voiceFeaturesOnly ||
 			!runtime.state.config.ui.statusLine ||
 			!isAdapterRuntime(plan)
-		) return;
+		)
+			return;
 		runtime.state.usageStatus = usageStatus;
 		renderCodexStatus(ctx, runtime.state, plan);
 	};
@@ -148,7 +267,8 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 			) {
 				void refreshUsageStatus(ctx);
 			}
-			if (config.voiceFeaturesOnly || !config.ui.backgroundShellWidget) clearBackgroundWidget();
+			if (config.voiceFeaturesOnly || !config.ui.backgroundShellWidget)
+				clearBackgroundWidget();
 			else renderBackgroundWidget();
 		},
 	};
@@ -156,18 +276,48 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 
 function createNoticeRenderer() {
 	// Pi recreates renderer output on invalidation. Preserve clicks until the next global toggle.
-	const expansion = new WeakMap<object, { globalExpanded: boolean; expanded: boolean }>();
-	return (key: object, title: string, content: string, expanded: boolean, theme: Theme, keyHint: KeybindingHints["keyHint"], outputPad = 1) => {
+	const expansion = new WeakMap<
+		object,
+		{ globalExpanded: boolean; expanded: boolean }
+	>();
+	return (
+		key: object,
+		title: string,
+		content: string,
+		expanded: boolean,
+		theme: Theme,
+		keyHint: KeybindingHints["keyHint"],
+		outputPad = 1,
+	) => {
 		const previous = expansion.get(key);
-		const state = previous && previous.globalExpanded === expanded ? previous : { globalExpanded: expanded, expanded };
+		const state =
+			previous && previous.globalExpanded === expanded
+				? previous
+				: { globalExpanded: expanded, expanded };
 		expansion.set(key, state);
-		const box = new Box(outputPad, 1, (text) => theme.bg("customMessageBg", text));
+		const box = new Box(outputPad, 1, (text) =>
+			theme.bg("customMessageBg", text),
+		);
 		const update = () => {
 			box.clear();
-			box.addChild(state.expanded
-				? new Markdown(content, 0, 0, getMarkdownTheme(), { color: (text) => theme.fg("customMessageText", text) })
-				: new TruncatedText(theme.fg("customMessageLabel", title.replace(/\s+/g, " ").trim())
-					+ theme.fg("dim", ` (${keyHint("app.tools.expand", "to expand")})`), 0, 0));
+			box.addChild(
+				state.expanded
+					? new Markdown(content, 0, 0, getMarkdownTheme(), {
+							color: (text) => theme.fg("customMessageText", text),
+						})
+					: new TruncatedText(
+							theme.fg(
+								"customMessageLabel",
+								title.replace(/\s+/g, " ").trim(),
+							) +
+								theme.fg(
+									"dim",
+									` (${keyHint("app.tools.expand", "to expand")})`,
+								),
+							0,
+							0,
+						),
+			);
 		};
 		update();
 		return new MouseRegion(box, (event) => {

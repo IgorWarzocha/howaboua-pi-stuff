@@ -1,18 +1,45 @@
 import { CODEX_CONVERSION_CONFIG_BASENAME } from "./config-file.ts";
-import { OWNED_CONFIG_KEYS, LEGACY_OWNED_CONFIG_KEYS, isRecord, mergeConfigDocument, writeConfigDocumentAtomic, withoutGlobalOnlyDocument } from "./config-document.ts";
+import {
+	OWNED_CONFIG_KEYS,
+	LEGACY_OWNED_CONFIG_KEYS,
+	isRecord,
+	mergeConfigDocument,
+	writeConfigDocumentAtomic,
+	withoutGlobalOnlyDocument,
+} from "./config-document.ts";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { migrateCodexConversionConfigIfNeeded, type CompactionMigrationInheritance } from "./config-migration.ts";
-import { normalizeCodexConversionConfig, type CodexConversionConfig, type LunaCacheKeepaliveMinutes, type LunaCacheKeepaliveIntervalMinutes, type CacheKeepaliveIntervalMinutes } from "./config.ts";
+import {
+	migrateCodexConversionConfigIfNeeded,
+	type CompactionMigrationInheritance,
+} from "./config-migration.ts";
+import {
+	normalizeCodexConversionConfig,
+	type CodexConversionConfig,
+	type LunaCacheKeepaliveMinutes,
+	type LunaCacheKeepaliveIntervalMinutes,
+	type CacheKeepaliveIntervalMinutes,
+} from "./config.ts";
 import { readCodexCacheEnvironment } from "./cache-environment.ts";
 import { normalizeFastMode } from "./fast-mode.ts";
-import { readConfigDocument, normalizeGlobalConfigDocument, readCodexConversionConfig as readFileConfig, writeCodexConversionConfig as writeFileConfig } from "./config-file.ts";
+import {
+	readConfigDocument,
+	normalizeGlobalConfigDocument,
+	readCodexConversionConfig as readFileConfig,
+	writeCodexConversionConfig as writeFileConfig,
+} from "./config-file.ts";
 
-export function readCodexConversionConfig(configPath = getCodexConversionConfigPath()): CodexConversionConfig {
+export function readCodexConversionConfig(
+	configPath = getCodexConversionConfigPath(),
+): CodexConversionConfig {
 	return readFileConfig(configPath);
 }
-export function writeCodexConversionConfig(config: CodexConversionConfig, configPath = getCodexConversionConfigPath(), folderScope = false) {
+export function writeCodexConversionConfig(
+	config: CodexConversionConfig,
+	configPath = getCodexConversionConfigPath(),
+	folderScope = false,
+) {
 	return writeFileConfig(config, configPath, folderScope);
 }
 
@@ -25,7 +52,9 @@ export interface EffectiveCodexConversionConfigOptions {
 
 export type CodexConversionConfigScope = "global" | "folder";
 
-export function getCodexConversionConfigPath(agentDir: string = getAgentDir()): string {
+export function getCodexConversionConfigPath(
+	agentDir: string = getAgentDir(),
+): string {
 	return join(agentDir, CODEX_CONVERSION_CONFIG_BASENAME);
 }
 
@@ -34,27 +63,57 @@ export function getProjectCodexConversionConfigPath(cwd: string): string {
 }
 
 /** Read before normalization drops settings now owned by Notes. */
-export function readLegacyCodexNotesConfig(options: Omit<EffectiveCodexConversionConfigOptions, "env">): { path: string; continuity: string } | undefined {
+export function readLegacyCodexNotesConfig(
+	options: Omit<EffectiveCodexConversionConfigOptions, "env">,
+): { path: string; continuity: string } | undefined {
 	const paths = [options.globalConfigPath ?? getCodexConversionConfigPath()];
-	if (options.projectTrusted) paths.push(getProjectCodexConversionConfigPath(options.cwd));
+	if (options.projectTrusted)
+		paths.push(getProjectCodexConversionConfigPath(options.cwd));
 	let selected: { path: string; continuity: unknown } | undefined;
 	for (const [index, path] of paths.entries()) {
-		const document = readConfigDocument(path, index === 0 ? "global" : "trusted project");
-		const compaction = isRecord(document) && isRecord(document["compaction"]) ? document["compaction"] : undefined;
+		const document = readConfigDocument(
+			path,
+			index === 0 ? "global" : "trusted project",
+		);
+		const compaction =
+			isRecord(document) && isRecord(document["compaction"])
+				? document["compaction"]
+				: undefined;
 		if (!compaction) continue;
 		// Older releases translated these fields only in memory, not on disk.
 		const mode = compaction["contextManagement"];
-		const modeOverride = mode === "off" || mode === "local" || mode === "tree" || mode === "remote";
-		const inheritedNotes = selected?.continuity === "notes" || selected?.continuity === "notes-and-compaction";
+		const modeOverride =
+			mode === "off" ||
+			mode === "local" ||
+			mode === "tree" ||
+			mode === "remote";
+		const inheritedNotes =
+			selected?.continuity === "notes" ||
+			selected?.continuity === "notes-and-compaction";
 		const notes = modeOverride ? mode !== "off" : inheritedNotes;
-		const hybrid = typeof compaction["hybridCompaction"] === "boolean"
-			? compaction["hybridCompaction"] : selected?.continuity === "notes-and-compaction";
-		if (modeOverride || (notes && typeof compaction["hybridCompaction"] === "boolean"))
-			selected = { path, continuity: notes ? hybrid ? "notes-and-compaction" : "notes" : "compaction" };
+		const hybrid =
+			typeof compaction["hybridCompaction"] === "boolean"
+				? compaction["hybridCompaction"]
+				: selected?.continuity === "notes-and-compaction";
+		if (
+			modeOverride ||
+			(notes && typeof compaction["hybridCompaction"] === "boolean")
+		)
+			selected = {
+				path,
+				continuity: notes
+					? hybrid
+						? "notes-and-compaction"
+						: "notes"
+					: "compaction",
+			};
 		// Explicit current fields override the legacy translation in the same scope.
-		if ("continuity" in compaction) selected = { path, continuity: compaction["continuity"] };
+		if ("continuity" in compaction)
+			selected = { path, continuity: compaction["continuity"] };
 	}
-	return selected && (selected.continuity === "notes" || selected.continuity === "notes-and-compaction")
+	return selected &&
+		(selected.continuity === "notes" ||
+			selected.continuity === "notes-and-compaction")
 		? { path: selected.path, continuity: selected.continuity }
 		: undefined;
 }
@@ -68,37 +127,58 @@ export function readProjectCodexConversionDocument(
 	const path = getProjectCodexConversionConfigPath(cwd);
 	const parsed = readConfigDocument(path, "trusted project");
 	if (!isRecord(parsed)) return undefined;
-	const migration = migrateCodexConversionConfigIfNeeded(parsed, inheritedCompaction);
-	return isRecord(migration.config) ? withoutGlobalOnlyDocument(migration.config) : undefined;
+	const migration = migrateCodexConversionConfigIfNeeded(
+		parsed,
+		inheritedCompaction,
+	);
+	return isRecord(migration.config)
+		? withoutGlobalOnlyDocument(migration.config)
+		: undefined;
 }
 
-export function hasFolderCodexConversionConfig(cwd: string, projectTrusted: boolean): boolean {
+export function hasFolderCodexConversionConfig(
+	cwd: string,
+	projectTrusted: boolean,
+): boolean {
 	const project = readProjectCodexConversionDocument(cwd, projectTrusted);
 	if (!project) return false;
 	return [...OWNED_CONFIG_KEYS, ...LEGACY_OWNED_CONFIG_KEYS].some((key) => {
 		if (key !== "openai") return key in project;
 		const openai = isRecord(project["openai"]) ? project["openai"] : undefined;
-		return !!openai && Object.keys(openai).some((option) => option !== "cacheKeepalive" && option !== "cacheKeepaliveIntervalMinutes");
+		return (
+			!!openai &&
+			Object.keys(openai).some(
+				(option) =>
+					option !== "cacheKeepalive" &&
+					option !== "cacheKeepaliveIntervalMinutes",
+			)
+		);
 	});
 }
 
-function applyProcessOverrides(config: CodexConversionConfig, env: NodeJS.ProcessEnv): CodexConversionConfig {
+function applyProcessOverrides(
+	config: CodexConversionConfig,
+	env: NodeJS.ProcessEnv,
+): CodexConversionConfig {
 	const cacheEnvironment = readCodexCacheEnvironment(env);
 	const fast = env["PI_CODEX_FAST"]?.trim().toLowerCase();
-	const fastOverride = fast === "ultrafast" ? "ultrafast" : fast === "1" || fast === "true"
-		? true
-		: fast === "0" || fast === "false"
-			? false
-			: undefined;
-	if (
-		fastOverride === undefined
-		&& cacheEnvironment.diagnostics === undefined
-	) return config;
+	const fastOverride =
+		fast === "ultrafast"
+			? "ultrafast"
+			: fast === "1" || fast === "true"
+				? true
+				: fast === "0" || fast === "false"
+					? false
+					: undefined;
+	if (fastOverride === undefined && cacheEnvironment.diagnostics === undefined)
+		return config;
 	return {
 		...config,
 		openai: {
 			...config.openai,
-			...(fastOverride !== undefined ? { fast: normalizeFastMode(fastOverride) } : {}),
+			...(fastOverride !== undefined
+				? { fast: normalizeFastMode(fastOverride) }
+				: {}),
 			...(cacheEnvironment.diagnostics !== undefined
 				? { cacheDiagnostics: cacheEnvironment.diagnostics }
 				: {}),
@@ -106,7 +186,9 @@ function applyProcessOverrides(config: CodexConversionConfig, env: NodeJS.Proces
 	};
 }
 
-export function readEffectiveCodexConversionConfig(options: EffectiveCodexConversionConfigOptions): CodexConversionConfig {
+export function readEffectiveCodexConversionConfig(
+	options: EffectiveCodexConversionConfigOptions,
+): CodexConversionConfig {
 	const layered = readLayeredCodexConversionConfig(options);
 	return applyProcessOverrides(layered, options.env ?? process.env);
 }
@@ -114,13 +196,28 @@ export function readEffectiveCodexConversionConfig(options: EffectiveCodexConver
 export function readLayeredCodexConversionConfig(
 	options: Omit<EffectiveCodexConversionConfigOptions, "env">,
 ): CodexConversionConfig {
-	const document = readConfigDocument(options.globalConfigPath ?? getCodexConversionConfigPath(), "global");
+	const document = readConfigDocument(
+		options.globalConfigPath ?? getCodexConversionConfigPath(),
+		"global",
+	);
 	const global = normalizeGlobalConfigDocument(document);
 	// Legacy project options can inherit continuity axes normalization no longer owns.
-	const legacyCompaction = isRecord(document) && isRecord(document["compaction"]) ? document["compaction"] : {};
-	const project = readProjectCodexConversionDocument(options.cwd, options.projectTrusted, { ...global.compaction, ...legacyCompaction });
+	const legacyCompaction =
+		isRecord(document) && isRecord(document["compaction"])
+			? document["compaction"]
+			: {};
+	const project = readProjectCodexConversionDocument(
+		options.cwd,
+		options.projectTrusted,
+		{ ...global.compaction, ...legacyCompaction },
+	);
 	return project
-		? normalizeCodexConversionConfig(mergeConfigDocument(global as unknown as Record<string, unknown>, project))
+		? normalizeCodexConversionConfig(
+				mergeConfigDocument(
+					global as unknown as Record<string, unknown>,
+					project,
+				),
+			)
 		: global;
 }
 
@@ -130,16 +227,24 @@ export function setProjectCodexCacheKeepalive(
 	enabled: boolean,
 	intervalMinutes?: CacheKeepaliveIntervalMinutes,
 ): { ok: true } | { ok: false; error: string } {
-	if (!projectTrusted) return { ok: false, error: "Trust this folder before changing project cache keepalive" };
+	if (!projectTrusted)
+		return {
+			ok: false,
+			error: "Trust this folder before changing project cache keepalive",
+		};
 	const path = getProjectCodexConversionConfigPath(cwd);
 	try {
 		const existing = readConfigDocument(path, "trusted project");
-		if (existsSync(path) && !isRecord(existing)) return { ok: false, error: "Project config is not a JSON object" };
+		if (existsSync(path) && !isRecord(existing))
+			return { ok: false, error: "Project config is not a JSON object" };
 		const document = isRecord(existing) ? existing : {};
-		const openai = isRecord(document["openai"]) ? { ...document["openai"] } : {};
+		const openai = isRecord(document["openai"])
+			? { ...document["openai"] }
+			: {};
 		if (enabled) openai["cacheKeepalive"] = true;
 		else delete openai["cacheKeepalive"];
-		if (intervalMinutes !== undefined) openai["cacheKeepaliveIntervalMinutes"] = intervalMinutes;
+		if (intervalMinutes !== undefined)
+			openai["cacheKeepaliveIntervalMinutes"] = intervalMinutes;
 		if (Object.keys(openai).length > 0) document["openai"] = openai;
 		else delete document["openai"];
 		if (Object.keys(document).length === 0) rmSync(path, { force: true });
@@ -147,7 +252,9 @@ export function setProjectCodexCacheKeepalive(
 		return { ok: true };
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		console.warn(`[pi-codex-conversion] Failed to write project cache keepalive ${path}: ${message}`);
+		console.warn(
+			`[pi-codex-conversion] Failed to write project cache keepalive ${path}: ${message}`,
+		);
 		return { ok: false, error: message };
 	}
 }
@@ -158,11 +265,19 @@ export function setGlobalCodexLunaCacheKeepalive(
 	intervalMinutes?: LunaCacheKeepaliveIntervalMinutes,
 ): { ok: true; warning?: string } | { ok: false; error: string } {
 	const config = readCodexConversionConfig(globalConfigPath);
-	return writeCodexConversionConfig({
-		...config,
-		openai: { ...config.openai, lunaCacheKeepaliveMinutes: minutes,
-			...(intervalMinutes !== undefined ? { lunaCacheKeepaliveIntervalMinutes: intervalMinutes } : {}) },
-	}, globalConfigPath);
+	return writeCodexConversionConfig(
+		{
+			...config,
+			openai: {
+				...config.openai,
+				lunaCacheKeepaliveMinutes: minutes,
+				...(intervalMinutes !== undefined
+					? { lunaCacheKeepaliveIntervalMinutes: intervalMinutes }
+					: {}),
+			},
+		},
+		globalConfigPath,
+	);
 }
 
 export function materializeFolderCodexConversionConfig(
@@ -170,9 +285,21 @@ export function materializeFolderCodexConversionConfig(
 	projectTrusted: boolean,
 	globalConfigPath?: string | undefined,
 ): { ok: true; config: CodexConversionConfig } | { ok: false; error: string } {
-	if (!projectTrusted) return { ok: false, error: "Trust this folder before enabling folder settings" };
-	const config = readLayeredCodexConversionConfig({ cwd, projectTrusted, globalConfigPath });
-	const result = writeCodexConversionConfig(config, getProjectCodexConversionConfigPath(cwd), true);
+	if (!projectTrusted)
+		return {
+			ok: false,
+			error: "Trust this folder before enabling folder settings",
+		};
+	const config = readLayeredCodexConversionConfig({
+		cwd,
+		projectTrusted,
+		globalConfigPath,
+	});
+	const result = writeCodexConversionConfig(
+		config,
+		getProjectCodexConversionConfigPath(cwd),
+		true,
+	);
 	return result.ok ? { ok: true, config } : result;
 }
 
@@ -180,7 +307,11 @@ export function clearFolderCodexConversionConfig(
 	cwd: string,
 	projectTrusted: boolean,
 ): { ok: true } | { ok: false; error: string } {
-	if (!projectTrusted) return { ok: false, error: "Trust this folder before changing folder settings" };
+	if (!projectTrusted)
+		return {
+			ok: false,
+			error: "Trust this folder before changing folder settings",
+		};
 	const path = getProjectCodexConversionConfigPath(cwd);
 	const project = readProjectCodexConversionDocument(cwd, true);
 	if (!project) return { ok: true };
@@ -190,7 +321,9 @@ export function clearFolderCodexConversionConfig(
 			const interval = project[key]["cacheKeepaliveIntervalMinutes"];
 			const nextOpenAI = {
 				...(keepalive === true ? { cacheKeepalive: true } : {}),
-				...(interval === 25 || interval === 55 ? { cacheKeepaliveIntervalMinutes: interval } : {}),
+				...(interval === 25 || interval === 55
+					? { cacheKeepaliveIntervalMinutes: interval }
+					: {}),
 			};
 			if (Object.keys(nextOpenAI).length === 0) delete project[key];
 			else project[key] = nextOpenAI;
@@ -204,7 +337,9 @@ export function clearFolderCodexConversionConfig(
 		return { ok: true };
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		console.warn(`[pi-codex-conversion] Failed to clear folder config ${path}: ${message}`);
+		console.warn(
+			`[pi-codex-conversion] Failed to clear folder config ${path}: ${message}`,
+		);
 		return { ok: false, error: message };
 	}
 }

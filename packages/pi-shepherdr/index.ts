@@ -61,9 +61,8 @@ export default async function shepherdrExtension(
 	registerAgentEventRenderer(pi);
 	pi.registerTool(tool);
 	try {
-		const { registerGptPromptMode } = await import(
-			"@howaboua/pi-codex-conversion/prompt-mode"
-		);
+		const { registerGptPromptMode } =
+			await import("@howaboua/pi-codex-conversion/prompt-mode");
 		promptMode = registerGptPromptMode(pi, () => [tool]);
 	} catch (error) {
 		if (

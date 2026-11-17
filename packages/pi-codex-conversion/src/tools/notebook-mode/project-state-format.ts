@@ -73,39 +73,59 @@ export interface ProjectConflictRecord {
 
 export function projectStatePaths(project: string, agentDir: string) {
 	const key = createHash("sha256").update(resolve(project)).digest("hex");
-	const directory = join(agentDir, "cache", "pi-codex-conversion", "notebook-mode", "projects", key);
-	return { directory, manifest: join(directory, "project.json"), lock: join(directory, "write.lock") };
+	const directory = join(
+		agentDir,
+		"cache",
+		"pi-codex-conversion",
+		"notebook-mode",
+		"projects",
+		key,
+	);
+	return {
+		directory,
+		manifest: join(directory, "project.json"),
+		lock: join(directory, "write.lock"),
+	};
 }
 
-export function readProjectStateManifest(path: string): ProjectStateManifest | undefined {
+export function readProjectStateManifest(
+	path: string,
+): ProjectStateManifest | undefined {
 	try {
 		if (statSync(path).size > MAX_PROJECT_MANIFEST_BYTES) return undefined;
 		const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
-		if (!isRecord(value) || value["schema"] !== PROJECT_STATE_SCHEMA) return undefined;
+		if (!isRecord(value) || value["schema"] !== PROJECT_STATE_SCHEMA)
+			return undefined;
 		if (
-			typeof value["project"] !== "string"
-			|| typeof value["generation"] !== "string"
-			|| typeof value["deno"] !== "string"
-			|| typeof value["v8"] !== "string"
-			|| typeof value["payload"] !== "string"
-			|| typeof value["createdAt"] !== "string"
-			|| !Number.isFinite(Date.parse(value["createdAt"]))
-			|| typeof value["sourceSession"] !== "string"
-			|| !Array.isArray(value["entries"])
-			|| !Array.isArray(value["skipped"])
-			|| !PAYLOAD_NAME.test(value["payload"])
-			|| basename(value["payload"]) !== value["payload"]
-			|| value["entries"].length > MAX_PROJECT_ENTRIES
-			|| value["skipped"].length > MAX_PROJECT_ENTRIES
-		) return undefined;
-		const entries = value["entries"].map((entry) => parseEntry(entry, Number.MAX_SAFE_INTEGER, true));
+			typeof value["project"] !== "string" ||
+			typeof value["generation"] !== "string" ||
+			typeof value["deno"] !== "string" ||
+			typeof value["v8"] !== "string" ||
+			typeof value["payload"] !== "string" ||
+			typeof value["createdAt"] !== "string" ||
+			!Number.isFinite(Date.parse(value["createdAt"])) ||
+			typeof value["sourceSession"] !== "string" ||
+			!Array.isArray(value["entries"]) ||
+			!Array.isArray(value["skipped"]) ||
+			!PAYLOAD_NAME.test(value["payload"]) ||
+			basename(value["payload"]) !== value["payload"] ||
+			value["entries"].length > MAX_PROJECT_ENTRIES ||
+			value["skipped"].length > MAX_PROJECT_ENTRIES
+		)
+			return undefined;
+		const entries = value["entries"].map((entry) =>
+			parseEntry(entry, Number.MAX_SAFE_INTEGER, true),
+		);
 		const skipped = value["skipped"].map(parseSkipped);
-		if (entries.some((entry) => !entry) || skipped.some((entry) => !entry)) return undefined;
+		if (entries.some((entry) => !entry) || skipped.some((entry) => !entry))
+			return undefined;
 		return {
 			schema: PROJECT_STATE_SCHEMA,
 			project: value["project"],
 			generation: value["generation"],
-			...(typeof value["parentGeneration"] === "string" ? { parentGeneration: value["parentGeneration"] } : {}),
+			...(typeof value["parentGeneration"] === "string"
+				? { parentGeneration: value["parentGeneration"] }
+				: {}),
 			deno: value["deno"],
 			v8: value["v8"],
 			payload: value["payload"],
@@ -125,16 +145,30 @@ export function readProjectStateCandidate(
 	maxBytes: number,
 ): ProjectStateCandidate | undefined {
 	try {
-		if (statSync(manifestPath).size > MAX_PROJECT_MANIFEST_BYTES) return undefined;
+		if (statSync(manifestPath).size > MAX_PROJECT_MANIFEST_BYTES)
+			return undefined;
 		const value = JSON.parse(readFileSync(manifestPath, "utf8")) as unknown;
-		if (!isRecord(value) || typeof value["deno"] !== "string" || typeof value["v8"] !== "string") return undefined;
-		if (!Array.isArray(value["entries"]) || !Array.isArray(value["skipped"])) return undefined;
-		if (value["entries"].length > MAX_PROJECT_ENTRIES || value["skipped"].length > MAX_PROJECT_ENTRIES) return undefined;
+		if (
+			!isRecord(value) ||
+			typeof value["deno"] !== "string" ||
+			typeof value["v8"] !== "string"
+		)
+			return undefined;
+		if (!Array.isArray(value["entries"]) || !Array.isArray(value["skipped"]))
+			return undefined;
+		if (
+			value["entries"].length > MAX_PROJECT_ENTRIES ||
+			value["skipped"].length > MAX_PROJECT_ENTRIES
+		)
+			return undefined;
 		const payloadLength = statSync(payloadPath).size;
 		if (payloadLength > maxBytes) return undefined;
-		const entries = value["entries"].map((entry) => parseEntry(entry, payloadLength, false));
+		const entries = value["entries"].map((entry) =>
+			parseEntry(entry, payloadLength, false),
+		);
 		const skipped = value["skipped"].map(parseSkipped);
-		if (entries.some((entry) => !entry) || skipped.some((entry) => !entry)) return undefined;
+		if (entries.some((entry) => !entry) || skipped.some((entry) => !entry))
+			return undefined;
 		return {
 			deno: value["deno"],
 			v8: value["v8"],
@@ -153,14 +187,25 @@ export function readProjectStatePayload(
 ): Buffer | undefined {
 	try {
 		const stat = lstatSync(path);
-		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > maxBytes) return undefined;
+		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > maxBytes)
+			return undefined;
 		const payload = readFileSync(path);
 		const names = new Set<string>();
 		let offset = 0;
 		for (const entry of manifest.entries) {
-			if (names.has(entry.name) || entry.offset !== offset || entry.offset + entry.length > payload.length) return undefined;
+			if (
+				names.has(entry.name) ||
+				entry.offset !== offset ||
+				entry.offset + entry.length > payload.length
+			)
+				return undefined;
 			names.add(entry.name);
-			if (hashStateBytes(payload.subarray(entry.offset, entry.offset + entry.length)) !== entry.hash) return undefined;
+			if (
+				hashStateBytes(
+					payload.subarray(entry.offset, entry.offset + entry.length),
+				) !== entry.hash
+			)
+				return undefined;
 			offset += entry.length;
 		}
 		return offset === payload.length ? payload : undefined;
@@ -169,36 +214,65 @@ export function readProjectStatePayload(
 	}
 }
 
-export function readProjectConflictRecord(path: string): ProjectConflictRecord | undefined {
+export function readProjectConflictRecord(
+	path: string,
+): ProjectConflictRecord | undefined {
 	try {
 		const stat = lstatSync(path);
-		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_PROJECT_MANIFEST_BYTES) return undefined;
+		if (
+			!stat.isFile() ||
+			stat.isSymbolicLink() ||
+			stat.size > MAX_PROJECT_MANIFEST_BYTES
+		)
+			return undefined;
 		const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
-		if (!isRecord(value) || value["schema"] !== PROJECT_STATE_SCHEMA) return undefined;
-		if (!Array.isArray(value["entries"]) || !Array.isArray(value["deletions"])) return undefined;
-		if (value["entries"].length > MAX_PROJECT_ENTRIES || value["deletions"].length > MAX_PROJECT_ENTRIES) return undefined;
+		if (!isRecord(value) || value["schema"] !== PROJECT_STATE_SCHEMA)
+			return undefined;
+		if (!Array.isArray(value["entries"]) || !Array.isArray(value["deletions"]))
+			return undefined;
+		if (
+			value["entries"].length > MAX_PROJECT_ENTRIES ||
+			value["deletions"].length > MAX_PROJECT_ENTRIES
+		)
+			return undefined;
 		const names = [
-			...value["entries"].map((entry) => isRecord(entry) ? entry["name"] : undefined),
+			...value["entries"].map((entry) =>
+				isRecord(entry) ? entry["name"] : undefined,
+			),
 			...value["deletions"],
 		];
-		if (names.some((name) => typeof name !== "string" || !IDENTIFIER.test(name) || Buffer.byteLength(name) > MAX_PROJECT_NAME_BYTES)) {
+		if (
+			names.some(
+				(name) =>
+					typeof name !== "string" ||
+					!IDENTIFIER.test(name) ||
+					Buffer.byteLength(name) > MAX_PROJECT_NAME_BYTES,
+			)
+		) {
 			return undefined;
 		}
 		const payload = value["payload"];
 		const recordId = basename(path, ".json");
-		if (payload !== undefined && (
-			typeof payload !== "string"
-			|| !CONFLICT_PAYLOAD_NAME.test(payload)
-			|| basename(payload) !== payload
-			|| payload !== `${recordId}.bin`
-		)) return undefined;
-		return { names: [...new Set(names as string[])], ...(typeof payload === "string" ? { payload } : {}) };
+		if (
+			payload !== undefined &&
+			(typeof payload !== "string" ||
+				!CONFLICT_PAYLOAD_NAME.test(payload) ||
+				basename(payload) !== payload ||
+				payload !== `${recordId}.bin`)
+		)
+			return undefined;
+		return {
+			names: [...new Set(names as string[])],
+			...(typeof payload === "string" ? { payload } : {}),
+		};
 	} catch {
 		return undefined;
 	}
 }
 
-export function baselineFromProjectManifest(manifest: ProjectStateManifest): ProjectStateBaseline {
+export function baselineFromProjectManifest(
+	manifest: ProjectStateManifest,
+): ProjectStateBaseline {
 	return {
 		generation: manifest.generation,
 		entries: manifest.entries.map(({ name, hash, description, usage }) => ({
@@ -211,27 +285,47 @@ export function baselineFromProjectManifest(manifest: ProjectStateManifest): Pro
 }
 
 export function emptyProjectStateSummary(): ProjectStateSummary {
-	return { baseline: { generation: "root", entries: [] }, restored: [], skipped: [], conflicts: [] };
+	return {
+		baseline: { generation: "root", entries: [] },
+		restored: [],
+		skipped: [],
+		conflicts: [],
+	};
 }
 
 export function hashStateBytes(bytes: Uint8Array): string {
 	return createHash("sha256").update(bytes).digest("hex");
 }
 
-function parseEntry(value: unknown, payloadLength: number, requireHash: boolean): ProjectStateEntry | Omit<ProjectStateEntry, "hash"> | undefined {
+function parseEntry(
+	value: unknown,
+	payloadLength: number,
+	requireHash: boolean,
+): ProjectStateEntry | Omit<ProjectStateEntry, "hash"> | undefined {
 	if (!isRecord(value)) return undefined;
 	const { name, kind, offset, length, hash, updatedAt, pinned, hook } = value;
 	if (
-		typeof name !== "string" || !IDENTIFIER.test(name) || Buffer.byteLength(name) > MAX_PROJECT_NAME_BYTES
-		|| kind !== "value" && kind !== "function"
-		|| !Number.isSafeInteger(offset) || (offset as number) < 0
-		|| !Number.isSafeInteger(length) || (length as number) < 0
-		|| (offset as number) + (length as number) > payloadLength
-		|| requireHash && typeof hash !== "string"
-		|| updatedAt !== undefined && (typeof updatedAt !== "string" || !Number.isFinite(Date.parse(updatedAt)))
-		|| pinned !== undefined && pinned !== true
-		|| hook !== undefined && (hook !== "startup" && hook !== "tool_result" || pinned !== true || kind !== "function" || !requireHash)
-	) return undefined;
+		typeof name !== "string" ||
+		!IDENTIFIER.test(name) ||
+		Buffer.byteLength(name) > MAX_PROJECT_NAME_BYTES ||
+		(kind !== "value" && kind !== "function") ||
+		!Number.isSafeInteger(offset) ||
+		(offset as number) < 0 ||
+		!Number.isSafeInteger(length) ||
+		(length as number) < 0 ||
+		(offset as number) + (length as number) > payloadLength ||
+		(requireHash && typeof hash !== "string") ||
+		(updatedAt !== undefined &&
+			(typeof updatedAt !== "string" ||
+				!Number.isFinite(Date.parse(updatedAt)))) ||
+		(pinned !== undefined && pinned !== true) ||
+		(hook !== undefined &&
+			((hook !== "startup" && hook !== "tool_result") ||
+				pinned !== true ||
+				kind !== "function" ||
+				!requireHash))
+	)
+		return undefined;
 	const metadata = parseProjectBindingMetadata(value);
 	if (!metadata) return undefined;
 	const entry: Omit<ProjectStateEntry, "hash"> = {
@@ -247,9 +341,19 @@ function parseEntry(value: unknown, payloadLength: number, requireHash: boolean)
 	return requireHash ? { ...entry, hash: hash as string } : entry;
 }
 
-export function parseProjectBindingMetadata(value: Record<string, unknown>): ProjectBindingMetadata | undefined {
-	const description = parseMetadataText(value["description"], MAX_PROJECT_DESCRIPTION_BYTES, false);
-	const usage = parseMetadataText(value["usage"], MAX_PROJECT_USAGE_BYTES, true);
+export function parseProjectBindingMetadata(
+	value: Record<string, unknown>,
+): ProjectBindingMetadata | undefined {
+	const description = parseMetadataText(
+		value["description"],
+		MAX_PROJECT_DESCRIPTION_BYTES,
+		false,
+	);
+	const usage = parseMetadataText(
+		value["usage"],
+		MAX_PROJECT_USAGE_BYTES,
+		true,
+	);
 	if (description === null || usage === null) return undefined;
 	return {
 		...(description === undefined ? {} : { description }),
@@ -257,23 +361,40 @@ export function parseProjectBindingMetadata(value: Record<string, unknown>): Pro
 	};
 }
 
-function parseMetadataText(value: unknown, maxBytes: number, multiline: boolean): string | undefined | null {
+function parseMetadataText(
+	value: unknown,
+	maxBytes: number,
+	multiline: boolean,
+): string | undefined | null {
 	if (value === undefined) return undefined;
-	if (typeof value !== "string" || value.length === 0 || Buffer.byteLength(value) > maxBytes) return null;
+	if (
+		typeof value !== "string" ||
+		value.length === 0 ||
+		Buffer.byteLength(value) > maxBytes
+	)
+		return null;
 	const lines = value.split("\n");
-	if ((!multiline && lines.length !== 1) || lines.length > MAX_PROJECT_USAGE_LINES || value.includes("\r")) return null;
+	if (
+		(!multiline && lines.length !== 1) ||
+		lines.length > MAX_PROJECT_USAGE_LINES ||
+		value.includes("\r")
+	)
+		return null;
 	for (const character of value) {
 		const codePoint = character.codePointAt(0)!;
-		if (codePoint < 0x20 && codePoint !== 0x0a || codePoint === 0x7f) return null;
+		if ((codePoint < 0x20 && codePoint !== 0x0a) || codePoint === 0x7f)
+			return null;
 	}
 	return value;
 }
 
-function parseSkipped(value: unknown): { name: string; reason: string } | undefined {
-	return isRecord(value)
-		&& typeof value["name"] === "string"
-		&& Buffer.byteLength(value["name"]) <= MAX_PROJECT_NAME_BYTES
-		&& typeof value["reason"] === "string"
+function parseSkipped(
+	value: unknown,
+): { name: string; reason: string } | undefined {
+	return isRecord(value) &&
+		typeof value["name"] === "string" &&
+		Buffer.byteLength(value["name"]) <= MAX_PROJECT_NAME_BYTES &&
+		typeof value["reason"] === "string"
 		? { name: value["name"], reason: value["reason"] }
 		: undefined;
 }

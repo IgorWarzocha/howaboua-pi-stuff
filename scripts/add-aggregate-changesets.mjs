@@ -90,21 +90,26 @@ function retiredPackageChanges() {
 			});
 			if (previous.status !== 0) return [];
 			const pkg = JSON.parse(previous.stdout);
-			if (pkg.private === true || aggregateExcludedNames.has(pkg.name)) return [];
+			if (pkg.private === true || aggregateExcludedNames.has(pkg.name))
+				return [];
 			return [
 				...(Array.isArray(pkg.pi?.extensions) && pkg.pi.extensions.length > 0
-					? [{
-							name: pkg.name,
-							body: "Remove retired bundled extension",
-							kind: "extension",
-						}]
+					? [
+							{
+								name: pkg.name,
+								body: "Remove retired bundled extension",
+								kind: "extension",
+							},
+						]
 					: []),
 				...(Array.isArray(pkg.pi?.skills) && pkg.pi.skills.length > 0
-					? [{
-							name: pkg.name,
-							body: "Remove retired bundled skill",
-							kind: "skill",
-						}]
+					? [
+							{
+								name: pkg.name,
+								body: "Remove retired bundled skill",
+								kind: "skill",
+							},
+						]
 					: []),
 			];
 		});

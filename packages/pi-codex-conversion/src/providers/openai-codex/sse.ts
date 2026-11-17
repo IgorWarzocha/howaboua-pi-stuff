@@ -8,19 +8,31 @@ type ProcessWithBuiltinModule = typeof process & {
 };
 
 export function compressRequestBodyZstd(bodyJson: string): Uint8Array | null {
-	const zlib = (process as ProcessWithBuiltinModule).getBuiltinModule?.("node:zlib");
+	const zlib = (process as ProcessWithBuiltinModule).getBuiltinModule?.(
+		"node:zlib",
+	);
 	if (!zlib || typeof zlib.zstdCompressSync !== "function") return null;
 	try {
 		const compressed = zlib.zstdCompressSync(bodyJson, {
-			params: { [zlib.constants.ZSTD_c_compressionLevel]: REQUEST_COMPRESSION_ZSTD_LEVEL },
+			params: {
+				[zlib.constants.ZSTD_c_compressionLevel]:
+					REQUEST_COMPRESSION_ZSTD_LEVEL,
+			},
 		});
-		return new Uint8Array(compressed.buffer, compressed.byteOffset, compressed.byteLength);
+		return new Uint8Array(
+			compressed.buffer,
+			compressed.byteOffset,
+			compressed.byteLength,
+		);
 	} catch {
 		return null;
 	}
 }
 
-export function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
+export function sleep(
+	ms: number,
+	signal: AbortSignal | undefined,
+): Promise<void> {
 	return new Promise((resolve, reject) => {
 		if (signal?.aborted) {
 			reject(new Error("Request was aborted"));
@@ -46,7 +58,10 @@ export function sleep(ms: number, signal: AbortSignal | undefined): Promise<void
 	});
 }
 
-export function normalizeTimeoutMs(value: number | undefined, optionName: string): number | undefined {
+export function normalizeTimeoutMs(
+	value: number | undefined,
+	optionName: string,
+): number | undefined {
 	if (value === undefined) return undefined;
 	if (!Number.isFinite(value) || value < 0) {
 		throw new Error(`Invalid ${optionName}: ${String(value)}`);
@@ -54,7 +69,10 @@ export function normalizeTimeoutMs(value: number | undefined, optionName: string
 	return Math.floor(value);
 }
 
-export function combineAbortSignals(signals: Array<AbortSignal | undefined>): { signal: AbortSignal; cleanup: () => void } {
+export function combineAbortSignals(signals: Array<AbortSignal | undefined>): {
+	signal: AbortSignal;
+	cleanup: () => void;
+} {
 	const controller = new AbortController();
 	const listeners: Array<{ signal: AbortSignal; listener: () => void }> = [];
 	for (const signal of signals) {
@@ -70,16 +88,23 @@ export function combineAbortSignals(signals: Array<AbortSignal | undefined>): { 
 	return {
 		signal: controller.signal,
 		cleanup: () => {
-			for (const { signal, listener } of listeners) signal.removeEventListener("abort", listener);
+			for (const { signal, listener } of listeners)
+				signal.removeEventListener("abort", listener);
 		},
 	};
 }
 
-export function createSSEHeaderTimeout(timeoutMs: number): { signal: AbortSignal; clear: () => void; error: () => Error | undefined } {
+export function createSSEHeaderTimeout(timeoutMs: number): {
+	signal: AbortSignal;
+	clear: () => void;
+	error: () => Error | undefined;
+} {
 	const controller = new AbortController();
 	let error: Error | undefined;
 	const timeout = setTimeout(() => {
-		error = new Error(`Codex SSE response headers timed out after ${timeoutMs}ms`);
+		error = new Error(
+			`Codex SSE response headers timed out after ${timeoutMs}ms`,
+		);
 		controller.abort(error);
 	}, timeoutMs);
 	return {
@@ -89,7 +114,11 @@ export function createSSEHeaderTimeout(timeoutMs: number): { signal: AbortSignal
 	};
 }
 
-export async function* parseSSE(response: Response, signal?: AbortSignal, idleTimeoutMs?: number): AsyncIterable<StreamEventShape> {
+export async function* parseSSE(
+	response: Response,
+	signal?: AbortSignal,
+	idleTimeoutMs?: number,
+): AsyncIterable<StreamEventShape> {
 	if (!response.body) return;
 
 	const reader = response.body.getReader();
@@ -107,24 +136,36 @@ export async function* parseSSE(response: Response, signal?: AbortSignal, idleTi
 			}
 			let idleTimer: ReturnType<typeof setTimeout> | undefined;
 			const read = reader.read();
-			const { done, value } = idleTimeoutMs === undefined || idleTimeoutMs <= 0
-				? await read
-				: await Promise.race([
-					read,
-					new Promise<never>((_resolve, reject) => {
-						idleTimer = setTimeout(() => reject(new Error(`Codex SSE stream idle timeout after ${idleTimeoutMs}ms`)), idleTimeoutMs);
-					}),
-				]).finally(() => {
-					if (idleTimer) clearTimeout(idleTimer);
-				});
+			const { done, value } =
+				idleTimeoutMs === undefined || idleTimeoutMs <= 0
+					? await read
+					: await Promise.race([
+							read,
+							new Promise<never>((_resolve, reject) => {
+								idleTimer = setTimeout(
+									() =>
+										reject(
+											new Error(
+												`Codex SSE stream idle timeout after ${idleTimeoutMs}ms`,
+											),
+										),
+									idleTimeoutMs,
+								);
+							}),
+						]).finally(() => {
+							if (idleTimer) clearTimeout(idleTimer);
+						});
 			if (signal?.aborted) {
 				throw new Error("Request was aborted");
 			}
-			buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+			buffer += done
+				? decoder.decode()
+				: decoder.decode(value, { stream: true });
 			const trailingCarriageReturn = !done && buffer.endsWith("\r");
 			const complete = trailingCarriageReturn ? buffer.slice(0, -1) : buffer;
-			buffer = complete.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-				+ (trailingCarriageReturn ? "\r" : "");
+			buffer =
+				complete.replace(/\r\n/g, "\n").replace(/\r/g, "\n") +
+				(trailingCarriageReturn ? "\r" : "");
 			if (done && buffer.trim()) buffer += "\n\n";
 			let idx = buffer.indexOf("\n\n");
 			while (idx !== -1) {

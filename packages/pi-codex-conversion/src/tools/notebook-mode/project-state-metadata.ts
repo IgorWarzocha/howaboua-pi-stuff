@@ -27,7 +27,14 @@ export function readRetainedProjectBindings(
 	const paths = projectStatePaths(identity.project, identity.agentDir);
 	const manifest = readProjectStateManifest(paths.manifest);
 	if (!manifest || manifest.project !== resolve(identity.project)) return [];
-	if (!hasPayloadLayout(manifest.entries, join(paths.directory, manifest.payload), maxBytes)) return [];
+	if (
+		!hasPayloadLayout(
+			manifest.entries,
+			join(paths.directory, manifest.payload),
+			maxBytes,
+		)
+	)
+		return [];
 	return manifest.entries.map((entry) => ({
 		name: entry.name,
 		kind: entry.kind,
@@ -35,15 +42,22 @@ export function readRetainedProjectBindings(
 		updatedAt: entry.updatedAt ?? manifest.createdAt,
 		pinned: entry.pinned === true,
 		...(entry.hook ? { hook: entry.hook } : {}),
-		...(entry.description === undefined ? {} : { description: entry.description }),
+		...(entry.description === undefined
+			? {}
+			: { description: entry.description }),
 		...(entry.usage === undefined ? {} : { usage: entry.usage }),
 	}));
 }
 
-function hasPayloadLayout(entries: ProjectStateEntry[], path: string, maxBytes: number): boolean {
+function hasPayloadLayout(
+	entries: ProjectStateEntry[],
+	path: string,
+	maxBytes: number,
+): boolean {
 	try {
 		const stat = lstatSync(path);
-		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > maxBytes) return false;
+		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > maxBytes)
+			return false;
 		let offset = 0;
 		const names = new Set<string>();
 		for (const entry of entries) {

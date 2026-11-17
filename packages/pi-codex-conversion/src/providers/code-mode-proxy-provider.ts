@@ -9,19 +9,44 @@ import {
 	type TranscriptContext,
 } from "@earendil-works/pi-ai";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
-import type { ExtensionAPI, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ModelRegistry,
+} from "@earendil-works/pi-coding-agent";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import type { ExecutionMode } from "../adapter/activation/execution-mode.ts";
 import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
-import { buildRequestBody, resolveCodexTranscript } from "./openai-codex/request-body.ts";
-import { applyResponsesLiteRequest, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER } from "./openai-codex/responses-lite.ts";
-import { hasRemoteCompactionV2Input, withRemoteCompactionV2Feature } from "./openai-responses/compaction-v2-feature.ts";
-import { assertSuccessfulCodexOutput, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
+import {
+	buildRequestBody,
+	resolveCodexTranscript,
+} from "./openai-codex/request-body.ts";
+import {
+	applyResponsesLiteRequest,
+	isResponsesLiteRequest,
+	namespaceExistingResponsesLiteRequest,
+	prepareResponsesLiteRequestImages,
+	RESPONSES_LITE_HEADER,
+} from "./openai-codex/responses-lite.ts";
+import {
+	hasRemoteCompactionV2Input,
+	withRemoteCompactionV2Feature,
+} from "./openai-responses/compaction-v2-feature.ts";
+import {
+	assertSuccessfulCodexOutput,
+	processCodexResponsesStream,
+} from "./openai-codex/stream-events.ts";
 import { boundedProviderErrorText } from "./openai-codex/errors.ts";
-import type { BeforeCodexRequestSend, OpenAICodexStreamOptions, ResponsesBody, StreamEventShape } from "./openai-codex/types.ts";
+import type {
+	BeforeCodexRequestSend,
+	OpenAICodexStreamOptions,
+	ResponsesBody,
+	StreamEventShape,
+} from "./openai-codex/types.ts";
 
-function initialAssistantMessage<TApi extends Api>(model: Model<TApi>): AssistantMessage {
+function initialAssistantMessage<TApi extends Api>(
+	model: Model<TApi>,
+): AssistantMessage {
 	return {
 		role: "assistant",
 		content: [],
@@ -41,28 +66,43 @@ function initialAssistantMessage<TApi extends Api>(model: Model<TApi>): Assistan
 	};
 }
 
-function mergeHeaders(...groups: Array<ProviderHeaders | undefined>): ProviderHeaders {
+function mergeHeaders(
+	...groups: Array<ProviderHeaders | undefined>
+): ProviderHeaders {
 	const headers = new Map<string, { name: string; value: string | null }>();
 	for (const group of groups) {
 		for (const [name, value] of Object.entries(group ?? {})) {
 			headers.set(name.toLowerCase(), { name, value });
 		}
 	}
-	return Object.fromEntries([...headers.values()].map(({ name, value }) => [name, value]));
-}
-
-function hasHeader(headers: ProviderHeaders | undefined, name: string): boolean {
-	const expected = name.toLowerCase();
-	return Object.entries(headers ?? {}).some(
-		([key, value]) => key.toLowerCase() === expected && value !== null && value.trim() !== "",
+	return Object.fromEntries(
+		[...headers.values()].map(({ name, value }) => [name, value]),
 	);
 }
 
-function clientAuth(provider: string, apiKey: string | undefined, headers: ProviderHeaders): { apiKey: string; headers: ProviderHeaders } {
+function hasHeader(
+	headers: ProviderHeaders | undefined,
+	name: string,
+): boolean {
+	const expected = name.toLowerCase();
+	return Object.entries(headers ?? {}).some(
+		([key, value]) =>
+			key.toLowerCase() === expected && value !== null && value.trim() !== "",
+	);
+}
+
+function clientAuth(
+	provider: string,
+	apiKey: string | undefined,
+	headers: ProviderHeaders,
+): { apiKey: string; headers: ProviderHeaders } {
 	if (apiKey) return { apiKey, headers };
 	if (hasHeader(headers, "authorization")) return { apiKey: "unused", headers };
 	if (hasHeader(headers, "cf-aig-authorization")) {
-		return { apiKey: "unused", headers: mergeHeaders(headers, { Authorization: null }) };
+		return {
+			apiKey: "unused",
+			headers: mergeHeaders(headers, { Authorization: null }),
+		};
 	}
 	throw new Error(`No API key for provider: ${provider}`);
 }
@@ -73,11 +113,19 @@ async function reportErrorResponse<TApi extends Api>(
 	model: Model<TApi>,
 	APIError: typeof import("openai").APIError,
 ): Promise<void> {
-	if (!(error instanceof APIError) || error.status === undefined || !error.headers) return;
-	await options?.onResponse?.({
-		status: error.status,
-		headers: Object.fromEntries(error.headers.entries()),
-	}, model);
+	if (
+		!(error instanceof APIError) ||
+		error.status === undefined ||
+		!error.headers
+	)
+		return;
+	await options?.onResponse?.(
+		{
+			status: error.status,
+			headers: Object.fromEntries(error.headers.entries()),
+		},
+		model,
+	);
 }
 
 export function streamCodeModeResponsesProxy<TApi extends Api>(
@@ -93,21 +141,39 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 		try {
 			const { default: OpenAI, APIError } = await import("openai");
 			const resolvedContext = resolveCodexTranscript(model, context);
-			const grammarToolInputProperties = createGrammarToolInputProperties(getDeclaredTools(context.messages), true);
+			const grammarToolInputProperties = createGrammarToolInputProperties(
+				getDeclaredTools(context.messages),
+				true,
+			);
 			const effectiveOptions = { ...options, grammarToolInputProperties };
 			let headers = mergeHeaders(model.headers, options?.headers);
-			let body: ResponsesBody = buildRequestBody(model, resolvedContext, effectiveOptions);
+			let body: ResponsesBody = buildRequestBody(
+				model,
+				resolvedContext,
+				effectiveOptions,
+			);
 			const compat = (model as Model<"openai-responses">).compat;
-			if (compat?.promptCacheKeyMode === "disabled") delete body.prompt_cache_key;
+			if (compat?.promptCacheKeyMode === "disabled")
+				delete body.prompt_cache_key;
 			const rewritten = await options?.onPayload?.(body, model);
 			if (rewritten !== undefined) body = rewritten as ResponsesBody;
 			body = isResponsesLiteRequest(body)
-				? namespaceExistingResponsesLiteRequest({ ...body, parallel_tool_calls: false })
+				? namespaceExistingResponsesLiteRequest({
+						...body,
+						parallel_tool_calls: false,
+					})
 				: applyResponsesLiteRequest(body);
 			body = await prepareResponsesLiteRequestImages(body);
 			headers = mergeHeaders(headers, { [RESPONSES_LITE_HEADER]: "true" });
-			if (hasRemoteCompactionV2Input(body.input)) headers = withRemoteCompactionV2Feature(headers);
-			await beforeRequestSend?.(model, resolvedContext, body, effectiveOptions, true);
+			if (hasRemoteCompactionV2Input(body.input))
+				headers = withRemoteCompactionV2Feature(headers);
+			await beforeRequestSend?.(
+				model,
+				resolvedContext,
+				body,
+				effectiveOptions,
+				true,
+			);
 
 			const auth = clientAuth(model.provider, options?.apiKey, headers);
 			const client = new OpenAI({
@@ -117,22 +183,26 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 			});
 			let response;
 			try {
-				response = await client.responses.create(
-					body as unknown as ResponseCreateParamsStreaming,
-					{
+				response = await client.responses
+					.create(body as unknown as ResponseCreateParamsStreaming, {
 						...(options?.signal ? { signal: options.signal } : {}),
-						...(options?.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
+						...(options?.timeoutMs !== undefined
+							? { timeout: options.timeoutMs }
+							: {}),
 						maxRetries: options?.maxRetries ?? 0,
-					},
-				).withResponse();
+					})
+					.withResponse();
 			} catch (error) {
 				await reportErrorResponse(error, options, model, APIError);
 				throw error;
 			}
-			await options?.onResponse?.({
-				status: response.response.status,
-				headers: Object.fromEntries(response.response.headers.entries()),
-			}, model);
+			await options?.onResponse?.(
+				{
+					status: response.response.status,
+					headers: Object.fromEntries(response.response.headers.entries()),
+				},
+				model,
+			);
 
 			stream.push({ type: "start", partial: output });
 			await processCodexResponsesStream(
@@ -148,7 +218,9 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 			stream.end();
 		} catch (error) {
 			output.stopReason = options?.signal?.aborted ? "aborted" : "error";
-			output.errorMessage = boundedProviderErrorText(error instanceof Error ? error.message : String(error));
+			output.errorMessage = boundedProviderErrorText(
+				error instanceof Error ? error.message : String(error),
+			);
 			stream.push({ type: "error", reason: output.stopReason, error: output });
 			stream.end();
 		}
@@ -158,11 +230,17 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 }
 
 export interface CodeModeProxyProviderRegistration {
-	applyConfig(config: CodexConversionConfig, modelRegistry: CodeModeModelRegistry): void;
+	applyConfig(
+		config: CodexConversionConfig,
+		modelRegistry: CodeModeModelRegistry,
+	): void;
 	shutdown(): void;
 }
 
-type CodeModeModelRegistry = Pick<ModelRegistry, "getAll" | "getProvider" | "getRegisteredProviderConfig">;
+type CodeModeModelRegistry = Pick<
+	ModelRegistry,
+	"getAll" | "getProvider" | "getRegisteredProviderConfig"
+>;
 type RegisteredProviderConfig = Parameters<ExtensionAPI["registerProvider"]>[1];
 type ResponsesApi = "openai-responses" | "openai-codex-responses";
 
@@ -180,21 +258,28 @@ function resolveProviderApis(
 			continue;
 		// PCC's native provider already routes context namespaces. A legacy overlay
 		// replaces that provider in Pi, losing its catalog and reasoning constraints.
-		if (model.provider === "openai-codex" && model.api === "openai-codex-responses") continue;
-		const api: ResponsesApi = model.api === "openai-responses"
-			? "openai-responses"
-			: "openai-codex-responses";
+		if (
+			model.provider === "openai-codex" &&
+			model.api === "openai-codex-responses"
+		)
+			continue;
+		const api: ResponsesApi =
+			model.api === "openai-responses"
+				? "openai-responses"
+				: "openai-codex-responses";
 		const mode = executionMode ?? config.executionMode;
 		const configuredResponsesLite =
 			model.api === "openai-responses" &&
 			!config.voiceFeaturesOnly &&
-			(mode === "code" || mode === "notebook" || mode === "ts" || mode === "js") &&
+			(mode === "code" ||
+				mode === "notebook" ||
+				mode === "ts" ||
+				mode === "js") &&
 			config.openai.proxyResponsesLite &&
 			config.scope.additionalProviders.includes(
 				model.provider.trim().toLowerCase(),
 			);
-		if (configuredResponsesLite)
-			resolved.set(model.provider, api);
+		if (configuredResponsesLite) resolved.set(model.provider, api);
 	}
 	return resolved;
 }
@@ -206,28 +291,46 @@ export function registerCodeModeProxyProvider(
 	getAvailableToolNames: () => string[] | undefined = () => undefined,
 	beforeRequestSend?: BeforeCodexRequestSend,
 ): CodeModeProxyProviderRegistration {
-	const registeredProviders = new Map<string, {
-		previous: RegisteredProviderConfig | undefined;
-		overlayStream: NonNullable<RegisteredProviderConfig["streamSimple"]>;
-		modelRegistry: CodeModeModelRegistry;
-		api: ResponsesApi;
-	}>();
-	const restoreProvider = (provider: string, registration: NonNullable<ReturnType<typeof registeredProviders.get>>) => {
-		const current = registration.modelRegistry.getRegisteredProviderConfig?.(provider) as RegisteredProviderConfig | undefined;
+	const registeredProviders = new Map<
+		string,
+		{
+			previous: RegisteredProviderConfig | undefined;
+			overlayStream: NonNullable<RegisteredProviderConfig["streamSimple"]>;
+			modelRegistry: CodeModeModelRegistry;
+			api: ResponsesApi;
+		}
+	>();
+	const restoreProvider = (
+		provider: string,
+		registration: NonNullable<ReturnType<typeof registeredProviders.get>>,
+	) => {
+		const current = registration.modelRegistry.getRegisteredProviderConfig?.(
+			provider,
+		) as RegisteredProviderConfig | undefined;
 		if (!current || current.streamSimple !== registration.overlayStream) return;
 		const restored = { ...current } as RegisteredProviderConfig;
-		if (registration.previous?.streamSimple) restored.streamSimple = registration.previous.streamSimple;
+		if (registration.previous?.streamSimple)
+			restored.streamSimple = registration.previous.streamSimple;
 		else delete restored.streamSimple;
 		if (registration.previous?.api) restored.api = registration.previous.api;
-		else if (!registration.previous?.streamSimple && current.api === registration.api) delete restored.api;
+		else if (
+			!registration.previous?.streamSimple &&
+			current.api === registration.api
+		)
+			delete restored.api;
 		pi.unregisterProvider(provider);
-		if (Object.keys(restored).length > 0) pi.registerProvider(provider, restored);
+		if (Object.keys(restored).length > 0)
+			pi.registerProvider(provider, restored);
 	};
 	const shutdown = () => {
-		for (const [provider, registration] of registeredProviders) restoreProvider(provider, registration);
+		for (const [provider, registration] of registeredProviders)
+			restoreProvider(provider, registration);
 		registeredProviders.clear();
 	};
-	const applyConfig = (config: CodexConversionConfig, modelRegistry: CodeModeModelRegistry) => {
+	const applyConfig = (
+		config: CodexConversionConfig,
+		modelRegistry: CodeModeModelRegistry,
+	) => {
 		const desiredProviders = resolveProviderApis(
 			config,
 			getExecutionMode(),
@@ -240,7 +343,9 @@ export function registerCodeModeProxyProvider(
 				restoreProvider(provider, existing);
 				registeredProviders.delete(provider);
 			}
-			const previous = modelRegistry.getRegisteredProviderConfig(provider) as RegisteredProviderConfig | undefined;
+			const previous = modelRegistry.getRegisteredProviderConfig(provider) as
+				| RegisteredProviderConfig
+				| undefined;
 			if (
 				previous?.streamSimple &&
 				previous.api !== "openai-responses" &&
@@ -248,8 +353,11 @@ export function registerCodeModeProxyProvider(
 			)
 				continue;
 			const fallbackProvider = modelRegistry.getProvider(provider);
-			if (!fallbackProvider) throw new Error(`Cannot overlay missing provider: ${provider}`);
-			const overlayStream: NonNullable<RegisteredProviderConfig["streamSimple"]> = (model, context, options) => {
+			if (!fallbackProvider)
+				throw new Error(`Cannot overlay missing provider: ${provider}`);
+			const overlayStream: NonNullable<
+				RegisteredProviderConfig["streamSimple"]
+			> = (model, context, options) => {
 				const plan = resolveCodexRuntimePlanForState(
 					{ model },
 					{
@@ -262,7 +370,12 @@ export function registerCodeModeProxyProvider(
 					model.api === "openai-responses" &&
 					plan.transport === "responses-lite"
 				)
-					return streamCodeModeResponsesProxy(model, context, options, beforeRequestSend);
+					return streamCodeModeResponsesProxy(
+						model,
+						context,
+						options,
+						beforeRequestSend,
+					);
 				const stream = fallbackProvider.streamSimple(
 					model as never,
 					context,

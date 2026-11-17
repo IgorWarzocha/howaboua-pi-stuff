@@ -32,7 +32,7 @@ export function createBoardRenderer(loadList, openThread) {
 				if (channel.posts !== undefined)
 					button.append(node("small", "", String(channel.posts)));
 				button.onclick = () =>
-					run(async () => {
+					void run(async () => {
 						state.channel = channel.name;
 						await loadList();
 						renderBoard();
@@ -106,7 +106,7 @@ export function createBoardRenderer(loadList, openThread) {
 					if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
 						return;
 					event.preventDefault();
-					run(() => openThread(thread.id));
+					void run(() => openThread(thread.id));
 				};
 				return link;
 			}),

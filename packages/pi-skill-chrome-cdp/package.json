@@ -34,6 +34,8 @@
     "url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
   },
   "scripts": {
-    "check": "node ../../scripts/sync-browser-cdp.mjs --check"
+    "check": "bun run lint && node ../../scripts/sync-browser-cdp.mjs --check",
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'",
+    "lint": "bun run format:check && oxlint --type-aware"
   }
 }

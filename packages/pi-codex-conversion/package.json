@@ -100,9 +100,9 @@
   ],
   "scripts": {
     "build": "node -e \"const fs=require('node:fs'); fs.rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && bun run build:host-settings",
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsrs --noEmit -p tsconfig.json",
     "test": "tsx --test tests/*.test.ts",
-    "check": "node ../../scripts/sync-browser-cdp.mjs --check && bun run typecheck && bun run test",
+    "check": "node ../../scripts/sync-browser-cdp.mjs --check && bun run lint && bun run typecheck && bun run test",
     "publish:dry-run": "npm publish --dry-run",
     "publish:dev": "npm publish --tag dev",
     "release:dev": "npm version prerelease --preid dev && npm publish --tag dev",
@@ -117,7 +117,9 @@
     "build:native-tool": "node scripts/build-native-tool-binary.mjs",
     "build:voice-helper": "node scripts/build-voice-helper.mjs",
     "verify:code-mode-host-assets": "node scripts/code-mode/verify-host-assets.mjs",
-    "build:host-settings": "bun build ./src/host-settings.ts --target=node --outfile=./dist/host-settings.js"
+    "build:host-settings": "bun build ./src/host-settings.ts --target=node --outfile=./dist/host-settings.js",
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'",
+    "lint": "bun run format:check && oxlint --type-aware"
   },
   "publishConfig": {
     "access": "public"

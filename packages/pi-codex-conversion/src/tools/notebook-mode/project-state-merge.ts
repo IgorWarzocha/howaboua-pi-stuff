@@ -35,15 +35,39 @@ export function mergeProjectState(options: {
 	currentPayload: Buffer;
 	pins?: ProjectStatePinUpdate | undefined;
 }): ProjectStateMerge {
-	const base = new Map(options.baseline.entries.map((entry) => [entry.name, entry]));
-	const current = new Map((options.current?.entries ?? []).map((entry) => [entry.name, entry]));
-	const candidate = new Map(options.candidate.entries.map((entry) => [entry.name, {
-		...entry,
-		hash: hashStateBytes(options.candidatePayload.subarray(entry.offset, entry.offset + entry.length)),
-	}]));
+	const base = new Map(
+		options.baseline.entries.map((entry) => [entry.name, entry]),
+	);
+	const current = new Map(
+		(options.current?.entries ?? []).map((entry) => [entry.name, entry]),
+	);
+	const candidate = new Map(
+		options.candidate.entries.map((entry) => [
+			entry.name,
+			{
+				...entry,
+				hash: hashStateBytes(
+					options.candidatePayload.subarray(
+						entry.offset,
+						entry.offset + entry.length,
+					),
+				),
+			},
+		]),
+	);
 	const skipped = new Set(options.candidate.skipped.map(({ name }) => name));
-	const names = [...new Set([...base.keys(), ...current.keys(), ...candidate.keys(), ...skipped])].sort();
-	if (names.length > MAX_PROJECT_ENTRIES) throw new Error(`Project notebook state exceeds ${MAX_PROJECT_ENTRIES} top-level values`);
+	const names = [
+		...new Set([
+			...base.keys(),
+			...current.keys(),
+			...candidate.keys(),
+			...skipped,
+		]),
+	].sort();
+	if (names.length > MAX_PROJECT_ENTRIES)
+		throw new Error(
+			`Project notebook state exceeds ${MAX_PROJECT_ENTRIES} top-level values`,
+		);
 	const parts: Buffer[] = [];
 	const entries: ProjectStateEntry[] = [];
 	const conflictParts: Buffer[] = [];
@@ -59,47 +83,68 @@ export function mergeProjectState(options: {
 		const currentEntry = current.get(name);
 		const candidateEntry = candidate.get(name);
 		const baseFingerprint = projectStateEntryFingerprint(baseEntry);
-		const candidateFingerprint = skipped.has(name) ? baseFingerprint : projectStateEntryFingerprint(candidateEntry);
+		const candidateFingerprint = skipped.has(name)
+			? baseFingerprint
+			: projectStateEntryFingerprint(candidateEntry);
 		const currentFingerprint = projectStateEntryFingerprint(currentEntry);
-		const candidateChanged = !skipped.has(name) && candidateFingerprint !== baseFingerprint;
+		const candidateChanged =
+			!skipped.has(name) && candidateFingerprint !== baseFingerprint;
 		const currentChanged = currentFingerprint !== baseFingerprint;
 		let selected: { entry: ProjectStateEntry; payload: Buffer } | undefined;
 		if (candidateChanged && !candidateEntry && currentEntry?.pinned) {
 			conflicts.push(name);
 			selected = { entry: currentEntry, payload: options.currentPayload };
-		} else if (candidateChanged && currentChanged && candidateFingerprint !== currentFingerprint) {
+		} else if (
+			candidateChanged &&
+			currentChanged &&
+			candidateFingerprint !== currentFingerprint
+		) {
 			conflicts.push(name);
 			if (candidateEntry) {
-				const bytes = options.candidatePayload.subarray(candidateEntry.offset, candidateEntry.offset + candidateEntry.length);
+				const bytes = options.candidatePayload.subarray(
+					candidateEntry.offset,
+					candidateEntry.offset + candidateEntry.length,
+				);
 				conflictParts.push(bytes);
 				conflictEntries.push({ ...candidateEntry, offset: conflictOffset });
 				conflictOffset += bytes.length;
 			} else conflictDeletions.push(name);
-			if (currentEntry) selected = { entry: currentEntry, payload: options.currentPayload };
+			if (currentEntry)
+				selected = { entry: currentEntry, payload: options.currentPayload };
 		} else if (candidateChanged) {
 			appliedNames.push(name);
-			if (candidateEntry) selected = {
-				entry: {
-					...candidateEntry,
-					updatedAt: candidateFingerprint === currentFingerprint
-						? currentEntry?.updatedAt ?? options.current?.createdAt ?? capturedAt
-						: capturedAt,
-					...(currentEntry?.pinned ? { pinned: true } : {}),
-					hook: currentEntry?.hook,
-				},
-				payload: options.candidatePayload,
-			};
+			if (candidateEntry)
+				selected = {
+					entry: {
+						...candidateEntry,
+						updatedAt:
+							candidateFingerprint === currentFingerprint
+								? (currentEntry?.updatedAt ??
+									options.current?.createdAt ??
+									capturedAt)
+								: capturedAt,
+						...(currentEntry?.pinned ? { pinned: true } : {}),
+						hook: currentEntry?.hook,
+					},
+					payload: options.candidatePayload,
+				};
 		} else if (currentEntry) {
 			selected = { entry: currentEntry, payload: options.currentPayload };
 		}
 		if (!selected) continue;
-		const bytes = selected.payload.subarray(selected.entry.offset, selected.entry.offset + selected.entry.length);
+		const bytes = selected.payload.subarray(
+			selected.entry.offset,
+			selected.entry.offset + selected.entry.length,
+		);
 		parts.push(bytes);
 		entries.push({
 			...selected.entry,
-			updatedAt: selected.entry.updatedAt
-				?? (selected.payload === options.currentPayload ? options.current?.createdAt : undefined)
-				?? capturedAt,
+			updatedAt:
+				selected.entry.updatedAt ??
+				(selected.payload === options.currentPayload
+					? options.current?.createdAt
+					: undefined) ??
+				capturedAt,
 			offset,
 		});
 		offset += bytes.length;
@@ -108,38 +153,59 @@ export function mergeProjectState(options: {
 		const selected = new Set(options.pins.names);
 		const available = new Set(entries.map(({ name }) => name));
 		const missing = options.pins.names.filter((name) => !available.has(name));
-		if (missing.length > 0) throw new Error(`Durable notebook bindings not found: ${missing.join(", ")}`);
+		if (missing.length > 0)
+			throw new Error(
+				`Durable notebook bindings not found: ${missing.join(", ")}`,
+			);
 		for (let index = 0; index < entries.length; index += 1) {
 			const entry = entries[index]!;
 			if (!selected.has(entry.name)) continue;
-			if (options.pins.hook && (skipped.has(entry.name) || !candidate.has(entry.name))) {
+			if (
+				options.pins.hook &&
+				(skipped.has(entry.name) || !candidate.has(entry.name))
+			) {
 				throw new Error(`Hooks require a captured function: ${entry.name}`);
 			}
 			entries[index] = {
 				...entry,
 				...(options.pins.pinned ? { pinned: true } : { pinned: undefined }),
-				hook: options.pins.pinned ? (options.pins.hook === undefined ? entry.hook : options.pins.hook || undefined) : undefined,
+				hook: options.pins.pinned
+					? options.pins.hook === undefined
+						? entry.hook
+						: options.pins.hook || undefined
+					: undefined,
 			};
 		}
 	}
 	for (const entry of entries) {
 		if (entry.hook && (!entry.pinned || entry.kind !== "function")) {
-			throw new Error(`Hooks require a pinned function: ${entry.name}; remove its hook or unpin before replacing it`);
+			throw new Error(
+				`Hooks require a pinned function: ${entry.name}; remove its hook or unpin before replacing it`,
+			);
 		}
 	}
-	const currentShape = JSON.stringify((options.current?.entries ?? []).map(projectStateEntryShape));
+	const currentShape = JSON.stringify(
+		(options.current?.entries ?? []).map(projectStateEntryShape),
+	);
 	const mergedShape = JSON.stringify(entries.map(projectStateEntryShape));
-	const skippedBaseline = options.baseline.entries.filter(({ name }) => skipped.has(name));
+	const skippedBaseline = options.baseline.entries.filter(({ name }) =>
+		skipped.has(name),
+	);
 	return {
 		changed: mergedShape !== currentShape,
 		baseline: {
 			generation: options.baseline.generation,
-			entries: [...skippedBaseline, ...[...candidate.values()].map(({ name, hash, description, usage }) => ({
-				name,
-				hash,
-				...(description === undefined ? {} : { description }),
-				...(usage === undefined ? {} : { usage }),
-			}))].sort((left, right) => left.name.localeCompare(right.name)),
+			entries: [
+				...skippedBaseline,
+				...[...candidate.values()].map(
+					({ name, hash, description, usage }) => ({
+						name,
+						hash,
+						...(description === undefined ? {} : { description }),
+						...(usage === undefined ? {} : { usage }),
+					}),
+				),
+			].sort((left, right) => left.name.localeCompare(right.name)),
 		},
 		entries,
 		payload: Buffer.concat(parts),
@@ -151,16 +217,42 @@ export function mergeProjectState(options: {
 	};
 }
 
-export function projectStateEntryFingerprint(entry: {
-	hash?: string | undefined;
-	description?: string | undefined;
-	usage?: string | undefined;
-} | undefined): string | undefined {
+export function projectStateEntryFingerprint(
+	entry:
+		| {
+				hash?: string | undefined;
+				description?: string | undefined;
+				usage?: string | undefined;
+		  }
+		| undefined,
+): string | undefined {
 	return entry === undefined
 		? undefined
-		: JSON.stringify([entry.hash ?? null, entry.description ?? null, entry.usage ?? null]);
+		: JSON.stringify([
+				entry.hash ?? null,
+				entry.description ?? null,
+				entry.usage ?? null,
+			]);
 }
 
-function projectStateEntryShape(entry: ProjectStateEntry): [string, string, string, boolean, NotebookHook | null, string | null, string | null] {
-	return [entry.name, entry.kind, entry.hash, entry.pinned === true, entry.hook ?? null, entry.description ?? null, entry.usage ?? null];
+function projectStateEntryShape(
+	entry: ProjectStateEntry,
+): [
+	string,
+	string,
+	string,
+	boolean,
+	NotebookHook | null,
+	string | null,
+	string | null,
+] {
+	return [
+		entry.name,
+		entry.kind,
+		entry.hash,
+		entry.pinned === true,
+		entry.hook ?? null,
+		entry.description ?? null,
+		entry.usage ?? null,
+	];
 }

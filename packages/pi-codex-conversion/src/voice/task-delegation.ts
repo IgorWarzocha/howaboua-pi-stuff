@@ -14,13 +14,11 @@ import type { RealtimeVoiceTurn } from "./turns.ts";
 const END_CALL_TASK_TOOL = {
 	name: END_CALL_TOOL.name,
 	description: "End the voice call; preserve any remaining requested work",
-	parameters: obj(
-		{
-			request: str({
-				description: "Remaining task for Pi, or empty if none",
-			}),
-		},
-	),
+	parameters: obj({
+		request: str({
+			description: "Remaining task for Pi, or empty if none",
+		}),
+	}),
 };
 
 const SYSTEM_PROMPT =

@@ -1,14 +1,23 @@
 import { randomUUID } from "node:crypto";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { registerContextWindowPreparation } from "../compaction.ts";
-import { CODEX_CONTEXT_BRIEFING_TYPE, type CodexContextBriefing } from "../context-briefings.ts";
+import {
+	CODEX_CONTEXT_BRIEFING_TYPE,
+	type CodexContextBriefing,
+} from "../context-briefings.ts";
 import { admitCustomTurn } from "../custom-turn-admission.ts";
 import { withCodexDeveloperMessageDetails } from "../developer-messages.ts";
 import type { ExecSessionManager } from "../tools/exec/session-manager.ts";
 
 export interface CodexShellLifecycle {
-	recordBriefing(ctx: ExtensionContext, messages: readonly AgentMessage[]): boolean;
+	recordBriefing(
+		ctx: ExtensionContext,
+		messages: readonly AgentMessage[],
+	): boolean;
 }
 
 interface ShellContext {
@@ -42,12 +51,20 @@ export function registerCodexShellLifecycle(
 	}
 
 	function idle(owner: ShellContext): boolean {
-		return !disposed && enabled() && active === owner && !owner.paused
-			&& owner.ctx.sessionManager.getSessionId() === owner.sessionId && owner.ctx.isIdle();
+		return (
+			!disposed &&
+			enabled() &&
+			active === owner &&
+			!owner.paused &&
+			owner.ctx.sessionManager.getSessionId() === owner.sessionId &&
+			owner.ctx.isIdle()
+		);
 	}
 
 	function hasCompletions(owner: ShellContext): boolean {
-		return sessions.backgroundSessions(owner.sessionId).some(session => !session.running && !session.completionNotified);
+		return sessions
+			.backgroundSessions(owner.sessionId)
+			.some((session) => !session.running && !session.completionNotified);
 	}
 
 	async function wake(): Promise<void> {
@@ -66,24 +83,39 @@ export function registerCodexShellLifecycle(
 				command: shortCommand(command),
 				exit_code: result.exit_code,
 				output: result.output,
-				...(result.truncated ? { truncated: true, more: `write_stdin session_id=${id}` } : {}),
+				...(result.truncated
+					? { truncated: true, more: `write_stdin session_id=${id}` }
+					: {}),
 			}));
-			pi.sendMessage(withCodexDeveloperMessageDetails({
-				customType: "codex-shell-completion",
-				content: `Background shell completion:\n${JSON.stringify(results)}`,
-				display: true,
-				details: {},
-			}), { triggerTurn: true });
+			pi.sendMessage(
+				withCodexDeveloperMessageDetails({
+					customType: "codex-shell-completion",
+					content: `Background shell completion:\n${JSON.stringify(results)}`,
+					display: true,
+					details: {},
+				}),
+				{ triggerTurn: true },
+			);
 		} catch {
 			if (active === owner && !disposed)
-				owner.ctx.ui.notify("Background shell results could not start a turn. Collect them with write_stdin; if rollover failed, retry it first.", "error");
+				owner.ctx.ui.notify(
+					"Background shell results could not start a turn. Collect them with write_stdin; if rollover failed, retry it first.",
+					"error",
+				);
 		} finally {
 			preparing = false;
 		}
 	}
 
 	function schedule(): void {
-		if (timer || preparing || !active || !idle(active) || !hasCompletions(active)) return;
+		if (
+			timer ||
+			preparing ||
+			!active ||
+			!idle(active) ||
+			!hasCompletions(active)
+		)
+			return;
 		// agent_settled still owns Pi's settlement frame; start only after it unwinds.
 		timer = setTimeout(() => {
 			timer = undefined;
@@ -110,7 +142,9 @@ export function registerCodexShellLifecycle(
 		invalidate();
 	});
 	pi.on("session_compact", invalidate);
-	pi.on("agent_start", (_event, ctx) => { activate(ctx).paused = false; });
+	pi.on("agent_start", (_event, ctx) => {
+		activate(ctx).paused = false;
+	});
 	pi.on("agent_settled", (event, ctx) => {
 		activate(ctx).paused = event.aborted;
 		schedule();
@@ -128,14 +162,28 @@ export function registerCodexShellLifecycle(
 		recordBriefing(ctx, messages) {
 			if (disposed || !enabled()) return false;
 			const owner = activate(ctx);
-			if (owner.admitted && (!owner.briefingId || messages.some(message => message.role === "custom"
-				&& message.customType === CODEX_CONTEXT_BRIEFING_TYPE && message.details
-				&& typeof message.details === "object" && "id" in message.details && message.details.id === owner.briefingId))) return false;
+			if (
+				owner.admitted &&
+				(!owner.briefingId ||
+					messages.some(
+						(message) =>
+							message.role === "custom" &&
+							message.customType === CODEX_CONTEXT_BRIEFING_TYPE &&
+							message.details &&
+							typeof message.details === "object" &&
+							"id" in message.details &&
+							message.details.id === owner.briefingId,
+					))
+			)
+				return false;
 			owner.admitted = true;
 			const pending = sessions.backgroundSessions(owner.sessionId);
 			if (!pending.length) return false;
 			const id = randomUUID();
-			const lines = pending.map(session => `- ${session.id}: ${session.running ? "running" : `exit ${session.exitCode}, uncollected`} ${JSON.stringify(shortCommand(session.command))}`);
+			const lines = pending.map(
+				(session) =>
+					`- ${session.id}: ${session.running ? "running" : `exit ${session.exitCode}, uncollected`} ${JSON.stringify(shortCommand(session.command))}`,
+			);
 			pi.appendEntry<CodexContextBriefing>(CODEX_CONTEXT_BRIEFING_TYPE, {
 				protocol: 1,
 				id,

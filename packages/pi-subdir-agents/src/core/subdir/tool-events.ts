@@ -18,8 +18,8 @@ function contentItems(value: unknown): DiscoveryEvent["content"] | undefined {
 		const record = objectRecord(item);
 		return Boolean(
 			record &&
-				typeof record["type"] === "string" &&
-				(record["text"] === undefined || typeof record["text"] === "string"),
+			typeof record["type"] === "string" &&
+			(record["text"] === undefined || typeof record["text"] === "string"),
 		);
 	});
 }

@@ -1,45 +1,48 @@
 {
-	"name": "@howaboua/pi-skills",
-	"version": "0.0.27",
-	"description": "all Howaboua Pi skills",
-	"type": "module",
-	"keywords": [
-		"pi-package",
-		"pi",
-		"howaboua"
-	],
-	"license": "MIT",
-	"publishConfig": {
-		"access": "public"
-	},
-	"dependencies": {
-		"@howaboua/pi-skill-chrome-cdp": "0.0.5",
-		"@howaboua/pi-skill-code": "0.0.4",
-		"@howaboua/pi-skill-foundations": "0.0.3",
-		"@howaboua/pi-skill-harness-and-agent-engineering": "0.0.8"
-	},
-	"files": [
-		"README.md",
-		"LICENSE"
-	],
-	"pi": {
-		"skills": [
-			"../pi-skill-chrome-cdp/skills",
-			"../pi-skill-code/skills",
-			"../pi-skill-foundations/skills",
-			"../pi-skill-harness-and-agent-engineering/skills"
-		]
-	},
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-skills"
-	},
-	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-skills#readme",
-	"bugs": {
-		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
-	},
-	"scripts": {
-		"prepack": "bun run ../../scripts/prepare-aggregate-package.mjs"
-	}
+  "name": "@howaboua/pi-skills",
+  "version": "0.0.27",
+  "description": "all Howaboua Pi skills",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "howaboua"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@howaboua/pi-skill-chrome-cdp": "0.0.5",
+    "@howaboua/pi-skill-code": "0.0.4",
+    "@howaboua/pi-skill-foundations": "0.0.3",
+    "@howaboua/pi-skill-harness-and-agent-engineering": "0.0.8"
+  },
+  "files": [
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "skills": [
+      "../pi-skill-chrome-cdp/skills",
+      "../pi-skill-code/skills",
+      "../pi-skill-foundations/skills",
+      "../pi-skill-harness-and-agent-engineering/skills"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+    "directory": "packages/pi-skills"
+  },
+  "homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-skills#readme",
+  "bugs": {
+    "url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+  },
+  "scripts": {
+    "prepack": "bun run ../../scripts/prepare-aggregate-package.mjs",
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'",
+    "lint": "bun run format:check && oxlint --type-aware",
+    "check": "bun run lint"
+  }
 }

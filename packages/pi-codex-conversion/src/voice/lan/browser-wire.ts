@@ -8,15 +8,27 @@ export type LanVoiceBrowserInput =
 	| { type: "audio"; pcm: Buffer }
 	| { type: "control"; command: ReturnType<typeof decodeLanVoiceAudioCommand> };
 
-export function decodeLanVoiceBrowserInput(data: RawData, isBinary: boolean): LanVoiceBrowserInput {
+export function decodeLanVoiceBrowserInput(
+	data: RawData,
+	isBinary: boolean,
+): LanVoiceBrowserInput {
 	const buffer = rawBuffer(data);
 	if (isBinary) {
-		if (buffer.byteLength === 0 || buffer.byteLength > MAX_PCM_BYTES || buffer.byteLength % 2 !== 0) throw new Error("Invalid LAN voice PCM frame");
+		if (
+			buffer.byteLength === 0 ||
+			buffer.byteLength > MAX_PCM_BYTES ||
+			buffer.byteLength % 2 !== 0
+		)
+			throw new Error("Invalid LAN voice PCM frame");
 		return { type: "audio", pcm: buffer };
 	}
 	const text = buffer.toString("utf8");
-	if (Buffer.byteLength(text) > MAX_CONTROL_BYTES) throw new Error("LAN voice control message is too large");
-	return { type: "control", command: decodeLanVoiceAudioCommand(JSON.parse(text)) };
+	if (Buffer.byteLength(text) > MAX_CONTROL_BYTES)
+		throw new Error("LAN voice control message is too large");
+	return {
+		type: "control",
+		command: decodeLanVoiceAudioCommand(JSON.parse(text)),
+	};
 }
 
 export function errorMessage(error: unknown): string {

@@ -1,17 +1,33 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { existsSync } from "node:fs";
 import type { NotebookRuntimeOptions } from "../code-mode/shared-runtime.ts";
-import type { NotebookMemoryUsage, ToolExecutionContext } from "../code-mode/types.ts";
+import type {
+	NotebookMemoryUsage,
+	ToolExecutionContext,
+} from "../code-mode/types.ts";
 import type { NotebookBridgeServer } from "./bridge-server.ts";
 import { resolveNotebookCheckpointMaxBytes } from "./checkpoint.ts";
 import type { NotebookCheckpointIdentity } from "./checkpoint-format.ts";
 import { NotebookCheckpointManager } from "./checkpoint-manager.ts";
-import { initializeNotebookJournal, materializeNotebookJournal, type NotebookJournal } from "./journal.ts";
-import { notebookJournalRetention, scheduleNotebookStorageMaintenance } from "./storage-retention.ts";
+import {
+	initializeNotebookJournal,
+	materializeNotebookJournal,
+	type NotebookJournal,
+} from "./journal.ts";
+import {
+	notebookJournalRetention,
+	scheduleNotebookStorageMaintenance,
+} from "./storage-retention.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
-import { extractNotebookNpmImports, recordNotebookNpmImports } from "./npm-imports.ts";
+import {
+	extractNotebookNpmImports,
+	recordNotebookNpmImports,
+} from "./npm-imports.ts";
 import { resolveNotebookProject } from "./project-identity.ts";
-import { readRetainedProjectBindings, type RetainedProjectBinding } from "./project-state-metadata.ts";
+import {
+	readRetainedProjectBindings,
+	type RetainedProjectBinding,
+} from "./project-state-metadata.ts";
 import {
 	NOTEBOOK_INTERRUPTED_NOTICE,
 	NOTEBOOK_BOOTSTRAP_NOTICE,
@@ -22,7 +38,10 @@ import {
 } from "./runtime-health.ts";
 import { startNotebookSession } from "./session-startup.ts";
 import { notebookSessionIdentity } from "./session-identity.ts";
-import { activateNotebookCheckpoint, type NotebookCheckpointActivity } from "./checkpoint-activity.ts";
+import {
+	activateNotebookCheckpoint,
+	type NotebookCheckpointActivity,
+} from "./checkpoint-activity.ts";
 
 const MAX_NOTICE_CHARS = 16_384;
 
@@ -56,7 +75,9 @@ export class NotebookSessionRuntime {
 		this.options = options.runtime;
 		this.bridge = options.bridge;
 		this.runningCellId = options.runningCellId;
-		this.checkpointMaxBytes = resolveNotebookCheckpointMaxBytes(options.runtime.maxHeapMiB);
+		this.checkpointMaxBytes = resolveNotebookCheckpointMaxBytes(
+			options.runtime.maxHeapMiB,
+		);
 		this.checkpoints = new NotebookCheckpointManager({
 			maxBytes: this.checkpointMaxBytes,
 			currentKernel: () => this.kernelValue,
@@ -69,25 +90,40 @@ export class NotebookSessionRuntime {
 	}
 
 	identityMatches(context: ExtensionContext): boolean {
-		return !this.identityValue || this.identityValue === sessionIdentity(context);
+		return (
+			!this.identityValue || this.identityValue === sessionIdentity(context)
+		);
 	}
 
-	async ensure(context: ToolExecutionContext, signal?: AbortSignal): Promise<void> {
+	async ensure(
+		context: ToolExecutionContext,
+		signal?: AbortSignal,
+	): Promise<void> {
 		scheduleNotebookStorageMaintenance(this.options.agentDir);
 		const extension = context.extensionContext;
-		if (!extension) throw new Error("Notebook Code Mode requires an extension session context");
+		if (!extension)
+			throw new Error(
+				"Notebook Code Mode requires an extension session context",
+			);
 		this.extensionContext = extension;
 		if (!this.startup) {
 			this.identityValue = sessionIdentity(extension);
-			this.beginStartup(extension, signal);
+			// beginStartup stores the same promise awaited immediately below.
+			void this.beginStartup(extension, signal);
 		}
 		await this.startup;
 		this.checkpointActivity?.touch();
 	}
 
-	async restart(context: ExtensionContext, signal?: AbortSignal, skipProfile = false): Promise<string | undefined> {
+	async restart(
+		context: ExtensionContext,
+		signal?: AbortSignal,
+		skipProfile = false,
+	): Promise<string | undefined> {
 		await this.abortStartup(new Error("Notebook kernel is restarting"));
-		try { this.materializeJournal(); } catch {}
+		try {
+			this.materializeJournal();
+		} catch {}
 		const previous = this.kernelValue;
 		this.kernelValue = undefined;
 		this.runtimeHealthValue = "not_started";
@@ -118,7 +154,8 @@ export class NotebookSessionRuntime {
 
 	async recoverFromBootstrapFailure(value: unknown): Promise<boolean> {
 		if (!isNotebookBootstrapFailure(value)) return false;
-		if (this.kernelValue) await this.invalidateKernel(NOTEBOOK_BOOTSTRAP_NOTICE);
+		if (this.kernelValue)
+			await this.invalidateKernel(NOTEBOOK_BOOTSTRAP_NOTICE);
 		return true;
 	}
 
@@ -145,7 +182,9 @@ export class NotebookSessionRuntime {
 
 	async shutdown(): Promise<void> {
 		await this.abortStartup(new Error("Notebook session is shutting down"));
-		try { this.materializeJournal(); } catch {}
+		try {
+			this.materializeJournal();
+		} catch {}
 		const kernel = this.kernelValue;
 		this.kernelValue = undefined;
 		this.runtimeHealthValue = "not_started";
@@ -167,32 +206,58 @@ export class NotebookSessionRuntime {
 		await this.bridge.shutdown();
 	}
 
-	kernel(): DenoJupyterKernel | undefined { return this.kernelValue; }
-	runtimeHealth(): NotebookRuntimeHealth { return { state: this.runtimeHealthValue }; }
+	kernel(): DenoJupyterKernel | undefined {
+		return this.kernelValue;
+	}
+	runtimeHealth(): NotebookRuntimeHealth {
+		return { state: this.runtimeHealthValue };
+	}
 	runtimeHealthFor(context: ExtensionContext): NotebookRuntimeHealth {
-		return this.identityMatches(context) ? this.runtimeHealth() : { state: "not_started" };
+		return this.identityMatches(context)
+			? this.runtimeHealth()
+			: { state: "not_started" };
 	}
 	journal(): NotebookJournal | undefined {
-		if (notebookJournalRetention(this.options.agentDir) === "off") return undefined;
-		if (this.checkpointIdentityValue && (!this.journalValue || !existsSync(this.journalValue.path))) {
-			this.journalValue = initializeNotebookJournal(this.checkpointIdentityValue, this.checkpointMaxBytes);
+		if (notebookJournalRetention(this.options.agentDir) === "off")
+			return undefined;
+		if (
+			this.checkpointIdentityValue &&
+			(!this.journalValue || !existsSync(this.journalValue.path))
+		) {
+			this.journalValue = initializeNotebookJournal(
+				this.checkpointIdentityValue,
+				this.checkpointMaxBytes,
+			);
 		}
 		return this.journalValue;
 	}
-	recordCompletedCell(): void { this.completedUserCells += 1; }
-	cellCount(): number { return Math.max(this.completedUserCells, this.journalValue?.cells ?? 0); }
+	recordCompletedCell(): void {
+		this.completedUserCells += 1;
+	}
+	cellCount(): number {
+		return Math.max(this.completedUserCells, this.journalValue?.cells ?? 0);
+	}
 	materializeJournal(): void {
 		const journal = this.journal();
 		if (journal) materializeNotebookJournal(journal);
 	}
-	baselineNames(): ReadonlySet<string> { return this.baseline; }
-	configuredProfileLoaded(): boolean { return this.profileLoaded; }
+	baselineNames(): ReadonlySet<string> {
+		return this.baseline;
+	}
+	configuredProfileLoaded(): boolean {
+		return this.profileLoaded;
+	}
 	retainedBindings(): RetainedProjectBinding[] {
 		return this.checkpointIdentityValue
-			? readRetainedProjectBindings(this.checkpointIdentityValue, this.checkpointMaxBytes)
+			? readRetainedProjectBindings(
+					this.checkpointIdentityValue,
+					this.checkpointMaxBytes,
+				)
 			: [];
 	}
-	recordMemory(memory: NotebookMemoryUsage | undefined): void { this.memoryValue = memory; }
+	recordMemory(memory: NotebookMemoryUsage | undefined): void {
+		this.memoryValue = memory;
+	}
 	async recordNpmImports(source: string): Promise<void> {
 		const identity = this.checkpointIdentityValue;
 		if (!identity) return;
@@ -201,11 +266,17 @@ export class NotebookSessionRuntime {
 		try {
 			await recordNotebookNpmImports(identity, imports);
 		} catch (error) {
-			this.addNotice(`Notebook npm inventory was not updated: ${error instanceof Error ? error.message : String(error)}`);
+			this.addNotice(
+				`Notebook npm inventory was not updated: ${error instanceof Error ? error.message : String(error)}`,
+			);
 		}
 	}
-	memory(): NotebookMemoryUsage | undefined { return this.memoryValue; }
-	addNotice(notice: string): void { this.notice = joinNotices(this.notice, notice); }
+	memory(): NotebookMemoryUsage | undefined {
+		return this.memoryValue;
+	}
+	addNotice(notice: string): void {
+		this.notice = joinNotices(this.notice, notice);
+	}
 	takeNotice(): string | undefined {
 		const notice = this.notice;
 		this.notice = undefined;
@@ -226,25 +297,34 @@ export class NotebookSessionRuntime {
 		};
 	}
 
-	private async start(context: ExtensionContext, signal?: AbortSignal, skipProfile = false): Promise<void> {
+	private async start(
+		context: ExtensionContext,
+		signal?: AbortSignal,
+		skipProfile = false,
+	): Promise<void> {
 		this.identityValue = sessionIdentity(context);
 		this.extensionContext = context;
 		this.memoryValue = undefined;
 		this.checkpointActivity?.release();
 		this.checkpointActivity = await activateNotebookCheckpoint({
-			project: resolveNotebookProject(context.cwd), session: notebookSessionIdentity(context), agentDir: this.options.agentDir,
+			project: resolveNotebookProject(context.cwd),
+			session: notebookSessionIdentity(context),
+			agentDir: this.options.agentDir,
 		});
 		let started: Awaited<ReturnType<typeof startNotebookSession>>;
-		try { started = await startNotebookSession({
-			context,
-			runtime: skipProfile && this.options.profile
-				? { ...this.options, profile: undefined }
-				: this.options,
-			bridge: this.bridge,
-			checkpointMaxBytes: this.checkpointMaxBytes,
-			onKernelFailure: (kernel) => this.handleKernelFailure(kernel),
-			...(signal ? { signal } : {}),
-		}); } catch (error) {
+		try {
+			started = await startNotebookSession({
+				context,
+				runtime:
+					skipProfile && this.options.profile
+						? { ...this.options, profile: undefined }
+						: this.options,
+				bridge: this.bridge,
+				checkpointMaxBytes: this.checkpointMaxBytes,
+				onKernelFailure: (kernel) => this.handleKernelFailure(kernel),
+				...(signal ? { signal } : {}),
+			});
+		} catch (error) {
 			this.checkpointActivity.release();
 			this.checkpointActivity = undefined;
 			throw error;
@@ -257,7 +337,11 @@ export class NotebookSessionRuntime {
 		this.baseline = started.baselineNames;
 		this.profileLoaded = started.configuredProfileLoaded;
 		this.runtimeHealthValue = "ready";
-		this.checkpoints.configure(started.checkpointIdentity, started.baselineNames, started.projectBaseline);
+		this.checkpoints.configure(
+			started.checkpointIdentity,
+			started.baselineNames,
+			started.projectBaseline,
+		);
 		if (started.restoreNotice) {
 			this.addNotice(started.restoreNotice);
 		}
@@ -275,9 +359,15 @@ export class NotebookSessionRuntime {
 		this.addNotice(NOTEBOOK_KERNEL_FAILURE_NOTICE);
 	}
 
-	private beginStartup(context: ExtensionContext, signal?: AbortSignal, skipProfile = false): Promise<void> {
+	private beginStartup(
+		context: ExtensionContext,
+		signal?: AbortSignal,
+		skipProfile = false,
+	): Promise<void> {
 		const startupAbort = new AbortController();
-		const startupSignal = signal ? AbortSignal.any([signal, startupAbort.signal]) : startupAbort.signal;
+		const startupSignal = signal
+			? AbortSignal.any([signal, startupAbort.signal])
+			: startupAbort.signal;
 		this.startupAbort = startupAbort;
 		const pending = this.start(context, startupSignal, skipProfile)
 			.catch((error) => {
@@ -296,7 +386,9 @@ function sessionIdentity(context: ExtensionContext): string {
 	return `${notebookSessionIdentity(context)}\0${resolveNotebookProject(context.cwd)}`;
 }
 
-function joinNotices(...notices: Array<string | undefined>): string | undefined {
+function joinNotices(
+	...notices: Array<string | undefined>
+): string | undefined {
 	const present = notices.filter((notice): notice is string => Boolean(notice));
 	if (present.length === 0) return undefined;
 	const marker = " [Notebook notices truncated]";
@@ -305,8 +397,15 @@ function joinNotices(...notices: Array<string | undefined>): string | undefined 
 		const notice = present[index]!;
 		const separator = output ? ". " : "";
 		const remaining = MAX_NOTICE_CHARS - output.length - separator.length;
-		if (remaining <= 0 || notice.length > remaining || index < present.length - 1 && notice.length === remaining) {
-			return `${output}${separator}${notice.slice(0, Math.max(0, remaining - marker.length))}${marker}`.slice(0, MAX_NOTICE_CHARS);
+		if (
+			remaining <= 0 ||
+			notice.length > remaining ||
+			(index < present.length - 1 && notice.length === remaining)
+		) {
+			return `${output}${separator}${notice.slice(0, Math.max(0, remaining - marker.length))}${marker}`.slice(
+				0,
+				MAX_NOTICE_CHARS,
+			);
 		}
 		output += `${separator}${notice}`;
 	}

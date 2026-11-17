@@ -1,8 +1,17 @@
 import { formatUtcMinute } from "../../time-format.ts";
-import { writeNotebookCheckpoint, type NotebookCheckpointIdentity } from "./checkpoint.ts";
+import {
+	writeNotebookCheckpoint,
+	type NotebookCheckpointIdentity,
+} from "./checkpoint.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
-import { type ProjectStateBaseline, writeProjectState } from "./project-state.ts";
-import { projectStateEntryFingerprint, type ProjectStatePinUpdate } from "./project-state-merge.ts";
+import {
+	type ProjectStateBaseline,
+	writeProjectState,
+} from "./project-state.ts";
+import {
+	projectStateEntryFingerprint,
+	type ProjectStatePinUpdate,
+} from "./project-state-merge.ts";
 
 const CHECKPOINT_DEBOUNCE_MS = 1_500;
 
@@ -13,7 +22,10 @@ export class NotebookCheckpointManager {
 	private readonly reportNotice: (notice: string, showInUi: boolean) => void;
 	private baselineNames = new Set<string>();
 	private identity: NotebookCheckpointIdentity | undefined;
-	private projectBaseline: ProjectStateBaseline = { generation: "root", entries: [] };
+	private projectBaseline: ProjectStateBaseline = {
+		generation: "root",
+		entries: [],
+	};
 	private timer: ReturnType<typeof setTimeout> | undefined;
 	private dirty = false;
 	private maintenance: Promise<void> = Promise.resolve();
@@ -51,12 +63,14 @@ export class NotebookCheckpointManager {
 		this.timer.unref?.();
 	}
 
-	flush(options: {
-		requireIdle?: boolean | undefined;
-		force?: boolean | undefined;
-		excludeNames?: ReadonlySet<string> | undefined;
-		pins?: ProjectStatePinUpdate | undefined;
-	} = {}): Promise<void> {
+	flush(
+		options: {
+			requireIdle?: boolean | undefined;
+			force?: boolean | undefined;
+			excludeNames?: ReadonlySet<string> | undefined;
+			pins?: ProjectStatePinUpdate | undefined;
+		} = {},
+	): Promise<void> {
 		if (this.timer) clearTimeout(this.timer);
 		this.timer = undefined;
 		const operation = this.maintenance.then(() => this.perform(options));
@@ -99,7 +113,9 @@ export class NotebookCheckpointManager {
 			dirty: this.dirty,
 			projectGeneration: this.projectBaseline.generation,
 			projectBindings: this.projectBaseline.entries.length,
-			...(this.lastCheckpointAt ? { lastCheckpointAt: this.lastCheckpointAt } : {}),
+			...(this.lastCheckpointAt
+				? { lastCheckpointAt: this.lastCheckpointAt }
+				: {}),
 		};
 	}
 
@@ -132,14 +148,22 @@ export class NotebookCheckpointManager {
 				options.pins,
 			);
 			this.projectBaseline = project.baseline;
-			const sessionEntries = new Map(project.baseline.entries.map((entry) => [entry.name, entry]));
+			const sessionEntries = new Map(
+				project.baseline.entries.map((entry) => [entry.name, entry]),
+			);
 			for (const entry of project.restored) {
-				if (projectStateEntryFingerprint(sessionEntries.get(entry.name)) === projectStateEntryFingerprint(entry)) {
+				if (
+					projectStateEntryFingerprint(sessionEntries.get(entry.name)) ===
+					projectStateEntryFingerprint(entry)
+				) {
 					projectExclusions.add(entry.name);
 				}
 			}
 			if (project.conflicts.length > 0) {
-				this.reportNotice(`Project notebook conflicts preserved without overwrite: ${project.conflicts.join(", ")}`, false);
+				this.reportNotice(
+					`Project notebook conflicts preserved without overwrite: ${project.conflicts.join(", ")}`,
+					false,
+				);
 			}
 			if (project.message) this.reportNotice(project.message, false);
 		} catch (error) {

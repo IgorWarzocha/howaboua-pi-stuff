@@ -77,9 +77,9 @@ export function registerWorkerService(
 			state: !panel
 				? "closed"
 				: (panel.agent_status !== "idle" && panel.agent_status !== "done") ||
-						panel.interactive_ready !== true ||
-						panel.launch_pending ||
-						(record &&
+					  panel.interactive_ready !== true ||
+					  panel.launch_pending ||
+					  (record &&
 							(record.activity.phase !== "settled" ||
 								activityTask(record.activity)))
 					? "working"

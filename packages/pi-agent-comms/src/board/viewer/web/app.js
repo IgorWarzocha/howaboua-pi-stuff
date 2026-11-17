@@ -22,25 +22,25 @@ const { refresh, moreThreads, moreReplies } = createUpdates(renderer);
 
 $("boards").onchange = () => run(() => loadBoard($("boards").value));
 $("author").onchange = () =>
-	run(async () => {
+	void run(async () => {
 		state.author = $("author").value;
 		await loadList();
 	});
 $("search-form").onsubmit = (event) => {
 	event.preventDefault();
-	run(async () => {
+	void run(async () => {
 		state.query = $("search").value.trim();
 		state.searchFull = $("search-full").checked;
 		await loadList();
 	});
 };
 $("search-full").onchange = () =>
-	run(async () => {
+	void run(async () => {
 		state.searchFull = $("search-full").checked;
 		await loadList();
 	});
 $("full-discussion").onchange = () =>
-	run(() => openThread(state.thread, $("full-discussion").checked));
+	void run(() => openThread(state.thread, $("full-discussion").checked));
 $("refresh").onclick = () => run(() => refresh(true));
 $("back").onclick = () => {
 	document.body.classList.remove("detail-open");
@@ -81,8 +81,8 @@ async function start() {
 	const requestedThread = fragment.get("thread");
 	if (requestedThread) await openThread(requestedThread);
 }
-run(start);
+void run(start);
 setInterval(() => {
 	if (!document.hidden && $("live").checked && state.board && !busy && !changed)
-		run(() => refresh());
+		void run(() => refresh());
 }, 5000);

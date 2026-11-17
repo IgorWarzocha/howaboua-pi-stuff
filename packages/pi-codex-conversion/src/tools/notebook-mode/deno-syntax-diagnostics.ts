@@ -19,7 +19,12 @@ export async function diagnoseDenoSyntax(
 		if (cell.status === "error") return cell.diagnostic;
 		if (cell.status === "unavailable") return undefined;
 	}
-	const generated = await checkDenoSyntax(deno, source, env, "generated notebook code");
+	const generated = await checkDenoSyntax(
+		deno,
+		source,
+		env,
+		"generated notebook code",
+	);
 	return generated.status === "error" ? generated.diagnostic : undefined;
 }
 
@@ -54,21 +59,35 @@ function checkDenoSyntax(
 		child.once("error", () => finish());
 		child.once("close", (code) => {
 			const diagnostic = extractDenoSyntaxError(stderr, sourceLabel);
-			finish(code === 0 ? { status: "parsed" }
-				: diagnostic ? { status: "error", diagnostic } : { status: "unavailable" });
+			finish(
+				code === 0
+					? { status: "parsed" }
+					: diagnostic
+						? { status: "error", diagnostic }
+						: { status: "unavailable" },
+			);
 		});
 		child.stdin?.on("error", () => undefined);
 		child.stdin?.end(source);
 	});
 }
 
-export function extractDenoSyntaxError(stderr: string, sourceLabel = "notebook cell"): string | undefined {
-	const clean = stderr.replace(/\u001b\[[0-9;]*m/g, "").replace(
-		/^(\s*at )file:\/\/[^\r\n]*\/_stdin\.ts(?=:\d+:\d+\s*$)/gm,
-		`$1${sourceLabel}`,
-	);
+export function extractDenoSyntaxError(
+	stderr: string,
+	sourceLabel = "notebook cell",
+): string | undefined {
+	const clean = stderr
+		// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
+		.replace(/\u001b\[[0-9;]*m/g, "")
+		.replace(
+			/^(\s*at )file:\/\/[^\r\n]*\/_stdin\.ts(?=:\d+:\d+\s*$)/gm,
+			`$1${sourceLabel}`,
+		);
 	const marker = "error: SyntaxError:";
 	const start = clean.indexOf(marker);
 	if (start === -1) return undefined;
-	return clean.slice(start + "error: ".length).trim().slice(0, MAX_DIAGNOSTIC_CHARS);
+	return clean
+		.slice(start + "error: ".length)
+		.trim()
+		.slice(0, MAX_DIAGNOSTIC_CHARS);
 }

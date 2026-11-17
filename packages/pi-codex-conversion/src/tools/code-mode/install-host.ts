@@ -15,7 +15,11 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { codeModeHostBinaryName, hostAssetUrl, resolveCodeModeHostAsset } from "./host-assets.ts";
+import {
+	codeModeHostBinaryName,
+	hostAssetUrl,
+	resolveCodeModeHostAsset,
+} from "./host-assets.ts";
 
 const DOWNLOAD_TIMEOUT_MS = 120_000;
 const INSTALL_LOCK_POLL_MS = 200;
@@ -30,7 +34,9 @@ export interface InstallCodeModeHostOptions {
 	signal?: AbortSignal | undefined;
 }
 
-export async function installCodeModeHost(options: InstallCodeModeHostOptions): Promise<void> {
+export async function installCodeModeHost(
+	options: InstallCodeModeHostOptions,
+): Promise<void> {
 	const { destination: destinationInput, platform, arch, signal } = options;
 	const [assetName, expectedSha256] = resolveCodeModeHostAsset(platform, arch);
 	const binaryName = codeModeHostBinaryName(platform);
@@ -50,23 +56,35 @@ export async function installCodeModeHost(options: InstallCodeModeHostOptions): 
 		let bytes: Buffer;
 		try {
 			const timeoutSignal = AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS);
-			const { getProxyForUrl } = await dynamicImport("proxy-from-env") as { getProxyForUrl(url: string): string };
+			const { getProxyForUrl } = (await dynamicImport("proxy-from-env")) as {
+				getProxyForUrl(url: string): string;
+			};
 			const proxy = getProxyForUrl(assetUrl);
-			const { ProxyAgent } = await dynamicImport("undici") as typeof import("undici");
+			const { ProxyAgent } = (await dynamicImport(
+				"undici",
+			)) as typeof import("undici");
 			const dispatcher = proxy ? new ProxyAgent(proxy) : undefined;
 			try {
 				const response = await globalThis.fetch(assetUrl, {
 					redirect: "follow",
-					signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
+					signal: signal
+						? AbortSignal.any([signal, timeoutSignal])
+						: timeoutSignal,
 					...(dispatcher ? { dispatcher } : {}),
 				} as RequestInit & { dispatcher?: InstanceType<typeof ProxyAgent> });
-				if (!response.ok) throw new Error(`download failed: ${response.status} ${response.statusText}`);
+				if (!response.ok)
+					throw new Error(
+						`download failed: ${response.status} ${response.statusText}`,
+					);
 				bytes = Buffer.from(await response.arrayBuffer());
 			} finally {
 				await dispatcher?.close();
 			}
 		} catch (error) {
-			throw new Error(`failed to download ${assetUrl}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+			throw new Error(
+				`failed to download ${assetUrl}: ${error instanceof Error ? error.message : String(error)}`,
+				{ cause: error },
+			);
 		}
 		if (createHash("sha256").update(bytes).digest("hex") !== expectedSha256) {
 			throw new Error(`checksum mismatch for ${assetName}`);
@@ -78,11 +96,19 @@ export async function installCodeModeHost(options: InstallCodeModeHostOptions): 
 			writeFileSync(archive, bytes);
 			const extracted = join(temporary, "extracted");
 			mkdirSync(extracted);
-			const result = spawnSync("tar", ["-xzf", archive, "-C", extracted], { stdio: "inherit" });
+			const result = spawnSync("tar", ["-xzf", archive, "-C", extracted], {
+				stdio: "inherit",
+			});
 			signal?.throwIfAborted();
-			if (result.status !== 0) throw new Error("failed to extract code-mode host archive");
-			const candidates = walk(extracted).filter((path) => basename(path).startsWith("codex-code-mode-host"));
-			if (candidates.length !== 1) throw new Error(`expected one code-mode host binary, found ${candidates.length}`);
+			if (result.status !== 0)
+				throw new Error("failed to extract code-mode host archive");
+			const candidates = walk(extracted).filter((path) =>
+				basename(path).startsWith("codex-code-mode-host"),
+			);
+			if (candidates.length !== 1)
+				throw new Error(
+					`expected one code-mode host binary, found ${candidates.length}`,
+				);
 			copyFileSync(candidates[0]!, staged);
 			chmodSync(staged, 0o755);
 		}
@@ -94,7 +120,11 @@ export async function installCodeModeHost(options: InstallCodeModeHostOptions): 
 	}
 }
 
-async function acquireInstallLock(lockPath: string, destination: string, signal: AbortSignal | undefined): Promise<boolean> {
+async function acquireInstallLock(
+	lockPath: string,
+	destination: string,
+	signal: AbortSignal | undefined,
+): Promise<boolean> {
 	const deadline = Date.now() + INSTALL_LOCK_TIMEOUT_MS;
 	while (Date.now() < deadline) {
 		signal?.throwIfAborted();
@@ -103,20 +133,38 @@ async function acquireInstallLock(lockPath: string, destination: string, signal:
 			mkdirSync(lockPath);
 			return true;
 		} catch (error) {
-			if (!error || typeof error !== "object" || !("code" in error) || error.code !== "EEXIST") throw error;
+			if (
+				!error ||
+				typeof error !== "object" ||
+				!("code" in error) ||
+				error.code !== "EEXIST"
+			)
+				throw error;
 			try {
 				if (Date.now() - statSync(lockPath).mtimeMs > INSTALL_LOCK_STALE_MS) {
 					rmSync(lockPath, { recursive: true, force: true });
 					continue;
 				}
 			} catch (statError) {
-				if (!statError || typeof statError !== "object" || !("code" in statError) || statError.code !== "ENOENT") throw statError;
+				if (
+					!statError ||
+					typeof statError !== "object" ||
+					!("code" in statError) ||
+					statError.code !== "ENOENT"
+				)
+					throw statError;
 			}
-			await delay(INSTALL_LOCK_POLL_MS, undefined, signal ? { signal } : undefined);
+			await delay(
+				INSTALL_LOCK_POLL_MS,
+				undefined,
+				signal ? { signal } : undefined,
+			);
 		}
 	}
 	if (existsSync(destination)) return false;
-	throw new Error(`timed out waiting for code-mode host install lock: ${lockPath}`);
+	throw new Error(
+		`timed out waiting for code-mode host install lock: ${lockPath}`,
+	);
 }
 
 function walk(dir: string): string[] {

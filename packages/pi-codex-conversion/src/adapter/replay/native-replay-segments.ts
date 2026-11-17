@@ -2,10 +2,26 @@ import type { Api, Model } from "@earendil-works/pi-ai";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { ResponsesCompatibleRequestPayload } from "../compaction/compaction-runtime.ts";
 import type { NativeCompactionEntry } from "../compaction/types.js";
-import { compareResponsesInputParity, serializeMessagesToResponsesInput, type ResponsesInputItem, type ResponsesInputMessageItem, type SerializeResponsesMessagesOptions } from "../compaction/serializer.js";
-import { cloneOpaqueCompactedWindow, cloneResponsesInputSlice } from "./payload-structured.ts";
+import {
+	compareResponsesInputParity,
+	serializeMessagesToResponsesInput,
+	type ResponsesInputItem,
+	type ResponsesInputMessageItem,
+	type SerializeResponsesMessagesOptions,
+} from "../compaction/serializer.js";
+import {
+	cloneOpaqueCompactedWindow,
+	cloneResponsesInputSlice,
+} from "./payload-structured.ts";
 import { extractFreshAuthoritativePreamble } from "./payload-preamble.ts";
-import { buildLenientNativeReplayPayload, collectReplayMessages, createCompactionSummaryAgentMessage, createReplaySlice, findReplayMatch, type SerializedReplaySlice } from "./native-replay-matching.ts";
+import {
+	buildLenientNativeReplayPayload,
+	collectReplayMessages,
+	createCompactionSummaryAgentMessage,
+	createReplaySlice,
+	findReplayMatch,
+	type SerializedReplaySlice,
+} from "./native-replay-matching.ts";
 import { CODEX_REASONING_UPDATE_TYPE } from "../reasoning-updates.ts";
 
 export type NativeReplaySegments = {
@@ -39,11 +55,13 @@ export type NativeReplayPayloadRewriteFailureReason =
 export type NativeReplayPayloadRewriteFailure = {
 	ok: false;
 	reason: NativeReplayPayloadRewriteFailureReason;
-	parity?: {
-		actual: string[];
-		expected: string[];
-		mismatches: string[];
-	} | undefined;
+	parity?:
+		| {
+				actual: string[];
+				expected: string[];
+				mismatches: string[];
+		  }
+		| undefined;
 };
 
 export type NativeReplayPayloadRewriteResult =
@@ -55,7 +73,10 @@ function findEntryIndexByIdBeforeBoundary(
 	entryId: string,
 	boundaryIndex: number,
 ): number | undefined {
-	const index = entries.findIndex((entry, candidateIndex) => candidateIndex < boundaryIndex && entry.id === entryId);
+	const index = entries.findIndex(
+		(entry, candidateIndex) =>
+			candidateIndex < boundaryIndex && entry.id === entryId,
+	);
 	return index >= 0 ? index : undefined;
 }
 
@@ -63,7 +84,9 @@ export function findCompactionBoundaryIndex(
 	entries: readonly SessionEntry[],
 	compactionEntryId: string,
 ): number | undefined {
-	const boundaryIndex = entries.findIndex((entry) => entry.id === compactionEntryId);
+	const boundaryIndex = entries.findIndex(
+		(entry) => entry.id === compactionEntryId,
+	);
 	return boundaryIndex >= 0 ? boundaryIndex : undefined;
 }
 
@@ -72,7 +95,11 @@ export function serializeLiveTailToResponsesInput<TApi extends Api>(args: {
 	entries: readonly SessionEntry[];
 	serializationOptions?: SerializeResponsesMessagesOptions | undefined;
 }): ResponsesInputItem[] {
-	return serializeMessagesToResponsesInput(args.model, collectReplayMessages(args.entries), args.serializationOptions);
+	return serializeMessagesToResponsesInput(
+		args.model,
+		collectReplayMessages(args.entries),
+		args.serializationOptions,
+	);
 }
 
 function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
@@ -82,10 +109,17 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 	compactionEntry: NativeCompactionEntry;
 	serializationOptions?: SerializeResponsesMessagesOptions | undefined;
 }): NativeReplayPayloadRewriteResult {
-	const serializationOptions: SerializeResponsesMessagesOptions = args.compactionEntry.systemMessage
-		? { ...args.serializationOptions, transcriptBaseline: args.compactionEntry.systemMessage }
+	const serializationOptions: SerializeResponsesMessagesOptions = args
+		.compactionEntry.systemMessage
+		? {
+				...args.serializationOptions,
+				transcriptBaseline: args.compactionEntry.systemMessage,
+			}
 		: { ...args.serializationOptions };
-	const boundaryIndex = findCompactionBoundaryIndex(args.branchEntries, args.compactionEntry.id);
+	const boundaryIndex = findCompactionBoundaryIndex(
+		args.branchEntries,
+		args.compactionEntry.id,
+	);
 	if (boundaryIndex === undefined) {
 		return {
 			ok: false,
@@ -105,14 +139,27 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 		};
 	}
 
-	const preCompactionEntries = args.branchEntries.slice(firstKeptEntryIndex, boundaryIndex)
-		.filter((entry) => entry.type !== "message" || entry.message.role !== "system")
-		.filter((entry) => (entry.type !== "custom" && entry.type !== "custom_message") || entry.customType !== CODEX_REASONING_UPDATE_TYPE);
+	const preCompactionEntries = args.branchEntries
+		.slice(firstKeptEntryIndex, boundaryIndex)
+		.filter(
+			(entry) => entry.type !== "message" || entry.message.role !== "system",
+		)
+		.filter(
+			(entry) =>
+				(entry.type !== "custom" && entry.type !== "custom_message") ||
+				entry.customType !== CODEX_REASONING_UPDATE_TYPE,
+		);
 	const postCompactionEntries = args.branchEntries.slice(boundaryIndex + 1);
 	// Window markers and persisted developer updates belong to history, not the fresh prompt envelope.
-	const persistedInput = serializeMessagesToResponsesInput(args.model,
-		collectReplayMessages([...preCompactionEntries, ...postCompactionEntries]), serializationOptions);
-	const freshPreamble = extractFreshAuthoritativePreamble(args.payload, persistedInput);
+	const persistedInput = serializeMessagesToResponsesInput(
+		args.model,
+		collectReplayMessages([...preCompactionEntries, ...postCompactionEntries]),
+		serializationOptions,
+	);
+	const freshPreamble = extractFreshAuthoritativePreamble(
+		args.payload,
+		persistedInput,
+	);
 	if (!freshPreamble) {
 		return {
 			ok: false,
@@ -120,7 +167,9 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 		};
 	}
 
-	const compactedWindow = cloneOpaqueCompactedWindow(args.compactionEntry.details?.compactedWindow ?? []);
+	const compactedWindow = cloneOpaqueCompactedWindow(
+		args.compactionEntry.details?.compactedWindow ?? [],
+	);
 	if (!compactedWindow) {
 		return {
 			ok: false,
@@ -135,8 +184,12 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 		return { ok: false, reason: "unexpected-compaction-after-boundary" };
 	}
 
-	const contextPostCompactionTailMessages = collectReplayMessages(postCompactionEntries);
-	const compactionSummaryMessage = createCompactionSummaryAgentMessage(args.compactionEntry);
+	const contextPostCompactionTailMessages = collectReplayMessages(
+		postCompactionEntries,
+	);
+	const compactionSummaryMessage = createCompactionSummaryAgentMessage(
+		args.compactionEntry,
+	);
 	const replayMatch = findReplayMatch({
 		model: args.model,
 		payloadInput: args.payload.input,
@@ -148,8 +201,17 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 	});
 
 	if (!replayMatch) {
-		const compactionSummaryInput = serializeMessagesToResponsesInput(args.model, [compactionSummaryMessage], serializationOptions);
-		const lenientReplay = buildLenientNativeReplayPayload({ payload: args.payload, freshPreamble, compactedWindow, compactionSummaryInput });
+		const compactionSummaryInput = serializeMessagesToResponsesInput(
+			args.model,
+			[compactionSummaryMessage],
+			serializationOptions,
+		);
+		const lenientReplay = buildLenientNativeReplayPayload({
+			payload: args.payload,
+			freshPreamble,
+			compactedWindow,
+			compactionSummaryInput,
+		});
 		if (lenientReplay) {
 			return {
 				ok: true,
@@ -160,15 +222,26 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 					freshPreamble: freshPreamble.leadingInput,
 					trailingPreamble: freshPreamble.trailingInput,
 					compactionSummary: compactionSummaryInput,
-					preCompactionKeptWindow: createReplaySlice(preCompactionEntries, [], []),
+					preCompactionKeptWindow: createReplaySlice(
+						preCompactionEntries,
+						[],
+						[],
+					),
 					compactedWindow,
-					postCompactionTail: createReplaySlice(postCompactionEntries, [], lenientReplay.conversationInput),
-					originalPiReplayInput: cloneResponsesInputSlice(args.payload.input) ?? [],
+					postCompactionTail: createReplaySlice(
+						postCompactionEntries,
+						[],
+						lenientReplay.conversationInput,
+					),
+					originalPiReplayInput:
+						cloneResponsesInputSlice(args.payload.input) ?? [],
 					replayInput: lenientReplay.input,
 				},
 				rewrittenPayload: {
 					...args.payload,
-					...(freshPreamble.instructions !== undefined ? { instructions: freshPreamble.instructions } : {}),
+					...(freshPreamble.instructions !== undefined
+						? { instructions: freshPreamble.instructions }
+						: {}),
 					input: lenientReplay.input,
 				},
 			};
@@ -176,11 +249,22 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 		const expectedInput = [
 			...freshPreamble.leadingInput,
 			...compactionSummaryInput,
-			...serializeMessagesToResponsesInput(args.model, collectReplayMessages(preCompactionEntries), serializationOptions),
-			...serializeMessagesToResponsesInput(args.model, collectReplayMessages(postCompactionEntries), serializationOptions),
+			...serializeMessagesToResponsesInput(
+				args.model,
+				collectReplayMessages(preCompactionEntries),
+				serializationOptions,
+			),
+			...serializeMessagesToResponsesInput(
+				args.model,
+				collectReplayMessages(postCompactionEntries),
+				serializationOptions,
+			),
 			...freshPreamble.trailingInput,
 		];
-		const parity = compareResponsesInputParity(args.payload.input, expectedInput);
+		const parity = compareResponsesInputParity(
+			args.payload.input,
+			expectedInput,
+		);
 		return {
 			ok: false,
 			reason: "expected-pi-replay-mismatch",
@@ -193,10 +277,17 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 	}
 
 	const freshPreambleCount = freshPreamble.leadingInput.length;
-	const compactionSummaryCount = serializeMessagesToResponsesInput(args.model, [compactionSummaryMessage], serializationOptions).length;
+	const compactionSummaryCount = serializeMessagesToResponsesInput(
+		args.model,
+		[compactionSummaryMessage],
+		serializationOptions,
+	).length;
 	const preCompactionKeptCount = replayMatch.preCompactionKept.input.length;
 	const actualCompactionSummary = cloneResponsesInputSlice(
-		args.payload.input.slice(freshPreambleCount, freshPreambleCount + compactionSummaryCount),
+		args.payload.input.slice(
+			freshPreambleCount,
+			freshPreambleCount + compactionSummaryCount,
+		),
 	);
 	const actualPreCompactionKeptWindow = cloneResponsesInputSlice(
 		args.payload.input.slice(
@@ -205,7 +296,11 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 		),
 	);
 	const actualPostCompactionTail = replayMatch.actualPostCompactionTail;
-	if (!actualCompactionSummary || !actualPreCompactionKeptWindow || !actualPostCompactionTail) {
+	if (
+		!actualCompactionSummary ||
+		!actualPreCompactionKeptWindow ||
+		!actualPostCompactionTail
+	) {
 		return {
 			ok: false,
 			reason: "expected-pi-replay-mismatch",
@@ -245,7 +340,9 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 		},
 		rewrittenPayload: {
 			...args.payload,
-			...(freshPreamble.instructions !== undefined ? { instructions: freshPreamble.instructions } : {}),
+			...(freshPreamble.instructions !== undefined
+				? { instructions: freshPreamble.instructions }
+				: {}),
 			input: [
 				...freshPreamble.leadingInput,
 				...compactedWindow,
@@ -256,7 +353,9 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 	};
 }
 
-export function rewriteResponsesPayloadWithNativeReplay<TApi extends Api>(args: {
+export function rewriteResponsesPayloadWithNativeReplay<
+	TApi extends Api,
+>(args: {
 	model: Model<TApi>;
 	payload: ResponsesCompatibleRequestPayload;
 	branchEntries: readonly SessionEntry[];

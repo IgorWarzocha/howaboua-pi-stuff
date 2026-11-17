@@ -1,62 +1,106 @@
-import type { ResponsesInputContentItem, ResponsesInputItem, ResponsesInputMessageItem } from "../compaction/serializer.js";
+import type {
+	ResponsesInputContentItem,
+	ResponsesInputItem,
+	ResponsesInputMessageItem,
+} from "../compaction/serializer.js";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-export function isResponsesInputContentItem(value: unknown): value is ResponsesInputContentItem {
+export function isResponsesInputContentItem(
+	value: unknown,
+): value is ResponsesInputContentItem {
 	if (!isRecord(value) || typeof value["type"]! !== "string") return false;
 	if (value["type"] === "input_text") return typeof value["text"]! === "string";
-	if (value["type"] === "input_image") return (value["detail"] === "auto" || value["detail"] === "high" || value["detail"] === "original")
-		&& typeof value["image_url"]! === "string";
-	if (value["type"] === "encrypted_content") return typeof value["encrypted_content"]! === "string";
+	if (value["type"] === "input_image")
+		return (
+			(value["detail"] === "auto" ||
+				value["detail"] === "high" ||
+				value["detail"] === "original") &&
+			typeof value["image_url"]! === "string"
+		);
+	if (value["type"] === "encrypted_content")
+		return typeof value["encrypted_content"]! === "string";
 	return false;
 }
-export function isResponsesInputMessageRole(value: unknown): value is ResponsesInputMessageItem["role"] {
+export function isResponsesInputMessageRole(
+	value: unknown,
+): value is ResponsesInputMessageItem["role"] {
 	return value === "user" || value === "developer" || value === "system";
 }
 
-export function isPreambleRole(value: ResponsesInputMessageItem["role"]): value is "developer" | "system" {
+export function isPreambleRole(
+	value: ResponsesInputMessageItem["role"],
+): value is "developer" | "system" {
 	return value === "developer" || value === "system";
 }
 
-export function isResponsesInputMessageItem(value: unknown): value is ResponsesInputMessageItem {
-	if (!isRecord(value) || !isResponsesInputMessageRole(value["role"]!)) return false;
+export function isResponsesInputMessageItem(
+	value: unknown,
+): value is ResponsesInputMessageItem {
+	if (!isRecord(value) || !isResponsesInputMessageRole(value["role"]!))
+		return false;
 	const { content } = value;
-	return typeof content === "string" || (Array.isArray(content) && content.every(isResponsesInputContentItem));
+	return (
+		typeof content === "string" ||
+		(Array.isArray(content) && content.every(isResponsesInputContentItem))
+	);
 }
 
-export function cloneResponsesInputMessageItem(item: ResponsesInputMessageItem): ResponsesInputMessageItem {
+export function cloneResponsesInputMessageItem(
+	item: ResponsesInputMessageItem,
+): ResponsesInputMessageItem {
 	// Replay matching compares the wire shape, including optional type/metadata.
 	return structuredClone(item);
 }
 
 export function cloneStructuredValue(value: unknown): unknown {
-	if (value === undefined || value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
+	if (
+		value === undefined ||
+		value === null ||
+		typeof value === "string" ||
+		typeof value === "number" ||
+		typeof value === "boolean"
+	)
+		return value;
 	if (Array.isArray(value)) return value.map(cloneStructuredValue);
 	if (isRecord(value)) {
 		const clone: Record<string, unknown> = {};
-		for (const [key, nested] of Object.entries(value)) clone[key] = cloneStructuredValue(nested);
+		for (const [key, nested] of Object.entries(value))
+			clone[key] = cloneStructuredValue(nested);
 		return clone;
 	}
 	throw new Error(`Unsupported structured value: ${typeof value}`);
 }
 
-export function cloneOpaqueCompactedWindow(compactedWindow: readonly unknown[]): unknown[] | undefined {
+export function cloneOpaqueCompactedWindow(
+	compactedWindow: readonly unknown[],
+): unknown[] | undefined {
 	const cloned: unknown[] = [];
 	for (const item of compactedWindow) {
 		if (!isRecord(item)) return undefined;
 		// Older checkpoints reattached the last reasoning override after compaction.
 		if (item["type"] === "configuration_update") continue;
-		try { cloned.push(cloneStructuredValue(item)); } catch { return undefined; }
+		try {
+			cloned.push(cloneStructuredValue(item));
+		} catch {
+			return undefined;
+		}
 	}
 	return cloned;
 }
 
-export function cloneResponsesInputSlice(items: readonly unknown[]): ResponsesInputItem[] | undefined {
+export function cloneResponsesInputSlice(
+	items: readonly unknown[],
+): ResponsesInputItem[] | undefined {
 	const cloned: ResponsesInputItem[] = [];
 	for (const item of items) {
-		try { cloned.push(cloneStructuredValue(item) as ResponsesInputItem); } catch { return undefined; }
+		try {
+			cloned.push(cloneStructuredValue(item) as ResponsesInputItem);
+		} catch {
+			return undefined;
+		}
 	}
 	return cloned;
 }
@@ -64,7 +108,12 @@ export function cloneResponsesInputSlice(items: readonly unknown[]): ResponsesIn
 export function areEquivalentValues(left: unknown, right: unknown): boolean {
 	if (Object.is(left, right)) return true;
 	if (Array.isArray(left) || Array.isArray(right)) {
-		if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+		if (
+			!Array.isArray(left) ||
+			!Array.isArray(right) ||
+			left.length !== right.length
+		)
+			return false;
 		for (let index = 0; index < left.length; index++) {
 			if (!areEquivalentValues(left[index]!, right[index]!)) return false;
 		}

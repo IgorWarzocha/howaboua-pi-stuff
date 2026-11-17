@@ -1,4 +1,9 @@
-import { isWebSocketContinuationMismatch, WEBSOCKET_CONTINUATION_DECISIONS, type WebSocketContinuationDecision, type WebSocketContinuationMismatch } from "../../providers/openai-codex/continuation-diagnostics.ts";
+import {
+	isWebSocketContinuationMismatch,
+	WEBSOCKET_CONTINUATION_DECISIONS,
+	type WebSocketContinuationDecision,
+	type WebSocketContinuationMismatch,
+} from "../../providers/openai-codex/continuation-diagnostics.ts";
 
 export type CodexCompactionInputSource = "canonical" | "reconstructed";
 export type CodexCompactionContinuation = WebSocketContinuationDecision;
@@ -44,7 +49,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-function isOneOf<T extends string>(values: readonly T[], value: unknown): value is T {
+function isOneOf<T extends string>(
+	values: readonly T[],
+	value: unknown,
+): value is T {
 	return typeof value === "string" && values.includes(value as T);
 }
 
@@ -52,24 +60,38 @@ function isOptionalString(value: unknown): value is string | undefined {
 	return value === undefined || typeof value === "string";
 }
 
-function isOptionalNonNegativeNumber(value: unknown): value is number | undefined {
-	return value === undefined || (typeof value === "number" && Number.isFinite(value) && value >= 0);
+function isOptionalNonNegativeNumber(
+	value: unknown,
+): value is number | undefined {
+	return (
+		value === undefined ||
+		(typeof value === "number" && Number.isFinite(value) && value >= 0)
+	);
 }
 
-export function isCodexCompactionDiagnostic(value: unknown): value is CodexCompactionDiagnostic {
+export function isCodexCompactionDiagnostic(
+	value: unknown,
+): value is CodexCompactionDiagnostic {
 	if (!isRecord(value)) return false;
-	return isOneOf(COMPACTION_INPUT_SOURCES, value["inputSource"])
-		&& isOneOf(COMPACTION_REPLAY_DECISIONS, value["canonicalReplay"])
-		&& typeof value["checkpointReused"] === "boolean"
-		&& isOptionalString(value["model"])
-		&& isOptionalString(value["checkpointModel"])
-		&& (value["transport"] === undefined || value["transport"] === "websocket" || value["transport"] === "sse")
-		&& (value["continuation"] === undefined || isOneOf(WEBSOCKET_CONTINUATION_DECISIONS, value["continuation"]))
-		&& (value["continuationMismatch"] === undefined || isWebSocketContinuationMismatch(value["continuationMismatch"]))
-		&& (value["previousResponseId"] === undefined || typeof value["previousResponseId"] === "boolean")
-		&& isOptionalNonNegativeNumber(value["fullInputItems"])
-		&& isOptionalNonNegativeNumber(value["sentInputItems"])
-		&& isOptionalNonNegativeNumber(value["rewrittenToolOutputs"]);
+	return (
+		isOneOf(COMPACTION_INPUT_SOURCES, value["inputSource"]) &&
+		isOneOf(COMPACTION_REPLAY_DECISIONS, value["canonicalReplay"]) &&
+		typeof value["checkpointReused"] === "boolean" &&
+		isOptionalString(value["model"]) &&
+		isOptionalString(value["checkpointModel"]) &&
+		(value["transport"] === undefined ||
+			value["transport"] === "websocket" ||
+			value["transport"] === "sse") &&
+		(value["continuation"] === undefined ||
+			isOneOf(WEBSOCKET_CONTINUATION_DECISIONS, value["continuation"])) &&
+		(value["continuationMismatch"] === undefined ||
+			isWebSocketContinuationMismatch(value["continuationMismatch"])) &&
+		(value["previousResponseId"] === undefined ||
+			typeof value["previousResponseId"] === "boolean") &&
+		isOptionalNonNegativeNumber(value["fullInputItems"]) &&
+		isOptionalNonNegativeNumber(value["sentInputItems"]) &&
+		isOptionalNonNegativeNumber(value["rewrittenToolOutputs"])
+	);
 }
 
 export const COMPACTION_CACHE_DIAGNOSTIC_THRESHOLD = 0.8;
@@ -82,12 +104,19 @@ export function formatCompactionCacheDiagnostic(
 	usage: { inputTokens: number; cachedInputTokens: number },
 	diagnostic: CodexCompactionDiagnostic | undefined,
 ): string | undefined {
-	if (!isCodexCompactionDiagnostic(diagnostic) || usage.inputTokens <= 0) return undefined;
-	if (usage.cachedInputTokens / usage.inputTokens >= COMPACTION_CACHE_DIAGNOSTIC_THRESHOLD) return undefined;
+	if (!isCodexCompactionDiagnostic(diagnostic) || usage.inputTokens <= 0)
+		return undefined;
+	if (
+		usage.cachedInputTokens / usage.inputTokens >=
+		COMPACTION_CACHE_DIAGNOSTIC_THRESHOLD
+	)
+		return undefined;
 
 	const reasons: string[] = [];
 	if (diagnostic.inputSource === "reconstructed") {
-		reasons.push(`reconstructed history: ${readable(diagnostic.canonicalReplay)}`);
+		reasons.push(
+			`reconstructed history: ${readable(diagnostic.canonicalReplay)}`,
+		);
 	} else {
 		reasons.push("canonical replay");
 	}
@@ -95,13 +124,20 @@ export function formatCompactionCacheDiagnostic(
 		reasons.push("SSE full request");
 	} else if (diagnostic.transport === "websocket") {
 		if (diagnostic.continuation === "delta") reasons.push("WS delta");
-		else reasons.push(`WS full: ${readable(diagnostic.continuation ?? "no_continuation")}`);
+		else
+			reasons.push(
+				`WS full: ${readable(diagnostic.continuation ?? "no_continuation")}`,
+			);
 	}
 	if (diagnostic.checkpointReused) {
-		reasons.push(`checkpoint reused${diagnostic.checkpointModel ? ` (recorded model ${diagnostic.checkpointModel})` : ""}`);
+		reasons.push(
+			`checkpoint reused${diagnostic.checkpointModel ? ` (recorded model ${diagnostic.checkpointModel})` : ""}`,
+		);
 	}
 	if (diagnostic.rewrittenToolOutputs) {
-		reasons.push(`${diagnostic.rewrittenToolOutputs} tool output${diagnostic.rewrittenToolOutputs === 1 ? "" : "s"} shortened`);
+		reasons.push(
+			`${diagnostic.rewrittenToolOutputs} tool output${diagnostic.rewrittenToolOutputs === 1 ? "" : "s"} shortened`,
+		);
 	}
 	return `(${reasons.join("; ")})`;
 }

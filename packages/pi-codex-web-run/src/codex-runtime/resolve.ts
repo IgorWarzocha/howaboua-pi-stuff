@@ -36,9 +36,9 @@ function isCodexTransportModel(
 ): boolean {
 	return Boolean(
 		model &&
-			(isOpenAICodexModel(model) ||
-				(model.api ?? "").trim().toLowerCase() === "openai-codex-responses" ||
-				isConfiguredCodexTransport?.(model as ExtensionContext["model"])),
+		(isOpenAICodexModel(model) ||
+			(model.api ?? "").trim().toLowerCase() === "openai-codex-responses" ||
+			isConfiguredCodexTransport?.(model as ExtensionContext["model"])),
 	);
 }
 

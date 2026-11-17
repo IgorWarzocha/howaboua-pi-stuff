@@ -5,7 +5,12 @@ const MAX_CELL_OUTPUT_CHARS = 32 * 1024 * 1024;
 const MAX_CELL_OUTPUT_ITEMS = 10_000;
 const MAX_TEXT_ITEM_CHARS = 4 * 1024 * 1024;
 
-export function notebookBootstrapSource(origin: string, token: string, exitToken: string, cwd: string): string {
+export function notebookBootstrapSource(
+	origin: string,
+	token: string,
+	exitToken: string,
+	cwd: string,
+): string {
 	return `{
 	Deno.chdir(${JSON.stringify(cwd)});
   const __origin = ${JSON.stringify(origin)};
@@ -322,12 +327,21 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 }`;
 }
 
-export function notebookToolHooksSource(names: readonly string[], enabled: boolean): string {
-	const entries = names.map((name) => `[${JSON.stringify(name)}, ${enabled ? `() => ${name}` : "null"}]`);
+export function notebookToolHooksSource(
+	names: readonly string[],
+	enabled: boolean,
+): string {
+	const entries = names.map(
+		(name) =>
+			`[${JSON.stringify(name)}, ${enabled ? `() => ${name}` : "null"}]`,
+	);
 	return `if (typeof globalThis.__piNotebook?.configureToolHooks !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.configureToolHooks"); globalThis.__piNotebook.configureToolHooks([${entries.join(",")}]); undefined;`;
 }
 
-export function notebookExampleSource(marker: string, occupied = false): string {
+export function notebookExampleSource(
+	marker: string,
+	occupied = false,
+): string {
 	return `{
 	  const __conflict = ${occupied} || "foo" in globalThis || "bar" in globalThis;
   let __injected = [];

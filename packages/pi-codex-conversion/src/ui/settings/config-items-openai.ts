@@ -5,8 +5,16 @@ import {
 	LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS,
 	normalizeCodexVerbosity,
 } from "../../adapter/activation/config.ts";
-import { allModelsFastModeState, normalizeFastMode } from "../../adapter/activation/fast-mode.ts";
-import { type ConfigSetting, projectCacheKeepalive, setting, toggle } from "./config-items-shared.ts";
+import {
+	allModelsFastModeState,
+	normalizeFastMode,
+} from "../../adapter/activation/fast-mode.ts";
+import {
+	type ConfigSetting,
+	projectCacheKeepalive,
+	setting,
+	toggle,
+} from "./config-items-shared.ts";
 
 export function buildOpenAISettings(
 	config: CodexConversionConfig,
@@ -16,7 +24,10 @@ export function buildOpenAISettings(
 			"daybreak",
 			"Daybreak",
 			config.openai.daybreak,
-			(enabled, current) => ({ ...current, openai: { ...current.openai, daybreak: enabled } }),
+			(enabled, current) => ({
+				...current,
+				openai: { ...current.openai, daybreak: enabled },
+			}),
 			"Use the connected Codex account's advertised Daybreak access without changing the model. Turn off to continue if support cannot be confirmed.",
 		),
 		setting(
@@ -25,35 +36,59 @@ export function buildOpenAISettings(
 				label: "All models Fast Mode",
 				currentValue: allModelsFastModeState(config.openai.fast),
 				values: ["off", "on", "ultrafast"],
-				description: "Set speed for every model, then override families individually. Ultrafast requires access; prices are estimated at base rates where unpublished.",
+				description:
+					"Set speed for every model, then override families individually. Ultrafast requires access; prices are estimated at base rates where unpublished.",
 			},
 			(value, current) => ({
 				...current,
-				openai: { ...current.openai, fast: normalizeFastMode(value === "ultrafast" ? value : value === "on") },
+				openai: {
+					...current.openai,
+					fast: normalizeFastMode(
+						value === "ultrafast" ? value : value === "on",
+					),
+				},
 			}),
 		),
-		...FAST_MODE_FAMILIES.map((family) => setting(
-			{
-				id: `fast-${family}`,
-				label: `${family[0]!.toUpperCase()}${family.slice(1)} Fast Mode`,
-				currentValue: config.openai.fast[family] === "ultrafast" ? "ultrafast" : config.openai.fast[family] ? "on" : "off",
-				values: ["off", "on", "ultrafast"],
-				description: "Request priority (on) or ultrafast across versions. Requires access; unpublished ultrafast prices use base estimates.",
-			},
-			(value, current) => ({
-				...current,
-				openai: { ...current.openai, fast: { ...current.openai.fast, [family]: value === "ultrafast" ? value : value === "on" } },
-			}),
-		)),
+		...FAST_MODE_FAMILIES.map((family) =>
+			setting(
+				{
+					id: `fast-${family}`,
+					label: `${family[0]!.toUpperCase()}${family.slice(1)} Fast Mode`,
+					currentValue:
+						config.openai.fast[family] === "ultrafast"
+							? "ultrafast"
+							: config.openai.fast[family]
+								? "on"
+								: "off",
+					values: ["off", "on", "ultrafast"],
+					description:
+						"Request priority (on) or ultrafast across versions. Requires access; unpublished ultrafast prices use base estimates.",
+				},
+				(value, current) => ({
+					...current,
+					openai: {
+						...current.openai,
+						fast: {
+							...current.openai.fast,
+							[family]: value === "ultrafast" ? value : value === "on",
+						},
+					},
+				}),
+			),
+		),
 		{
 			item: {
 				id: "lunaCacheKeepaliveMinutes",
-				description: "Limit idle Luna keepalive requests to this duration across versions. Uses quota. Off disables requests.",
+				description:
+					"Limit idle Luna keepalive requests to this duration across versions. Uses quota. Off disables requests.",
 				label: "Luna keepalive duration (global)",
-				currentValue: config.openai.lunaCacheKeepaliveMinutes === 0
-					? "off"
-					: `${config.openai.lunaCacheKeepaliveMinutes} mins`,
-				values: LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS.map((minutes) => minutes === 0 ? "off" : `${minutes} mins`),
+				currentValue:
+					config.openai.lunaCacheKeepaliveMinutes === 0
+						? "off"
+						: `${config.openai.lunaCacheKeepaliveMinutes} mins`,
+				values: LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS.map((minutes) =>
+					minutes === 0 ? "off" : `${minutes} mins`,
+				),
 			},
 			action: "global-luna-cache-keepalive",
 		},
@@ -61,7 +96,8 @@ export function buildOpenAISettings(
 			item: {
 				id: "lunaCacheKeepaliveIntervalMinutes",
 				label: "Luna keepalive request interval (global)",
-				description: "Choose 2.5 or 4.5 minutes between idle requests within the duration above. Does not enable keepalive. Cache retention is not guaranteed.",
+				description:
+					"Choose 2.5 or 4.5 minutes between idle requests within the duration above. Does not enable keepalive. Cache retention is not guaranteed.",
 				currentValue: `${config.openai.lunaCacheKeepaliveIntervalMinutes} mins`,
 				values: ["2.5 mins", "4.5 mins"],
 			},
@@ -76,7 +112,8 @@ export function buildOpenAISettings(
 		setting(
 			{
 				id: "verbosity",
-				description: "Set the model's preferred answer detail. This does not change its reasoning effort.",
+				description:
+					"Set the model's preferred answer detail. This does not change its reasoning effort.",
 				label: "Verbosity",
 				currentValue: config.openai.verbosity,
 				values: ["low", "medium", "high"],
@@ -104,27 +141,31 @@ export function buildOpenAISettings(
 		setting(
 			{
 				id: "harnessIdentifierHeader",
-				description: "Choose Pi, Pi Codex Conversion or Codex as the request originator.",
+				description:
+					"Choose Pi, Pi Codex Conversion or Codex as the request originator.",
 				label: "Harness identifier header",
-				currentValue: config.openai.harnessIdentifierHeader === "codex"
-					? "Codex"
-					: config.openai.harnessIdentifierHeader
-						? "pi-codex-conversion <3"
-						: "off",
+				currentValue:
+					config.openai.harnessIdentifierHeader === "codex"
+						? "Codex"
+						: config.openai.harnessIdentifierHeader
+							? "pi-codex-conversion <3"
+							: "off",
 				values: ["off", "pi-codex-conversion <3", "Codex"],
 			},
 			(value, current) => ({
 				...current,
 				openai: {
 					...current.openai,
-					harnessIdentifierHeader: value === "Codex" ? "codex" : value !== "off",
+					harnessIdentifierHeader:
+						value === "Codex" ? "codex" : value !== "off",
 				},
 			}),
 		),
 		setting(
 			{
 				id: "cacheDiagnostics",
-				description: "Show compact cache status, with optional request, transport and timing logs.",
+				description:
+					"Show compact cache status, with optional request, transport and timing logs.",
 				label: "Codex diagnostics",
 				currentValue: formatCacheDiagnostics(config.openai.cacheDiagnostics),
 				values: ["Off", "Status", "Status + log"],

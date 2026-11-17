@@ -38,13 +38,22 @@ export async function acquireDirectoryLock(
 		} catch (error) {
 			if (!isAlreadyExists(error)) throw error;
 			reclaimStaleDirectoryLock(path, options.staleMs);
-			await delay(options.pollMs, undefined, options.signal ? { signal: options.signal } : undefined);
+			await delay(
+				options.pollMs,
+				undefined,
+				options.signal ? { signal: options.signal } : undefined,
+			);
 			continue;
 		}
 		try {
 			const ownerPath = join(path, owner);
-			writeFileSync(ownerPath, `${process.pid}\n${Date.now()}\n`, { mode: 0o600 });
-			const heartbeat = setInterval(() => refreshOwner(ownerPath), Math.max(1, Math.floor(options.staleMs / 3)));
+			writeFileSync(ownerPath, `${process.pid}\n${Date.now()}\n`, {
+				mode: 0o600,
+			});
+			const heartbeat = setInterval(
+				() => refreshOwner(ownerPath),
+				Math.max(1, Math.floor(options.staleMs / 3)),
+			);
 			heartbeat.unref();
 			return {
 				release: () => {
@@ -65,15 +74,28 @@ function reclaimStaleDirectoryLock(path: string, staleMs: number): void {
 		const stat = lstatSync(path);
 		if (Date.now() - stat.mtimeMs <= staleMs) return;
 		if (!stat.isDirectory()) {
-			try { unlinkSync(path); } catch {}
+			try {
+				unlinkSync(path);
+			} catch {}
 			return;
 		}
-		const observedOwners = readdirSync(path).filter((name) => name.endsWith(OWNER_SUFFIX));
-		if (observedOwners.some((owner) => ownerIsFreshOrLive(join(path, owner), staleMs))) return;
+		const observedOwners = readdirSync(path).filter((name) =>
+			name.endsWith(OWNER_SUFFIX),
+		);
+		if (
+			observedOwners.some((owner) =>
+				ownerIsFreshOrLive(join(path, owner), staleMs),
+			)
+		)
+			return;
 		for (const owner of observedOwners) {
-			try { unlinkSync(join(path, owner)); } catch {}
+			try {
+				unlinkSync(join(path, owner));
+			} catch {}
 		}
-		try { rmdirSync(path); } catch {}
+		try {
+			rmdirSync(path);
+		} catch {}
 	} catch {}
 }
 
@@ -87,13 +109,18 @@ function refreshOwner(path: string): void {
 function ownerIsFreshOrLive(path: string, staleMs: number): boolean {
 	try {
 		if (Date.now() - lstatSync(path).mtimeMs <= staleMs) return true;
-		const pid = Number.parseInt(readFileSync(path, "utf8").split("\n", 1)[0]!, 10);
+		const pid = Number.parseInt(
+			readFileSync(path, "utf8").split("\n", 1)[0]!,
+			10,
+		);
 		if (!Number.isSafeInteger(pid) || pid <= 0) return false;
 		try {
 			process.kill(pid, 0);
 			return true;
 		} catch (error) {
-			return error instanceof Error && "code" in error && error.code === "EPERM";
+			return (
+				error instanceof Error && "code" in error && error.code === "EPERM"
+			);
 		}
 	} catch {
 		return false;
@@ -101,8 +128,12 @@ function ownerIsFreshOrLive(path: string, staleMs: number): boolean {
 }
 
 function releaseDirectoryLock(path: string, owner: string): void {
-	try { unlinkSync(join(path, owner)); } catch {}
-	try { rmdirSync(path); } catch {}
+	try {
+		unlinkSync(join(path, owner));
+	} catch {}
+	try {
+		rmdirSync(path);
+	} catch {}
 }
 
 function isAlreadyExists(error: unknown): boolean {

@@ -1,64 +1,64 @@
 {
-	"name": "@howaboua/pi-cache-hit-predictor",
-	"version": "0.0.1",
-	"description": "Predicts reusable prompt-cache prefixes when Pi switches model or reasoning lanes.",
-	"type": "module",
-	"license": "MIT",
-	"author": "Igor Warzocha",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-cache-hit-predictor"
-	},
-	"bugs": {
-		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
-	},
-	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-cache-hit-predictor#readme",
-	"keywords": [
-		"pi-package",
-		"pi-extension",
-		"pi-coding-agent",
-		"prompt-cache",
-		"cache-prediction",
-		"model-switching"
-	],
-	"engines": {
-		"node": ">=20.6.0"
-	},
-	"publishConfig": {
-		"access": "public"
-	},
-	"files": [
-		"index.ts",
-		"src",
-		"README.md",
-		"LICENSE",
-		"tsconfig.json",
-		"biome.json",
-		"CHANGELOG.md"
-	],
-	"pi": {
-		"extensions": [
-			"./index.ts"
-		]
-	},
-	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=1.5.0",
-		"@earendil-works/pi-tui": ">=1.0.0"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "^2.6.6",
-		"@earendil-works/pi-coding-agent": "1.5.2",
-		"typescript": "^7.0.2"
-	},
-	"scripts": {
-		"check": "bun run lint && bun run typecheck",
-		"typecheck": "tsgo --noEmit",
-		"lint": "biome check .",
-		"format": "biome check --write .",
-		"pack:dry": "npm pack --dry-run",
-		"prepublishOnly": "bun run check && bun run pack:dry"
-	},
-	"main": "index.ts",
-	"exports": "./index.ts"
+  "name": "@howaboua/pi-cache-hit-predictor",
+  "version": "0.0.1",
+  "description": "Predicts reusable prompt-cache prefixes when Pi switches model or reasoning lanes.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Igor Warzocha",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+    "directory": "packages/pi-cache-hit-predictor"
+  },
+  "bugs": {
+    "url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+  },
+  "homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-cache-hit-predictor#readme",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi-coding-agent",
+    "prompt-cache",
+    "cache-prediction",
+    "model-switching"
+  ],
+  "engines": {
+    "node": ">=20.6.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "README.md",
+    "LICENSE",
+    "tsconfig.json",
+    "CHANGELOG.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=1.5.0",
+    "@earendil-works/pi-tui": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.5.2",
+    "typescript": "^7.0.2",
+    "oxfmt": "^0.78.0"
+  },
+  "scripts": {
+    "check": "bun run lint && bun run typecheck",
+    "typecheck": "tsrs --noEmit",
+    "lint": "bun run format:check && oxlint --type-aware",
+    "format": "oxfmt --write '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'",
+    "pack:dry": "npm pack --dry-run",
+    "prepublishOnly": "bun run check && bun run pack:dry",
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'"
+  },
+  "main": "index.ts",
+  "exports": "./index.ts"
 }

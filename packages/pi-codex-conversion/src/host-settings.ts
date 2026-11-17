@@ -52,7 +52,7 @@ export async function hostSettings(options: HostSettingsOptions) {
 		)
 			throw new Error("Settings target changed; reload settings before saving");
 	}
- const readConfig = () => readCodexConversionConfig(configPath, true);
+	const readConfig = () => readCodexConversionConfig(configPath, true);
 	const settings = createVoiceSettings({
 		readConfig,
 		getConfig: readConfig,

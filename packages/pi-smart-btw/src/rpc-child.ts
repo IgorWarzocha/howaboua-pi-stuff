@@ -262,11 +262,11 @@ export class BtwChild {
 		const pending = this.pending.get(data.id)!;
 		clearTimeout(pending.timeout);
 		this.pending.delete(data.id);
-		data.success === false
-			? pending.reject(
-					new Error(String(data.error ?? `RPC ${data.command} failed`)),
-				)
-			: pending.resolve(data.data);
+		if (data.success === false)
+			pending.reject(
+				new Error(String(data.error ?? `RPC ${data.command} failed`)),
+			);
+		else pending.resolve(data.data);
 		return true;
 	}
 

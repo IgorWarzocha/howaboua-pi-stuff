@@ -26,9 +26,8 @@ export async function registerNotesToolIntegrations(
 ) {
 	const { tools, requestContext } = registration;
 	try {
-		const { registerGptPromptMode } = await import(
-			"@howaboua/pi-codex-conversion/prompt-mode"
-		);
+		const { registerGptPromptMode } =
+			await import("@howaboua/pi-codex-conversion/prompt-mode");
 		const registration = registerGptPromptMode(pi, (active, ctx) => {
 			if (ctx) activation.refreshActivation(ctx);
 			const tool = tools.find((tool) => tool.name === "new_context");
@@ -134,9 +133,8 @@ export async function registerNotesToolIntegrations(
 		);
 		refreshNested = registration.refresh;
 		pi.on("session_shutdown", () => registration.unregister());
-		const { withCodexDeveloperMessageDetails } = await import(
-			"@howaboua/pi-codex-conversion/developer-messages"
-		);
+		const { withCodexDeveloperMessageDetails } =
+			await import("@howaboua/pi-codex-conversion/developer-messages");
 		lifecycle.prepareReminder = withCodexDeveloperMessageDetails;
 	} catch (error) {
 		if (!optionalPccMissing(error)) throw error;
@@ -180,19 +178,17 @@ export async function registerNotesCompactionIntegration(
 		} = await import("@howaboua/pi-codex-conversion/compaction");
 		prepareProviderWindow = (ctx) => prepareContextWindow(pi, ctx);
 		const registration = registerCompactionPreparation(pi, prepareCompaction);
-		const stopProjection = registerContextBranchProjection(
-			pi,
-			(entries, ctx) =>
-				activation.available
-					? projectTreeHandoffBranch(
-							lifecycle.windows.projectBranch(
-								projectTreeCheckpointBranch(
-									entries,
-									ctx.sessionManager.getEntries(),
-								),
+		const stopProjection = registerContextBranchProjection(pi, (entries, ctx) =>
+			activation.available
+				? projectTreeHandoffBranch(
+						lifecycle.windows.projectBranch(
+							projectTreeCheckpointBranch(
+								entries,
+								ctx.sessionManager.getEntries(),
 							),
-						)
-					: entries,
+						),
+					)
+				: entries,
 		);
 		pi.on("session_shutdown", stopProjection);
 		pi.on("session_before_compact", registration.prepare);

@@ -34,9 +34,8 @@ export default async function browserExtension(
 	registerBrowserCommand(pi);
 	pi.registerTool(tool);
 	try {
-		const { registerGptPromptMode } = await import(
-			"@howaboua/pi-codex-conversion/prompt-mode"
-		);
+		const { registerGptPromptMode } =
+			await import("@howaboua/pi-codex-conversion/prompt-mode");
 		registerGptPromptMode(pi, (active) => {
 			gpt = active;
 			return [tool];

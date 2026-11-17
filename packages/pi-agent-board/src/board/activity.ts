@@ -102,6 +102,7 @@ function boardRow(entry: SessionEntry): BoardRow | undefined {
 			label: [label, channel]
 				.filter(Boolean)
 				.join(" · ")
+				// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
 				.replace(/[\r\n\t\x00-\x1f\x7f]/g, " "),
 			detail: () => JSON.stringify(entry.data, null, 2) ?? "",
 		};

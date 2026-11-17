@@ -7,24 +7,30 @@ export interface CodexLikeModelDescriptor {
 	baseUrl: string;
 }
 
-export function isOpenAICodexModel(model: Partial<CodexLikeModelDescriptor> | null | undefined): boolean {
+export function isOpenAICodexModel(
+	model: Partial<CodexLikeModelDescriptor> | null | undefined,
+): boolean {
 	if (!model) return false;
 	return (model.provider ?? "").toLowerCase() === "openai-codex";
 }
 
-export function isCanonicalCodexBaseUrl(value: string | null | undefined): boolean {
+export function isCanonicalCodexBaseUrl(
+	value: string | null | undefined,
+): boolean {
 	if (!value?.trim()) return false;
 	try {
 		const url = new URL(value);
 		const path = url.pathname.replace(/\/+$/, "");
-		return url.protocol === "https:"
-			&& url.hostname === "chatgpt.com"
-			&& url.port === ""
-			&& url.username === ""
-			&& url.password === ""
-			&& url.search === ""
-			&& url.hash === ""
-			&& (path === "/backend-api" || path === "/backend-api/codex");
+		return (
+			url.protocol === "https:" &&
+			url.hostname === "chatgpt.com" &&
+			url.port === "" &&
+			url.username === "" &&
+			url.password === "" &&
+			url.search === "" &&
+			url.hash === "" &&
+			(path === "/backend-api" || path === "/backend-api/codex")
+		);
 	} catch {
 		return false;
 	}
@@ -33,49 +39,75 @@ export function isCanonicalCodexBaseUrl(value: string | null | undefined): boole
 export function isCanonicalCodexSubscriptionModel(
 	model: Partial<CodexLikeModelDescriptor> | null | undefined,
 ): boolean {
-	return Boolean(model
-		&& model.api === "openai-codex-responses"
-		&& isCanonicalCodexBaseUrl(model.baseUrl));
+	return Boolean(
+		model &&
+		model.api === "openai-codex-responses" &&
+		isCanonicalCodexBaseUrl(model.baseUrl),
+	);
 }
 
-export function isStandardCodexSubscriptionModel(model: Partial<CodexLikeModelDescriptor> | null | undefined): boolean {
-	return model?.provider === "openai-codex" && isCanonicalCodexSubscriptionModel(model);
+export function isStandardCodexSubscriptionModel(
+	model: Partial<CodexLikeModelDescriptor> | null | undefined,
+): boolean {
+	return (
+		model?.provider === "openai-codex" &&
+		isCanonicalCodexSubscriptionModel(model)
+	);
 }
 
 export function isCodexTransportModel(
 	model: Partial<CodexLikeModelDescriptor> | null | undefined,
 ): boolean {
-	return Boolean(model && (
-		isOpenAICodexModel(model)
-		|| (model.api ?? "").trim().toLowerCase() === "openai-codex-responses"
-	));
+	return Boolean(
+		model &&
+		(isOpenAICodexModel(model) ||
+			(model.api ?? "").trim().toLowerCase() === "openai-codex-responses"),
+	);
 }
 
-export function isResponsesModel(model: Partial<CodexLikeModelDescriptor> | null | undefined): boolean {
+export function isResponsesModel(
+	model: Partial<CodexLikeModelDescriptor> | null | undefined,
+): boolean {
 	if (!model) return false;
 	return (model.api ?? "").toLowerCase().includes("responses");
 }
 
 // Keep model detection intentionally conservative. The adapter replaces the
 // system prompt and tool surface, so false positives are worse than misses.
-export function isCodexLikeModel(model: Partial<CodexLikeModelDescriptor> | null | undefined): boolean {
+export function isCodexLikeModel(
+	model: Partial<CodexLikeModelDescriptor> | null | undefined,
+): boolean {
 	if (!model) return false;
 
 	const provider = (model.provider ?? "").toLowerCase();
 	const api = (model.api ?? "").toLowerCase();
 	const id = (model.id ?? "").toLowerCase();
-	const isCopilotGpt = (provider.includes("copilot") || api.includes("copilot")) && id.includes("gpt");
-	return provider.includes("codex") || api.includes("codex") || id.includes("codex") || (provider.includes("openai") && id.includes("gpt")) || isCopilotGpt;
+	const isCopilotGpt =
+		(provider.includes("copilot") || api.includes("copilot")) &&
+		id.includes("gpt");
+	return (
+		provider.includes("codex") ||
+		api.includes("codex") ||
+		id.includes("codex") ||
+		(provider.includes("openai") && id.includes("gpt")) ||
+		isCopilotGpt
+	);
 }
 
-export function isCodexTransportContext(ctx: Pick<ExtensionContext, "model">): boolean {
+export function isCodexTransportContext(
+	ctx: Pick<ExtensionContext, "model">,
+): boolean {
 	return isCodexTransportModel(ctx.model);
 }
 
-export function isResponsesContext(ctx: Pick<ExtensionContext, "model">): boolean {
+export function isResponsesContext(
+	ctx: Pick<ExtensionContext, "model">,
+): boolean {
 	return isResponsesModel(ctx.model);
 }
 
-export function isOpenAIResponsesContext(ctx: Pick<ExtensionContext, "model">): boolean {
+export function isOpenAIResponsesContext(
+	ctx: Pick<ExtensionContext, "model">,
+): boolean {
 	return (ctx.model?.api ?? "").trim().toLowerCase() === "openai-responses";
 }

@@ -17,8 +17,14 @@ import type {
 } from "../code-mode/types.ts";
 import { NotebookBridgeServer } from "./bridge-server.ts";
 import { NotebookCell } from "./cell.ts";
-import { beginNotebookJournalCell, finishNotebookJournalCell } from "./journal.ts";
-import { NOTEBOOK_INTERRUPTED_NOTICE, withNotebookRecoveryGuidance } from "./runtime-health.ts";
+import {
+	beginNotebookJournalCell,
+	finishNotebookJournalCell,
+} from "./journal.ts";
+import {
+	NOTEBOOK_INTERRUPTED_NOTICE,
+	withNotebookRecoveryGuidance,
+} from "./runtime-health.ts";
 import type { NotebookSessionRuntime } from "./session-runtime.ts";
 
 const CANCEL_GRACE_MS = 250;
@@ -27,18 +33,26 @@ const TERMINATE_GRACE_MS = 1_500;
 export class NotebookExecutionRuntime {
 	readonly bridge: NotebookBridgeServer;
 	private readonly session: () => NotebookSessionRuntime;
-	private readonly prepareSession: (context: ToolExecutionContext, signal?: AbortSignal) => Promise<void>;
+	private readonly prepareSession: (
+		context: ToolExecutionContext,
+		signal?: AbortSignal,
+	) => Promise<void>;
 	private readonly delegate: CodeModeDelegateRuntime;
 	private readonly stopOperations = new WeakMap<NotebookCell, Promise<void>>();
 	private activeCell: NotebookCell | undefined;
 	private preparingCell = false;
 	private nextCellId = 1;
-	private readonly completed: ((cell: NotebookCell) => Promise<void>) | undefined;
+	private readonly completed:
+		| ((cell: NotebookCell) => Promise<void>)
+		| undefined;
 	private readonly cellPrefix: string;
 
 	constructor(
 		session: () => NotebookSessionRuntime,
-		prepareSession: (context: ToolExecutionContext, signal?: AbortSignal) => Promise<void>,
+		prepareSession: (
+			context: ToolExecutionContext,
+			signal?: AbortSignal,
+		) => Promise<void>,
 		prepareToolInput: typeof prepareCodeModeToolInput,
 		renderStore?: CodeModeNestedRenderStore,
 		completed?: (cell: NotebookCell) => Promise<void>,
@@ -48,9 +62,14 @@ export class NotebookExecutionRuntime {
 		this.cellPrefix = cellPrefix;
 		this.session = session;
 		this.prepareSession = prepareSession;
-		this.delegate = new CodeModeDelegateRuntime(() => undefined, prepareToolInput, renderStore);
+		this.delegate = new CodeModeDelegateRuntime(
+			() => undefined,
+			prepareToolInput,
+			renderStore,
+		);
 		this.bridge = new NotebookBridgeServer({
-			callTool: (cellId, requestId, toolName, input) => this.callTool(cellId, requestId, toolName, input),
+			callTool: (cellId, requestId, toolName, input) =>
+				this.callTool(cellId, requestId, toolName, input),
 			cancelTools: (cellId) => this.cancelTools(cellId),
 			emit: (cellId, items) => this.requireActiveCell(cellId).emit(items),
 			notify: (cellId, text) => this.notify(cellId, text),
@@ -59,11 +78,17 @@ export class NotebookExecutionRuntime {
 		});
 	}
 
-	clearOpaqueResults(): void { this.delegate.clearOpaqueResults(); }
+	clearOpaqueResults(): void {
+		this.delegate.clearOpaqueResults();
+	}
 
-	activeCellId(): string | undefined { return this.activeCell?.id; }
+	activeCellId(): string | undefined {
+		return this.activeCell?.id;
+	}
 	runningCellId(): string | undefined {
-		return this.activeCell && !this.activeCell.isCompleted() ? this.activeCell.id : undefined;
+		return this.activeCell && !this.activeCell.isCompleted()
+			? this.activeCell.id
+			: undefined;
 	}
 
 	async execute(
@@ -74,10 +99,14 @@ export class NotebookExecutionRuntime {
 	): Promise<RuntimeResponse> {
 		signal?.throwIfAborted();
 		if (this.preparingCell) {
-			throw new Error("Another notebook cell is starting; wait for its result before starting another normal cell");
+			throw new Error(
+				"Another notebook cell is starting; wait for its result before starting another normal cell",
+			);
 		}
 		if (this.activeCell) {
-			throw new Error(`Notebook exec cell "${this.activeCell.id}" is still active; call wait or terminate it before starting another cell`);
+			throw new Error(
+				`Notebook exec cell "${this.activeCell.id}" is still active; call wait or terminate it before starting another cell`,
+			);
 		}
 		const session = this.session();
 		this.preparingCell = true;
@@ -88,8 +117,13 @@ export class NotebookExecutionRuntime {
 		} finally {
 			this.preparingCell = false;
 		}
-		const { code, yieldTimeMs, maxOutputTokens } = parseExecSource(source, { allowIsolated: true });
-		const effectiveYieldTime = directToolYieldTime(code, tools) ?? yieldTimeMs ?? DEFAULT_CODE_MODE_EXEC_YIELD_MS;
+		const { code, yieldTimeMs, maxOutputTokens } = parseExecSource(source, {
+			allowIsolated: true,
+		});
+		const effectiveYieldTime =
+			directToolYieldTime(code, tools) ??
+			yieldTimeMs ??
+			DEFAULT_CODE_MODE_EXEC_YIELD_MS;
 		this.nextCellId = Math.max(this.nextCellId, session.cellCount() + 1);
 		const id = `${this.cellPrefix}-${this.nextCellId++}`;
 		session.recordMemory(undefined);
@@ -103,7 +137,11 @@ export class NotebookExecutionRuntime {
 		const notice = session.takeNotice();
 		this.activeCell = cell;
 		if (notice) cell.emit([{ type: "input_text", text: notice }]);
-		this.delegate.bindCell(id, cell.context, new Map(tools.map((tool) => [tool.name, tool])));
+		this.delegate.bindCell(
+			id,
+			cell.context,
+			new Map(tools.map((tool) => [tool.name, tool])),
+		);
 		let journaled = false;
 		try {
 			const journal = session.journal();
@@ -120,11 +158,14 @@ export class NotebookExecutionRuntime {
 			void this.stopAndCloseCell(cell).catch(() => undefined);
 		};
 		signal?.addEventListener("abort", abort, { once: true });
-		void this.runCell(cell, wrapped, journaled).finally(() => signal?.removeEventListener("abort", abort));
+		void this.runCell(cell, wrapped, journaled).finally(() =>
+			signal?.removeEventListener("abort", abort),
+		);
 		try {
 			return await this.observe(cell, effectiveYieldTime, signal);
 		} catch (error) {
-			if (signal?.aborted) await this.stopAndCloseCell(cell).catch(() => undefined);
+			if (signal?.aborted)
+				await this.stopAndCloseCell(cell).catch(() => undefined);
 			throw error;
 		}
 	}
@@ -136,7 +177,13 @@ export class NotebookExecutionRuntime {
 		signal?: AbortSignal,
 	): Promise<RuntimeResponse> {
 		const cell = this.activeCell;
-		if (!cell || cell.id !== cellId) return this.withMemory({ kind: "result", cellId, contentItems: [], missingCell: true });
+		if (!cell || cell.id !== cellId)
+			return this.withMemory({
+				kind: "result",
+				cellId,
+				contentItems: [],
+				missingCell: true,
+			});
 		cell.context = this.withCellContext(cell, context);
 		this.delegate.updateCellContext(cellId, cell.context);
 		return this.observe(cell, yieldTimeMs, signal);
@@ -149,7 +196,13 @@ export class NotebookExecutionRuntime {
 	): Promise<RuntimeResponse> {
 		signal?.throwIfAborted();
 		const cell = this.activeCell;
-		if (!cell || cell.id !== cellId) return this.withMemory({ kind: "terminated", cellId, contentItems: [], missingCell: true });
+		if (!cell || cell.id !== cellId)
+			return this.withMemory({
+				kind: "terminated",
+				cellId,
+				contentItems: [],
+				missingCell: true,
+			});
 		cell.context = this.withCellContext(cell, context);
 		this.delegate.updateCellContext(cellId, cell.context);
 		await this.stopCell(cell);
@@ -170,7 +223,11 @@ export class NotebookExecutionRuntime {
 		this.session().recordMemory(undefined);
 	}
 
-	private async runCell(cell: NotebookCell, source: string, journaled: boolean): Promise<void> {
+	private async runCell(
+		cell: NotebookCell,
+		source: string,
+		journaled: boolean,
+	): Promise<void> {
 		const session = this.session();
 		try {
 			const result = await session.kernel()!.execute(source, {
@@ -179,9 +236,17 @@ export class NotebookExecutionRuntime {
 				interruptOnAbort: false,
 				onOutput: (item) => cell.emit([item]),
 			});
-			const normalized = result.errorName === "PiNotebookExit" && result.errorValue === this.bridge.exitToken
-				? { ...result, status: "ok" as const, errorText: undefined, errorName: undefined, errorValue: undefined }
-				: result;
+			const normalized =
+				result.errorName === "PiNotebookExit" &&
+				result.errorValue === this.bridge.exitToken
+					? {
+							...result,
+							status: "ok" as const,
+							errorText: undefined,
+							errorName: undefined,
+							errorValue: undefined,
+						}
+					: result;
 			cell.result = normalized;
 			if (!(await session.recoverFromBootstrapFailure(normalized))) {
 				await this.endCellRuntime(cell);
@@ -192,7 +257,9 @@ export class NotebookExecutionRuntime {
 			}
 		} catch (error) {
 			this.delegate.cancelCell(cell.id);
-			const recovery = cell.controller.signal.aborted ? undefined : await this.recoverAfterFatal(cell.context);
+			const recovery = cell.controller.signal.aborted
+				? undefined
+				: await this.recoverAfterFatal(cell.context);
 			cell.result = {
 				status: cell.controller.signal.aborted ? "aborted" : "error",
 				items: [],
@@ -211,12 +278,20 @@ export class NotebookExecutionRuntime {
 					});
 				}
 			} catch (error) {
-				this.reportJournalFailure(error, journaled ? "completion" : "update", cell);
+				this.reportJournalFailure(
+					error,
+					journaled ? "completion" : "update",
+					cell,
+				);
 			}
 			try {
 				await this.completed?.(cell);
 			} catch (error) {
-				cell.result = { status: "error", items: [], errorText: `Notebook result could not be saved: ${error instanceof Error ? error.message : String(error)}. The live notebook is unchanged; inspect saved profiles or rerun the isolated cell.` };
+				cell.result = {
+					status: "error",
+					items: [],
+					errorText: `Notebook result could not be saved: ${error instanceof Error ? error.message : String(error)}. The live notebook is unchanged; inspect saved profiles or rerun the isolated cell.`,
+				};
 			}
 			cell.markCompleted();
 		}
@@ -226,33 +301,57 @@ export class NotebookExecutionRuntime {
 		const kernel = this.session().kernel();
 		if (!kernel) return;
 		const id = JSON.stringify(cell.id);
-		const result = await kernel.execute(`if (typeof globalThis.__piNotebook?.finish !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.finish"); await globalThis.__piNotebook.finish(${id}); undefined;`);
+		const result = await kernel.execute(
+			`if (typeof globalThis.__piNotebook?.finish !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.finish"); await globalThis.__piNotebook.finish(${id}); undefined;`,
+		);
 		await this.session().recoverFromBootstrapFailure(result);
 		if (result.status !== "ok" && cell.result?.status === "ok") {
-			cell.result = { status: "error", items: [], errorText: result.errorText ?? "Notebook helper flush failed" };
+			cell.result = {
+				status: "error",
+				items: [],
+				errorText: result.errorText ?? "Notebook helper flush failed",
+			};
 		}
 	}
 
-	private async observe(cell: NotebookCell, yieldTimeMs: number, signal?: AbortSignal): Promise<RuntimeResponse> {
+	private async observe(
+		cell: NotebookCell,
+		yieldTimeMs: number,
+		signal?: AbortSignal,
+	): Promise<RuntimeResponse> {
 		signal?.throwIfAborted();
-		return this.finishObservation(cell, await cell.observe(yieldTimeMs, signal));
+		return this.finishObservation(
+			cell,
+			await cell.observe(yieldTimeMs, signal),
+		);
 	}
 
-	private finishObservation(cell: NotebookCell, kind: RuntimeResponse["kind"]): RuntimeResponse {
+	private finishObservation(
+		cell: NotebookCell,
+		kind: RuntimeResponse["kind"],
+	): RuntimeResponse {
 		const notice = this.session().takeNotice();
 		if (notice) cell.emit([{ type: "input_text", text: notice }]);
 		const contentItems = cell.takeContent();
-		const response: RuntimeResponse = kind === "result"
-			? {
-				kind,
-				cellId: cell.id,
-				contentItems,
-				...(cell.result?.status === "error" && cell.result.errorText ? { errorText: cell.result.errorText } : {}),
-				maxOutputTokens: cell.maxOutputTokens,
-			}
-			: kind === "terminated"
-				? { kind, cellId: cell.id, contentItems }
-				: { kind, cellId: cell.id, contentItems, maxOutputTokens: cell.maxOutputTokens };
+		const response: RuntimeResponse =
+			kind === "result"
+				? {
+						kind,
+						cellId: cell.id,
+						contentItems,
+						...(cell.result?.status === "error" && cell.result.errorText
+							? { errorText: cell.result.errorText }
+							: {}),
+						maxOutputTokens: cell.maxOutputTokens,
+					}
+				: kind === "terminated"
+					? { kind, cellId: cell.id, contentItems }
+					: {
+							kind,
+							cellId: cell.id,
+							contentItems,
+							maxOutputTokens: cell.maxOutputTokens,
+						};
 		const attached = this.delegate.attach(this.withMemory(response));
 		if (kind !== "yielded") this.closeCell(cell);
 		return attached;
@@ -261,7 +360,9 @@ export class NotebookExecutionRuntime {
 	private stopCell(cell: NotebookCell): Promise<void> {
 		const existing = this.stopOperations.get(cell);
 		if (existing) return existing;
-		const operation = this.stopCellInner(cell).finally(() => this.stopOperations.delete(cell));
+		const operation = this.stopCellInner(cell).finally(() =>
+			this.stopOperations.delete(cell),
+		);
 		this.stopOperations.set(cell, operation);
 		return operation;
 	}
@@ -274,9 +375,12 @@ export class NotebookExecutionRuntime {
 		await Promise.race([cell.waitForCompletion(), delay(CANCEL_GRACE_MS)]);
 		if (!cell.isCompleted()) {
 			const kernel = this.session().kernel();
-			try { await kernel?.interrupt(); } catch {}
+			try {
+				await kernel?.interrupt();
+			} catch {}
 		}
-		if (isolateKernel) await this.session().invalidateKernel(NOTEBOOK_INTERRUPTED_NOTICE);
+		if (isolateKernel)
+			await this.session().invalidateKernel(NOTEBOOK_INTERRUPTED_NOTICE);
 		await Promise.race([cell.waitForCompletion(), delay(TERMINATE_GRACE_MS)]);
 		if (!cell.isCompleted()) {
 			cell.result = { status: "aborted", items: [] };
@@ -289,20 +393,34 @@ export class NotebookExecutionRuntime {
 		this.closeCell(cell);
 	}
 
-	private async recoverAfterFatal(context: ToolExecutionContext): Promise<string> {
+	private async recoverAfterFatal(
+		context: ToolExecutionContext,
+	): Promise<string> {
 		const extension = context.extensionContext;
-		if (!extension) return "Notebook kernel could not restart because its session context is unavailable";
+		if (!extension)
+			return "Notebook kernel could not restart because its session context is unavailable";
 		if (this.activeCell) this.delegate.cancelCell(this.activeCell.id);
 		try {
 			const restoreNotice = await this.session().restart(extension);
 			return `Notebook kernel restarted from the last completed checkpoint; external side effects were not rolled back${restoreNotice ? `. ${restoreNotice}` : ""}`;
 		} catch (error) {
-			return withNotebookRecoveryGuidance(`Notebook kernel restart failed: ${error instanceof Error ? error.message : String(error)}`);
+			return withNotebookRecoveryGuidance(
+				`Notebook kernel restart failed: ${error instanceof Error ? error.message : String(error)}`,
+			);
 		}
 	}
 
-	private reportJournalFailure(error: unknown, operation: string, cell: NotebookCell): void {
-		cell.emit([{ type: "input_text", text: `Notebook journal ${operation} failed: ${error instanceof Error ? error.message : String(error)}` }]);
+	private reportJournalFailure(
+		error: unknown,
+		operation: string,
+		cell: NotebookCell,
+	): void {
+		cell.emit([
+			{
+				type: "input_text",
+				text: `Notebook journal ${operation} failed: ${error instanceof Error ? error.message : String(error)}`,
+			},
+		]);
 	}
 
 	private closeCell(cell: NotebookCell): void {
@@ -310,16 +428,29 @@ export class NotebookExecutionRuntime {
 		this.delegate.closeCell(cell.id);
 	}
 
-	private withCellContext(cell: NotebookCell, context: ToolExecutionContext): ToolExecutionContext {
+	private withCellContext(
+		cell: NotebookCell,
+		context: ToolExecutionContext,
+	): ToolExecutionContext {
 		return {
 			...context,
 			setBlocked: (blockerId, active) => cell.setBlocked(blockerId, active),
 		};
 	}
 
-	private async callTool(cellId: string, requestId: number, toolName: CodeModeToolIdentity, input: unknown): Promise<unknown> {
+	private async callTool(
+		cellId: string,
+		requestId: number,
+		toolName: CodeModeToolIdentity,
+		input: unknown,
+	): Promise<unknown> {
 		this.requireActiveCell(cellId);
-		return this.delegate.invokeDirect(cellId, requestId, codeModeNameForToolIdentity(toolName), input);
+		return this.delegate.invokeDirect(
+			cellId,
+			requestId,
+			codeModeNameForToolIdentity(toolName),
+			input,
+		);
 	}
 
 	private cancelTools(cellId: string): void {
@@ -343,7 +474,8 @@ export class NotebookExecutionRuntime {
 
 	private requireActiveCell(cellId: string): NotebookCell {
 		const cell = this.activeCell;
-		if (!cell || cell.id !== cellId) throw new Error(`Notebook cell "${cellId}" is not active`);
+		if (!cell || cell.id !== cellId)
+			throw new Error(`Notebook cell "${cellId}" is not active`);
 		return cell;
 	}
 }

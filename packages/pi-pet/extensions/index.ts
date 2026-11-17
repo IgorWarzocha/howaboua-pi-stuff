@@ -111,9 +111,8 @@ export default async function piPetExtension(pi: ExtensionAPI): Promise<void> {
   let current: ReturnType<typeof registerPetRuntime> | undefined;
   let refresh = () => {};
   try {
-    const { adaptToolForCodeMode, registerCodeModeExtensionTools } = await import(
-      "@howaboua/pi-codex-conversion/code-mode"
-    );
+    const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
+      await import("@howaboua/pi-codex-conversion/code-mode");
     const codeRegistration = registerCodeModeExtensionTools(pi, () => [
       ...(current ? [adaptToolForCodeMode(current.tool, { discovery: "help", deferLoading: true })] : []),
     ]);

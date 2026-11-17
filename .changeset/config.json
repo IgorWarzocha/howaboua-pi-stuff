@@ -1,15 +1,18 @@
 {
-  "$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
-  "changelog": ["./changelog.mjs", {
-    "repo": "IgorWarzocha/howaboua-pi-stuff",
-    "disableThanks": true,
-    "template": "\n\n- {summary}"
-  }],
-  "commit": false,
-  "fixed": [],
-  "linked": [],
-  "access": "public",
-  "baseBranch": "main",
-  "updateInternalDependencies": "patch",
-  "ignore": []
+	"$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
+	"changelog": [
+		"./changelog.mjs",
+		{
+			"repo": "IgorWarzocha/howaboua-pi-stuff",
+			"disableThanks": true,
+			"template": "\n\n- {summary}"
+		}
+	],
+	"commit": false,
+	"fixed": [],
+	"linked": [],
+	"access": "public",
+	"baseBranch": "main",
+	"updateInternalDependencies": "patch",
+	"ignore": []
 }

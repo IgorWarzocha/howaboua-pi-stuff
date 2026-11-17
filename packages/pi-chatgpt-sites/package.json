@@ -1,61 +1,62 @@
 {
-	"name": "@howaboua/pi-chatgpt-sites",
-	"version": "0.0.3",
-	"description": "ChatGPT Sites management for Pi, Code Mode and Notebook",
-	"type": "module",
-	"license": "MIT",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-chatgpt-sites"
-	},
-	"files": [
-		"dist",
-		"README.md",
-		"LICENSE",
-		"CHANGELOG.md"
-	],
-	"main": "dist/index.js",
-	"types": "dist/index.d.ts",
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js"
-		}
-	},
-	"pi": {
-		"extensions": [
-			"./dist/index.js"
-		]
-	},
-	"engines": {
-		"node": ">=22.19.0"
-	},
-	"scripts": {
-		"build": "node scripts/build.mjs",
-		"check": "bun run lint && bun run typecheck",
-		"lint": "biome check .",
-		"typecheck": "tsgo --noEmit",
-		"prepack": "bun run check && bun run build",
-		"pack:dry": "npm pack --dry-run"
-	},
-	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=1.5.0",
-		"@earendil-works/pi-tui": ">=1.0.0",
-		"@howaboua/pi-codex-conversion": ">=5.0.0"
-	},
-	"publishConfig": {
-		"access": "public"
-	},
-	"peerDependenciesMeta": {
-		"@howaboua/pi-codex-conversion": {
-			"optional": true
-		}
-	},
-	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "5.0.0"
-	},
-	"dependencies": {
-		"@earendil-works/pi-schema": "1.5.2"
-	}
+  "name": "@howaboua/pi-chatgpt-sites",
+  "version": "0.0.3",
+  "description": "ChatGPT Sites management for Pi, Code Mode and Notebook",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+    "directory": "packages/pi-chatgpt-sites"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "pi": {
+    "extensions": [
+      "./dist/index.js"
+    ]
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "bun run lint && bun run typecheck",
+    "lint": "bun run format:check && oxlint --type-aware",
+    "typecheck": "tsrs --noEmit",
+    "prepack": "bun run check && bun run build",
+    "pack:dry": "npm pack --dry-run",
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=1.5.0",
+    "@earendil-works/pi-tui": ">=1.0.0",
+    "@howaboua/pi-codex-conversion": ">=5.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependenciesMeta": {
+    "@howaboua/pi-codex-conversion": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@howaboua/pi-codex-conversion": "5.0.0"
+  },
+  "dependencies": {
+    "@earendil-works/pi-schema": "1.5.2"
+  }
 }

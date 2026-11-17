@@ -1,3 +1,3 @@
-import { sessionHooks } from './session-plugin.mjs';
+import { sessionHooks } from "./session-plugin.mjs";
 
-export const HerdrStatePlugin = async () => sessionHooks('kilo');
+export const HerdrStatePlugin = async () => sessionHooks("kilo");

@@ -38,8 +38,12 @@ export function normalizeCompactToolsMode(
 		: undefined;
 }
 
-export function normalizeCompactionMethod(value: unknown): CompactionMethod | undefined {
-	return value === "pi" || value === "v2" || value === "both" ? value : undefined;
+export function normalizeCompactionMethod(
+	value: unknown,
+): CompactionMethod | undefined {
+	return value === "pi" || value === "v2" || value === "both"
+		? value
+		: undefined;
 }
 
 export function normalizeCodexVerbosity(

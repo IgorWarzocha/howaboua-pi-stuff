@@ -4,9 +4,11 @@ import { fileURLToPath } from "node:url";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 
 export const REALTIME_SYSTEM_PROMPT_BASENAME = "REALTIME-SYSTEM-PROMPT.md";
-const REALTIME_SYSTEM_PROMPT_CHANGELOG_BASENAME = "REALTIME-SYSTEM-PROMPT-CHANGELOG.md";
+const REALTIME_SYSTEM_PROMPT_CHANGELOG_BASENAME =
+	"REALTIME-SYSTEM-PROMPT-CHANGELOG.md";
 
-const CODEX_VOICE_PROMPT_VERSION_PATTERN = /^\ufeff?<!-- codex-voice-prompt-version: (\d+) -->[ \t]*\r?$/gm;
+const CODEX_VOICE_PROMPT_VERSION_PATTERN =
+	/^\ufeff?<!-- codex-voice-prompt-version: (\d+) -->[ \t]*\r?$/gm;
 const PACKAGE_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const PACKAGED_VOICE_DIR = join(PACKAGE_ROOT, "src", "voice");
 const CONNECTED_PI_RUNTIME_CONTRACT = `## Connected Pi runtime
@@ -20,7 +22,9 @@ export interface CodexVoiceSystemPromptStatus {
 	current: boolean;
 }
 
-export function getCodexVoiceSystemPromptPath(agentDir: string = getAgentDir()): string {
+export function getCodexVoiceSystemPromptPath(
+	agentDir: string = getAgentDir(),
+): string {
 	return join(agentDir, REALTIME_SYSTEM_PROMPT_BASENAME);
 }
 
@@ -43,15 +47,24 @@ export function prepareCodexVoiceSystemPrompt(
 	let created = false;
 	const template = readFileSync(templatePath, "utf8");
 	const currentSchemaVersion = readCodexVoicePromptSchemaVersion(template);
-	if (currentSchemaVersion === undefined) throw new Error(`Packaged Codex voice prompt at ${templatePath} must contain exactly one valid schema marker`);
+	if (currentSchemaVersion === undefined)
+		throw new Error(
+			`Packaged Codex voice prompt at ${templatePath} must contain exactly one valid schema marker`,
+		);
 	mkdirSync(dirname(promptPath), { recursive: true });
 	try {
-		writeFileSync(promptPath, template, { encoding: "utf8", flag: "wx", mode: 0o600 });
+		writeFileSync(promptPath, template, {
+			encoding: "utf8",
+			flag: "wx",
+			mode: 0o600,
+		});
 		created = true;
 	} catch (error) {
 		if (!isAlreadyExistsError(error)) throw error;
 	}
-	const schemaVersion = readCodexVoicePromptSchemaVersion(readFileSync(promptPath, "utf8"));
+	const schemaVersion = readCodexVoicePromptSchemaVersion(
+		readFileSync(promptPath, "utf8"),
+	);
 	return {
 		created,
 		...(schemaVersion === undefined ? {} : { schemaVersion }),
@@ -92,19 +105,26 @@ function readCodexVoicePromptSchemaVersion(source: string): number | undefined {
 	return Number.isSafeInteger(version) ? version : undefined;
 }
 
-function readVoicePrompt(promptPath: string, optional = false): string | undefined {
+function readVoicePrompt(
+	promptPath: string,
+	optional = false,
+): string | undefined {
 	let source: string;
 	try {
 		source = readFileSync(promptPath, "utf8");
 	} catch (error) {
 		if (optional && isNotFoundError(error)) return undefined;
-		throw new Error(`Could not read Codex voice prompt at ${promptPath}: ${errorMessage(error)}`);
+		throw new Error(
+			`Could not read Codex voice prompt at ${promptPath}: ${errorMessage(error)}`,
+		);
 	}
 	let prompt: string;
 	try {
 		prompt = stripMarkdownComments(source);
 	} catch (error) {
-		throw new Error(`Invalid Codex voice prompt at ${promptPath}: ${errorMessage(error)}`);
+		throw new Error(
+			`Invalid Codex voice prompt at ${promptPath}: ${errorMessage(error)}`,
+		);
 	}
 	return prompt;
 }
@@ -116,7 +136,9 @@ function stripMarkdownComments(source: string): string {
 		const opening = source.indexOf("<!--", cursor);
 		const strayClosing = source.indexOf("-->", cursor);
 		if (strayClosing !== -1 && (opening === -1 || strayClosing < opening)) {
-			throw new Error("Codex voice prompt contains an unmatched Markdown comment close");
+			throw new Error(
+				"Codex voice prompt contains an unmatched Markdown comment close",
+			);
 		}
 		if (opening === -1) {
 			output += source.slice(cursor);
@@ -124,10 +146,16 @@ function stripMarkdownComments(source: string): string {
 		}
 		output += source.slice(cursor, opening);
 		const closing = source.indexOf("-->", opening + 4);
-		if (closing === -1) throw new Error("Codex voice prompt contains an unclosed Markdown comment");
+		if (closing === -1)
+			throw new Error(
+				"Codex voice prompt contains an unclosed Markdown comment",
+			);
 		cursor = closing + 3;
 	}
-	return output.replace(/\n[ \t]+\n/g, "\n\n").replace(/\n{3,}/g, "\n\n").trim();
+	return output
+		.replace(/\n[ \t]+\n/g, "\n\n")
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
 }
 
 function isAlreadyExistsError(error: unknown): boolean {

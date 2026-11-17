@@ -7,18 +7,23 @@ export function getActiveToolsInActiveOrder(
 	pi: Pick<ExtensionAPI, "getActiveTools" | "getAllTools">,
 	codeMode = false,
 ): Tool[] {
-	const toolsByName = new Map(pi.getAllTools().map((tool) => [tool.name, tool]));
+	const toolsByName = new Map(
+		pi.getAllTools().map((tool) => [tool.name, tool]),
+	);
 	return pi.getActiveTools().flatMap((name): Tool[] => {
 		const tool = toolsByName.get(name);
 		if (!tool) return [];
-		const constrainedSampling = codeMode && tool.name === "exec"
-			? CODE_MODE_EXEC_CONSTRAINED_SAMPLING
-			: getExperimentalToolSampling(tool.name);
-		return [{
-			name: tool.name,
-			description: tool.description,
-			parameters: tool.parameters,
-			...(constrainedSampling ? { constrainedSampling } : {}),
-		}];
+		const constrainedSampling =
+			codeMode && tool.name === "exec"
+				? CODE_MODE_EXEC_CONSTRAINED_SAMPLING
+				: getExperimentalToolSampling(tool.name);
+		return [
+			{
+				name: tool.name,
+				description: tool.description,
+				parameters: tool.parameters,
+				...(constrainedSampling ? { constrainedSampling } : {}),
+			},
+		];
 	});
 }

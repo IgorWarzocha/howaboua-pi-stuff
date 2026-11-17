@@ -1,4 +1,7 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 
 const PREPARE = "@howaboua/pi-codex-conversion.prompt-mode-prepare/v1";
 const REQUEST = "@howaboua/pi-codex-conversion.prompt-mode-request/v1";
@@ -28,10 +31,17 @@ interface Preparation {
 }
 
 function isPreparation(value: unknown): value is Preparation {
-	return Boolean(value && typeof value === "object" && "active" in value &&
-		typeof value.active === "boolean" && "context" in value &&
-		"errors" in value && Array.isArray(value.errors) &&
-		"add" in value && typeof value.add === "function");
+	return Boolean(
+		value &&
+		typeof value === "object" &&
+		"active" in value &&
+		typeof value.active === "boolean" &&
+		"context" in value &&
+		"errors" in value &&
+		Array.isArray(value.errors) &&
+		"add" in value &&
+		typeof value.add === "function",
+	);
 }
 
 /** Supply owned alternate prose, not schemas or arbitrary prompt transformations.
@@ -68,7 +78,9 @@ export function registerGptPromptMode(
 		throw error;
 	}
 	const registration: GptPromptModeRegistration = {
-		get active() { return !disposed && active; },
+		get active() {
+			return !disposed && active;
+		},
 		dispose() {
 			if (disposed) return;
 			disposed = true;
@@ -92,28 +104,48 @@ export function prepareGptPromptMode(
 ): void {
 	const request = { context, options, errors: [] as unknown[] };
 	pi.events.emit(CAPTURE, request);
-	if (request.errors.length) throw new AggregateError(request.errors, "Could not prepare tool guidance");
+	if (request.errors.length)
+		throw new AggregateError(request.errors, "Could not prepare tool guidance");
 }
 
 /** PCC composition-root API; all selection policy stays with its runtime plan. */
 export function registerGptPromptModeBroker(
 	pi: ExtensionAPI,
 	isActive: (context: ExtensionContext) => boolean,
-): { prepare(context: ExtensionContext, options?: PromptMetadataOptions): void; dispose(): void } {
-	let latest: Preparation = { active: false, context: undefined, errors: [], add() {} };
+): {
+	prepare(context: ExtensionContext, options?: PromptMetadataOptions): void;
+	dispose(): void;
+} {
+	let latest: Preparation = {
+		active: false,
+		context: undefined,
+		errors: [],
+		add() {},
+	};
 	const stop = pi.events.on(REQUEST, (value) => {
 		if (typeof value === "function") value(latest);
 	});
-	const prepare = (context: ExtensionContext, options?: PromptMetadataOptions) => {
+	const prepare = (
+		context: ExtensionContext,
+		options?: PromptMetadataOptions,
+	) => {
 		latest = {
-			active: isActive(context), context, errors: [],
+			active: isActive(context),
+			context,
+			errors: [],
 			add(tools) {
 				if (!options) return;
 				for (const tool of tools) {
 					const snippet = tool.promptSnippet?.replace(/\s+/g, " ").trim();
 					if (snippet) options.toolSnippets[tool.name] = snippet;
 					else delete options.toolSnippets[tool.name];
-					const guidelines = [...new Set((tool.promptGuidelines ?? []).map(line => line.trim()).filter(Boolean))];
+					const guidelines = [
+						...new Set(
+							(tool.promptGuidelines ?? [])
+								.map((line) => line.trim())
+								.filter(Boolean),
+						),
+					];
 					if (guidelines.length) options.toolGuidelines[tool.name] = guidelines;
 					else delete options.toolGuidelines[tool.name];
 				}
@@ -123,17 +155,28 @@ export function registerGptPromptModeBroker(
 		const errors = latest.errors;
 		// Do not retain a mutable prompt snapshot for later registration requests.
 		latest = { ...latest, errors: [], add() {} };
-		if (errors.length) throw new AggregateError(errors, "Could not prepare tool guidance");
+		if (errors.length)
+			throw new AggregateError(errors, "Could not prepare tool guidance");
 	};
 	const stopCapture = pi.events.on(CAPTURE, (value) => {
 		if (!value || typeof value !== "object" || !("context" in value)) return;
-		const request = value as { context: ExtensionContext; options?: PromptMetadataOptions; errors: unknown[] };
+		const request = value as {
+			context: ExtensionContext;
+			options?: PromptMetadataOptions;
+			errors: unknown[];
+		};
 		if (!Array.isArray(request.errors)) return;
-		try { prepare(request.context, request.options); }
-		catch (error) { request.errors.push(error); }
+		try {
+			prepare(request.context, request.options);
+		} catch (error) {
+			request.errors.push(error);
+		}
 	});
 	return {
 		prepare,
-		dispose() { stop(); stopCapture(); },
+		dispose() {
+			stop();
+			stopCapture();
+		},
 	};
 }

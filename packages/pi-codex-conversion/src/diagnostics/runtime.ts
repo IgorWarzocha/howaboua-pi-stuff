@@ -25,18 +25,20 @@ function laneLabel(lane: CodexDiagnosticsLane): string | undefined {
 	return lane === "response" ? undefined : lane;
 }
 
-function requestTransportLabel(event: Extract<CodexDiagnosticsEvent, { type: "request" }>): string {
+function requestTransportLabel(
+	event: Extract<CodexDiagnosticsEvent, { type: "request" }>,
+): string {
 	if (event.transport === "sse") return "SSE full";
 	if (event.continuation === "delta") return "WS delta";
-	return event.continuation ? `WS full (${event.continuation.replaceAll("_", " ")})` : "WS full";
+	return event.continuation
+		? `WS full (${event.continuation.replaceAll("_", " ")})`
+		: "WS full";
 }
 
 function failureLabel(failure: CodexDiagnosticsFailure): string {
-	return [
-		failure.category.replaceAll("_", " "),
-		failure.code,
-		failure.status,
-	].filter((value) => value !== undefined).join(" • ");
+	return [failure.category.replaceAll("_", " "), failure.code, failure.status]
+		.filter((value) => value !== undefined)
+		.join(" • ");
 }
 
 export async function createCodexDiagnosticsRuntime(options: {
@@ -54,7 +56,10 @@ export async function createCodexDiagnosticsRuntime(options: {
 	let holdTimer: ReturnType<typeof setTimeout> | undefined;
 	let holdingMiss = false;
 	let latestAfterMiss: string | undefined;
-	const latestRequests = new Map<CodexDiagnosticsLane, Extract<CodexDiagnosticsEvent, { type: "request" }>>();
+	const latestRequests = new Map<
+		CodexDiagnosticsLane,
+		Extract<CodexDiagnosticsEvent, { type: "request" }>
+	>();
 
 	const themedStatus = (suffix: string, warning = false) => {
 		const title = ctx.ui.theme.fg("accent", CACHE_STATUS_TEXT);
@@ -105,7 +110,8 @@ export async function createCodexDiagnosticsRuntime(options: {
 				onError: reportLogFailure,
 			});
 			logActive = true;
-			if (options.announceLog) ctx.ui.notify(`Codex diagnostics log: ${log.path}`, "info");
+			if (options.announceLog)
+				ctx.ui.notify(`Codex diagnostics log: ${log.path}`, "info");
 		} catch (error) {
 			reportLogFailure(error);
 		}
@@ -119,46 +125,79 @@ export async function createCodexDiagnosticsRuntime(options: {
 			if (event.scope === "auxiliary") return;
 			if (event.type === "request") {
 				latestRequests.set(event.lane, event);
-				showCurrent([laneLabel(event.lane), requestTransportLabel(event)].filter(Boolean).join(" • "));
+				showCurrent(
+					[laneLabel(event.lane), requestTransportLabel(event)]
+						.filter(Boolean)
+						.join(" • "),
+				);
 				return;
 			}
 			if (event.type === "usage") {
-				const totalInput = event.inputTokens + event.cachedInputTokens + event.cacheWriteInputTokens;
+				const totalInput =
+					event.inputTokens +
+					event.cachedInputTokens +
+					event.cacheWriteInputTokens;
 				const request = latestRequests.get(event.lane);
-				const transport = request && event.requestId !== undefined && request.requestId === event.requestId
-					&& request.transport === event.transport
-					? requestTransportLabel(request)
-					: event.transport === "websocket" ? "WS" : "SSE";
+				const transport =
+					request &&
+					event.requestId !== undefined &&
+					request.requestId === event.requestId &&
+					request.transport === event.transport
+						? requestTransportLabel(request)
+						: event.transport === "websocket"
+							? "WS"
+							: "SSE";
 				const prefix = laneLabel(event.lane);
 				if (event.cachedInputTokens === 0 && totalInput > 0) {
 					holdMiss([prefix, "MISS", transport].filter(Boolean).join(" • "));
 					return;
 				}
-				showCurrent([prefix, totalInput > 0 ? "HIT" : "cache unavailable", transport].filter(Boolean).join(" • "));
+				showCurrent(
+					[prefix, totalInput > 0 ? "HIT" : "cache unavailable", transport]
+						.filter(Boolean)
+						.join(" • "),
+				);
 				return;
 			}
 			if (event.type === "prewarm-ready") {
 				const strategy = event.prewarm.keepaliveStrategy;
 				if (strategy === "generated-current" && event.usage) {
-					const totalInput = event.usage.inputTokens + event.usage.cachedInputTokens + event.usage.cacheWriteInputTokens;
+					const totalInput =
+						event.usage.inputTokens +
+						event.usage.cachedInputTokens +
+						event.usage.cacheWriteInputTokens;
 					const suffix = `${strategy} • ${event.usage.cachedInputTokens > 0 ? "HIT" : "MISS"} • WS ${event.socketReused ? "reused" : "new"}`;
-					if (event.usage.cachedInputTokens > 0 || totalInput === 0) showCurrent(suffix);
+					if (event.usage.cachedInputTokens > 0 || totalInput === 0)
+						showCurrent(suffix);
 					else holdMiss(suffix);
 					return;
 				}
-				showCurrent(`${strategy ?? event.prewarm.kind} ready • WS ${event.socketReused ? "reused" : "new"}`);
+				showCurrent(
+					`${strategy ?? event.prewarm.kind} ready • WS ${event.socketReused ? "reused" : "new"}`,
+				);
 				return;
 			}
-			if (event.type === "keepalive" || event.type === "timing" || event.type === "connection") return;
+			if (
+				event.type === "keepalive" ||
+				event.type === "timing" ||
+				event.type === "connection"
+			)
+				return;
 			if (event.type === "retry") {
-				showCurrent(`${laneLabel(event.lane) ? `${laneLabel(event.lane)} • ` : ""}${event.transport === "websocket" ? "WS" : "SSE"} retry ${event.attempt}`);
+				showCurrent(
+					`${laneLabel(event.lane) ? `${laneLabel(event.lane)} • ` : ""}${event.transport === "websocket" ? "WS" : "SSE"} retry ${event.attempt}`,
+				);
 				return;
 			}
 			if (event.type === "fallback") {
-				showCurrent(`${laneLabel(event.lane) ? `${laneLabel(event.lane)} • ` : ""}WS → SSE`);
+				showCurrent(
+					`${laneLabel(event.lane) ? `${laneLabel(event.lane)} • ` : ""}WS → SSE`,
+				);
 				return;
 			}
-			showCurrent(`${laneLabel(event.lane) ? `${laneLabel(event.lane)} • ` : ""}${event.transport === "websocket" ? "WS" : "SSE"} failed: ${failureLabel(event.failure)}`);
+			showCurrent(
+				`${laneLabel(event.lane) ? `${laneLabel(event.lane)} • ` : ""}${event.transport === "websocket" ? "WS" : "SSE"} failed: ${failureLabel(event.failure)}`,
+			);
 		},
 		async shutdown() {
 			if (holdTimer) clearTimeout(holdTimer);
@@ -174,7 +213,8 @@ export async function createCodexDiagnosticsRuntime(options: {
 				failures.push(error);
 			}
 			if (failures.length === 1) throw failures[0];
-			if (failures.length > 1) throw new AggregateError(failures, "Codex diagnostics shutdown failed");
+			if (failures.length > 1)
+				throw new AggregateError(failures, "Codex diagnostics shutdown failed");
 		},
 	};
 }

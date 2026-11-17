@@ -28,13 +28,12 @@ export async function registerSharedAgentContext(
 	});
 	let relationships:
 		| ReturnType<
-				typeof import("@howaboua/pi-codex-conversion/agent-relationship")["connectCodexAgentRelationships"]
+				(typeof import("@howaboua/pi-codex-conversion/agent-relationship"))["connectCodexAgentRelationships"]
 		  >
 		| undefined;
 	try {
-		const relationshipApi = await import(
-			"@howaboua/pi-codex-conversion/agent-relationship"
-		);
+		const relationshipApi =
+			await import("@howaboua/pi-codex-conversion/agent-relationship");
 		relationships = relationshipApi.connectCodexAgentRelationships(pi);
 	} catch (error) {
 		const failure = error as { code?: string; message?: string };

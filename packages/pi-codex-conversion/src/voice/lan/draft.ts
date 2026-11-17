@@ -23,7 +23,16 @@ export class LanVoiceDraft {
 		this.sendMessage = options.sendMessage;
 	}
 
-	snapshot(sourceClientId?: string, reason?: "update" | "transcript" | "sent"): { type: "draft"; text: string; revision: number; sourceClientId?: string; reason?: string } {
+	snapshot(
+		sourceClientId?: string,
+		reason?: "update" | "transcript" | "sent",
+	): {
+		type: "draft";
+		text: string;
+		revision: number;
+		sourceClientId?: string;
+		reason?: string;
+	} {
 		return {
 			type: "draft",
 			text: this.text,
@@ -41,23 +50,38 @@ export class LanVoiceDraft {
 		return this.revision;
 	}
 
-	insertTranscript(clientId: string, transcript: string, selection?: LanVoiceDraftSelection): void {
+	insertTranscript(
+		clientId: string,
+		transcript: string,
+		selection?: LanVoiceDraftSelection,
+	): void {
 		const clean = transcript.trim();
 		if (!clean) return;
-		const start = boundedIndex(selection?.start, this.text.length, this.text.length);
+		const start = boundedIndex(
+			selection?.start,
+			this.text.length,
+			this.text.length,
+		);
 		const end = boundedIndex(selection?.end, this.text.length, start);
 		const before = this.text.slice(0, Math.min(start, end));
 		const after = this.text.slice(Math.max(start, end));
 		const leftSpace = before && !/\s$/.test(before) ? " " : "";
 		const rightSpace = after && !/^\s/.test(after) ? " " : "";
-		this.text = validatedDraft(`${before}${leftSpace}${clean}${rightSpace}${after}`);
+		this.text = validatedDraft(
+			`${before}${leftSpace}${clean}${rightSpace}${after}`,
+		);
 		this.revision += 1;
 		this.publish(this.snapshot(clientId, "transcript"));
 	}
 
-	async send(clientId: string, value: unknown, expectedRevision: unknown): Promise<void> {
+	async send(
+		clientId: string,
+		value: unknown,
+		expectedRevision: unknown,
+	): Promise<void> {
 		this.assertRevision(expectedRevision);
-		if (this.sending) throw new LanVoiceDraftConflictError("A message is already being sent");
+		if (this.sending)
+			throw new LanVoiceDraftConflictError("A message is already being sent");
 		const text = validatedDraft(value);
 		if (!text.trim()) throw new LanVoiceDraftError("A message is required");
 		this.text = text;
@@ -75,16 +99,30 @@ export class LanVoiceDraft {
 	}
 
 	private assertRevision(value: unknown): void {
-		if (!Number.isInteger(value) || value !== this.revision) throw new LanVoiceDraftConflictError("Draft changed on another device; review it and try again");
+		if (!Number.isInteger(value) || value !== this.revision)
+			throw new LanVoiceDraftConflictError(
+				"Draft changed on another device; review it and try again",
+			);
 	}
 }
 
 function validatedDraft(value: unknown): string {
-	if (typeof value !== "string") throw new LanVoiceDraftError("Draft text is required");
-	if (Buffer.byteLength(value) > MAX_LAN_VOICE_DRAFT_BYTES) throw new LanVoiceDraftError("Draft is too large");
+	if (typeof value !== "string")
+		throw new LanVoiceDraftError("Draft text is required");
+	if (Buffer.byteLength(value) > MAX_LAN_VOICE_DRAFT_BYTES)
+		throw new LanVoiceDraftError("Draft is too large");
 	return value;
 }
 
-function boundedIndex(value: number | undefined, length: number, fallback: number): number {
-	return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= length ? value : fallback;
+function boundedIndex(
+	value: number | undefined,
+	length: number,
+	fallback: number,
+): number {
+	return typeof value === "number" &&
+		Number.isInteger(value) &&
+		value >= 0 &&
+		value <= length
+		? value
+		: fallback;
 }

@@ -1,14 +1,32 @@
 import { obj, type Static } from "@earendil-works/pi-schema";
 import { StringEnum } from "../tools/string-enum.ts";
-import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+	ToolDefinition,
+} from "@earendil-works/pi-coding-agent";
 import type { AdapterState } from "./activation/state.ts";
 import { resolveCodexRuntimePlanForState } from "./activation/runtime-plan.ts";
 import { codexReasoningLane } from "./reasoning-updates.ts";
-import { auxiliaryToolRenderers, displayRecord } from "../ui/tool-rendering/auxiliary-tool.ts";
+import {
+	auxiliaryToolRenderers,
+	displayRecord,
+} from "../ui/tool-rendering/auxiliary-tool.ts";
 
 type Level = ReturnType<ExtensionAPI["getThinkingLevel"]>;
-const levels: readonly Level[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
-const PARAMETERS = obj({ level: StringEnum(["low", "medium", "high", "xhigh", "max"] as const) }, { open: true });
+const levels: readonly Level[] = [
+	"off",
+	"minimal",
+	"low",
+	"medium",
+	"high",
+	"xhigh",
+	"max",
+];
+const PARAMETERS = obj(
+	{ level: StringEnum(["low", "medium", "high", "xhigh", "max"] as const) },
+	{ open: true },
+);
 
 interface AutoReasoning {
 	begin(ctx: ExtensionContext): void;
@@ -16,23 +34,41 @@ interface AutoReasoning {
 	tool: ToolDefinition<typeof PARAMETERS, { level: Level; floor: Level }>;
 }
 
-export function createAutoReasoning(pi: ExtensionAPI, state: AdapterState): AutoReasoning {
+export function createAutoReasoning(
+	pi: ExtensionAPI,
+	state: AdapterState,
+): AutoReasoning {
 	let baseline: { level: Level; lane: string; session: string } | undefined;
 	let applied: Level | undefined;
-	const matches = (ctx: ExtensionContext) => baseline && ctx.model
-		&& baseline.lane === codexReasoningLane(ctx.model)
-		&& baseline.session === ctx.sessionManager.getSessionId();
+	const matches = (ctx: ExtensionContext) =>
+		baseline &&
+		ctx.model &&
+		baseline.lane === codexReasoningLane(ctx.model) &&
+		baseline.session === ctx.sessionManager.getSessionId();
 	const begin = (ctx: ExtensionContext) => {
-		if (!resolveCodexRuntimePlanForState(ctx, state).autoReasoning || !ctx.model) return;
+		if (
+			!resolveCodexRuntimePlanForState(ctx, state).autoReasoning ||
+			!ctx.model
+		)
+			return;
 		if (!matches(ctx)) {
-			baseline = { level: pi.getThinkingLevel(), lane: codexReasoningLane(ctx.model), session: ctx.sessionManager.getSessionId() };
+			baseline = {
+				level: pi.getThinkingLevel(),
+				lane: codexReasoningLane(ctx.model),
+				session: ctx.sessionManager.getSessionId(),
+			};
 			applied = undefined;
 		}
 	};
 	return {
 		begin,
 		settle(ctx: ExtensionContext) {
-			const restore = matches(ctx) && applied !== undefined && pi.getThinkingLevel() === applied ? baseline?.level : undefined;
+			const restore =
+				matches(ctx) &&
+				applied !== undefined &&
+				pi.getThinkingLevel() === applied
+					? baseline?.level
+					: undefined;
 			baseline = undefined;
 			applied = undefined;
 			if (restore !== undefined) pi.setThinkingLevel(restore);
@@ -41,28 +77,60 @@ export function createAutoReasoning(pi: ExtensionAPI, state: AdapterState): Auto
 			name: "change_reasoning",
 			defaultActive: false,
 			label: "Change Reasoning",
-			description: "Adjust reasoning when useful: raise for difficulty or uncertainty, lower for routine work. Effective next request",
+			description:
+				"Adjust reasoning when useful: raise for difficulty or uncertainty, lower for routine work. Effective next request",
 			parameters: PARAMETERS,
-			...auxiliaryToolRenderers("Reasoning adjustment failed", (_args, result) => {
-				const details = displayRecord(result?.details);
-				return {
-					active: "Adjusting reasoning",
-					complete: "Adjusted reasoning",
-					...(result ? { summary: `${details["level"]} effort · user floor ${details["floor"]}`, body: "" } : {}),
-				};
-			}),
-			async execute(_id: string, params: Static<typeof PARAMETERS>, _signal: AbortSignal | undefined, _update: unknown, ctx: ExtensionContext) {
-				if (!resolveCodexRuntimePlanForState(ctx, state).autoReasoning) throw new Error("Reasoning adjustment is unavailable in this session. Continue with the current reasoning level. Other tools remain available");
+			...auxiliaryToolRenderers(
+				"Reasoning adjustment failed",
+				(_args, result) => {
+					const details = displayRecord(result?.details);
+					return {
+						active: "Adjusting reasoning",
+						complete: "Adjusted reasoning",
+						...(result
+							? {
+									summary: `${details["level"]} effort · user floor ${details["floor"]}`,
+									body: "",
+								}
+							: {}),
+					};
+				},
+			),
+			async execute(
+				_id: string,
+				params: Static<typeof PARAMETERS>,
+				_signal: AbortSignal | undefined,
+				_update: unknown,
+				ctx: ExtensionContext,
+			) {
+				if (!resolveCodexRuntimePlanForState(ctx, state).autoReasoning)
+					throw new Error(
+						"Reasoning adjustment is unavailable in this session. Continue with the current reasoning level. Other tools remain available",
+					);
 				begin(ctx);
-				if (!baseline) throw new Error("Reasoning adjustment is unavailable in this session. Continue with the current reasoning level. Other tools remain available");
+				if (!baseline)
+					throw new Error(
+						"Reasoning adjustment is unavailable in this session. Continue with the current reasoning level. Other tools remain available",
+					);
 				const previous = pi.getThinkingLevel();
 				// A user selector change supersedes the tool's last selection.
 				if (previous !== (applied ?? baseline.level)) baseline.level = previous;
-				const effective = levels.indexOf(params.level) < levels.indexOf(baseline.level) ? baseline.level : params.level;
+				const effective =
+					levels.indexOf(params.level) < levels.indexOf(baseline.level)
+						? baseline.level
+						: params.level;
 				pi.setThinkingLevel(effective);
 				applied = pi.getThinkingLevel();
 				const details = { level: applied, floor: baseline.level };
-				return { content: [{ type: "text" as const, text: `${JSON.stringify(details)}\nResets to ${baseline.level} when the turn ends.` }], details };
+				return {
+					content: [
+						{
+							type: "text" as const,
+							text: `${JSON.stringify(details)}\nResets to ${baseline.level} when the turn ends.`,
+						},
+					],
+					details,
+				};
 			},
 		},
 	};

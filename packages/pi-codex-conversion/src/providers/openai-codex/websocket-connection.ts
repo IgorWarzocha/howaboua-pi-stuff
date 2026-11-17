@@ -1,10 +1,17 @@
 import { getWebSocketConstructor } from "./websocket-proxy.ts";
 export { resolveWebSocketProxyForTarget } from "./websocket-proxy.ts";
 import { randomUUID } from "node:crypto";
-import { DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS, WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE } from "./constants.ts";
+import {
+	DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS,
+	WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE,
+} from "./constants.ts";
 import { noThrowCodexDiagnosticsSink } from "./diagnostic-failure.ts";
 import { headersToRecord } from "./header-record.ts";
-import type { CodexDiagnosticsSink, ProviderEnv, WebSocketLike } from "./types.ts";
+import type {
+	CodexDiagnosticsSink,
+	ProviderEnv,
+	WebSocketLike,
+} from "./types.ts";
 
 function getWebSocketReadyState(socket: WebSocketLike): number | undefined {
 	return typeof socket.readyState === "number" ? socket.readyState : undefined;
@@ -15,7 +22,15 @@ export function isWebSocketReusable(socket: WebSocketLike): boolean {
 	return readyState === undefined || readyState === 1;
 }
 
-const socketDiagnostics = new WeakMap<WebSocketLike, { id: string; record: CodexDiagnosticsSink; clientClosed: boolean; closed: boolean }>();
+const socketDiagnostics = new WeakMap<
+	WebSocketLike,
+	{
+		id: string;
+		record: CodexDiagnosticsSink;
+		clientClosed: boolean;
+		closed: boolean;
+	}
+>();
 const socketRequestOrdinals = new WeakMap<WebSocketLike, number>();
 
 // Count response.create attempts, including prewarm/keepalive, even with logging off.
@@ -25,11 +40,17 @@ export function nextWebSocketRequestOrdinal(socket: WebSocketLike): number {
 	return ordinal;
 }
 
-export function webSocketDiagnosticId(socket: WebSocketLike): string | undefined {
+export function webSocketDiagnosticId(
+	socket: WebSocketLike,
+): string | undefined {
 	return socketDiagnostics.get(socket)?.id;
 }
 
-export function observeWebSocketDiagnostics(socket: WebSocketLike, diagnostics: CodexDiagnosticsSink | undefined, created = false): void {
+export function observeWebSocketDiagnostics(
+	socket: WebSocketLike,
+	diagnostics: CodexDiagnosticsSink | undefined,
+	created = false,
+): void {
 	const record = noThrowCodexDiagnosticsSink(diagnostics);
 	const existing = socketDiagnostics.get(socket);
 	if (existing) {
@@ -37,26 +58,82 @@ export function observeWebSocketDiagnostics(socket: WebSocketLike, diagnostics: 
 		return;
 	}
 	if (!record) return;
-	const diagnostic = { id: randomUUID(), record, clientClosed: false, closed: false };
+	const diagnostic = {
+		id: randomUUID(),
+		record,
+		clientClosed: false,
+		closed: false,
+	};
 	socketDiagnostics.set(socket, diagnostic);
-	record({ type: "connection", socketId: diagnostic.id, phase: created ? "created" : "observed", initiator: created ? "client" : "peer_or_unknown" });
+	record({
+		type: "connection",
+		socketId: diagnostic.id,
+		phase: created ? "created" : "observed",
+		initiator: created ? "client" : "peer_or_unknown",
+	});
 	const closed = (event: unknown) => {
 		diagnostic.closed = true;
 		socket.removeEventListener("close", closed);
-		const rawCode = event && typeof event === "object" && "code" in event ? event.code : undefined;
-		const code = typeof rawCode === "number" && Number.isInteger(rawCode) && rawCode >= 1000 && rawCode <= 4999 ? rawCode : undefined;
-		diagnostic.record({ type: "connection", socketId: diagnostic.id, phase: "closed", initiator: diagnostic.clientClosed ? "client" : "peer_or_unknown",
-			closeCode: code, closeReason: code === 1000 ? "normal" : code === 1001 ? "going_away" : code === 1009 ? "message_too_big" : code === 1006 ? "abnormal" : "other" });
+		const rawCode =
+			event && typeof event === "object" && "code" in event
+				? event.code
+				: undefined;
+		const code =
+			typeof rawCode === "number" &&
+			Number.isInteger(rawCode) &&
+			rawCode >= 1000 &&
+			rawCode <= 4999
+				? rawCode
+				: undefined;
+		diagnostic.record({
+			type: "connection",
+			socketId: diagnostic.id,
+			phase: "closed",
+			initiator: diagnostic.clientClosed ? "client" : "peer_or_unknown",
+			closeCode: code,
+			closeReason:
+				code === 1000
+					? "normal"
+					: code === 1001
+						? "going_away"
+						: code === 1009
+							? "message_too_big"
+							: code === 1006
+								? "abnormal"
+								: "other",
+		});
 	};
 	socket.addEventListener("close", closed);
 }
 
-export function closeWebSocketSilently(socket: WebSocketLike, code = 1000, reason = "done"): void {
+export function closeWebSocketSilently(
+	socket: WebSocketLike,
+	code = 1000,
+	reason = "done",
+): void {
 	const diagnostic = socketDiagnostics.get(socket);
 	if (diagnostic && !diagnostic.clientClosed && !diagnostic.closed) {
 		diagnostic.clientClosed = true;
-		const cause = ["done", "connect_error", "aborted", "connect_timeout", "session_shutdown", "session_reset", "release", "stale_socket"].includes(reason) ? reason : "other";
-		diagnostic.record({ type: "connection", socketId: diagnostic.id, phase: "client_close", initiator: "client", cause, closeCode: code });
+		const cause = [
+			"done",
+			"connect_error",
+			"aborted",
+			"connect_timeout",
+			"session_shutdown",
+			"session_reset",
+			"release",
+			"stale_socket",
+		].includes(reason)
+			? reason
+			: "other";
+		diagnostic.record({
+			type: "connection",
+			socketId: diagnostic.id,
+			phase: "client_close",
+			initiator: "client",
+			cause,
+			closeCode: code,
+		});
 	}
 	try {
 		socket.close(code, reason);
@@ -66,42 +143,81 @@ export function closeWebSocketSilently(socket: WebSocketLike, code = 1000, reaso
 }
 
 function nestedWebSocketError(error: Error): Error {
-	const wrapped = new Error(`WebSocket error: ${error.message}`, { cause: error }) as Error & { code?: string | number | undefined };
+	const wrapped = new Error(`WebSocket error: ${error.message}`, {
+		cause: error,
+	}) as Error & { code?: string | number | undefined };
 	wrapped.name = "WebSocketError";
 	const code = (error as Error & { code?: unknown }).code;
 	if (typeof code === "string" || typeof code === "number") wrapped.code = code;
 	return wrapped;
 }
 
-function webSocketHttpStatus(value: unknown, seen = new Set<unknown>()): number | undefined {
+function webSocketHttpStatus(
+	value: unknown,
+	seen = new Set<unknown>(),
+): number | undefined {
 	if (!value || typeof value !== "object" || seen.has(value)) return undefined;
 	seen.add(value);
 	const record = value as Record<string, unknown>;
-	for (const candidate of [record["status"], record["statusCode"], record["status_code"], record["code"]]) {
-		const parsed = typeof candidate === "string" && /^\d+$/.test(candidate) ? Number(candidate) : candidate;
-		if (typeof parsed === "number" && Number.isInteger(parsed) && parsed >= 100 && parsed <= 599) return parsed;
+	for (const candidate of [
+		record["status"],
+		record["statusCode"],
+		record["status_code"],
+		record["code"],
+	]) {
+		const parsed =
+			typeof candidate === "string" && /^\d+$/.test(candidate)
+				? Number(candidate)
+				: candidate;
+		if (
+			typeof parsed === "number" &&
+			Number.isInteger(parsed) &&
+			parsed >= 100 &&
+			parsed <= 599
+		)
+			return parsed;
 	}
-	return webSocketHttpStatus(record["error"], seen)
-		?? webSocketHttpStatus(record["cause"], seen)
-		?? webSocketHttpStatus(record["response"], seen);
+	return (
+		webSocketHttpStatus(record["error"], seen) ??
+		webSocketHttpStatus(record["cause"], seen) ??
+		webSocketHttpStatus(record["response"], seen)
+	);
 }
 
-function webSocketCloseCode(value: unknown, seen = new Set<unknown>()): number | undefined {
+function webSocketCloseCode(
+	value: unknown,
+	seen = new Set<unknown>(),
+): number | undefined {
 	if (!value || typeof value !== "object" || seen.has(value)) return undefined;
 	seen.add(value);
 	const record = value as Record<string, unknown>;
 	for (const candidate of [record["closeCode"], record["code"]]) {
-		const parsed = typeof candidate === "string" && /^\d+$/.test(candidate) ? Number(candidate) : candidate;
-		if (typeof parsed === "number" && Number.isInteger(parsed) && parsed >= 1000 && parsed <= 4999) return parsed;
+		const parsed =
+			typeof candidate === "string" && /^\d+$/.test(candidate)
+				? Number(candidate)
+				: candidate;
+		if (
+			typeof parsed === "number" &&
+			Number.isInteger(parsed) &&
+			parsed >= 1000 &&
+			parsed <= 4999
+		)
+			return parsed;
 	}
-	return webSocketCloseCode(record["error"], seen) ?? webSocketCloseCode(record["cause"], seen);
+	return (
+		webSocketCloseCode(record["error"], seen) ??
+		webSocketCloseCode(record["cause"], seen)
+	);
 }
 
 function webSocketStatus(error: unknown): number | undefined {
 	const structured = webSocketHttpStatus(error);
 	if (structured !== undefined) return structured;
 	const message = error instanceof Error ? error.message : String(error);
-	const match = /^(?:WebSocket error:\s*)?(?:Unexpected server response:\s*|HTTP(?:\/\d(?:\.\d)?)?\s+|WebSocket (?:handshake|upgrade)\b[^\n]*?\b)(\d{3})(?:\s+[^\n]*)?$/i.exec(message.trim());
+	const match =
+		/^(?:WebSocket error:\s*)?(?:Unexpected server response:\s*|HTTP(?:\/\d(?:\.\d)?)?\s+|WebSocket (?:handshake|upgrade)\b[^\n]*?\b)(\d{3})(?:\s+[^\n]*)?$/i.exec(
+			message.trim(),
+		);
 	return match?.[1] ? Number(match[1]) : undefined;
 }
 
@@ -110,7 +226,8 @@ export function isWebSocketUpgradeRequiredError(error: unknown): boolean {
 }
 
 export function isWebSocketMessageTooBigError(error: unknown): boolean {
-	if (webSocketCloseCode(error) === WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE) return true;
+	if (webSocketCloseCode(error) === WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE)
+		return true;
 	const message = error instanceof Error ? error.message : String(error);
 	return /(?:\b1009\b|message too big)/i.test(message);
 }
@@ -125,28 +242,56 @@ export function isWebSocketUnauthorizedError(error: unknown): boolean {
 }
 
 export function isWebSocketConnectionError(error: unknown): boolean {
-	const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+	const code =
+		error && typeof error === "object" && "code" in error
+			? error.code
+			: undefined;
 	const description = `${error instanceof Error ? `${error.name} ${error.message}` : String(error)} ${typeof code === "string" ? code : ""}`;
-	return /websocket|socket|connection|network|fetch|timed? out|timeout|\b(?:ECONNRESET|ECONNREFUSED|ECONNABORTED|ENOTFOUND|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|EPIPE|ETIMEDOUT)\b/i.test(description);
+	return /websocket|socket|connection|network|fetch|timed? out|timeout|\b(?:ECONNRESET|ECONNREFUSED|ECONNABORTED|ENOTFOUND|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|EPIPE|ETIMEDOUT)\b/i.test(
+		description,
+	);
 }
 
 export function extractWebSocketError(event: unknown): Error {
 	if (event && typeof event === "object") {
-		const message = "message" in event ? (event as { message?: unknown | undefined }).message : undefined;
+		const message =
+			"message" in event
+				? (event as { message?: unknown | undefined }).message
+				: undefined;
 		if (typeof message === "string" && message.length > 0) {
-			const error = new Error(message, { cause: event }) as Error & { status?: number | undefined; code?: string | number | undefined };
+			const error = new Error(message, { cause: event }) as Error & {
+				status?: number | undefined;
+				code?: string | number | undefined;
+			};
 			const nestedError = "error" in event ? event.error : undefined;
-			const code = "code" in event ? event.code
-				: nestedError && typeof nestedError === "object" && "code" in nestedError ? nestedError.code : undefined;
-			if (typeof code === "string" || typeof code === "number") error.code = code;
+			const code =
+				"code" in event
+					? event.code
+					: nestedError &&
+						  typeof nestedError === "object" &&
+						  "code" in nestedError
+						? nestedError.code
+						: undefined;
+			if (typeof code === "string" || typeof code === "number")
+				error.code = code;
 			error.status = webSocketHttpStatus(event);
 			return error;
 		}
-		const nestedError = "error" in event ? (event as { error?: unknown | undefined }).error : undefined;
-		if (nestedError instanceof Error && nestedError.message.length > 0) return nestedWebSocketError(nestedError);
-		if (nestedError && typeof nestedError === "object" && "message" in nestedError) {
-			const nestedMessage = (nestedError as { message?: unknown | undefined }).message;
-			if (typeof nestedMessage === "string" && nestedMessage.length > 0) return nestedWebSocketError(new Error(nestedMessage));
+		const nestedError =
+			"error" in event
+				? (event as { error?: unknown | undefined }).error
+				: undefined;
+		if (nestedError instanceof Error && nestedError.message.length > 0)
+			return nestedWebSocketError(nestedError);
+		if (
+			nestedError &&
+			typeof nestedError === "object" &&
+			"message" in nestedError
+		) {
+			const nestedMessage = (nestedError as { message?: unknown | undefined })
+				.message;
+			if (typeof nestedMessage === "string" && nestedMessage.length > 0)
+				return nestedWebSocketError(new Error(nestedMessage));
 		}
 	}
 	return new Error("WebSocket error");
@@ -156,7 +301,10 @@ export class WebSocketCloseError extends Error {
 	readonly code?: number | undefined;
 	readonly reason?: string | undefined;
 
-	constructor(message: string, options?: { code?: number | undefined; reason?: string | undefined }) {
+	constructor(
+		message: string,
+		options?: { code?: number | undefined; reason?: string | undefined },
+	) {
 		super(message);
 		this.name = "WebSocketCloseError";
 		this.code = options?.code;
@@ -166,22 +314,40 @@ export class WebSocketCloseError extends Error {
 
 export function extractWebSocketCloseError(event: unknown): Error {
 	if (event && typeof event === "object") {
-		const code = "code" in event ? (event as { code?: unknown | undefined }).code : undefined;
-		const reason = "reason" in event ? (event as { reason?: unknown | undefined }).reason : undefined;
+		const code =
+			"code" in event
+				? (event as { code?: unknown | undefined }).code
+				: undefined;
+		const reason =
+			"reason" in event
+				? (event as { reason?: unknown | undefined }).reason
+				: undefined;
 		const codeText = typeof code === "number" ? ` ${code}` : "";
-		let reasonText = typeof reason === "string" && reason.length > 0 ? ` ${reason}` : "";
+		let reasonText =
+			typeof reason === "string" && reason.length > 0 ? ` ${reason}` : "";
 		if (!reasonText && code === WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE) {
 			reasonText = " message too big";
 		}
-		return new WebSocketCloseError(`WebSocket closed${codeText}${reasonText}`.trim(), {
-			code: typeof code === "number" ? code : undefined,
-			reason: typeof reason === "string" && reason.length > 0 ? reason : undefined,
-		});
+		return new WebSocketCloseError(
+			`WebSocket closed${codeText}${reasonText}`.trim(),
+			{
+				code: typeof code === "number" ? code : undefined,
+				reason:
+					typeof reason === "string" && reason.length > 0 ? reason : undefined,
+			},
+		);
 	}
 	return new Error("WebSocket closed");
 }
 
-export async function connectWebSocket(url: string, headers: Headers, signal: AbortSignal | undefined, connectTimeoutMs = DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS, env?: ProviderEnv, diagnostics?: CodexDiagnosticsSink): Promise<WebSocketLike> {
+export async function connectWebSocket(
+	url: string,
+	headers: Headers,
+	signal: AbortSignal | undefined,
+	connectTimeoutMs = DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS,
+	env?: ProviderEnv,
+	diagnostics?: CodexDiagnosticsSink,
+): Promise<WebSocketLike> {
 	const WebSocketCtor = await getWebSocketConstructor(url, env);
 	if (signal?.aborted) throw new Error("Request was aborted");
 	if (!WebSocketCtor) {
@@ -249,7 +415,9 @@ export async function connectWebSocket(url: string, headers: Headers, signal: Ab
 				settled = true;
 				cleanup();
 				closeWebSocketSilently(socket, 1000, "connect_timeout");
-				reject(new Error(`WebSocket connect timeout after ${connectTimeoutMs}ms`));
+				reject(
+					new Error(`WebSocket connect timeout after ${connectTimeoutMs}ms`),
+				);
 			}, connectTimeoutMs);
 		}
 		if (signal?.aborted) onAbort();

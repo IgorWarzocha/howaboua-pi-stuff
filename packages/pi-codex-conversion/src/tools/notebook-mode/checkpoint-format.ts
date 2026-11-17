@@ -31,8 +31,20 @@ export interface NotebookCheckpointIdentity {
 	agentDir: string;
 }
 
-export function checkpointPaths(identity: NotebookCheckpointIdentity): { directory: string; manifest: string } {
-	const key = createHash("sha256").update(`${resolve(identity.project)}\0${identity.session}`).digest("hex");
-	const directory = join(identity.agentDir, "cache", "pi-codex-conversion", "notebook-mode", "sessions", key);
+export function checkpointPaths(identity: NotebookCheckpointIdentity): {
+	directory: string;
+	manifest: string;
+} {
+	const key = createHash("sha256")
+		.update(`${resolve(identity.project)}\0${identity.session}`)
+		.digest("hex");
+	const directory = join(
+		identity.agentDir,
+		"cache",
+		"pi-codex-conversion",
+		"notebook-mode",
+		"sessions",
+		key,
+	);
 	return { directory, manifest: join(directory, "checkpoint.json") };
 }

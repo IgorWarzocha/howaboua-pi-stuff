@@ -40,18 +40,31 @@ interface NestedToolContract {
 	resultValue?(result: AgentToolResult<unknown>): unknown;
 }
 
-export function toNestedTool<TParams extends ToolDefinition["parameters"], TDetails, TState>(
+export function toNestedTool<
+	TParams extends ToolDefinition["parameters"],
+	TDetails,
+	TState,
+>(
 	tool: ToolDefinition<TParams, TDetails, TState>,
 	usage: string,
 	lifecycle: NestedToolLifecycle = {},
 	contract: NestedToolContract = {},
 ): ProgrammaticCodeModeToolDefinition {
 	const kind = contract.kind ?? "function";
-	const argumentsSchema = compile(tool.parameters, { unresolvedRefs: "reject" });
+	const argumentsSchema = compile(tool.parameters, {
+		unresolvedRefs: "reject",
+	});
 	const prepareInput = (input: unknown) => {
 		// The Code host serializes omitted arguments as null; preserve schema-valid nulls.
-		const supplied = input === null && !argumentsSchema.check(null) && argumentsSchema.check({}) ? undefined : input;
-		const prepared = contract.prepareInput ? contract.prepareInput(supplied) : supplied;
+		const supplied =
+			input === null &&
+			!argumentsSchema.check(null) &&
+			argumentsSchema.check({})
+				? undefined
+				: input;
+		const prepared = contract.prepareInput
+			? contract.prepareInput(supplied)
+			: supplied;
 		return prepared === undefined && argumentsSchema.check({}) ? {} : prepared;
 	};
 	const invoke = async (
@@ -61,17 +74,23 @@ export function toNestedTool<TParams extends ToolDefinition["parameters"], TDeta
 	): Promise<unknown> => {
 		if (signal.aborted) throw new Error(`${tool.name} aborted`);
 		if (contract.opaqueResult && !context.captureOpaqueResult)
-			throw new Error("Remote result delivery is unavailable; do not execute this operation");
+			throw new Error(
+				"Remote result delivery is unavailable; do not execute this operation",
+			);
 		const extensionContext = requireExtensionContext(context);
 		const toolInput = prepareInput(input);
 		// Pi-routed tools prepare and validate inside their native admission pipeline.
-		const prepared: unknown = contract.executeViaPi ? toolInput : validateToolArguments(tool, {
-			type: "toolCall",
-			id: context.toolCallId ?? `code-mode-${tool.name}`,
-			name: tool.name,
-			// This validator checks unknown JS input; ToolCall types describe already-serialised transcript input.
-			arguments: (tool.prepareArguments ? tool.prepareArguments(toolInput) : toolInput) as JsonObject,
-		});
+		const prepared: unknown = contract.executeViaPi
+			? toolInput
+			: validateToolArguments(tool, {
+					type: "toolCall",
+					id: context.toolCallId ?? `code-mode-${tool.name}`,
+					name: tool.name,
+					// This validator checks unknown JS input; ToolCall types describe already-serialised transcript input.
+					arguments: (tool.prepareArguments
+						? tool.prepareArguments(toolInput)
+						: toolInput) as JsonObject,
+				});
 		if (signal.aborted) throw new Error(`${tool.name} aborted`);
 		// Approval sees the canonical arguments that execute receives, including
 		// aliases and freeform adapters. Never transform input after admission.
@@ -81,48 +100,108 @@ export function toNestedTool<TParams extends ToolDefinition["parameters"], TDeta
 			context.refreshTrace?.();
 			let acceptingUpdates = true;
 			try {
-				if (contract.opaqueResult && !contract.allowPlainResult && (!context.opaqueScope ||
-					!context.opaqueContextValid || !await context.opaqueContextValid()))
-					throw new Error("Remote context changed before dispatch; start a new exec cell");
+				if (
+					contract.opaqueResult &&
+					!contract.allowPlainResult &&
+					(!context.opaqueScope ||
+						!context.opaqueContextValid ||
+						!(await context.opaqueContextValid()))
+				)
+					throw new Error(
+						"Remote context changed before dispatch; start a new exec cell",
+					);
 				const outcome = contract.executeViaPi
-					? await context.executeTool?.(contract.executeViaPi, prepared, { signal, ...(context.onUpdate ? { onUpdate: context.onUpdate } : {}) })
+					? await context.executeTool?.(contract.executeViaPi, prepared, {
+							signal,
+							...(context.onUpdate ? { onUpdate: context.onUpdate } : {}),
+						})
 					: undefined;
-				if (contract.executeViaPi && !outcome) throw new Error("Pi nested tool execution is unavailable");
-				if (outcome?.isError) throw new Error(outcome.result.content.filter(part => part.type === "text").map(part => part.text).join("\n") || `${tool.name} failed`);
-				const result = outcome ? outcome.result : await tool.execute(
-					toolCallId,
-					prepared as never,
-					signal,
-					(update) => {
-						if (acceptingUpdates) forwardUpdate(update, context);
-					},
-					extensionContext,
-				);
+				if (contract.executeViaPi && !outcome)
+					throw new Error("Pi nested tool execution is unavailable");
+				if (outcome?.isError)
+					throw new Error(
+						outcome.result.content
+							.filter((part) => part.type === "text")
+							.map((part) => part.text)
+							.join("\n") || `${tool.name} failed`,
+					);
+				const result = outcome
+					? outcome.result
+					: await tool.execute(
+							toolCallId,
+							prepared as never,
+							signal,
+							(update) => {
+								if (acceptingUpdates) forwardUpdate(update, context);
+							},
+							extensionContext,
+						);
 				acceptingUpdates = false;
 				const cachedOutputs = opaqueToolOutputsFromDetails(result.details);
-				const protectedResult = contract.opaqueResult && (!contract.allowPlainResult || cachedOutputs.length > 0 || contract.opaqueResultScope?.(result) !== undefined);
+				const protectedResult =
+					contract.opaqueResult &&
+					(!contract.allowPlainResult ||
+						cachedOutputs.length > 0 ||
+						contract.opaqueResultScope?.(result) !== undefined);
 				if (cachedOutputs.length && !contract.opaqueResult)
-					throw new Error("Protected result delivery is unavailable; start a new exec cell");
+					throw new Error(
+						"Protected result delivery is unavailable; start a new exec cell",
+					);
 				if (protectedResult) {
-					const scope = context.resolveOpaqueScope ? await context.resolveOpaqueScope() : context.opaqueScope;
-					if (!scope || contract.opaqueResultScope?.(result) !== scope ||
-						!context.opaqueContextValid || !await context.opaqueContextValid())
-						throw new Error("Protected result belongs to a different context; check completed results before retrying");
-					if (!cachedOutputs.length) throw new Error("Operation returned no protected output; check completed results before retrying");
-					const localText = result.content.filter(item => item.type === "text").map(item => item.text).join("\n");
-					cachedOutputs.forEach((output, index) => context.captureOpaqueResult!({ ...output,
-						name: output.name + (index === 0 && localText ? `; ${localText}` : "") },
-						index === 0 ? result.content.filter(item => item.type === "image").map(item => ({
-							type: "input_image", image_url: `data:${item.mimeType};base64,${item.data}`,
-							detail: "detail" in item && (item.detail === "auto" || item.detail === "high" || item.detail === "original")
-								? item.detail : "high",
-						})) : []));
-					context.captureResult?.({ ...result, content: [{ type: "text", text: `Result ${toolCallId}` }], details: {} });
+					const scope = context.resolveOpaqueScope
+						? await context.resolveOpaqueScope()
+						: context.opaqueScope;
+					if (
+						!scope ||
+						contract.opaqueResultScope?.(result) !== scope ||
+						!context.opaqueContextValid ||
+						!(await context.opaqueContextValid())
+					)
+						throw new Error(
+							"Protected result belongs to a different context; check completed results before retrying",
+						);
+					if (!cachedOutputs.length)
+						throw new Error(
+							"Operation returned no protected output; check completed results before retrying",
+						);
+					const localText = result.content
+						.filter((item) => item.type === "text")
+						.map((item) => item.text)
+						.join("\n");
+					cachedOutputs.forEach((output, index) =>
+						context.captureOpaqueResult!(
+							{
+								...output,
+								name:
+									output.name +
+									(index === 0 && localText ? `; ${localText}` : ""),
+							},
+							index === 0
+								? result.content
+										.filter((item) => item.type === "image")
+										.map((item) => ({
+											type: "input_image",
+											image_url: `data:${item.mimeType};base64,${item.data}`,
+											detail:
+												"detail" in item &&
+												(item.detail === "auto" ||
+													item.detail === "high" ||
+													item.detail === "original")
+													? item.detail
+													: "high",
+										}))
+								: [],
+						),
+					);
+					context.captureResult?.({
+						...result,
+						content: [{ type: "text", text: `Result ${toolCallId}` }],
+						details: {},
+					});
 				} else context.captureResult?.(result);
 				const resultError = contract.resultError?.(result);
 				if (resultError) throw new Error(resultError);
-				if (protectedResult)
-					return { result_id: toolCallId };
+				if (protectedResult) return { result_id: toolCallId };
 				const value = contract.resultValue?.(result);
 				if (value !== undefined && value !== null) return value;
 				if (tool.outputSchema && result.structuredContent !== undefined)
@@ -135,7 +214,9 @@ export function toNestedTool<TParams extends ToolDefinition["parameters"], TDeta
 				lifecycle.end?.(toolCallId);
 			}
 		};
-		return contract.executeViaPi ? execute(context) : runCodeModeToolWithHooks(tool.name, prepared, context, signal, execute);
+		return contract.executeViaPi
+			? execute(context)
+			: runCodeModeToolWithHooks(tool.name, prepared, context, signal, execute);
 	};
 	return {
 		name: tool.name,
@@ -154,19 +235,27 @@ export function toNestedTool<TParams extends ToolDefinition["parameters"], TDeta
 		...(contract.blocking ? { blocking: true } : {}),
 		...(contract.isBlocking ? { isBlocking: contract.isBlocking } : {}),
 		...(contract.discoverWhenDeferred ? { discoverWhenDeferred: true } : {}),
-		...(contract.translatePromptMetadata ? { translatePromptMetadata: true } : {}),
+		...(contract.translatePromptMetadata
+			? { translatePromptMetadata: true }
+			: {}),
 		...(tool.executionMode ? { executionMode: tool.executionMode } : {}),
 		...(contract.propagateTermination ? { propagateTermination: true } : {}),
 		...(contract.opaqueResult ? { opaqueResult: true } : {}),
 		...(contract.toolName ? { toolName: contract.toolName } : {}),
-		...(contract.yieldTimeMs === undefined ? {} : { yieldTimeMs: contract.yieldTimeMs }),
+		...(contract.yieldTimeMs === undefined
+			? {}
+			: { yieldTimeMs: contract.yieldTimeMs }),
 		...(kind === "function" ? { inputSchema: tool.parameters } : {}),
 		...(tool.outputSchema ? { output: JSON.stringify(tool.outputSchema) } : {}),
 		...(tool.renderCall
 			? {
-				renderCall: (input, theme, context) =>
-					tool.renderCall!(prepareInput(input) as never, theme as never, context as never),
-			}
+					renderCall: (input, theme, context) =>
+						tool.renderCall!(
+							prepareInput(input) as never,
+							theme as never,
+							context as never,
+						),
+				}
 			: {}),
 		...(tool.renderResult
 			? {
@@ -189,9 +278,10 @@ export function codeModeImageResult(
 ): unknown {
 	const image = result.content.find((item) => item.type === "image");
 	if (!image || image.type !== "image") return compactNestedResult(result);
-	const detail = "detail" in image && typeof image.detail === "string"
-		? image.detail
-		: "high";
+	const detail =
+		"detail" in image && typeof image.detail === "string"
+			? image.detail
+			: "high";
 	return {
 		image_url: `data:${image.mimeType};base64,${image.data}`,
 		detail,
@@ -203,8 +293,7 @@ function requireExtensionContext(
 	context: ToolExecutionContext,
 ): ExtensionToolContext {
 	const ctx = context.extensionContext;
-	if (!ctx)
-		throw new Error("Code-mode Pi context is unavailable");
+	if (!ctx) throw new Error("Code-mode Pi context is unavailable");
 	if (isToolContext(ctx)) return ctx;
 	// Startup hooks and older hosts have no Pi-owned parent tool call. Leaf tools
 	// still work there, but must not pretend nested Pi execution is available.
@@ -218,11 +307,18 @@ function requireExtensionContext(
 		},
 	};
 	// Keep Pi's live getters and stale-context guards rather than their spread values.
-	return Object.defineProperties(toolContext, Object.getOwnPropertyDescriptors(ctx));
+	return Object.defineProperties(
+		toolContext,
+		Object.getOwnPropertyDescriptors(ctx),
+	);
 }
 
 function isToolContext(ctx: ExtensionContext): ctx is ExtensionToolContext {
-	return "tools" in ctx && "executeTool" in ctx && typeof ctx.executeTool === "function";
+	return (
+		"tools" in ctx &&
+		"executeTool" in ctx &&
+		typeof ctx.executeTool === "function"
+	);
 }
 
 function forwardUpdate(

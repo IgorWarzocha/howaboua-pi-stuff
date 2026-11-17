@@ -173,6 +173,7 @@ export function recordObservations(pi: ExtensionAPI): void {
 					} catch {
 						notifyFailure(currentContext);
 					} finally {
+						// oxlint-disable-next-line no-unsafe-finally -- Forward editor submission even when command recording fails.
 						return submit.call(editor, text);
 					}
 				};

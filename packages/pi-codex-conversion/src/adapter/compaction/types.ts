@@ -1,11 +1,19 @@
-import type { CompactionEntry, CompactionResult } from "@earendil-works/pi-coding-agent";
+import type {
+	CompactionEntry,
+	CompactionResult,
+} from "@earendil-works/pi-coding-agent";
 import { formatUtcMinute } from "../../time-format.ts";
-import { isCodexCompactionDiagnostic, type CodexCompactionDiagnostic } from "./diagnostics.ts";
+import {
+	isCodexCompactionDiagnostic,
+	type CodexCompactionDiagnostic,
+} from "./diagnostics.ts";
 
 const LEGACY_NATIVE_COMPACTION_STRATEGY = "openai-native-compact-v1";
 export const NATIVE_COMPACTION_STRATEGY = "openai-responses-compaction-v2";
-export const NATIVE_COMPACTION_SHIM_SUMMARY = "[OpenAI native compaction checkpoint]";
-export const NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE = "codex-native-compaction-display";
+export const NATIVE_COMPACTION_SHIM_SUMMARY =
+	"[OpenAI native compaction checkpoint]";
+export const NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE =
+	"codex-native-compaction-display";
 export const NATIVE_COMPACTION_DISPLAY_TEXT = [
 	"Codex native compaction was used for this checkpoint.",
 	"",
@@ -26,7 +34,9 @@ export type NativeCompactionDisplayEntry = {
 };
 
 export type NativeCompactionStrategy = typeof NATIVE_COMPACTION_STRATEGY;
-type PersistedNativeCompactionStrategy = NativeCompactionStrategy | typeof LEGACY_NATIVE_COMPACTION_STRATEGY;
+type PersistedNativeCompactionStrategy =
+	| NativeCompactionStrategy
+	| typeof LEGACY_NATIVE_COMPACTION_STRATEGY;
 export type NativeCompactionRequestMeta = {
 	tokensBefore?: number | undefined;
 	previousSummaryPresent?: boolean | undefined;
@@ -137,11 +147,15 @@ function cloneStructuredValue(value: unknown): unknown {
 	throw new Error(`Unsupported structured value: ${typeof value}`);
 }
 
-function isCompactedWindowItem(value: unknown): value is Record<string, unknown> {
+function isCompactedWindowItem(
+	value: unknown,
+): value is Record<string, unknown> {
 	return isRecord(value) && Object.values(value).every(isStructuredValue);
 }
 
-export function isNativeCompactionRequestMeta(value: unknown): value is NativeCompactionRequestMeta {
+export function isNativeCompactionRequestMeta(
+	value: unknown,
+): value is NativeCompactionRequestMeta {
 	if (!isRecord(value)) {
 		return false;
 	}
@@ -151,31 +165,50 @@ export function isNativeCompactionRequestMeta(value: unknown): value is NativeCo
 		return false;
 	}
 
-	if (previousSummaryPresent !== undefined && typeof previousSummaryPresent !== "boolean") {
+	if (
+		previousSummaryPresent !== undefined &&
+		typeof previousSummaryPresent !== "boolean"
+	) {
 		return false;
 	}
 
-	if (compactedKeptWindow !== undefined && typeof compactedKeptWindow !== "boolean") {
+	if (
+		compactedKeptWindow !== undefined &&
+		typeof compactedKeptWindow !== "boolean"
+	) {
 		return false;
 	}
 
 	return true;
 }
 
-export function isNativeCompactionUsage(value: unknown): value is NativeCompactionUsage {
+export function isNativeCompactionUsage(
+	value: unknown,
+): value is NativeCompactionUsage {
 	if (!isRecord(value)) return false;
-	return [value["inputTokens"], value["cachedInputTokens"], value["cacheWriteInputTokens"], value["outputTokens"]].every(isFiniteNonNegativeNumber)
-		&& (value["diagnostic"] === undefined || isCodexCompactionDiagnostic(value["diagnostic"]));
+	return (
+		[
+			value["inputTokens"],
+			value["cachedInputTokens"],
+			value["cacheWriteInputTokens"],
+			value["outputTokens"],
+		].every(isFiniteNonNegativeNumber) &&
+		(value["diagnostic"] === undefined ||
+			isCodexCompactionDiagnostic(value["diagnostic"]))
+	);
 }
 
-export function isNativeCompactionDetails(value: unknown): value is NativeCompactionDetails {
+export function isNativeCompactionDetails(
+	value: unknown,
+): value is NativeCompactionDetails {
 	if (!isRecord(value)) {
 		return false;
 	}
 	const candidate = value as Record<string, unknown>;
 
 	return (
-		(candidate["strategy"] === NATIVE_COMPACTION_STRATEGY || candidate["strategy"] === LEGACY_NATIVE_COMPACTION_STRATEGY) &&
+		(candidate["strategy"] === NATIVE_COMPACTION_STRATEGY ||
+			candidate["strategy"] === LEGACY_NATIVE_COMPACTION_STRATEGY) &&
 		isNonEmptyString(candidate["provider"]!) &&
 		isNonEmptyString(candidate["api"]!) &&
 		isNonEmptyString(candidate["model"]!) &&
@@ -183,44 +216,68 @@ export function isNativeCompactionDetails(value: unknown): value is NativeCompac
 		Array.isArray(candidate["compactedWindow"]!) &&
 		candidate["compactedWindow"]!.every(isCompactedWindowItem) &&
 		isNonEmptyString(candidate["createdAt"]!) &&
-		(candidate["compactResponseId"] === undefined || isNonEmptyString(candidate["compactResponseId"]!)) &&
-		(candidate["requestMeta"] === undefined || isNativeCompactionRequestMeta(candidate["requestMeta"]!)) &&
-		(candidate["usage"] === undefined || isNativeCompactionUsage(candidate["usage"]!))
+		(candidate["compactResponseId"] === undefined ||
+			isNonEmptyString(candidate["compactResponseId"]!)) &&
+		(candidate["requestMeta"] === undefined ||
+			isNativeCompactionRequestMeta(candidate["requestMeta"]!)) &&
+		(candidate["usage"] === undefined ||
+			isNativeCompactionUsage(candidate["usage"]!))
 	);
 }
 
-export function isNativeCompactionEntry(value: unknown): value is NativeCompactionEntry {
-	return isRecord(value) && value["type"] === "compaction" && isNativeCompactionDetails(value["details"]!);
+export function isNativeCompactionEntry(
+	value: unknown,
+): value is NativeCompactionEntry {
+	return (
+		isRecord(value) &&
+		value["type"] === "compaction" &&
+		isNativeCompactionDetails(value["details"]!)
+	);
 }
 
 export function hasPortableNativeCompactionSummary(
 	entry: CompactionEntry | undefined,
 ): boolean {
-	return isNativeCompactionEntry(entry)
-		&& isNonEmptyString(entry.summary)
-		&& entry.summary !== NATIVE_COMPACTION_SHIM_SUMMARY;
+	return (
+		isNativeCompactionEntry(entry) &&
+		isNonEmptyString(entry.summary) &&
+		entry.summary !== NATIVE_COMPACTION_SHIM_SUMMARY
+	);
 }
 
-export function createNativeCompactionDetails(input: CreateNativeCompactionDetailsInput): NativeCompactionDetails {
+export function createNativeCompactionDetails(
+	input: CreateNativeCompactionDetailsInput,
+): NativeCompactionDetails {
 	return {
 		strategy: NATIVE_COMPACTION_STRATEGY,
 		provider: normalizeString(input.provider),
 		api: normalizeString(input.api),
 		model: normalizeString(input.model),
 		baseUrl: normalizeString(input.baseUrl),
-		compactedWindow: input.compactedWindow.map((item) => cloneStructuredValue(item)),
-		compactResponseId: isNonEmptyString(input.compactResponseId) ? normalizeString(input.compactResponseId) : undefined,
-		createdAt: isNonEmptyString(input.createdAt) ? normalizeString(input.createdAt) : formatUtcMinute(),
+		compactedWindow: input.compactedWindow.map((item) =>
+			cloneStructuredValue(item),
+		),
+		compactResponseId: isNonEmptyString(input.compactResponseId)
+			? normalizeString(input.compactResponseId)
+			: undefined,
+		createdAt: isNonEmptyString(input.createdAt)
+			? normalizeString(input.createdAt)
+			: formatUtcMinute(),
 		requestMeta: input.requestMeta
 			? {
-				...(input.requestMeta.tokensBefore !== undefined ? { tokensBefore: input.requestMeta.tokensBefore } : {}),
-				...(input.requestMeta.previousSummaryPresent !== undefined
-					? { previousSummaryPresent: input.requestMeta.previousSummaryPresent }
-					: {}),
-				...(input.requestMeta.compactedKeptWindow !== undefined
-					? { compactedKeptWindow: input.requestMeta.compactedKeptWindow }
-					: {}),
-			}
+					...(input.requestMeta.tokensBefore !== undefined
+						? { tokensBefore: input.requestMeta.tokensBefore }
+						: {}),
+					...(input.requestMeta.previousSummaryPresent !== undefined
+						? {
+								previousSummaryPresent:
+									input.requestMeta.previousSummaryPresent,
+							}
+						: {}),
+					...(input.requestMeta.compactedKeptWindow !== undefined
+						? { compactedKeptWindow: input.requestMeta.compactedKeptWindow }
+						: {}),
+				}
 			: undefined,
 		usage: input.usage ? { ...input.usage } : undefined,
 	};

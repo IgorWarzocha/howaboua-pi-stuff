@@ -1,6 +1,10 @@
 import type { KeybindingHints } from "@earendil-works/pi-coding-agent";
 import type { ExecutePatchResult } from "../../patch/types.ts";
-import { collapseApplyPatchDiff, formatApplyPatchSummary, renderApplyPatchCall } from "./rendering.ts";
+import {
+	collapseApplyPatchDiff,
+	formatApplyPatchSummary,
+	renderApplyPatchCall,
+} from "./rendering.ts";
 
 interface ApplyPatchRenderState {
 	cwd: string;
@@ -22,14 +26,19 @@ export interface ApplyPatchPartialFailureDetails {
 	failedTargets?: string[] | undefined;
 }
 
-export type ApplyPatchToolDetails = ApplyPatchSuccessDetails | ApplyPatchPartialFailureDetails;
+export type ApplyPatchToolDetails =
+	| ApplyPatchSuccessDetails
+	| ApplyPatchPartialFailureDetails;
 
 const applyPatchRenderStates = new Map<string, ApplyPatchRenderState>();
 
-export function isApplyPatchToolDetails(details: unknown): details is ApplyPatchToolDetails {
+export function isApplyPatchToolDetails(
+	details: unknown,
+): details is ApplyPatchToolDetails {
 	if (!details || typeof details !== "object") return false;
 	const record = details as Record<string, unknown>;
-	if (record["status"] !== "success" && record["status"] !== "partial_failure") return false;
+	if (record["status"] !== "success" && record["status"] !== "partial_failure")
+		return false;
 	const result = record["result"];
 	if (!result || typeof result !== "object") return false;
 	const patchResult = result as Record<string, unknown>;
@@ -50,7 +59,9 @@ export function isApplyPatchToolDetails(details: unknown): details is ApplyPatch
 }
 
 function isStringArray(value: unknown): value is string[] {
-	return Array.isArray(value) && value.every((item) => typeof item === "string");
+	return (
+		Array.isArray(value) && value.every((item) => typeof item === "string")
+	);
 }
 
 export function clearApplyPatchRenderState(): void {
@@ -65,25 +76,52 @@ export function setApplyPatchRenderState(
 	failedTargets?: string[],
 ): void {
 	const collapsed = formatApplyPatchSummary(patchText, cwd);
-	applyPatchRenderStates.set(toolCallId, { cwd, patchText, collapsed, status, failedTargets });
+	applyPatchRenderStates.set(toolCallId, {
+		cwd,
+		patchText,
+		collapsed,
+		status,
+		failedTargets,
+	});
 }
 
-export function markApplyPatchPartialFailure(toolCallId: string, failedTargets?: string[]): void {
+export function markApplyPatchPartialFailure(
+	toolCallId: string,
+	failedTargets?: string[],
+): void {
 	markApplyPatchFailure(toolCallId, "partial_failure", failedTargets);
 }
 
-export function markApplyPatchFailure(toolCallId: string, status: "partial_failure" | "failed", failedTargets?: string[]): void {
+export function markApplyPatchFailure(
+	toolCallId: string,
+	status: "partial_failure" | "failed",
+	failedTargets?: string[],
+): void {
 	const existing = applyPatchRenderStates.get(toolCallId);
 	if (!existing) return;
-	applyPatchRenderStates.set(toolCallId, { ...existing, status, failedTargets });
+	applyPatchRenderStates.set(toolCallId, {
+		...existing,
+		status,
+		failedTargets,
+	});
 }
 
-function markFailedTargetLine(line: string, failedTarget: string): string | undefined {
+function markFailedTargetLine(
+	line: string,
+	failedTarget: string,
+): string | undefined {
 	const suffixMatch = line.match(/ \(\+\d+ -\d+\)$/);
 	if (!suffixMatch) return undefined;
 	const suffix = suffixMatch[0]!;
 	const prefixAndTarget = line.slice(0, -suffix.length);
-	const candidatePrefixes = ["• Edit partially failed ", "• Added ", "• Edited ", "• Deleted ", "  └ ", "    "];
+	const candidatePrefixes = [
+		"• Edit partially failed ",
+		"• Added ",
+		"• Edited ",
+		"• Deleted ",
+		"  └ ",
+		"    ",
+	];
 	for (const prefix of candidatePrefixes) {
 		if (prefixAndTarget === `${prefix}${failedTarget}`) {
 			return `${prefix}${failedTarget} failed${suffix}`;
@@ -92,10 +130,17 @@ function markFailedTargetLine(line: string, failedTarget: string): string | unde
 	return undefined;
 }
 
-function renderPartialFailureCall(text: string, theme: { fg(role: string, text: string): string }, failedTargets?: string[]): string {
+function renderPartialFailureCall(
+	text: string,
+	theme: { fg(role: string, text: string): string },
+	failedTargets?: string[],
+): string {
 	const lines = text.split("\n");
 	if (lines.length === 0) return theme.fg("warning", "• Edit partially failed");
-	lines[0] = lines[0]!.replace(/^• (Added|Edited|Deleted)\b/, "• Edit partially failed");
+	lines[0] = lines[0]!.replace(
+		/^• (Added|Edited|Deleted)\b/,
+		"• Edit partially failed",
+	);
 	const failedLineIndexes = new Set<number>();
 	if (failedTargets) {
 		for (let i = 0; i < lines.length; i += 1) {
@@ -109,14 +154,20 @@ function renderPartialFailureCall(text: string, theme: { fg(role: string, text: 
 			}
 		}
 	}
-	return lines.map((line, index) => {
-		if (failedLineIndexes.has(index)) return theme.fg("error", line);
-		if (index === 0) return theme.fg("warning", line);
-		return line;
-	}).join("\n");
+	return lines
+		.map((line, index) => {
+			if (failedLineIndexes.has(index)) return theme.fg("error", line);
+			if (index === 0) return theme.fg("warning", line);
+			return line;
+		})
+		.join("\n");
 }
 
-function renderFailedCall(text: string, theme: { fg(role: string, text: string): string }, failedTargets?: string[]): string {
+function renderFailedCall(
+	text: string,
+	theme: { fg(role: string, text: string): string },
+	failedTargets?: string[],
+): string {
 	const lines = text.split("\n");
 	if (lines.length === 0) return theme.fg("error", "• Edit failed");
 	lines[0] = lines[0]!.replace(/^• (Added|Edited|Deleted)\b/, "• Edit failed");
@@ -133,26 +184,54 @@ function renderFailedCall(text: string, theme: { fg(role: string, text: string):
 			}
 		}
 	}
-	return lines.map((line, index) => failedLineIndexes.has(index) || index === 0 ? theme.fg("error", line) : line).join("\n");
+	return lines
+		.map((line, index) =>
+			failedLineIndexes.has(index) || index === 0
+				? theme.fg("error", line)
+				: line,
+		)
+		.join("\n");
 }
 
-export function renderApplyPatchCallFromState(args: { input?: unknown | undefined }, theme: { fg(role: string, text: string): string; bold(text: string): string }, context?: Partial<KeybindingHints> & { toolCallId?: string | undefined; cwd?: string | undefined; expanded?: boolean | undefined; argsComplete?: boolean | undefined; showCollapsedDiff?: boolean | undefined }): string {
-	if (context?.argsComplete === false) return `${theme.fg("dim", "•")} ${theme.bold("Patching")}`;
+export function renderApplyPatchCallFromState(
+	args: { input?: unknown | undefined },
+	theme: { fg(role: string, text: string): string; bold(text: string): string },
+	context?: Partial<KeybindingHints> & {
+		toolCallId?: string | undefined;
+		cwd?: string | undefined;
+		expanded?: boolean | undefined;
+		argsComplete?: boolean | undefined;
+		showCollapsedDiff?: boolean | undefined;
+	},
+): string {
+	if (context?.argsComplete === false)
+		return `${theme.fg("dim", "•")} ${theme.bold("Patching")}`;
 	const patchText = typeof args.input === "string" ? args.input : "";
-	if (patchText.trim().length === 0) return `${theme.fg("dim", "•")} ${theme.bold("Patching")}`;
-	const cached = context?.toolCallId ? applyPatchRenderStates.get(context.toolCallId) : undefined;
+	if (patchText.trim().length === 0)
+		return `${theme.fg("dim", "•")} ${theme.bold("Patching")}`;
+	const cached = context?.toolCallId
+		? applyPatchRenderStates.get(context.toolCallId)
+		: undefined;
 	const cwd = context?.cwd ?? cached?.cwd;
 	const effectivePatchText = cached?.patchText ?? patchText;
 	// Keep styled diff work with its owning call; collapsed hints remain host-derived.
-	const expanded = context?.expanded || context?.showCollapsedDiff
-		? cached?.expanded?.theme === theme ? cached.expanded.text : renderApplyPatchCall(effectivePatchText, cwd)
-		: "";
+	const expanded =
+		context?.expanded || context?.showCollapsedDiff
+			? cached?.expanded?.theme === theme
+				? cached.expanded.text
+				: renderApplyPatchCall(effectivePatchText, cwd)
+			: "";
 	if (cached && expanded) cached.expanded = { theme, text: expanded };
 	const baseText = context?.expanded
 		? expanded
 		: context?.showCollapsedDiff
-			? collapseApplyPatchDiff(expanded, 10, context?.keyHint?.("app.tools.expand", "to expand") ?? "expand tool details")
-		: cached?.collapsed ?? formatApplyPatchSummary(effectivePatchText, cwd);
+			? collapseApplyPatchDiff(
+					expanded,
+					10,
+					context?.keyHint?.("app.tools.expand", "to expand") ??
+						"expand tool details",
+				)
+			: (cached?.collapsed ?? formatApplyPatchSummary(effectivePatchText, cwd));
 	if (baseText.trim().length === 0) {
 		if (cached?.status === "failed") return theme.fg("error", "• Edit failed");
 		return `${theme.fg("dim", "•")} ${theme.bold("Patching")}`;

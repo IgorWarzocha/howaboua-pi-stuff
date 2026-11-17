@@ -53,9 +53,7 @@ export function runLedgerOperation(
 		worker.once("exit", (code) => {
 			if (failure) reject(failure);
 			else if (code !== 0 || !result)
-				reject(
-					new Error(`Usage ledger operation did not complete (${code}).`),
-				);
+				reject(new Error(`Usage ledger operation did not complete (${code}).`));
 			else resolve(result);
 		});
 	});
@@ -138,22 +136,43 @@ export async function recordCodexQuota(
 		await recordSafely(snapshot.accountKey, at, { kind: "quota", snapshot });
 }
 
-export async function recordCodexProxyMessage(message: AssistantMessage, registry: ModelRegistry): Promise<void> {
+export async function recordCodexProxyMessage(
+	message: AssistantMessage,
+	registry: ModelRegistry,
+): Promise<void> {
 	// Native responses, compaction and keepalive already record inside the Codex transport.
-	if (message.api !== "openai-codex-responses" || message.provider === "openai-codex"
-		|| message.stopReason === "pending") return;
+	if (
+		message.api !== "openai-codex-responses" ||
+		message.provider === "openai-codex" ||
+		message.stopReason === "pending"
+	)
+		return;
 	const { usage } = message;
-	if ((message.stopReason === "error" || message.stopReason === "aborted") && usage.cost.total === 0
-		&& usage.input + usage.output + usage.cacheRead + usage.cacheWrite === 0) return;
+	if (
+		(message.stopReason === "error" || message.stopReason === "aborted") &&
+		usage.cost.total === 0 &&
+		usage.input + usage.output + usage.cacheRead + usage.cacheWrite === 0
+	)
+		return;
 	const at = Date.now();
 	try {
 		const model = registry.find(message.provider, message.model);
-		if (!model) throw new Error(`Model unavailable: ${message.provider}/${message.model}`);
+		if (!model)
+			throw new Error(
+				`Model unavailable: ${message.provider}/${message.model}`,
+			);
 		const auth = await registry.getApiKeyAndHeaders(model);
 		if (!auth.ok) throw new Error(auth.error);
 		const accountId = extractAccountId(auth.apiKey ?? "");
-		await recordCodexSpend(accountId, auth.baseUrl ? { ...model, baseUrl: auth.baseUrl } : model, usage, at);
-	} catch (error) { reportRecordingError(error); }
+		await recordCodexSpend(
+			accountId,
+			auth.baseUrl ? { ...model, baseUrl: auth.baseUrl } : model,
+			usage,
+			at,
+		);
+	} catch (error) {
+		reportRecordingError(error);
+	}
 }
 
 export async function recordCodexManualReset(key: string): Promise<void> {

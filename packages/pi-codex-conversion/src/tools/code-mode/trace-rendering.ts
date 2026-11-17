@@ -4,7 +4,11 @@ import {
 	Spacer,
 	Text,
 } from "@earendil-works/pi-tui";
-import { type EmittedImageCounts, previewText, renderTextAndImages } from "./render-content.js";
+import {
+	type EmittedImageCounts,
+	previewText,
+	renderTextAndImages,
+} from "./render-content.js";
 import {
 	CodeModeNestedRenderStore,
 	type NestedRenderState,
@@ -39,7 +43,10 @@ export function renderTraceAndOutput(
 	if (droppedTraceCount > 0) {
 		container.addChild(
 			new Text(
-				theme.fg("muted", `… ${droppedTraceCount} earlier nested call${droppedTraceCount === 1 ? "" : "s"} omitted`),
+				theme.fg(
+					"muted",
+					`… ${droppedTraceCount} earlier nested call${droppedTraceCount === 1 ? "" : "s"} omitted`,
+				),
 				0,
 				0,
 			),
@@ -126,7 +133,11 @@ function renderTrace(
 				{
 					...renderContext,
 					// Like Pi's native row, this wrapper owns result-content images.
-					showImages: rendererResult.content.some((item) => item.type === "image") ? false : renderContext.showImages,
+					showImages: rendererResult.content.some(
+						(item) => item.type === "image",
+					)
+						? false
+						: renderContext.showImages,
 					lastComponent: renderState.resultComponent,
 				},
 			);
@@ -142,11 +153,24 @@ function renderTrace(
 		if (!customResultRendered)
 			components.push(new Text(theme.fg("error", trace.error), 4, 0));
 	} else if (renderedTrace.result && !customResultRendered) {
-		components.push(renderGenericTraceResult(renderedTrace, theme, options.expanded || options.isPartial, context, renderState));
+		components.push(
+			renderGenericTraceResult(
+				renderedTrace,
+				theme,
+				options.expanded || options.isPartial,
+				context,
+				renderState,
+			),
+		);
 	}
 	if (customResultRendered && rendererResult && context?.showImages !== false) {
-		const images = rendererResult.content.filter((item) => item.type === "image");
-		if (images.length) components.push(renderTextAndImages("", images, theme, renderState.images ??= []));
+		const images = rendererResult.content.filter(
+			(item) => item.type === "image",
+		);
+		if (images.length)
+			components.push(
+				renderTextAndImages("", images, theme, (renderState.images ??= [])),
+			);
 	}
 	return components;
 }
@@ -173,10 +197,20 @@ function renderGenericTraceCall(
 	theme: CodeModeRenderTheme,
 	expanded: boolean,
 ): Text {
-	const verb = trace.status === "running" ? "Running" : trace.status === "blocked" ? "Blocked" : trace.status === "error" ? "Failed" : "Ran";
+	const verb =
+		trace.status === "running"
+			? "Running"
+			: trace.status === "blocked"
+				? "Blocked"
+				: trace.status === "error"
+					? "Failed"
+					: "Ran";
 	let text = `${theme.fg("dim", "•")} ${theme.bold(`${verb} ${trace.name}`)}`;
 	if (expanded) {
-		const input = typeof trace.input === "string" ? trace.input : safeRenderString(trace.input);
+		const input =
+			typeof trace.input === "string"
+				? trace.input
+				: safeRenderString(trace.input);
 		if (input) text += `\n${theme.fg("dim", input)}`;
 	}
 	return new Text(text, 0, 0);
@@ -192,15 +226,27 @@ function renderGenericTraceResult(
 	const result = trace.result;
 	if (!result) return new Container();
 	const text = result.content
-		.filter((item): item is { type: "text"; text: string } => item.type === "text")
+		.filter(
+			(item): item is { type: "text"; text: string } => item.type === "text",
+		)
 		.map((item) => item.text)
 		.join("\n");
-	const images = context?.showImages === false ? [] : result.content.filter(
-		(item): item is typeof item & { data: string; mimeType: string } =>
-			item.type === "image" && typeof item.data === "string" && typeof item.mimeType === "string",
-	);
+	const images =
+		context?.showImages === false
+			? []
+			: result.content.filter(
+					(item): item is typeof item & { data: string; mimeType: string } =>
+						item.type === "image" &&
+						typeof item.data === "string" &&
+						typeof item.mimeType === "string",
+				);
 	const renderedText = theme.fg("dim", text);
-	return renderTextAndImages(full ? renderedText : previewText(renderedText, theme, false, context), images, theme, renderState.images ??= []);
+	return renderTextAndImages(
+		full ? renderedText : previewText(renderedText, theme, false, context),
+		images,
+		theme,
+		(renderState.images ??= []),
+	);
 }
 
 function isProgrammaticTool(

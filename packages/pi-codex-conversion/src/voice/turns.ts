@@ -185,7 +185,9 @@ export class RealtimeVoiceTurnTracker {
 	private readonly outstandingInputs = new Set<string>();
 
 	get hasPendingInput(): boolean {
-		return this.unfinishedUserTurns.length > 0 || this.pendingUserInputs.length > 0;
+		return (
+			this.unfinishedUserTurns.length > 0 || this.pendingUserInputs.length > 0
+		);
 	}
 
 	inputStarted(): void {

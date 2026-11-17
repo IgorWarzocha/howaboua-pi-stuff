@@ -1,4 +1,9 @@
-import { getAgentDir, getShellConfig, SettingsManager, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+	getAgentDir,
+	getShellConfig,
+	SettingsManager,
+	type ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 
 export const CODEX_FALLBACK_SHELL = "/bin/bash";
 
@@ -12,25 +17,41 @@ export function getCodexRuntimeShell(shell: string | undefined): string {
 		return CODEX_FALLBACK_SHELL;
 	}
 	if (!isFishShell(shell)) return shell;
-	return process.platform === "win32" ? getShellConfig().shell : CODEX_FALLBACK_SHELL;
+	return process.platform === "win32"
+		? getShellConfig().shell
+		: CODEX_FALLBACK_SHELL;
 }
 
 function getShellName(shell: string): string {
-	return shell.replace(/\\/g, "/").split("/").pop()?.toLowerCase() ?? shell.toLowerCase();
+	return (
+		shell.replace(/\\/g, "/").split("/").pop()?.toLowerCase() ??
+		shell.toLowerCase()
+	);
 }
 
-export function getCodexShellArgs(shell: string, command: string, login: boolean): string[] {
+export function getCodexShellArgs(
+	shell: string,
+	command: string,
+	login: boolean,
+): string[] {
 	const name = getShellName(shell);
 	if (name === "cmd" || name === "cmd.exe") {
 		return ["/d", "/s", "/c", command];
 	}
-	if (name === "powershell" || name === "powershell.exe" || name === "pwsh" || name === "pwsh.exe") {
+	if (
+		name === "powershell" ||
+		name === "powershell.exe" ||
+		name === "pwsh" ||
+		name === "pwsh.exe"
+	) {
 		return ["-NoLogo", "-NoProfile", "-Command", command];
 	}
 	return login ? ["-lc", command] : ["-c", command];
 }
 
-export function getDefaultCodexRuntimeShell(configuredShellPath?: string): string {
+export function getDefaultCodexRuntimeShell(
+	configuredShellPath?: string,
+): string {
 	if (configuredShellPath) {
 		return getCodexRuntimeShell(getShellConfig(configuredShellPath).shell);
 	}

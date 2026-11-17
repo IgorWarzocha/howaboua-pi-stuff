@@ -63,8 +63,10 @@ const wire = focusWire(
 );
 process.stdin.setRawMode(true);
 process.stdin.on("data", (bytes) => wire.push(bytes));
+// oxlint-disable-next-line typescript/no-misused-promises -- Shutdown owns process termination and a bounded cleanup deadline.
 process.stdin.on("error", stop);
 process.stdin.on("end", () => void stop());
+// oxlint-disable-next-line typescript/no-misused-promises -- Shutdown owns process termination and a bounded cleanup deadline.
 process.stdout.on("error", stop);
 process.on("SIGTERM", () => void stop());
 process.on("SIGHUP", () => void stop());

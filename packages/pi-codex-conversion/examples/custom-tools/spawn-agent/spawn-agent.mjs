@@ -286,10 +286,13 @@ async function readStdin() {
 export async function main() {
 	const request = parseSpawnAgentRequest(await readStdin());
 	const prepared = prepareSpawn(request);
-	process.exitCode = await runSettledPi(buildPiArgs(request, prepared.message), {
-		cwd: prepared.cwd,
-		env: { ...process.env, PI_SKIP_VERSION_CHECK: "1" },
-	});
+	process.exitCode = await runSettledPi(
+		buildPiArgs(request, prepared.message),
+		{
+			cwd: prepared.cwd,
+			env: { ...process.env, PI_SKIP_VERSION_CHECK: "1" },
+		},
+	);
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : undefined;

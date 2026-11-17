@@ -41,7 +41,7 @@ export async function buildOpenAIImageRequest(
 	validateImageSize(args.size ?? "auto", format);
 	const editing = Boolean(
 		args.referenced_image_paths?.length ||
-			args.num_last_images_to_include != null,
+		args.num_last_images_to_include != null,
 	);
 	if (editing && ["gif", "svg"].includes(format))
 		throw new Error(

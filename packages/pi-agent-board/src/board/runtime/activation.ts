@@ -8,9 +8,8 @@ export async function activateBoard(pi: ExtensionAPI, runtime: BoardRuntime) {
 	const tool = createBoardTool(runtime);
 	pi.registerTool(tool);
 	try {
-		const { registerGptPromptMode, prepareGptPromptMode } = await import(
-			"@howaboua/pi-codex-conversion/prompt-mode"
-		);
+		const { registerGptPromptMode, prepareGptPromptMode } =
+			await import("@howaboua/pi-codex-conversion/prompt-mode");
 		runtime.setPromptModePreparation((ctx) => prepareGptPromptMode(pi, ctx));
 		registerGptPromptMode(pi, (active) => {
 			runtime.gptPromptMode = active;

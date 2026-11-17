@@ -9,7 +9,7 @@ import {
 import { join } from "node:path";
 
 rmSync("dist", { recursive: true, force: true });
-const result = spawnSync("tsgo", ["-p", "tsconfig.build.json"], {
+const result = spawnSync("tsc", ["-p", "tsconfig.build.json"], {
 	stdio: "inherit",
 });
 if (result.status !== 0) process.exit(result.status ?? 1);

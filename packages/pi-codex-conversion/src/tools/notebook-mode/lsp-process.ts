@@ -34,24 +34,43 @@ export class OneShotLspProcess {
 			stdio: ["pipe", "pipe", "pipe"],
 		});
 		this.child.stdout.on("data", (chunk: Buffer) => this.receive(chunk));
-		this.child.stdin.on("error", (error) => this.fail(new Error(`Deno LSP input failed: ${error.message}`)));
+		this.child.stdin.on("error", (error) =>
+			this.fail(new Error(`Deno LSP input failed: ${error.message}`)),
+		);
 		this.child.stderr.on("data", (chunk: Buffer) => {
-			this.stderr = `${this.stderr}${chunk.toString()}`.slice(-MAX_STDERR_CHARS);
+			this.stderr = `${this.stderr}${chunk.toString()}`.slice(
+				-MAX_STDERR_CHARS,
+			);
 		});
-		this.child.once("error", (error) => this.fail(new Error(`Deno LSP failed to start: ${error.message}`)));
+		this.child.once("error", (error) =>
+			this.fail(new Error(`Deno LSP failed to start: ${error.message}`)),
+		);
 		this.child.once("exit", (code, signal) => {
-			if (!this.stopped) this.fail(new Error(`Deno LSP exited unexpectedly (code=${code}, signal=${signal})${this.stderr ? `\n${this.stderr}` : ""}`));
+			if (!this.stopped)
+				this.fail(
+					new Error(
+						`Deno LSP exited unexpectedly (code=${code}, signal=${signal})${this.stderr ? `\n${this.stderr}` : ""}`,
+					),
+				);
 		});
 		const abort = () => this.fail(abortError(options.signal));
 		options.signal.addEventListener("abort", abort, { once: true });
-		this.child.once("exit", () => options.signal.removeEventListener("abort", abort));
+		this.child.once("exit", () =>
+			options.signal.removeEventListener("abort", abort),
+		);
 		if (options.signal.aborted) abort();
 	}
 
 	request(method: string, params?: unknown): Promise<unknown> {
-		if (this.stopped) return Promise.reject(new Error("Deno LSP is not running"));
+		if (this.stopped)
+			return Promise.reject(new Error("Deno LSP is not running"));
 		const id = this.nextId++;
-		const message: JsonRpcMessage = { jsonrpc: "2.0", id, method, ...(params === undefined ? {} : { params }) };
+		const message: JsonRpcMessage = {
+			jsonrpc: "2.0",
+			id,
+			method,
+			...(params === undefined ? {} : { params }),
+		};
 		return new Promise((resolve, reject) => {
 			this.pending.set(id, { resolve, reject });
 			try {
@@ -65,7 +84,11 @@ export class OneShotLspProcess {
 
 	notify(method: string, params?: unknown): void {
 		if (this.stopped) return;
-		this.send({ jsonrpc: "2.0", method, ...(params === undefined ? {} : { params }) });
+		this.send({
+			jsonrpc: "2.0",
+			method,
+			...(params === undefined ? {} : { params }),
+		});
 	}
 
 	async shutdown(): Promise<void> {
@@ -80,16 +103,21 @@ export class OneShotLspProcess {
 		this.stopped = true;
 		if (!this.child.stdin.destroyed) this.child.stdin.end();
 		await waitForExit(this.child, SHUTDOWN_GRACE_MS);
-		if (this.child.exitCode === null && this.child.signalCode === null) this.child.kill("SIGTERM");
+		if (this.child.exitCode === null && this.child.signalCode === null)
+			this.child.kill("SIGTERM");
 		await waitForExit(this.child, SHUTDOWN_GRACE_MS);
-		if (this.child.exitCode === null && this.child.signalCode === null) this.child.kill("SIGKILL");
+		if (this.child.exitCode === null && this.child.signalCode === null)
+			this.child.kill("SIGKILL");
 		this.rejectPending(new Error("Deno LSP shut down"));
 	}
 
 	private send(message: JsonRpcMessage): void {
 		const body = JSON.stringify(message);
-		if (Buffer.byteLength(body) > MAX_MESSAGE_BYTES) throw new Error(`Deno LSP request exceeds ${MAX_MESSAGE_BYTES} bytes`);
-		this.child.stdin.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`);
+		if (Buffer.byteLength(body) > MAX_MESSAGE_BYTES)
+			throw new Error(`Deno LSP request exceeds ${MAX_MESSAGE_BYTES} bytes`);
+		this.child.stdin.write(
+			`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`,
+		);
 	}
 
 	private receive(chunk: Buffer): void {
@@ -105,22 +133,34 @@ export class OneShotLspProcess {
 	private readMessage(): boolean {
 		const headerEnd = this.input.indexOf("\r\n\r\n");
 		if (headerEnd === -1) {
-			if (this.input.length > MAX_HEADER_BYTES) throw new Error("Deno LSP returned an oversized header");
+			if (this.input.length > MAX_HEADER_BYTES)
+				throw new Error("Deno LSP returned an oversized header");
 			return false;
 		}
-		if (headerEnd > MAX_HEADER_BYTES) throw new Error("Deno LSP returned an oversized header");
-		const match = /^Content-Length:\s*(\d+)$/im.exec(this.input.subarray(0, headerEnd).toString());
-		if (!match) throw new Error("Deno LSP returned a message without Content-Length");
+		if (headerEnd > MAX_HEADER_BYTES)
+			throw new Error("Deno LSP returned an oversized header");
+		const match = /^Content-Length:\s*(\d+)$/im.exec(
+			this.input.subarray(0, headerEnd).toString(),
+		);
+		if (!match)
+			throw new Error("Deno LSP returned a message without Content-Length");
 		const length = Number(match[1]);
-		if (!Number.isSafeInteger(length) || length < 0 || length > MAX_MESSAGE_BYTES) {
-			throw new Error(`Deno LSP returned an invalid message length: ${match[1]}`);
+		if (
+			!Number.isSafeInteger(length) ||
+			length < 0 ||
+			length > MAX_MESSAGE_BYTES
+		) {
+			throw new Error(
+				`Deno LSP returned an invalid message length: ${match[1]}`,
+			);
 		}
 		const bodyStart = headerEnd + 4;
 		if (this.input.length < bodyStart + length) return false;
 		const body = this.input.subarray(bodyStart, bodyStart + length).toString();
 		this.input = this.input.subarray(bodyStart + length);
 		const message = JSON.parse(body) as unknown;
-		if (!isRecord(message) || message["jsonrpc"] !== "2.0") throw new Error("Deno LSP returned invalid JSON-RPC");
+		if (!isRecord(message) || message["jsonrpc"] !== "2.0")
+			throw new Error("Deno LSP returned invalid JSON-RPC");
 		this.handle(message as JsonRpcMessage);
 		return true;
 	}
@@ -134,16 +174,20 @@ export class OneShotLspProcess {
 		const pending = this.pending.get(message.id);
 		if (!pending) return;
 		this.pending.delete(message.id);
-		if (message.error !== undefined) pending.reject(new Error(`Deno LSP request failed: ${formatRpcError(message.error)}`));
+		if (message.error !== undefined)
+			pending.reject(
+				new Error(`Deno LSP request failed: ${formatRpcError(message.error)}`),
+			);
 		else pending.resolve(message.result);
 	}
 
 	private answerServerRequest(message: JsonRpcMessage): void {
 		let result: unknown = null;
 		if (message.method === "workspace/configuration") {
-			const items = isRecord(message.params) && Array.isArray(message.params["items"])
-				? message.params["items"]
-				: [];
+			const items =
+				isRecord(message.params) && Array.isArray(message.params["items"])
+					? message.params["items"]
+					: [];
 			result = items.map(() => ({ enable: true }));
 		}
 		this.send({ jsonrpc: "2.0", id: message.id, result });
@@ -153,7 +197,8 @@ export class OneShotLspProcess {
 		if (this.stopped) return;
 		this.stopped = true;
 		this.rejectPending(error);
-		if (this.child.exitCode === null && this.child.signalCode === null) this.child.kill("SIGTERM");
+		if (this.child.exitCode === null && this.child.signalCode === null)
+			this.child.kill("SIGTERM");
 	}
 
 	private rejectPending(error: Error): void {
@@ -164,15 +209,23 @@ export class OneShotLspProcess {
 
 function formatRpcError(value: unknown): string {
 	if (!isRecord(value)) return String(value);
-	return typeof value["message"] === "string" ? value["message"] : JSON.stringify(value);
+	return typeof value["message"] === "string"
+		? value["message"]
+		: JSON.stringify(value);
 }
 
 function abortError(signal: AbortSignal): Error {
-	return signal.reason instanceof Error ? signal.reason : new Error("Deno LSP operation aborted");
+	return signal.reason instanceof Error
+		? signal.reason
+		: new Error("Deno LSP operation aborted");
 }
 
-function waitForExit(child: ChildProcessWithoutNullStreams, timeoutMs: number): Promise<void> {
-	if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+function waitForExit(
+	child: ChildProcessWithoutNullStreams,
+	timeoutMs: number,
+): Promise<void> {
+	if (child.exitCode !== null || child.signalCode !== null)
+		return Promise.resolve();
 	return new Promise((resolve) => {
 		const timer = setTimeout(done, timeoutMs);
 		const exited = () => done();
