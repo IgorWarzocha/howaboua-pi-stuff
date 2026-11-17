@@ -269,7 +269,7 @@ Use `/codex voice stop` to stop voice. The remote server stops when its owning P
 <details>
 <summary><strong>Models and providers</strong></summary>
 
-PCC supports GPT-6 Astra, Sol and Luna, plus GPT-6.1 Sol and Terra, with Responses Lite and live reasoning adjustments on Codex transport. Available context sizes and reasoning levels depend on the selected model. Cost estimates use [published API rates](https://developers.openai.com/api/docs/pricing).
+PCC supports GPT-6 Astra, Sol and Luna, GPT-6.1 Sol and Terra, and GPT-6.2 Sol and Astra, with Responses Lite and live reasoning adjustments on Codex transport. Available context sizes and reasoning levels depend on the selected model. Cost estimates use [published API rates](https://developers.openai.com/api/docs/pricing).
 
 Default scope covers Codex-like GPT routes and Responses providers listed under **Additional providers**. Switching to an unrelated model restores Pi's ordinary tools.
 
