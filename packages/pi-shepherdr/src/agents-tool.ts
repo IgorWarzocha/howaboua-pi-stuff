@@ -268,14 +268,6 @@ export function createAgentsTool(
 					() => runtime.client.sendMessage(panel, attributedMessage),
 					{
 						expectUserMessage: true,
-						onAccepted: () =>
-							setChildSupervision(
-								pi,
-								ctx,
-								runtime.local ? fleet.localMachine() : runtime.machine,
-								panel,
-								true,
-							),
 					},
 				);
 				if (params.action === "send")
