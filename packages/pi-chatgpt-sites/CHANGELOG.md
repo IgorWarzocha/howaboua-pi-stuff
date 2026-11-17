@@ -1,5 +1,14 @@
 # @howaboua/pi-chatgpt-sites
 
+## 0.0.4
+
+- Requires Pi 1.5 or newer.
+
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - Replaced the TypeBox dependency with Pi's native schema builders.
+
+  Sites documentation examples no longer prescribe `await`.
+
 ## 0.0.3
 
 - - Sites calls now return their payload directly instead of an outer `result` wrapper.

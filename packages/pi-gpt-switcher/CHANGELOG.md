@@ -1,5 +1,14 @@
 # @howaboua/pi-gpt-switcher
 
+## 0.1.7
+
+- Requires Pi 1.5 or newer.
+
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+
+  - `/sol` and `/astra` now select GPT-6.2 Sol and Astra, including without Codex Conversion.
+  - Context defaults are now 500K for Sol, Terra and Luna, and 256K for Astra. Existing preferences are preserved.
+
 ## 0.1.6
 
 - Added `/terra` to switch to GPT-6.1 Terra with configurable context and reasoning defaults.

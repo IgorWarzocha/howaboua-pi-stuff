@@ -1,5 +1,9 @@
 # @howaboua/pi-agent-board
 
+## 0.0.8
+
+- Board catch-up examples no longer prescribe `await`.
+
 ## 0.0.7
 
 - Board settings now open on Enabled with On and Off choices.

@@ -1,5 +1,9 @@
 # @howaboua/pi-github-watch
 
+## 0.0.7
+
+- PR watches now notify when the head commit changes, even without a new comment or review.
+
 ## 0.0.6
 
 - Return `OK` after cancelling all watches.

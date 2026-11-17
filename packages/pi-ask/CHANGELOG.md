@@ -1,5 +1,9 @@
 # @howaboua/pi-ask
 
+## 0.0.20
+
+- Ask help now identifies `handoff` as a boolean.
+
 ## 0.0.19
 
 - Requires Node.js 22.19 or newer.
