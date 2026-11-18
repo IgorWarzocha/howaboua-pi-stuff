@@ -109,8 +109,8 @@ export async function agentsHelp(
 				? "Delegation/watch→report subsequent work UNTIL unwatch/close"
 				: "Delegation and watch keep reporting subsequent work until unwatch or close",
 			prompt: gpt
-				? "Outcome + completion evidence + context. Shared dependency→ONE owner; peers consume handoff. Keep original outcome covered when redirecting. Trust agent approach; avoid needless restrictions/narrowing"
-				: "Give a distinct outcome, completion evidence and necessary context. Shared dependencies need one owner; peers consume its handoff. Keep the original outcome covered when redirecting work. Trust the agent's approach; avoid unnecessary restrictions and overly narrow scope",
+				? "Task + done criteria + needed context. Give real constraints; let the worker choose how. Assign shared work once. Redirecting? Keep the original task covered"
+				: "State the task, what counts as done, and any context or constraints. Leave the approach to the worker. Assign shared work once. If you redirect a worker, keep its original task covered.",
 			slash: gpt
 				? "Leading / routes target commands/skills/templates; commands skip task wait EVEN assign/spawn; blocked→choices; /quit exits Pi+closes terminal"
 				: "Leading / routes target commands/skills/templates. Commands skip task waiting, even with assign/spawn; blocked commands return available choices. /quit shuts down Pi and closes its terminal",
