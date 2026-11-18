@@ -159,7 +159,6 @@ export function createModelRoles(
 			);
 		const session = ctx.sessionManager.getSessionId();
 		const source = ctx.model;
-		const reasoning = pi.getThinkingLevel();
 		const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 		if (!auth.ok)
 			throw new Error(
@@ -168,11 +167,12 @@ export function createModelRoles(
 		return {
 			id,
 			async activate(current) {
+				// A turn-scoped reasoning boost can expire before settlement.
+				// The requested role owns the successor window's reasoning.
 				if (
 					current.sessionManager.getSessionId() !== session ||
 					current.model?.provider !== source?.provider ||
 					current.model?.id !== source?.id ||
-					pi.getThinkingLevel() !== reasoning ||
 					!lifecycle.active ||
 					!modelIsActive(activation.settings, model)
 				)

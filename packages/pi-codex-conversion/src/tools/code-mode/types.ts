@@ -49,7 +49,7 @@ export interface ProgrammaticCodeModeToolDefinition extends CodeModeToolMetadata
 	discoverWhenDeferred?: boolean | undefined;
 	/** Compact callable spine; full help remains in ALL_TOOLS. */
 	discoveryUsage?: string | undefined;
-	/** Help entries accept an empty call without performing an operation. Server summaries own MCP discovery. */
+	/** Help entries accept no argument or {} without performing an operation. Server summaries own MCP discovery. */
 	discovery?: "help" | "server" | undefined;
 	/** The nested input adapter accepts an omitted argument, independently of help-only discovery. */
 	inputOptional?: boolean | undefined;

@@ -6,7 +6,7 @@ Every extension must install and run standalone. Discover optional integrations 
 
 Use released `@earendil-works/pi-schema` builders and validators, not TypeBox. Released Pi tool typings may still need explicit native `Static` callback annotations.
 
-We use this toolkit. If tools fail or cause friction, propose concrete fixes. Apply tiny, low-risk fixes without derailing the task. Edit owning source, never installed tooling. Validate and report changes. Source edits do not update running packages.
+We use this toolkit. If tools fail or cause friction, propose concrete fixes. Apply tiny, low-risk fixes without derailing the task. Edit owning source, never installed tooling. Report validation. Omit routine release and installation disclaimers unless asked or they change the next action.
 Run sandbox/E2E reviews only when Igor explicitly requests them. Delegate requested reviews to the dedicated `sandbox-reviewer` profile; never run them in the parent. A runtime acceptance gap alone does not authorise sandbox use.
 Sandbox validation means interacting with Pi's TUI through Herdr: normal consecutive turns that execute tools and use the guest environment. Programmatic probes do not require a sandbox and do not substitute for this interaction.
 For live TUI review, use `bun run sandbox:setup --name NAME --live-model openai-codex/MODEL` after candidate changes. Reuse the host login through this setup's scoped access-token sync; a functioning authenticated guest is the baseline. Stop active review agents before replacing the guest snapshot; host edits alone never update it. Fix guest readiness instead of moving TUI acceptance onto the host.
