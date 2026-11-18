@@ -243,9 +243,9 @@ export function buildTsToolDeclarations(
 ): string {
 	const declarations: string[] = [];
 	const fields = tools.map((tool, index) => {
+		const hasHelp = "invoke" in tool && tool.discovery === "help";
 		const optional =
-			"invoke" in tool &&
-			(tool.discovery === "help" || tool.inputOptional === true);
+			hasHelp || ("invoke" in tool && tool.inputOptional === true);
 		let input =
 			"command" in tool
 				? "string | Record<string, unknown> | unknown[]"
@@ -255,6 +255,7 @@ export function buildTsToolDeclarations(
 			declarations.push(new SchemaTypes(tool.inputSchema, input).declaration());
 			input += " | string";
 		}
+		if (hasHelp) input += " | Record<string, never>";
 		return `readonly ${JSON.stringify(codeModeGlobalName(tool.name))}: (input${optional ? "?" : ""}: ${input}) => Promise<any>`;
 	});
 	return [

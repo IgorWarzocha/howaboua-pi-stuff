@@ -172,7 +172,9 @@ function buildUsageSection(
 			);
 		})
 		.map((tool) =>
-			"discovery" in tool && tool.discovery === "help"
+			"discovery" in tool &&
+			tool.discovery === "help" &&
+			tool.kind !== "freeform"
 				? `- tools.${codeModeGlobalName(tool.name)}: ${translateCodeModeToolReferences(tool.description ?? "", tool.name)}`
 				: `- ${translateCodeModeUsage(tool.usage, tool.name)}`,
 		)
