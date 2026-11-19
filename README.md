@@ -21,7 +21,7 @@ pi install npm:@howaboua/pi-extensions
 pi install npm:@howaboua/pi-skills
 ```
 
-Auto Trees, Grok Realtime, Pet, Smart BTW and Subagent Review are standalone installs. Follow their links in the extension list below.
+Grok Realtime and Pet are standalone installs. Follow their links in the extension list below.
 
 `pi-codex-conversion` is separate because it changes Pi's tool surface for GPT/Codex models. `pi-codex-web-run` and `pi-codex-imagegen` are separate because they use Codex endpoints and login. `omarchy-help` is separate because it targets Arch desktops configured with Omarchy.
 
@@ -45,7 +45,6 @@ Install `pi-codex-guardian` separately for tool-call approval reviews. It requir
 | [`pi-notes-compaction`](./packages/pi-notes-compaction) | Standalone checkpoints, searchable session history and context rollover |
 | [`pi-agent-board`](./packages/pi-agent-board) | Standalone agent boards with a read-only browser viewer |
 | [`pi-ask`](./packages/pi-ask) | Interactive user decisions, review triage, and human handoffs |
-| [`pi-auto-trees`](./packages/pi-auto-trees) | `/marker` and `/end` for rolling completed work into a compact branch summary |
 | [`pi-better-skills-tool`](./packages/pi-better-skills-tool) | Progressive skill discovery in normal Pi, Code Mode, and Notebook Mode |
 | [`pi-browser`](./packages/pi-browser) | Logged-in browser control with local CDP sessions and SSH host routing |
 | [`pi-cache-hit-predictor`](./packages/pi-cache-hit-predictor) | Inline prompt-cache hit predictions when switching models or reasoning levels |
@@ -61,12 +60,20 @@ Install `pi-codex-guardian` separately for tool-call approval reviews. It requir
 | [`pi-pet`](./packages/pi-pet) | Animated companion miniapps for GipPity Remote |
 | [`pi-sandbox`](./packages/pi-sandbox) | Persistent local VMs, guest commands, supervised services and app previews |
 | [`pi-shepherdr`](./packages/pi-shepherdr) | Herdr-native multi-agent orchestration |
-| [`pi-smart-btw`](./packages/pi-smart-btw) | Async side-session questions with explicit injection into the main chat |
-| [`pi-subagent-review`](./packages/pi-subagent-review) | `/review` through an isolated review subagent |
 | [`pi-subdir-agents`](./packages/pi-subdir-agents) | Nested `AGENTS.md` context during repository discovery |
 | [`pi-suggestions`](./packages/pi-suggestions) | Opt-in next-prompt drafts with `/suggestions` model settings |
 | [`pi-unicode-charts`](./packages/pi-unicode-charts) | Terminal-native Unicode charts for Pi Markdown |
 | [`pi-codex-web-run`](./packages/pi-codex-web-run) | Codex web search and navigation in normal Pi, Code Mode, and Notebook Mode |
+
+## Retired extensions
+
+These packages are deprecated on npm. Existing versions remain available. The links point to the source for the last published versions if you want to fork them.
+
+| Package | Last published source | Current approach |
+|---|---|---|
+| `pi-auto-trees` | [0.1.19](https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/d67cb69b22decc4ea024236ba59dc4ddae9a2334/packages/pi-auto-trees) | Notes-based compaction in [Agent Comms](./packages/pi-agent-comms) |
+| `pi-smart-btw` | [0.2.8](https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/a6c908cf17ce92decc54a26f753bc6c6831695b7/packages/pi-smart-btw) | A separate Pi session for side questions |
+| `pi-subagent-review` | [0.2.27](https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/debd4aa3139a4fda993f9a5213cfa58eff6f21aa/packages/pi-subagent-review) | The `reviewer` profile in [Shepherdr](./packages/pi-shepherdr) |
 
 ## Skills
 

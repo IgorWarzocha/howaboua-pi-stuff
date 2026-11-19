@@ -22,7 +22,6 @@ body:
       options:
         - Not sure / general
         - pi-ask
-        - pi-auto-trees
         - pi-better-skills-tool
         - pi-browser
         - pi-cache-hit-predictor
@@ -36,8 +35,6 @@ body:
         - pi-notes-compaction
         - pi-pet
         - pi-shepherdr
-        - pi-smart-btw
-        - pi-subagent-review
         - pi-subdir-agents
         - pi-unicode-charts
         - A skill

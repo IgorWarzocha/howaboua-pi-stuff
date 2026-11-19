@@ -160,8 +160,5 @@
 				"src/remote/shepherdr-context.mjs",
 			],
 		},
-		"packages/pi-subagent-review": {
-			"project": ["src/**/*.ts"],
-		},
 	},
 }

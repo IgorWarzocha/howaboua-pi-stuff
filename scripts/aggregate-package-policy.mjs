@@ -1,7 +1,6 @@
 export const bundleExcludedPackages = new Set([
 	"@howaboua/pi-agent-board",
 	"@howaboua/pi-agent-comms",
-	"@howaboua/pi-auto-trees",
 	"@howaboua/pi-browser",
 	"@howaboua/pi-chatgpt-sites",
 	"@howaboua/pi-chill",
@@ -15,7 +14,5 @@ export const bundleExcludedPackages = new Set([
 	"@howaboua/pi-pet",
 	"@howaboua/pi-sandbox",
 	"@howaboua/pi-skill-omarchy-help",
-	"@howaboua/pi-smart-btw",
-	"@howaboua/pi-subagent-review",
 	"@howaboua/pi-subdir-agents",
 ]);

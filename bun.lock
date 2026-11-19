@@ -103,24 +103,6 @@
         "@howaboua/pi-codex-conversion",
       ],
     },
-    "packages/pi-auto-trees": {
-      "name": "@howaboua/pi-auto-trees",
-      "version": "0.1.19",
-      "devDependencies": {
-        "@earendil-works/pi-coding-agent": "1.5.2",
-        "@howaboua/pi-codex-conversion": "5.0.0",
-        "oxfmt": "^0.78.0",
-        "typescript": "^7.0.2",
-      },
-      "peerDependencies": {
-        "@earendil-works/pi-coding-agent": ">=1.5.0",
-        "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=5.0.0",
-      },
-      "optionalPeers": [
-        "@howaboua/pi-codex-conversion",
-      ],
-    },
     "packages/pi-better-skills-tool": {
       "name": "@howaboua/pi-better-skills-tool",
       "version": "0.0.13",
@@ -601,25 +583,6 @@
         "@howaboua/pi-skill-harness-and-agent-engineering": "0.0.8",
       },
     },
-    "packages/pi-smart-btw": {
-      "name": "@howaboua/pi-smart-btw",
-      "version": "0.2.8",
-      "devDependencies": {
-        "@earendil-works/pi-agent-core": "1.5.2",
-        "@earendil-works/pi-ai": "1.5.2",
-        "@earendil-works/pi-coding-agent": "1.5.2",
-        "@earendil-works/pi-tui": "1.5.2",
-        "@types/node": "^26.6.6",
-        "oxfmt": "^0.78.0",
-        "typescript": "^7.0.2",
-      },
-      "peerDependencies": {
-        "@earendil-works/pi-agent-core": ">=1.0.0",
-        "@earendil-works/pi-ai": ">=1.0.0",
-        "@earendil-works/pi-coding-agent": ">=1.5.0",
-        "@earendil-works/pi-tui": ">=1.0.0",
-      },
-    },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
       "version": "0.0.116",
@@ -645,27 +608,6 @@
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.5.0",
       },
-    },
-    "packages/pi-subagent-review": {
-      "name": "@howaboua/pi-subagent-review",
-      "version": "0.2.27",
-      "devDependencies": {
-        "@earendil-works/pi-ai": "1.5.2",
-        "@earendil-works/pi-coding-agent": "1.5.2",
-        "@howaboua/pi-codex-conversion": "5.0.0",
-        "@types/node": "^26.6.6",
-        "oxfmt": "^0.78.0",
-        "typescript": "^7.0.2",
-      },
-      "peerDependencies": {
-        "@earendil-works/pi-ai": ">=1.0.0",
-        "@earendil-works/pi-coding-agent": ">=1.5.0",
-        "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=5.0.0",
-      },
-      "optionalPeers": [
-        "@howaboua/pi-codex-conversion",
-      ],
     },
     "packages/pi-subdir-agents": {
       "name": "@howaboua/pi-subdir-agents",
@@ -913,8 +855,6 @@
 
     "@howaboua/pi-ask": ["@howaboua/pi-ask@workspace:packages/pi-ask"],
 
-    "@howaboua/pi-auto-trees": ["@howaboua/pi-auto-trees@workspace:packages/pi-auto-trees"],
-
     "@howaboua/pi-better-skills-tool": ["@howaboua/pi-better-skills-tool@workspace:packages/pi-better-skills-tool"],
 
     "@howaboua/pi-browser": ["@howaboua/pi-browser@workspace:packages/pi-browser"],
@@ -967,11 +907,7 @@
 
     "@howaboua/pi-skills": ["@howaboua/pi-skills@workspace:packages/pi-skills"],
 
-    "@howaboua/pi-smart-btw": ["@howaboua/pi-smart-btw@workspace:packages/pi-smart-btw"],
-
     "@howaboua/pi-stuff": ["@howaboua/pi-stuff@workspace:packages/pi-stuff"],
-
-    "@howaboua/pi-subagent-review": ["@howaboua/pi-subagent-review@workspace:packages/pi-subagent-review"],
 
     "@howaboua/pi-subdir-agents": ["@howaboua/pi-subdir-agents@workspace:packages/pi-subdir-agents"],
 

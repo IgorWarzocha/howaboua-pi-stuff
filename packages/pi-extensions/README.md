@@ -24,6 +24,6 @@ pi install npm:@howaboua/pi-extensions
 
 `pi-agent-comms`, `pi-chatgpt-sites`, `pi-codex-guardian` and `pi-sandbox` are also separate installs. They provide notes and boards, Sites management, tool approval reviews, and local VMs with app previews.
 
-`pi-auto-trees`, `pi-grok-realtime`, `pi-pet`, `pi-smart-btw` and `pi-subagent-review` are no longer bundled. To keep using one, install it separately, for example with `pi install npm:@howaboua/pi-auto-trees`.
+`pi-grok-realtime` and `pi-pet` are no longer bundled. To keep using either, install it separately, for example with `pi install npm:@howaboua/pi-pet`.
 
 Installing this bundle loads every extension above. Install individual packages instead if you only want part of the set.
