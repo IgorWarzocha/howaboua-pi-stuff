@@ -131,6 +131,8 @@ export const Snapshot = obj(
 export const checkSnapshot = compile(Snapshot).check;
 export type AttachmentPlan = Static<typeof Plan>;
 export type AttachmentRoute = Static<typeof Route>;
+export const ATTACHMENT_CONTEXT_CHANGED =
+	"This attachment no longer matches the session's sharing identity. Request a handoff from the owner.";
 export const OWNER = "shepherdr-attachment-owner";
 export const ROUTE = "shepherdr-attachment-route";
 export const DETACHED = "shepherdr-attachment-detached";
