@@ -293,16 +293,18 @@ function codexApiRetryDelayMs(
 
 function streamRetryAfterDeadline(headers: unknown): number | undefined {
 	if (!isRecord(headers)) return undefined;
+	let deadline: number | undefined;
 	for (const [name, value] of Object.entries(headers)) {
-		if (name.toLowerCase() !== "retry-after") continue;
-		const deadline = codexRetryAfterDeadline(
-			typeof value === "string" || typeof value === "number"
-				? String(value)
-				: undefined,
-		);
-		if (deadline !== undefined) return deadline;
+		if (typeof value !== "string" && typeof value !== "number") continue;
+		const key = name.toLowerCase();
+		if (key === "retry-after-ms") {
+			const milliseconds = codexRetryAfterDeadline(undefined, String(value));
+			if (milliseconds !== undefined) return milliseconds;
+		} else if (key === "retry-after") {
+			deadline ??= codexRetryAfterDeadline(String(value));
+		}
 	}
-	return undefined;
+	return deadline;
 }
 
 function streamFailureOptions(

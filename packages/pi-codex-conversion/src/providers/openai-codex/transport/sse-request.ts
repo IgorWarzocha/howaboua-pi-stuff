@@ -71,6 +71,7 @@ export async function openCodexSSE<TApi extends Api>(
 		// Capture the deadline before reading the body or notifying response hooks.
 		const retryAfter = codexRetryAfterDeadline(
 			response.headers.get("retry-after"),
+			response.headers.get("retry-after-ms"),
 		);
 		// Known failed headers start recovery even if the error body never finishes.
 		// The parsed body still owns fatal-code classification, not this clock.

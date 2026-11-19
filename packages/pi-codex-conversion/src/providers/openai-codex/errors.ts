@@ -15,7 +15,13 @@ export function codexErrorMessage(
 
 export function codexRetryAfterDeadline(
 	header: string | null | undefined,
+	headerMs?: string | null,
 ): number | undefined {
+	const valueMs = headerMs?.trim();
+	if (valueMs && /^\d+(?:\.\d+)?$/.test(valueMs)) {
+		const delayMs = Number(valueMs);
+		if (Number.isFinite(delayMs)) return performance.now() + delayMs;
+	}
 	// Streamed headers arrive as JSON, without HTTP header value validation.
 	if (!header || /[^\t\x20-\x7e]/u.test(header)) return undefined;
 	const value = header.trim();
