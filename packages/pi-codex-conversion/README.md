@@ -153,7 +153,7 @@ Pi's footer shows cache percentage. Enable **Codex diagnostics** under `/codex o
 <details>
 <summary><strong>Execution modes and custom tools</strong></summary>
 
-Code and Deno download their runtimes on first use. TS and QuickJS Code reuse matching installed packages or download them with npm. First use needs registry access when packages are missing. Cached runtimes work offline, and unselected modes do not download anything.
+Code and Deno download their runtimes on first use. TS reuses matching installed packages or downloads them with npm. QuickJS Code and VM Code need no separate runtime download. Cached runtimes work offline, and unselected modes do not download anything.
 
 In Notebook and TS modes, ask your agent to inspect, save, load or clean up notebook state. The `notebook` tool provides its own action help. **Restart and cancellation do not undo file changes or other external tool effects.**
 
@@ -177,7 +177,7 @@ Concurrent isolated cells start from the last checkpoint and save separate candi
 
 Select **QuickJS Code** to compose tools in JavaScript. Each call starts fresh, with up to four cells running concurrently. Variables and closures do not carry between calls. Use `store` and `load` for conversation-local JSON data that does not persist to disk.
 
-Run Pi under Node. The environment has no Node APIs, imports, direct network access, timers or TypeScript checking. The agent uses tools for host operations.
+Use a package-manager installation of Pi under Node. QuickJS Code uses the QuickJS runtime that ships with Pi. The environment has no Node APIs, imports, direct network access, timers or TypeScript checking. The agent uses tools for host operations.
 
 QuickJS Code replaces JS Notebook. Existing `js` settings select QuickJS Code. Old notebook files are left untouched but are not loaded. There are no checkpoints, profiles, project-shared variables or `notebook` controls in this mode.
 

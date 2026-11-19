@@ -138,7 +138,7 @@
     "@earendil-works/pi-tui": "1.5.2",
     "@types/node": "26.6.6",
     "@types/ws": "^8.18.2",
-    "quickjs-wasi": "3.6.3",
+    "quickjs-wasi": "3.6.2",
     "tsrs": "0.25.0-ts7.1.0-beta",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"

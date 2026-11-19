@@ -199,10 +199,7 @@ export class JsCodeClient implements CodeModeExecutionClient {
 	private async run(execution: Execution, tools: JsTool[]): Promise<void> {
 		const { cell } = execution;
 		try {
-			this.runtime ??= loadJsRuntime(
-				this.options.agentDir,
-				this.startup.signal,
-			).catch((error) => {
+			this.runtime ??= loadJsRuntime(this.startup.signal).catch((error) => {
 				this.runtime = undefined;
 				throw error;
 			});
