@@ -118,17 +118,37 @@ async function index(request) {
 	}).immediate();
 	return null;
 }
+
+// The temp table belongs to this worker, but document row IDs can change on
+// another SQLite connection. Reuse only an exact ordered scope at the same revision.
+/** @type {{sessionId:string; ids:string[]; revision:number} | undefined} */
+let searchScope;
 /** @param {Extract<SearchRequest, {action:"search"}>} request */
 function search(request) {
 	const db = open();
 	return db
 		.transaction(() => {
-			db.exec("DELETE FROM search_scope");
-			const scope = db.prepare(
-				"INSERT INTO search_scope SELECT id, ? FROM history_documents WHERE session_id = ? AND item_id = ?",
-			);
-			for (const [position, id] of request.ids.entries())
-				scope.run(position, request.sessionId, id);
+			/** @type {import("./sqlite.mjs").Statement<[], {data_version:number}>} */
+			const version = db.prepare("PRAGMA data_version");
+			const revision = version.get()?.data_version;
+			const { sessionId, ids } = request;
+			const previous = searchScope;
+			if (
+				revision === undefined ||
+				previous?.sessionId !== sessionId ||
+				previous.revision !== revision ||
+				previous.ids.length !== ids.length ||
+				!ids.every((id, position) => id === previous.ids[position])
+			) {
+				db.exec("DELETE FROM search_scope");
+				const scope = db.prepare(
+					"INSERT INTO search_scope SELECT id, ? FROM history_documents WHERE session_id = ? AND item_id = ?",
+				);
+				for (const [position, id] of ids.entries())
+					scope.run(position, sessionId, id);
+				searchScope =
+					revision === undefined ? undefined : { sessionId, ids, revision };
+			}
 			/** @type {import("./sqlite.mjs").Statement<[string,number], {item_id:string}>} */
 			const select = db.prepare(`
 			SELECT history_documents.item_id FROM history_terms
@@ -233,6 +253,8 @@ port.on(
 		queue = queue.then(async () => {
 			try {
 				let value;
+				// data_version only reports commits from other connections.
+				if (request.action !== "search") searchScope = undefined;
 				if (request.action === "prune_session") {
 					if (database || existsSync(workerData.path))
 						await pruneSession(open(), request.sessionId, request.file);

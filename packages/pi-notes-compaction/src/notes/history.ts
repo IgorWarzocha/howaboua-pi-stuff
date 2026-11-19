@@ -70,18 +70,13 @@ export async function useHistory(
 				: undefined);
 		const item = items?.find((item) => item.item_id === itemId);
 		if (!item) return { item: null };
-		const { content: fullContent, ...metadata } = item;
-		const offset = integer(params["offset_chars"], 0, fullContent.length);
+		const { render: _, ...metadata } = item;
+		const offset = integer(params["offset_chars"], 0, Number.MAX_SAFE_INTEGER);
 		const limit = integer(params["limit_chars"], 8000, 8000);
-		const content = fullContent.slice(offset, offset + limit);
 		return {
 			item: {
 				...metadata,
-				content,
-				total_chars: fullContent.length,
-				...(offset + content.length < fullContent.length
-					? { next_offset_chars: offset + content.length }
-					: {}),
+				...search.pages.read(item, offset, limit),
 			},
 		};
 	}
@@ -129,7 +124,7 @@ export async function useHistory(
 	} else {
 		if (action === "search_contents")
 			items = items.filter((item) =>
-				item.content.includes(params["query"] as string),
+				item.render().includes(params["query"] as string),
 			);
 		if (params["recent_first"] === true) items = items.reverse();
 	}
@@ -137,7 +132,8 @@ export async function useHistory(
 	const previews = [];
 	let size = 0;
 	for (const item of items) {
-		const { content, ...metadata } = item;
+		const { render, ...metadata } = item;
+		const content = render();
 		const preview = {
 			...metadata,
 			truncated_content: content.slice(0, previewChars),
