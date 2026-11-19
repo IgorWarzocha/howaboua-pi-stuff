@@ -2,4 +2,4 @@
 "@howaboua/pi-pet": patch
 ---
 
-The pet authoring guide emphasises passing every reference image to each row generation job.
+The pet authoring guide clarifies reference-image requirements and when generation jobs are complete.

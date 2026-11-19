@@ -66,7 +66,7 @@ export function createWebSearchTool(
 			? {}
 			: { promptSnippet: "Explicit args" }),
 		promptGuidelines: [
-			"web_run: Calls use returned turn refs; final answers use Markdown result URLs, never refs or cite…",
+			"web_run: Reuse returned ref_ids for navigation. Cite only Markdown links to result URLs",
 		],
 		parameters: WEB_SEARCH_PARAMETERS,
 		prepareArguments: (args) =>

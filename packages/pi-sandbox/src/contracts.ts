@@ -277,19 +277,18 @@ export const replySchema = z.discriminatedUnion("ok", [
 export const HELP = {
 	actions: {
 		help: "",
-		list: "kind?: instances|templates. Templates are prepared disks, not a base-image inventory",
+		list: "kind?: instances (default)|templates (prepared disks)",
 		prepare:
-			"name, config: host YAML path. Run setup and save reusable disk template, without services or credentials",
+			"name, config: host YAML path. Run setup and save a reusable disk without starting declared services",
 		create:
-			"name, config:host YAML path OR template:name. Fresh independent disk, starts services",
+			"name, exactly one of config:host YAML path or template:name. Starts services on a fresh independent disk",
 		start:
-			"name. Reopen stopped instance from disk, rerun resume hooks and services. Running is unchanged",
-		stop: "name. Stop processes and preserve disk. No memory/process resume",
+			"name. Reopen disk, run resume hooks and services. Running instances are unchanged",
+		stop: "name. Save a disk-only checkpoint and stop the VM",
 		inspect:
-			"name. Configured image asset path, when present, is reusable as image in new host YAML",
-		exec: "name, cmd, cwd?:workspace-relative, timeoutMs?:10000 (0..60000). Wait only, never kills. Running returns opaque pid handle",
-		"exec-status":
-			"name, pid, timeoutMs?:10000 (0..60000). Wait and return new output. Keeps 128 completed handles; new launches may expire older handles and unread output",
+			"name. Returned image asset path, if set, is reusable as image in host YAML",
+		exec: "name, cmd, cwd?:workspace-relative, timeoutMs?. Running returns an opaque pid handle",
+		"exec-status": "name, pid, timeoutMs?. Return new output",
 		"exec-kill": "name, pid. Stop command process group",
 		read: "name, path: guest absolute path. Text up to 64 KiB",
 		write: "name, path: guest absolute path, content. Parent must exist",
@@ -303,6 +302,8 @@ export const HELP = {
 		destroy:
 			"name, confirm: same name, kind?: instances|templates. Irreversibly removes owned disk and logs",
 	},
+	commandWait:
+		"exec/exec-status timeoutMs: 10000 default, 0..60000. Timeout ends the wait only. Collect output before new launches evict older completed handles (128 max)",
 	config: {
 		version: 1,
 		profile: "small",
@@ -326,7 +327,7 @@ export const HELP = {
 	},
 	profiles,
 	serviceConfig:
-		"Guest workspace/.sandbox.yaml is the independent editable declaration source. Ensure/restart reload it. Port optional and sticky; TCP readiness unless health is a GET path or process (running process only). Preview true or {url?:/, title?:service, description?}; previews additional {url,title,description?} links or {folder,links}. env supports ${services.NAME.publicURL}, starts dependencies first. platforms filters guest OS (linux). Setup deadline 20min; resume waits 10s then continues in background",
+		"Edit workspace/.sandbox.yaml inside the guest; ensure/restart reload it. Optional sticky port. Readiness: TCP by default; health can be a GET path or process (liveness only). preview:true or {url?:/,title?:service,description?}; previews adds {url,title,description?} links or {folder,links}. env supports ${services.NAME.publicURL}, starts dependencies first. platforms filters guest OS (linux). Setup deadline 20min; resume waits up to 10s then continues in background",
 	boundaries:
-		"Linux KVM or macOS HVF with QEMU. Guest requires Python 3 for commands and services. Terminal requires OpenSSH server and Gondolin SSH helper. Sparse virtual disk capacity, not host quota. Unauthenticated localhost HTTP/WebSocket previews, not public or remote-host links. Guest HTTP responses need Content-Length or chunked framing. No host mounts/auth. Pi exit leaves instances running, explicit stop/destroy required. Templates MUST NOT contain secrets. Empty network allowlist blocks outbound HTTP",
+		"QEMU: Linux KVM or macOS HVF. Guest commands/services require Python 3; user /sandbox needs guest OpenSSH server and sandboxssh. Sparse disk capacity, not a host quota. Unauthenticated HTTP/WebSocket previews bind to VM host localhost. Preview responses MUST use Content-Length or chunked framing. No host mounts or credential forwarding. Pi exit leaves instances running; use stop or destroy. Templates and setup MUST NOT contain secrets. Empty network allowlist blocks outbound HTTP",
 };

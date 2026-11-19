@@ -12,7 +12,7 @@ import { type ConversationSnapshot, conversationUpdate } from "./context.js";
 import { cleanupSessionResources } from "./session-resources.js";
 
 const instruction =
-	"Draft one concise next request from the user to the assistant. Output only the request.";
+	"Return only one concise draft of the user's next request to the assistant.";
 
 interface PredictionSession {
 	id: string;

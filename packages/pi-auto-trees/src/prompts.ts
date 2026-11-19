@@ -5,13 +5,12 @@ export const INCREMENTAL_WORKFLOW_DEFAULT_PRIME_SCOPE =
 export const INCREMENTAL_WORKFLOW_DEFAULT_END_PROMPT =
 	"Keep the outcomes, decisions and unresolved questions that matter for continuing this conversation; omit superseded details.";
 export const INCREMENTAL_WORKFLOW_PRIME_PROMPT = [
-	"Prime yourself on the requested scope.",
-	"Work directly and do not use subagents.",
-	"Trace the main call flow, identify ownership, state, and effects, and note the important files and boundaries.",
-	"Stay repo-local; do not inspect dependencies.",
+	"Prime on the requested scope directly, without subagents.",
+	"Trace the main call flow, ownership, state, effects and key files or boundaries.",
+	"Stay within the repository, excluding dependencies.",
 	"For broad scopes, list paths first; narrow search paths before tight queries, follow direct references only, and stop once the scoped boundary is clear.",
-	"Finish with a concise orientation briefing and stop. Do not implement anything unless explicitly asked.",
 	"Skip README.md unless the scoped source and configuration contain no useful priming material; read it when the scope explicitly targets documentation.",
+	"Finish with a concise orientation briefing. You MUST NOT implement unless explicitly asked.",
 ].join("\n");
 export const INCREMENTAL_WORKFLOW_GIT_END_PROMPT = [
 	INCREMENTAL_WORKFLOW_DEFAULT_END_PROMPT,
@@ -33,11 +32,11 @@ function parseEndMode(args: string): EndMode {
 }
 
 const GPT_PRIME_PROMPT = [
-	"Prime requested scope directly; NO subagents; implement ONLY if explicitly asked.",
-	"Trace main callflow, ownership/state/effects, key files/boundaries.",
-	"Repo-local; NO dependencies; broad scope→paths first→narrow search paths→tight queries; direct refs ONLY; boundary clear→STOP.",
-	"README.md ONLY if scoped source/config unhelpful OR docs explicitly scoped.",
-	"End: concise orientation briefing; STOP.",
+	"Prime requested scope directly, no subagents.",
+	"Trace main call flow, ownership/state/effects, key files/boundaries.",
+	"Repo-local excluding dependencies; broad scope→list paths→narrow paths→tight queries; direct refs only; stop exploring once scoped boundary clear.",
+	"README.md only if scoped source/config unhelpful or docs explicitly scoped.",
+	"End with concise orientation briefing. MUST NOT implement unless explicitly asked.",
 ].join("\n");
 const GPT_END_PROMPT =
 	"Keep continuation outcomes/decisions/open questions; omit superseded details.";

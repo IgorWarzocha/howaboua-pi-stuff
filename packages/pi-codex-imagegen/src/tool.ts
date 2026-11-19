@@ -2,7 +2,6 @@ import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { Static } from "@earendil-works/pi-schema";
 import { Text } from "@earendil-works/pi-tui";
 import {
-	IMAGE_CONTEXT_GUIDANCE,
 	IMAGE_GENERATION_TOOL_NAME,
 	IMAGE_GENERATION_UNSUPPORTED_MESSAGE,
 	type ImageGenerationToolOptions,
@@ -24,9 +23,7 @@ export function createImageGenerationTool(
 	return {
 		name: IMAGE_GENERATION_TOOL_NAME,
 		label: IMAGE_GENERATION_TOOL_NAME,
-		description:
-			"Generate/edit images; omit selectors to generate. " +
-			IMAGE_CONTEXT_GUIDANCE,
+		description: "Generate or edit images",
 		...(options.promptSnippet === false
 			? {}
 			: { promptSnippet: "Generate/edit" }),

@@ -6,7 +6,7 @@ Sites authenticates at the hosting boundary. Trust its forwarded `oai-authentica
 
 Authorize every data-bearing call for that user and return HTTP 401/403 when unauthorized. Preserve Sites-managed OAuth and existing access rules. Service access does not supply a visitor identity or connected-app consent. Do not replace OAuth or widen access to make a call succeed.
 
-Publish through the normal workflow, reusing the App and private plugin Sites provisions for this Site. Updates reuse them too. Do not create a second App/plugin or configure local MCP/login commands.
+Publish and update through the normal workflow. You MUST reuse the App and private plugin provisioned for this Site and MUST NOT configure local MCP or login commands.
 
 Then call `site.get` with `include_mcp_connection: true`. Use the returned opaque plugin ID unchanged. Its presence establishes neither installation nor connection. Pi lacks native `plugin_management.suggest_plugins`, so direct the user to **Plugins > Personal > Created by you**, open the Site's plugin, then Install or Connect as needed. Verify an available read-only plugin tool after connection. A saved version or URL alone does not prove MCP works.
 

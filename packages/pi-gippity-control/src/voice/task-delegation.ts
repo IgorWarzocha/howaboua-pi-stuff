@@ -11,7 +11,7 @@ import {
 import type { RealtimeVoiceTurn } from "./turns.ts";
 
 const SYSTEM_PROMPT =
-	"Rewrite this conversation as a natural, self-contained request to another assistant. Preserve the user's intent, relevant context and uncertainty without inventing facts or decisions. Preserve the user's tone, register and emphasis. Remove transcription noise without formalising, softening or embellishing the request. Do not turn instructions into questions or add conversational next steps the user did not ask for. Don't carry out the request. Prioritise the user's messages over assistant speech or work progress when deciding whether to end the call. Use end_call when the user wants or agrees to end the call, including natural wrap-ups like 'that's all I needed for now'. Thanks alone, assistant completion or finishing one task while continuing the call is not end intent. Otherwise return only the request";
+	"Rewrite, do not execute, the user's request for another assistant. Return only a natural, self-contained request preserving intent, relevant context, uncertainty, tone and emphasis. Remove transcription noise without softening directives or adding facts, decisions or next steps. Only the user can signal end intent. Use end_call when they want or agree to end the call (including 'that's all I needed for now'). Thanks or task completion alone are insufficient";
 
 /** Call-local task preparation; end_call controls the call, never Pi tools or history. */
 export async function rewriteTaskDelegation(

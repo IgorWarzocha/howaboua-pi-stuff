@@ -15,9 +15,9 @@ const MAX_OUTPUT_BYTES = 48 * 1024;
 // Leave room for an exact continuation command inside the output budget.
 const MAX_COMMAND_BYTES = 4 * 1024;
 const READ_HELP =
-	"Reference-only selectors omit the initial skill body. To read a body plus references, use separate commands: read skill; read other/references/topic";
+	"Reference-only selectors skip the first skill's body. For both: read skill; read other/references/topic";
 const GPT_READ_HELP =
-	"Reference-only selectors→NO initial skill body; body+refs→separate commands: read skill; read other/references/topic";
+	"Reference-only selectors skip first skill body. Both: read skill; read other/references/topic";
 
 type SkillRequest =
 	| { action: "help" }
@@ -206,7 +206,7 @@ export function runSkills(
 		} else {
 			result.output +=
 				command.action === "help"
-					? `${gpt ? "" : "Commands: "}list [category...] | read <skill> [skill-or-reference...] | help\nJS: tools.skills("read <skill>")\n${gpt ? "Batch: read skill-a skill-b; full commands→read skill-a; read skill-b" : "Batch: read skill-a skill-b; semicolons separate full commands: read skill-a; read skill-b"}\n${gpt ? GPT_READ_HELP : READ_HELP}\n\n${formatSkillList(skills)}`
+					? `${gpt ? "" : "Commands: "}list [category...] | read <skill> [skill-or-reference...] | help\nJS: tools.skills("read <skill>")\nSeparate full commands with semicolons. ${gpt ? GPT_READ_HELP : READ_HELP}\n\n${formatSkillList(skills)}`
 					: `${gpt ? GPT_READ_HELP : READ_HELP}\n\n${formatSkillList(skills, command.categories)}`;
 		}
 	}

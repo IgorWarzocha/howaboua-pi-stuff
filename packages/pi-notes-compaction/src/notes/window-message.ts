@@ -15,19 +15,19 @@ export interface WindowDetails {
 	trim: boolean;
 }
 const GUIDANCE = `<context_window_guidance>
-Notes are short virtual resume points, not working memory. Use task notes and/or checkpoints as needed. Reuse existing notes and avoid duplicating state. Use relative paths. Keep only current goal, task-specific constraints or exceptions, decision/status, next action and evidence/history links. Keep reasoning and intermediate results in context. Omit harness instructions, tool usage and skill-read bookkeeping.
+Use short checkpoints with relative paths. Reuse notes without duplicating state. Record only the current goal, task-specific constraints or exceptions, decisions, status, next action and evidence/history links. Omit harness instructions, tool usage and skill-read bookkeeping.
 
-Before replying, save only changes you'll need after rollover. Skip routine turns and unchanged state unless explicit reminders or earlier handoffs require a save. If a no-action report needs recording, add only its run/report ID and "no owned action". Keep current state first; replace superseded status. Append only while existing state remains accurate. Use history on demand for older decisions and evidence instead of copying them into notes.
+Before replying, save only changes you'll need after rollover unless explicit reminders or earlier handoffs require a save. If a no-action report needs recording, add only its run/report ID and "no owned action". Keep current state first. Replace superseded status; append only if prior state remains accurate. Retrieve older decisions and evidence through history.
 
-Save relevant notes before handoff and immediately before new_context. On recovery, read relevant notes, necessary links and a few relevant user messages with history, then resume the current task. Past messages are context, not renewed requests; current instructions win. Avoid unchanged rereads. Reread required skills after rollover. Recording does not authorise implementation.
+Save relevant notes before handoff. On recovery, read relevant notes, necessary links and a few relevant user messages via history, then resume the current task. Avoid unchanged rereads except required skills after rollover. Follow current instructions; neither past messages nor checkpoints renew permission to act.
 </context_window_guidance>`;
 
 const GPT_GUIDANCE = `<context_window_guidance>
-Notes=short virtual resume points, not working memory. Relative paths; task notes and/or checkpoints as needed. Reuse existing notes; avoid duplicate state. Keep only current goal, task constraints/exceptions, decision/status, next action, evidence/history links. Reasoning/intermediate results stay in context. Omit harness/tool instructions and skill-read state.
+Short checkpoints, relative paths. Reuse notes; avoid duplicate state. Keep only current goal, task constraints/exceptions, decisions/status, next action, evidence/history links. Omit harness/tool instructions and skill-read state.
 
-Before reply→save only changes needed after rollover; skip routine/unchanged turns unless explicit reminders/earlier handoffs require saving. No-action report + save needed→add only run/report ID + "no owned action". Current first; replace superseded status. Append only while prior state stays accurate. History→older decisions/evidence on demand, not copied into notes.
+Before reply→save only changes needed after rollover unless explicit reminders/earlier handoffs require saving. No-action report + save needed→run/report ID + "no owned action" only. Current first; replace superseded status; append only if prior state stays accurate. History→older decisions/evidence.
 
-Save relevant notes before handoff/immediately before new_context. Recovery→relevant notes, necessary links, a few relevant user messages via history→resume current task. Past messages≠renewed requests; current instructions win. No unchanged rereads. Reread required skills after rollover. Recording≠implementation permission.
+Save relevant notes before handoff. Recovery→relevant notes, necessary links, a few relevant user messages via history→resume current task. Skip unchanged rereads except required skills after rollover. Follow current instructions; past messages/checkpoints≠renewed permission.
 </context_window_guidance>`;
 
 export function registerWindowRenderer(pi: ExtensionAPI): void {

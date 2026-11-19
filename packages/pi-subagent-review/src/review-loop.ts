@@ -15,12 +15,9 @@ const REVIEW_LOOP_BOUNDARY_ENTRY = "subagent-review-loop-boundary";
 const REVIEW_LOOP_MARKER_LABEL = "review";
 const REVIEW_LOOP_WIDGET = "subagent-review-loop";
 const REVIEW_LOOP_SUMMARY_PROMPT = [
-	"Treat this as a completed review-fix increment that should become durable context before the next isolated review pass",
-	"Focus on the final accepted outcome, not dead ends or step-by-step implementation noise",
-	"Capture which review findings were addressed, which were intentionally skipped or deferred, concrete files changed, key decisions, tests/checks run, and any remaining risks that matter for the next review",
-	"Mention relevant commands, commits, PR outcomes, or review feedback only when they change future work",
-	"Omit temporary debugging details, abandoned attempts, incidental churn, and repetitive review transcript noise",
-	"Write the summary so the main agent can continue from this compacted review-loop point and immediately run the next review pass",
+	"Summarize the accepted outcome so the main agent can start the next isolated review pass.",
+	"Capture findings addressed, skipped or deferred, files changed, decisions, checks and their results, and remaining review risks.",
+	"Include commands, commits, PR outcomes or feedback only if they affect future work. Omit abandoned attempts, debugging, incidental churn and repeated review transcripts.",
 ].join("\n");
 
 interface ReviewLoopState {

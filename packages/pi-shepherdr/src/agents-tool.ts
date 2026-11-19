@@ -47,11 +47,9 @@ export function createAgentsTool(
 	return defineTool({
 		name: "agents",
 		label: "Shepherdr",
-		description:
-			"Delegate to persistent agents; {} lists additional action fields",
+		description: "Delegate to persistent agents; {} lists action fields",
 		promptGuidelines: [
-			"agents: Read help alone first",
-			"agents: MUST use for supported agent operations, local or remote; never bypass with hc or shell commands, even after failure. Report blockers. hc remains available for non-agent processes",
+			"agents: MUST use for supported local and remote agent operations. Report blockers instead of bypassing via hc or shell",
 		],
 		parameters: AgentsParameters,
 		executionMode: "parallel",

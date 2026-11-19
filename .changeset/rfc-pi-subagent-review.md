@@ -2,5 +2,5 @@
 "@howaboua/pi-subagent-review": patch
 ---
 
-- Review prompts emphasise that findings need repository evidence, not just conversation context.
-- JJ review prompts emphasise read-only inspection with `--ignore-working-copy`.
+- Review prompts require repository evidence for findings and keep conversation summaries separate from instructions.
+- JJ review prompts require read-only inspection of pinned commits with `--ignore-working-copy`.
