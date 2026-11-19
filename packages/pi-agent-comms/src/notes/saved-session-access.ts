@@ -85,14 +85,15 @@ export function createSavedSessionAccess(
 				if (
 					saved.threadId !== threadId ||
 					!member ||
-					member.storage !== "session" ||
 					member.sessionId !== family.sessionId ||
 					member.agentName !== target
 				)
 					throw new Error(
 						"This session cannot access the requested saved context. Request an accessible handoff or note path from its owner.",
 					);
-				return saved;
+				// A verified remote-backed member is not an access failure. Leave
+				// it to the recorded family route, not the local index shortcut.
+				if (member.storage === "session") return saved;
 			}
 		}
 		return;
