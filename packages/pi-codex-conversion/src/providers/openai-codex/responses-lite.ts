@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
-import { registerSessionResourceCleanup } from "@earendil-works/pi-ai";
+import {
+	registerSessionResourceCleanup,
+	type SimpleStreamOptions,
+} from "@earendil-works/pi-ai";
 import { resizeImage } from "@earendil-works/pi-coding-agent";
 import {
 	namespaceResponsesLiteInputTools,
@@ -77,6 +80,12 @@ function preparedImagesForSession(sessionId: string): PreparedImages {
 		if (!oldest.done) preparedImagesBySession.delete(oldest.value);
 	}
 	return images;
+}
+
+export function responsesLiteImageCacheSessionId(
+	options?: Pick<SimpleStreamOptions, "cacheRetention" | "sessionId">,
+): string | undefined {
+	return options?.cacheRetention === "none" ? undefined : options?.sessionId;
 }
 
 export interface ResponsesLiteCompatibleBody {

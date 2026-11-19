@@ -88,6 +88,25 @@ export async function executeCodexImageGeneration(
 	options: ImageGenerationToolOptions = {},
 	turnId?: string,
 ): Promise<ImagegenOutput> {
+	const { details } = await generateImageArtifacts(
+		args,
+		ctx,
+		signal,
+		false,
+		options,
+		turnId,
+	);
+	return details;
+}
+
+export async function generateImageArtifacts(
+	args: ImagegenArgs,
+	ctx: ExtensionContext,
+	signal: AbortSignal | undefined,
+	includeImageContent: boolean,
+	options: ImageGenerationToolOptions,
+	turnId?: string,
+) {
 	if (signal?.aborted) throw new Error("imagegen aborted");
 	const settings = readImagegenSettings();
 	if (
@@ -190,6 +209,7 @@ export async function executeCodexImageGeneration(
 		settings.access === "openai"
 			? (args.output_format ?? (args.gif ? "gif" : "png"))
 			: "png",
+		includeImageContent,
 	);
 }
 

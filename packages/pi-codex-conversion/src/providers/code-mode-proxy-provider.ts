@@ -26,6 +26,7 @@ import {
 	isResponsesLiteRequest,
 	namespaceExistingResponsesLiteRequest,
 	prepareResponsesLiteRequestImages,
+	responsesLiteImageCacheSessionId,
 	RESPONSES_LITE_HEADER,
 } from "./openai-codex/responses-lite.ts";
 import {
@@ -165,7 +166,7 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 				: applyResponsesLiteRequest(body);
 			body = await prepareResponsesLiteRequestImages(
 				body,
-				options?.cacheRetention === "none" ? undefined : options?.sessionId,
+				responsesLiteImageCacheSessionId(options),
 			);
 			headers = mergeHeaders(headers, { [RESPONSES_LITE_HEADER]: "true" });
 			if (hasRemoteCompactionV2Input(body.input))

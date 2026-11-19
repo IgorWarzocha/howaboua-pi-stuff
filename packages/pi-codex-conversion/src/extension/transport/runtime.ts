@@ -40,6 +40,7 @@ import {
 	supportsCodexReasoningUpdates,
 } from "../../adapter/reasoning-updates.ts";
 import { priceGeneratedPrewarm } from "../../providers/openai-codex/usage.ts";
+import { responsesLiteImageCacheSessionId } from "../../providers/openai-codex/responses-lite.ts";
 import type {
 	CodexContext,
 	CodexExtensionRuntime,
@@ -97,6 +98,7 @@ export function createCodexExtensionTransport(
 			ctx,
 			responsesLite,
 			model.baseUrl,
+			responsesLiteImageCacheSessionId(options),
 		);
 	};
 	const requestIdentity = (ctx: CodexContext) =>
