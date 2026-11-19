@@ -16,7 +16,7 @@ Example: {"input":"{\\"action\\":\\"status\\",\\"query\\":\\"*\\"}"}
 
 query uses case-insensitive * and ? globs. prune requires a nonempty query. names must be a nonempty array of binding-name strings. pin/release require existing JavaScript identifiers. Profile names: 1-64 letters, numbers, dots, underscores or hyphens, starting with a letter or number
 
-Hooks must be self-contained fn(event). startup gets {type:"startup"} once per fresh kernel after restoration, not when pinned; Pi tools cannot run during startup. tool_result gets {type:"tool_result",toolName,input,status:"success"|"error",result?,error?} after nested tool settlement; Hook tool calls do not retrigger hooks. Recreate imports and live handles inside the function. Startup failures block execution; unpin remains available. External side effects are not rolled back
+Hooks are fn(event); dependencies MUST be available after restore, as captured lexical closures do not survive. startup gets {type:"startup"} once per fresh kernel after restoration, not when pinned; Pi tools cannot run during startup. tool_result gets {type:"tool_result",toolName,input,status:"success"|"error",result?,error?} after nested tool settlement; Hook tool calls do not retrigger hooks. Recreate imports and live handles inside the function. Startup failures block execution; unpin remains available. External side effects are not rolled back
 
 Run management calls after exec returns. Inside exec, tools.notebook({action,...}) supports status without query, list and diagnostics only. release/prune may restart the kernel for lexical bindings, clearing runtime-only handles
 
@@ -60,7 +60,7 @@ restart→stop active cell; restore last completed checkpoint
 diagnostics→historical cells/runtime health; NO execution
 reset→stop cell; discard session checkpoint; keep durable project state/saved notebook/named profiles
 query: case-insensitive * and ? globs; prune nonempty. names: nonempty binding-name array; pin/release→existing JS identifiers. Profile names: 1-64 letters/numbers/._-; first alphanumeric
-Hooks=self-contained fn(event); recreate imports/live handles inside. startup→{type:"startup"} once/fresh restored kernel, NOT on pin; NO Pi tools; failure blocks execution, unpin available. tool_result→{type:"tool_result",toolName,input,status:"success"|"error",result?,error?} AFTER nested tools settle; hook tools NEVER retrigger
+Hooks=fn(event); dependencies MUST be available after restore; captured lexical closures do not survive. Recreate imports/live handles inside. startup→{type:"startup"} once/fresh restored kernel, NOT on pin; NO Pi tools; failure blocks execution, unpin available. tool_result→{type:"tool_result",toolName,input,status:"success"|"error",result?,error?} AFTER nested tools settle; hook tools NEVER retrigger
 Management AFTER exec; inside exec ONLY: status(no query), list, diagnostics. release/prune MAY restart lexical-binding kernel, losing runtime-only handles
 Normal: 1 active cell. isolated:true→separate Deno kernel from committed state, max4; wait→continue/terminate. Completion→named candidate; NEVER auto-adopt; list→explicit additive load. Transfer ONLY checkpoint-supported state, NOT arbitrary closures/types/imports. External tool/file effects NEVER roll back`;
 
