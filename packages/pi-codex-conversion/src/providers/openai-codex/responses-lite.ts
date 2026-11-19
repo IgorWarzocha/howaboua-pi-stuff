@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { registerSessionResourceCleanup } from "@earendil-works/pi-ai";
 import { resizeImage } from "@earendil-works/pi-coding-agent";
 import {
 	namespaceResponsesLiteInputTools,
@@ -14,6 +16,62 @@ const IMAGE_MAX_DIMENSION = 2048;
 const IMAGE_MAX_PATCHES = 2_500;
 const IMAGE_PATCH_SIZE = 32;
 const IMAGE_MAX_BASE64_BYTES = 64 * 1024 * 1024;
+
+// Retain only prepared URLs and short digests; bound both payload and keys.
+const PREPARED_IMAGE_CACHE_BYTES = 8 * 1024 * 1024;
+const PREPARED_IMAGE_CACHE_ENTRIES = 32;
+const PREPARED_IMAGE_CACHE_SESSIONS = 2;
+
+class PreparedImages {
+	private readonly urls = new Map<string, string>();
+	private bytes = 0;
+
+	get(key: string): string | undefined {
+		const url = this.urls.get(key);
+		if (url !== undefined) {
+			this.urls.delete(key);
+			this.urls.set(key, url);
+		}
+		return url;
+	}
+
+	set(key: string, url: string): void {
+		// Count a conservative two bytes per JS string code unit.
+		const bytes = url.length * 2;
+		if (bytes > PREPARED_IMAGE_CACHE_BYTES || this.get(key) !== undefined)
+			return;
+		while (
+			this.bytes + bytes > PREPARED_IMAGE_CACHE_BYTES ||
+			this.urls.size >= PREPARED_IMAGE_CACHE_ENTRIES
+		) {
+			const oldest = this.urls.entries().next();
+			if (oldest.done) break;
+			const [oldKey, oldUrl] = oldest.value;
+			this.urls.delete(oldKey);
+			this.bytes -= oldUrl.length * 2;
+		}
+		this.urls.set(key, url);
+		this.bytes += bytes;
+	}
+}
+
+const preparedImagesBySession = new Map<string, PreparedImages>();
+registerSessionResourceCleanup((sessionId) => {
+	if (sessionId) preparedImagesBySession.delete(sessionId);
+	else preparedImagesBySession.clear();
+});
+
+function preparedImagesForSession(sessionId: string): PreparedImages {
+	const cached = preparedImagesBySession.get(sessionId);
+	if (cached) preparedImagesBySession.delete(sessionId);
+	const images = cached ?? new PreparedImages();
+	preparedImagesBySession.set(sessionId, images);
+	if (preparedImagesBySession.size > PREPARED_IMAGE_CACHE_SESSIONS) {
+		const oldest = preparedImagesBySession.keys().next();
+		if (!oldest.done) preparedImagesBySession.delete(oldest.value);
+	}
+	return images;
+}
 
 export interface ResponsesLiteCompatibleBody {
 	model: string;
@@ -129,7 +187,39 @@ async function prepareDataImageUrl(
 	}
 }
 
-async function prepareLiteImageContent(content: unknown): Promise<unknown> {
+function imagePreparer(sessionId?: string) {
+	let cachedImages: PreparedImages | undefined;
+	const preparedThisRequest = new Map<string, Promise<string | undefined>>();
+	return (imageUrl: string): Promise<string | undefined> => {
+		const existing = preparedThisRequest.get(imageUrl);
+		if (existing) return existing;
+		const prepared = (async () => {
+			if (!sessionId) return prepareDataImageUrl(imageUrl);
+			// Exact input includes MIME type and base64 spelling. Reuse the final
+			// successful conversion without retaining the unprocessed URL.
+			const hash = createHash("sha256");
+			// Hash bounded chunks; a single string-to-bytes conversion can allocate
+			// another full-size copy of a large data URL.
+			const chunkSize = 64 * 1024;
+			for (let start = 0; start < imageUrl.length; start += chunkSize)
+				hash.update(imageUrl.slice(start, start + chunkSize), "utf16le");
+			const key = hash.digest("base64url");
+			const cache = (cachedImages ??= preparedImagesForSession(sessionId));
+			const cached = cache.get(key);
+			if (cached !== undefined) return cached;
+			const result = await prepareDataImageUrl(imageUrl);
+			if (result !== undefined) cache.set(key, result);
+			return result;
+		})();
+		preparedThisRequest.set(imageUrl, prepared);
+		return prepared;
+	};
+}
+
+async function prepareLiteImageContent(
+	content: unknown,
+	prepareImage: ReturnType<typeof imagePreparer>,
+): Promise<unknown> {
 	if (!Array.isArray(content)) return content;
 	return Promise.all(
 		content.map(async (item) => {
@@ -140,7 +230,7 @@ async function prepareLiteImageContent(content: unknown): Promise<unknown> {
 			)
 				return item;
 			if (!/^data:/i.test(item["image_url"])) return item;
-			const imageUrl = await prepareDataImageUrl(item["image_url"]);
+			const imageUrl = await prepareImage(item["image_url"]);
 			return imageUrl
 				? { ...item, image_url: imageUrl }
 				: { type: "input_text", text: IMAGE_PROCESSING_PLACEHOLDER };
@@ -150,7 +240,9 @@ async function prepareLiteImageContent(content: unknown): Promise<unknown> {
 
 async function prepareResponsesLiteInputImages(
 	input: readonly unknown[],
+	sessionId?: string,
 ): Promise<unknown[]> {
+	const prepareImage = imagePreparer(sessionId);
 	return Promise.all(
 		input.map(async (item) => {
 			if (!isRecord(item)) return item;
@@ -163,7 +255,7 @@ async function prepareResponsesLiteInputImages(
 			) {
 				return {
 					...item,
-					content: await prepareLiteImageContent(item["content"]),
+					content: await prepareLiteImageContent(item["content"], prepareImage),
 				};
 			}
 			if (
@@ -175,7 +267,10 @@ async function prepareResponsesLiteInputImages(
 					...item,
 					output: {
 						...item["output"],
-						content: await prepareLiteImageContent(item["output"]["content"]),
+						content: await prepareLiteImageContent(
+							item["output"]["content"],
+							prepareImage,
+						),
 					},
 				};
 			}
@@ -186,7 +281,7 @@ async function prepareResponsesLiteInputImages(
 			) {
 				return {
 					...item,
-					output: await prepareLiteImageContent(item["output"]),
+					output: await prepareLiteImageContent(item["output"], prepareImage),
 				};
 			}
 			return item;
@@ -196,14 +291,18 @@ async function prepareResponsesLiteInputImages(
 
 export async function prepareResponsesLiteConversationInput(
 	input: readonly unknown[],
+	sessionId?: string,
 ): Promise<unknown[]> {
-	return prepareResponsesLiteInputImages(prepareLiteInput(input));
+	return prepareResponsesLiteInputImages(prepareLiteInput(input), sessionId);
 }
 
 export async function prepareResponsesLiteRequestImages<
 	TBody extends ResponsesLiteCompatibleBody,
->(body: TBody): Promise<TBody> {
-	return { ...body, input: await prepareResponsesLiteInputImages(body.input) };
+>(body: TBody, sessionId?: string): Promise<TBody> {
+	return {
+		...body,
+		input: await prepareResponsesLiteInputImages(body.input, sessionId),
+	};
 }
 
 export function applyResponsesLiteRequest<

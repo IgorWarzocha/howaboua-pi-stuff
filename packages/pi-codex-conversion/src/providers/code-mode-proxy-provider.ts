@@ -163,7 +163,10 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 						parallel_tool_calls: false,
 					})
 				: applyResponsesLiteRequest(body);
-			body = await prepareResponsesLiteRequestImages(body);
+			body = await prepareResponsesLiteRequestImages(
+				body,
+				options?.cacheRetention === "none" ? undefined : options?.sessionId,
+			);
 			headers = mergeHeaders(headers, { [RESPONSES_LITE_HEADER]: "true" });
 			if (hasRemoteCompactionV2Input(body.input))
 				headers = withRemoteCompactionV2Feature(headers);

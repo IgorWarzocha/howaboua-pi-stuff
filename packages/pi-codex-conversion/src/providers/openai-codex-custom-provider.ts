@@ -99,7 +99,10 @@ async function prepareCodexRequestBody<TApi extends Api>(
 					parallel_tool_calls: false,
 				})
 			: applyResponsesLiteRequest(body);
-		body = await prepareResponsesLiteRequestImages(body);
+		body = await prepareResponsesLiteRequestImages(
+			body,
+			options?.cacheRetention === "none" ? undefined : options?.sessionId,
+		);
 	}
 	if (!body.previous_response_id) {
 		const input = normalizeResponsesToolHistory(body.input ?? []);
