@@ -42,7 +42,7 @@ export class Predictions {
 		if (previous) cleanupSessionResources(previous.id);
 	}
 
-	sync(snapshot: ConversationSnapshot): void {
+	private sync(snapshot: ConversationSnapshot): void {
 		const current = this.session;
 		if (
 			current &&

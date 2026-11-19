@@ -31,7 +31,8 @@ export interface CatalogSkill {
 	category: SkillCategory;
 	directory: string;
 	path: string;
-	body: string;
+	// Standalone discovery already parses the file; Pi supplies metadata only.
+	body?: string;
 }
 
 interface DirectoryCatalog {
@@ -93,7 +94,7 @@ function loadSkill(
 	if (!path) return undefined;
 	if (hiddenPaths.has(resolve(path))) return null;
 	const document = parseSkillDocument(readFileSync(path, "utf8"), packageName);
-	const skill: CatalogSkill = {
+	const skill = {
 		name: document.frontmatter.name || packageName.split("/").at(-1) || "",
 		description: document.frontmatter.description ?? "",
 		packageName,
@@ -194,21 +195,14 @@ function catalogLoadedSkill(
 	globalRoot: string,
 	sessionRoot: string | undefined,
 ): CatalogSkill {
-	const document = parseSkillDocument(
-		readFileSync(skill.filePath, "utf8"),
-		skill.name,
-	);
-	const catalogSkill: CatalogSkill = {
+	return {
 		name: skill.name,
 		description: skill.description,
 		packageName: skill.name,
 		category: loadedSkillCategory(skill, globalRoot, sessionRoot),
 		directory: resolve(skill.baseDir),
 		path: resolve(skill.filePath),
-		body: document.body,
 	};
-	validateSkill(catalogSkill);
-	return catalogSkill;
 }
 
 export function discoverVisibleSkills(
