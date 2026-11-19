@@ -12,45 +12,51 @@ const RESPONSES_LITE_WS_METADATA_KEY =
 
 const IMAGE_PROCESSING_PLACEHOLDER =
 	"image content omitted because it could not be processed";
-const IMAGE_MAX_DIMENSION = 2048;
-const IMAGE_MAX_PATCHES = 2_500;
+// Codex's unified image budget for Responses Lite models (ORIGINAL_DETAIL).
+const IMAGE_MAX_DIMENSION = 6000;
+const IMAGE_MAX_PATCHES = 10_000;
 const IMAGE_PATCH_SIZE = 32;
 const IMAGE_MAX_BASE64_BYTES = 64 * 1024 * 1024;
 
-// Retain only prepared URLs and short digests; bound both payload and keys.
+// Unchanged images need only a digest; retain bytes only for resized images.
+type PreparedImage = string | true;
 const PREPARED_IMAGE_CACHE_BYTES = 8 * 1024 * 1024;
-const PREPARED_IMAGE_CACHE_ENTRIES = 32;
+const PREPARED_IMAGE_CACHE_ENTRIES = 256;
 const PREPARED_IMAGE_CACHE_SESSIONS = 2;
 
+function preparedImageBytes(image: PreparedImage): number {
+	return image === true ? 0 : image.length * 2;
+}
+
 class PreparedImages {
-	private readonly urls = new Map<string, string>();
+	private readonly images = new Map<string, PreparedImage>();
 	private bytes = 0;
 
-	get(key: string): string | undefined {
-		const url = this.urls.get(key);
-		if (url !== undefined) {
-			this.urls.delete(key);
-			this.urls.set(key, url);
+	get(key: string): PreparedImage | undefined {
+		const image = this.images.get(key);
+		if (image !== undefined) {
+			this.images.delete(key);
+			this.images.set(key, image);
 		}
-		return url;
+		return image;
 	}
 
-	set(key: string, url: string): void {
+	set(key: string, image: PreparedImage): void {
 		// Count a conservative two bytes per JS string code unit.
-		const bytes = url.length * 2;
+		const bytes = preparedImageBytes(image);
 		if (bytes > PREPARED_IMAGE_CACHE_BYTES || this.get(key) !== undefined)
 			return;
 		while (
 			this.bytes + bytes > PREPARED_IMAGE_CACHE_BYTES ||
-			this.urls.size >= PREPARED_IMAGE_CACHE_ENTRIES
+			this.images.size >= PREPARED_IMAGE_CACHE_ENTRIES
 		) {
-			const oldest = this.urls.entries().next();
+			const oldest = this.images.entries().next();
 			if (oldest.done) break;
-			const [oldKey, oldUrl] = oldest.value;
-			this.urls.delete(oldKey);
-			this.bytes -= oldUrl.length * 2;
+			const [oldKey, oldImage] = oldest.value;
+			this.images.delete(oldKey);
+			this.bytes -= preparedImageBytes(oldImage);
 		}
-		this.urls.set(key, url);
+		this.images.set(key, image);
 		this.bytes += bytes;
 	}
 }
@@ -172,13 +178,30 @@ async function prepareDataImageUrl(
 			Math.ceil(resized.width / IMAGE_PATCH_SIZE) *
 			Math.ceil(resized.height / IMAGE_PATCH_SIZE);
 		if (patches > IMAGE_MAX_PATCHES) {
-			const scale = Math.sqrt(IMAGE_MAX_PATCHES / patches);
+			const wide = resized.width / IMAGE_PATCH_SIZE;
+			const high = resized.height / IMAGE_PATCH_SIZE;
+			let scale = Math.sqrt(IMAGE_MAX_PATCHES / wide / high);
+			const scaledWide = wide * scale;
+			const scaledHigh = high * scale;
+			// Round down the scaled patch grid as Codex does, so partial
+			// patches at both edges still fit the budget.
+			scale *= Math.min(
+				Math.floor(scaledWide) / scaledWide,
+				Math.floor(scaledHigh) / scaledHigh,
+			);
 			resized = await resizeImage(bytes, match[1], {
 				maxWidth: Math.max(1, Math.floor(resized.width * scale)),
 				maxHeight: Math.max(1, Math.floor(resized.height * scale)),
 				maxBytes: IMAGE_MAX_BASE64_BYTES,
 			});
 		}
+		if (
+			resized &&
+			!resized.wasResized &&
+			resized.mimeType === match[1] &&
+			resized.data === match[2]
+		)
+			return imageUrl;
 		return resized
 			? `data:${resized.mimeType};base64,${resized.data}`
 			: undefined;
@@ -189,12 +212,23 @@ async function prepareDataImageUrl(
 
 function imagePreparer(sessionId?: string) {
 	let cachedImages: PreparedImages | undefined;
+	let pendingResize = Promise.resolve();
 	const preparedThisRequest = new Map<string, Promise<string | undefined>>();
+	const resizeSerially = (imageUrl: string) => {
+		// Each Pi resize starts a decoding worker and copies the source buffer.
+		// A cold replay must not start one worker for every image in history.
+		const prepared = pendingResize.then(() => prepareDataImageUrl(imageUrl));
+		pendingResize = prepared.then(
+			() => undefined,
+			() => undefined,
+		);
+		return prepared;
+	};
 	return (imageUrl: string): Promise<string | undefined> => {
 		const existing = preparedThisRequest.get(imageUrl);
 		if (existing) return existing;
 		const prepared = (async () => {
-			if (!sessionId) return prepareDataImageUrl(imageUrl);
+			if (!sessionId) return resizeSerially(imageUrl);
 			// Exact input includes MIME type and base64 spelling. Reuse the final
 			// successful conversion without retaining the unprocessed URL.
 			const hash = createHash("sha256");
@@ -206,9 +240,10 @@ function imagePreparer(sessionId?: string) {
 			const key = hash.digest("base64url");
 			const cache = (cachedImages ??= preparedImagesForSession(sessionId));
 			const cached = cache.get(key);
-			if (cached !== undefined) return cached;
-			const result = await prepareDataImageUrl(imageUrl);
-			if (result !== undefined) cache.set(key, result);
+			if (cached !== undefined) return cached === true ? imageUrl : cached;
+			const result = await resizeSerially(imageUrl);
+			if (result !== undefined)
+				cache.set(key, result === imageUrl ? true : result);
 			return result;
 		})();
 		preparedThisRequest.set(imageUrl, prepared);
