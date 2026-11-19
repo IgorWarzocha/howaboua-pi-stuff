@@ -2,7 +2,6 @@ import { readFile } from "node:fs/promises";
 import { createRequire, findPackageJSON } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { getPackageDir } from "@earendil-works/pi-coding-agent";
 import type { CodemodeWasmModule } from "@earendil-works/pi-codemode";
 
 export interface JsRuntime {
@@ -10,11 +9,14 @@ export interface JsRuntime {
 	moduleUrl: string;
 }
 
-export async function loadJsRuntime(signal?: AbortSignal): Promise<JsRuntime> {
+export async function loadJsRuntime(
+	piPackageDir: string,
+	signal?: AbortSignal,
+): Promise<JsRuntime> {
 	signal?.throwIfAborted();
 	try {
 		// Resolve from Pi, not the independently installed extension.
-		const piBase = pathToFileURL(join(getPackageDir(), "package.json"));
+		const piBase = pathToFileURL(join(piPackageDir, "package.json"));
 		const piRequire = createRequire(piBase);
 		const moduleUrl = pathToFileURL(piRequire.resolve("quickjs-wasi")).href;
 		const wasmPath = piRequire.resolve("quickjs-wasi/quickjs.wasm");
