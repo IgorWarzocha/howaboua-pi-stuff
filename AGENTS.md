@@ -39,7 +39,7 @@ Code/Notebook nested tools sit outside provider JSON schemas. Callable tools do 
 Slash commands are for users, tools for agents. Prefer one routed entry command unless explicitly asked for several.
 
 Amend only tiny, immediate, behaviour-preserving corrections to the latest unpublished commit. Put behaviour changes, revised approaches and later fixes in new commits.
-Release related session work together: one PR or an atomically merged stack, not serial cleanup releases.
+Ship unpublished dev work together in one source PR feeding one Changesets release unless Igor explicitly splits or defers it. Keep serial release work in the existing checkout.
 Only Igor's explicit instruction authorises a major version bump. Breaking changes, feature scope and general release requests do not grant that permission; ask before proceeding with a major.
 If published behaviour or payload changes, keep exactly one changeset per changed extension, one extension per file. Deliberately deferred publication uses `.changesets-pending`, not deletion or a gate bypass. See its README. Describe only that extension's changes. Dependency-only changes, ordinary docs and tests need none.
 Changesets describe net user-facing differences from the last published version, not the PR's commit history. Read recent package changelogs; write short, direct entries with one outcome per bullet and breaking changes and required migrations first. Omit implementation detail, repeated explanations and fixes to regressions introduced within the same release. Never write "upcoming release", "unreleased" or speculative notes.
