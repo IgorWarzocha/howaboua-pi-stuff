@@ -7,6 +7,7 @@ import {
 	entryKind,
 	isWithin,
 } from "./discovery.js";
+import { parseSkillDocument, validateSkill } from "./skill-document.js";
 
 function withoutMarkdownSuffix(name: string): string {
 	return name.replace(/\.md$/i, "");
@@ -288,6 +289,16 @@ export interface SkillReadOutput {
 	reads: { read: SkillRead; start: number; end: number }[];
 }
 
+function readSkillBody(skill: CatalogSkill): string {
+	if (skill.body !== undefined) return skill.body;
+	const { body } = parseSkillDocument(
+		readFileSync(skill.path, "utf8"),
+		skill.packageName,
+	);
+	validateSkill({ ...skill, body });
+	return body;
+}
+
 function formatSelections(selections: ReadSelection[]): SkillReadOutput {
 	const referencesOnly = selections.every(({ kind }) => kind === "reference");
 	const oneSkill =
@@ -299,7 +310,9 @@ function formatSelections(selections: ReadSelection[]): SkillReadOutput {
 		const { skill, kind } = selection;
 		const path = kind === "skill" ? skill.path : selection.path;
 		const body =
-			kind === "skill" ? skill.body : readFileSync(path, "utf8").trim();
+			kind === "skill"
+				? readSkillBody(skill)
+				: readFileSync(path, "utf8").trim();
 		if (selections.length > 1) {
 			const label =
 				kind === "skill"

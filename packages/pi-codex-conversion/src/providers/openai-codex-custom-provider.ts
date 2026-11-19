@@ -24,6 +24,7 @@ import {
 	isResponsesLiteRequest,
 	namespaceExistingResponsesLiteRequest,
 	prepareResponsesLiteRequestImages,
+	responsesLiteImageCacheSessionId,
 } from "./openai-codex/responses-lite.ts";
 import type {
 	BeforeCodexRequestSend,
@@ -99,7 +100,10 @@ async function prepareCodexRequestBody<TApi extends Api>(
 					parallel_tool_calls: false,
 				})
 			: applyResponsesLiteRequest(body);
-		body = await prepareResponsesLiteRequestImages(body);
+		body = await prepareResponsesLiteRequestImages(
+			body,
+			responsesLiteImageCacheSessionId(options),
+		);
 	}
 	if (!body.previous_response_id) {
 		const input = normalizeResponsesToolHistory(body.input ?? []);

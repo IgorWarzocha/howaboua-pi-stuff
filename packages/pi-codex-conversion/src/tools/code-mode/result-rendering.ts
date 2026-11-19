@@ -5,7 +5,6 @@ import {
 	Text,
 } from "@earendil-works/pi-tui";
 import {
-	imagesByMimeType,
 	previewText,
 	renderTextAndImages,
 	type RenderedToolContent,
@@ -136,7 +135,6 @@ function renderCodeModeResult(
 			typeof item.data === "string" &&
 			typeof item.mimeType === "string",
 	);
-	const emittedImages = imagesByMimeType(images);
 	const showOutput =
 		richRendering ||
 		Boolean(details.scriptError && !scriptErrorRenderedByTrace) ||
@@ -172,7 +170,7 @@ function renderCodeModeResult(
 		options,
 		theme,
 		context,
-		emittedImages,
+		images,
 		renderStore,
 		traceStates,
 	);

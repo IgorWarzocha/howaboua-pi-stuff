@@ -17,9 +17,7 @@ export class ActivityTimeline {
 		{ group: ActivityGroup; call: ActivityCall }
 	>();
 	current: ActivityGroup | undefined;
-	private pendingMessageGroup: ActivityGroup | undefined;
 	private readonly messageIdentity = new ActivityMessageIdentity();
-	private afterUser = false;
 	private beforeAssistant: Set<string> | undefined;
 	private retiredAnchors: string[] = [];
 
@@ -34,35 +32,36 @@ export class ActivityTimeline {
 			!content.some((block) => block.type === "text" && block.text?.trim())
 		)
 			return;
+		const group = this.current;
+		const previous = group?.anchorId;
 		// Retire only rows above this reply. Tools already streamed below it stay eligible.
 		const anchors = [...this.beforeAssistant].filter(
-			(id) => this.current?.members.get(id)?.anchorEligible,
+			(id) => group?.members.get(id)?.anchorEligible,
 		);
 		if (anchors.length) this.retiredAnchors = anchors;
 		for (const id of this.beforeAssistant) {
-			const member = this.current?.members.get(id);
+			const member = group?.members.get(id);
 			if (member) member.anchorEligible = false;
 		}
 		this.beforeAssistant = undefined;
-		this.current?.refresh();
+		group?.refreshAnchor(previous);
 	}
 
 	/** Anchor after the latest native user row, even for steering inside one run. */
 	userStarted(): void {
-		// Queued steering can emit another user row inside the same live run.
-		// Keep its duration/details, but only subsequent rows may anchor below it.
-		if (this.current) {
-			const anchors = [...this.current.members].filter(
-				([, member]) => member.anchorEligible,
-			);
-			// A queued prompt can be followed only by an answer. Preserve the last
-			// native position for settlement, just as for streamed commentary.
-			if (anchors.length) this.retiredAnchors = anchors.map(([id]) => id);
-			for (const member of this.current.members.values())
-				member.anchorEligible = false;
-			this.current.refresh();
+		const group = this.current;
+		const previous = group?.anchorId;
+		if (!group || previous === undefined) return;
+		const anchors: string[] = [];
+		for (const [id, member] of group.members) {
+			if (!member.anchorEligible) continue;
+			anchors.push(id);
+			member.anchorEligible = false;
 		}
-		this.afterUser = true;
+		// A queued prompt can be followed only by an answer. Keep the previous
+		// native position for settlement, just as for streamed commentary.
+		if (anchors.length) this.retiredAnchors = anchors;
+		group.refreshAnchor(previous);
 	}
 
 	refresh(): void {
@@ -74,19 +73,25 @@ export class ActivityTimeline {
 		for (const group of groups) group.refresh();
 	}
 
-	addEntry(entry: CustomEntry): ActivityGroup {
+	private addNotice(
+		id: string,
+		now: number,
+		estimated: boolean,
+	): ActivityGroup {
+		// Idle and preparation notices are already visible at their own positions.
+		// Never borrow them as work belonging to a later prompt.
+		const group = this.current ?? new ActivityGroup(now, estimated);
+		group.members.set(id, { anchorEligible: true });
+		if (group !== this.current) group.finish(now, "completed");
+		return group;
+	}
+
+	addEntry(entry: CustomEntry, estimated = false): ActivityGroup {
 		const id = `entry:${entry.id}`;
 		const existing = this.entries.get(id);
 		if (existing) return existing;
-		const time = Date.parse(entry.timestamp);
-		const group =
-			this.current ?? this.pendingMessageGroup ?? new ActivityGroup(time);
-		group.members.set(id, { anchorEligible: this.afterUser });
+		const group = this.addNotice(id, Date.parse(entry.timestamp), estimated);
 		this.entries.set(id, group);
-		if (group !== this.current) {
-			group.finish(time, "completed");
-			this.pendingMessageGroup = group;
-		}
 		return group;
 	}
 
@@ -98,21 +103,10 @@ export class ActivityTimeline {
 	}
 
 	start(now = Date.now()): ActivityGroup {
-		this.current ??= this.pendingMessageGroup ?? new ActivityGroup(now);
-		this.pendingMessageGroup = undefined;
+		this.current ??= new ActivityGroup(now);
 		this.current.endedAt = undefined;
 		this.current.outcome = "completed";
 		return this.current;
-	}
-
-	beginRun(now = Date.now()): ActivityGroup {
-		const continuing =
-			this.current !== undefined && this.current.endedAt === undefined;
-		const group = this.start(now);
-		// Idle/preparation notices may be old. Elapsed work starts at agent_start.
-		// Native continue() emits agent_start again before the SDK settles the run.
-		if (!continuing) group.startedAt = now;
-		return group;
 	}
 
 	add(id: string, name: string, now = Date.now()) {
@@ -134,16 +128,8 @@ export class ActivityTimeline {
 		if (source && entryId) source.entryId = entryId;
 		const existing = this.messages.get(id);
 		if (existing) return existing;
-		const group =
-			this.current ??
-			this.pendingMessageGroup ??
-			new ActivityGroup(message.timestamp);
-		group.members.set(id, { anchorEligible: this.afterUser });
+		const group = this.addNotice(id, message.timestamp, entryId !== undefined);
 		this.messages.set(id, group);
-		if (group !== this.current) {
-			group.finish(message.timestamp, "completed");
-			this.pendingMessageGroup = group;
-		}
 		return group;
 	}
 
@@ -161,8 +147,6 @@ export class ActivityTimeline {
 		}
 		this.current?.finish(now, outcome);
 		this.current = undefined;
-		this.pendingMessageGroup = undefined;
-		this.afterUser = false;
 		this.beforeAssistant = undefined;
 		this.retiredAnchors = [];
 	}
@@ -218,8 +202,6 @@ export class ActivityTimeline {
 		this.entries.clear();
 		this.messageIdentity.reset();
 		this.current = undefined;
-		this.pendingMessageGroup = undefined;
-		this.afterUser = false;
 		this.beforeAssistant = undefined;
 		this.retiredAnchors = [];
 		replayActivity(this, entries);

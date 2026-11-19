@@ -77,7 +77,10 @@ const CODE_MODE_GUIDELINES = [
 ] as const;
 
 const STATEFUL_MODE_GUIDELINES = [
-	["Reuse matching retained globals", "Reuse matching globals"],
+	[
+		"MAY reuse retained globals after verifying their values remain valid",
+		"MAY reuse verified globals",
+	],
 	[
 		"Keep one-offs block-local. Retain only what you plan to reuse, and clean up when the task ends.",
 		"One-offs→block-local; retain ONLY planned reuse; task done→cleanup",
@@ -114,8 +117,8 @@ const TS_MODE_GUIDELINES = [
 
 const VM_MODE_GUIDELINES = [
 	[
-		"Reuse matching retained let, const, function and class bindings",
-		"Reuse retained let/const/function/class",
+		"MAY reuse retained bindings after verifying their values remain valid",
+		"MAY reuse verified bindings",
 	],
 	[
 		"Keep one-offs block-local. Retain only what you plan to reuse",

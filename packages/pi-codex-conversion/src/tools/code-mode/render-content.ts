@@ -18,20 +18,6 @@ export interface RenderedToolContent {
 	mimeType?: string | undefined;
 }
 
-export type EmittedImageCounts = Map<string, Map<string, number>>;
-
-export function imagesByMimeType(
-	contents: Array<RenderedToolContent & { data: string; mimeType: string }>,
-): EmittedImageCounts {
-	const images: EmittedImageCounts = new Map();
-	for (const item of contents) {
-		const data = images.get(item.mimeType) ?? new Map<string, number>();
-		data.set(item.data, (data.get(item.data) ?? 0) + 1);
-		images.set(item.mimeType, data);
-	}
-	return images;
-}
-
 export function previewText(
 	text: string,
 	theme: CodeModeRenderTheme,

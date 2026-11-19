@@ -20,7 +20,7 @@ Choose by capability, not vendor or tool name:
 
 1. Prefer an available image-generation capability that can accept prompts, reference images, and produce downloadable PNG/WebP files.
 2. Use one isolated generation worker per visual job when workers are available. Up to three independent standard-row jobs may run concurrently after the canonical base exists.
-3. Every row job must receive every `input_images` entry from `visual-jobs.json`. Only the base may be prompt-only.
+3. Every image job MUST receive each `input_images` entry from `visual-jobs.json` with its role. The base MAY be prompt-only when no references are supplied.
 4. Never ask a generator for the complete atlas. Generate the base, standard strips, cardinal strip, and two coherent look strips as separate jobs; deterministic scripts own extraction and assembly.
 5. If no native image generation exists, follow `references/visual-generation.md`. Offer a prompt-and-upload handoff for ChatGPT, Gemini, Grok Imagine, or another service. If authorized browser control is available, offer to operate the user's logged-in service without requesting credentials or purchasing anything.
 6. A missing generator is not permission to draw, tile, rotate, or procedurally synthesize the missing art. Prepare the run and exact handoff, then resume when images exist.

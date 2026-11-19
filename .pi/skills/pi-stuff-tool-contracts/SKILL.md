@@ -1,9 +1,17 @@
 ---
 name: pi-stuff-tool-contracts
-description: "Read after general agent-tool design when reviewing or changing a model-facing Pi extension tool in this repository."
+description: "Read when reviewing or changing agent-facing extension contracts, prompts or guidance in this repository."
 ---
 
-Discover and load applicable general agent tool design guidance before tool work. Load prompt caching guidance too when the active tool vector or system-prompt metadata changes.
+For tools, discover and load applicable general agent tool design guidance. Load prompt caching guidance when the active tool vector or system-prompt metadata changes.
+
+Treat consequential agent-facing constraints as specifications. Use RFC 2119/8174 terms deliberately:
+
+- MUST, REQUIRED, SHALL: obligation. MUST NOT, SHALL NOT: prohibition.
+- SHOULD, RECOMMENDED and SHOULD NOT, NOT RECOMMENDED: strong recommendations with justified exceptions.
+- MAY, OPTIONAL: permission or optionality, not uncertainty. State facts and possible outcomes in ordinary language.
+
+Choose the actual strength, conditions and authority; do not mechanically capitalise every keyword. Remove a negative clause only when the remaining requirement entails it. Preserve recovery and exceptions. Capitalisation signals intent, not proven model compliance.
 
 Start tool-specific standing guidance with `tool_name: concise guidance`, not "Use tool_name to..." framing. Preserve behavioural constraints and explicit action names.
 

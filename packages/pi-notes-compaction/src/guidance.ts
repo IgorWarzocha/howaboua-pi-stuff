@@ -20,11 +20,23 @@ function communicationGuidance(
 	board: boolean,
 	gpt = false,
 ): string {
+	const surfaces =
+		notes && board
+			? gpt
+				? "Notes/Board"
+				: "Notes and Board"
+			: notes
+				? "Notes"
+				: "Board";
+	const recipientAccess =
+		notes && board
+			? "known recipient access to the linked surface"
+			: "known recipient access";
 	return [
 		board
 			? gpt
-				? "Board→new peer-work findings/decisions/ownership/blockers only; no change→no post. Peers read directly; no parent relay. No idle wake; active subscribers may be interrupted."
-				: "Board: post only findings, decisions, ownership changes or blockers that change peers' work. Peers read posts directly; do not relay them through the parent. Posts do not wake idle agents but may interrupt active subscribers."
+				? "Board→only findings/decisions/ownership/blockers that change peer work. Peers read directly, no parent relay. Posts can interrupt active subscribers; idle peers stay idle."
+				: "Board: post only findings, decisions, ownership changes or blockers that change peers' work. Peers read directly instead of through the parent. Posts can interrupt active subscribers but do not wake idle agents."
 			: "",
 		notes
 			? [
@@ -36,22 +48,19 @@ function communicationGuidance(
 							? "Notes→recovery; link Board evidence."
 							: "Notes holds recovery checkpoints; link Board evidence."
 						: "",
-					gpt
-						? "Known recipient Notes access→brief outcome/blocker + checkpoint path; recipient reads checkpoint instead of requesting its contents."
-						: "With known recipient Notes access, return a brief outcome or blocker plus the checkpoint path; the recipient reads the checkpoint instead of requesting its contents.",
 				]
 					.filter(Boolean)
 					.join(" ")
 			: "",
 		notes || board
 			? gpt
-				? `${notes && board ? "Notes/Board" : notes ? "Notes" : "Board"} available here≠recipient access. Known access→link≠repeat; otherwise self-contained actions/findings/unresolved state.`
-				: `${notes && board ? "Notes and Board" : notes ? "Notes" : "Board"} availability here does not establish recipient access. Link rather than repeat when access is known; otherwise give a self-contained account of actions, findings and unresolved state.`
+				? `${surfaces} access here≠recipient access. Link only with ${recipientAccess}${notes ? "; add only brief outcome/blocker; recipient reads source" : "; don't repeat"}. Otherwise self-contained actions/findings/unresolved state.`
+				: `Your access to ${surfaces} does not establish theirs. With ${recipientAccess}, ${notes ? "give only a brief outcome or blocker plus the link; recipients read the source instead of asking for its contents" : "link instead of repeating"}. Otherwise give a self-contained account of actions, findings and unresolved state.`
 			: "",
 		notes || board
 			? gpt
-				? "Direct messages→assignments or urgent action, not status or courtesy updates."
-				: "Use direct messages for assignments or urgent action, not status or courtesy updates."
+				? "Direct messages→assignments or urgent action only."
+				: "Reserve direct messages for assignments or urgent action."
 			: "",
 	]
 		.filter(Boolean)

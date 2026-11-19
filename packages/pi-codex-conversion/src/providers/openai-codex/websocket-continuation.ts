@@ -179,24 +179,29 @@ function getCachedWebSocketInputDelta(
 	if (bodyMismatch) return { decision: bodyMismatch };
 
 	const currentInput = body.input ?? [];
-	const baseline = [
-		...(continuation.lastRequestBody.input ?? []),
-		...continuation.lastResponseItems,
-	];
-	if (currentInput.length < baseline.length) {
+	const requestInput = continuation.lastRequestBody.input ?? [];
+	const responseItems = continuation.lastResponseItems;
+	const baselineLength = requestInput.length + responseItems.length;
+	const baselineItem = (index: number) =>
+		index < requestInput.length
+			? requestInput[index]
+			: responseItems[index - requestInput.length];
+	if (currentInput.length < baselineLength) {
 		return {
 			decision: "input_shorter_than_baseline",
 			mismatch: {
-				previousItemType: continuationItemType(baseline[currentInput.length]),
+				previousItemType: continuationItemType(
+					baselineItem(currentInput.length),
+				),
 				currentItemType: "none",
 			},
 		};
 	}
 
-	const mismatchIndex = baseline.findIndex(
-		(item, index) => !responsesValuesEqual(item, currentInput[index]),
-	);
-	if (mismatchIndex !== -1) {
+	for (let index = 0; index < baselineLength; index++) {
+		const previous = baselineItem(index);
+		const current = currentInput[index];
+		if (responsesValuesEqual(previous, current)) continue;
 		const pendingToolOutputDelta = getPendingToolOutputDelta(
 			body,
 			continuation,
@@ -207,13 +212,13 @@ function getCachedWebSocketInputDelta(
 		return {
 			decision: "input_prefix_mismatch",
 			mismatch: {
-				previousItemType: continuationItemType(baseline[mismatchIndex]),
-				currentItemType: continuationItemType(currentInput[mismatchIndex]),
+				previousItemType: continuationItemType(previous),
+				currentItemType: continuationItemType(current),
 			},
 		};
 	}
 
-	return { delta: currentInput.slice(baseline.length), decision: "delta" };
+	return { delta: currentInput.slice(baselineLength), decision: "delta" };
 }
 
 export function buildCachedWebSocketRequestBody(

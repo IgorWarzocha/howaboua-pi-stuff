@@ -13,6 +13,7 @@ import {
 } from "./constants.ts";
 import {
 	codexErrorMessage,
+	codexRetryAfterDeadline,
 	isRetryableStreamStatus,
 	isTerminalRateLimitError,
 } from "./errors.ts";
@@ -290,11 +291,52 @@ function codexApiRetryDelayMs(
 	return Number.isFinite(delayMs) ? delayMs : undefined;
 }
 
-function extractCodexEventError(event: StreamEventShape): {
+function streamRetryAfterDeadline(headers: unknown): number | undefined {
+	if (!isRecord(headers)) return undefined;
+	for (const [name, value] of Object.entries(headers)) {
+		if (name.toLowerCase() !== "retry-after") continue;
+		const deadline = codexRetryAfterDeadline(
+			typeof value === "string" || typeof value === "number"
+				? String(value)
+				: undefined,
+		);
+		if (deadline !== undefined) return deadline;
+	}
+	return undefined;
+}
+
+function streamFailureOptions(
+	event: StreamEventShape,
+	error: Record<string, unknown> | undefined,
+	code: string | undefined,
+	message: string | undefined,
+) {
+	const status = eventStatus(event);
+	const retryable = isRetryableCodexApiFailure(code, message, status, true);
+	const retryAfter = retryable
+		? (streamRetryAfterDeadline(error?.["headers"]) ??
+			streamRetryAfterDeadline(event["headers"]))
+		: undefined;
+	return {
+		code,
+		payload: event,
+		retryable,
+		status,
+		retryAfter,
+		retryDelayMs:
+			retryAfter === undefined
+				? codexApiRetryDelayMs(code, message)
+				: undefined,
+	};
+}
+
+function extractCodexEventError(
+	event: StreamEventShape,
+	nested: Record<string, unknown> | undefined,
+): {
 	code?: string | undefined;
 	message?: string | undefined;
 } {
-	const nested = isRecord(event["error"]) ? event["error"] : undefined;
 	return {
 		code:
 			typeof event.code === "string"
@@ -332,18 +374,11 @@ export async function* mapCodexEvents(
 		if (!type) continue;
 
 		if (type === "error") {
-			const { code, message } = extractCodexEventError(event);
-			const status = eventStatus(event);
-			const retryDelayMs = codexApiRetryDelayMs(code, message);
+			const error = isRecord(event["error"]) ? event["error"] : undefined;
+			const { code, message } = extractCodexEventError(event, error);
 			throw new CodexApiError(
 				`Codex error: ${codexErrorMessage(code, message) || code || JSON.stringify(event)}`,
-				{
-					code,
-					payload: event,
-					retryable: isRetryableCodexApiFailure(code, message, status, true),
-					...(retryDelayMs !== undefined ? { retryDelayMs } : {}),
-					...(status !== undefined ? { status } : {}),
-				},
+				streamFailureOptions(event, error, code, message),
 			);
 		}
 
@@ -359,17 +394,9 @@ export async function* mapCodexEvents(
 						: undefined;
 			const message =
 				typeof error?.["message"] === "string" ? error["message"] : undefined;
-			const status = eventStatus(event);
-			const retryDelayMs = codexApiRetryDelayMs(code, message);
 			throw new CodexApiError(
 				codexErrorMessage(code, message) || "Codex response failed",
-				{
-					code,
-					payload: event,
-					retryable: isRetryableCodexApiFailure(code, message, status, true),
-					...(retryDelayMs !== undefined ? { retryDelayMs } : {}),
-					...(status !== undefined ? { status } : {}),
-				},
+				streamFailureOptions(event, error, code, message),
 			);
 		}
 

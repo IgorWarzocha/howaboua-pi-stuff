@@ -58,9 +58,8 @@ export default function (pi: ExtensionAPI) {
 		timeline.restore(ctx.sessionManager.buildContextEntries());
 	};
 	const progress = () => {
-		const group = timeline.current;
-		if (!group) return;
-		group.refresh();
+		// Heading invalidation does not request a native frame.
+		if (enabled && timeline.current?.refreshHeading()) redraw?.();
 	};
 
 	pi.registerMarkdownTransformer((markdown, context) => {
@@ -127,15 +126,12 @@ export default function (pi: ExtensionAPI) {
 	});
 	pi.on("agent_start", () => {
 		if (!tui) return;
-		timeline.beginRun();
+		// Native continue() emits agent_start again before the SDK settles the run.
+		timeline.start();
 		outcome = "completed";
 		stopTimer();
 		progress();
-		timer = setInterval(() => {
-			progress();
-			// Custom notice invalidation alone does not request a native frame.
-			redraw?.();
-		}, 1000);
+		timer = setInterval(progress, 1000);
 	});
 	pi.on("message_start", (event) => {
 		const message = event.message;
@@ -184,11 +180,12 @@ export default function (pi: ExtensionAPI) {
 			event.args,
 			event.parentToolCallId,
 		);
+		// Pi applies the native row update after extension handlers.
+		if (!event.parentToolCallId) {
+			const { call } = timeline.add(event.toolCallId, event.toolName);
+			call.status = "running";
+		}
 		progress();
-		if (event.parentToolCallId) return;
-		const { group, call } = timeline.add(event.toolCallId, event.toolName);
-		call.status = "running";
-		group.refresh();
 	});
 	pi.on("tool_execution_update", (event) => {
 		if (!tui || event.toolName === "new_context") return;
@@ -198,30 +195,24 @@ export default function (pi: ExtensionAPI) {
 	pi.on("tool_execution_end", (event) => {
 		if (!tui || event.toolName === "new_context") return;
 		timeline.current?.stage.end(event.toolCallId, event.result, event.isError);
+		if (!event.parentToolCallId) {
+			const { call } = timeline.add(event.toolCallId, event.toolName);
+			call.status =
+				event.isError || hasCodeModeError(event.result?.details)
+					? "error"
+					: "done";
+		}
 		progress();
-		if (event.parentToolCallId) return;
-		const { group, call } = timeline.add(event.toolCallId, event.toolName);
-		call.status =
-			event.isError || hasCodeModeError(event.result?.details)
-				? "error"
-				: "done";
-		group.refresh();
 	});
 	pi.on("ui_prompt_start", () => {
 		promptDepth++;
-		if (timeline.current) {
-			timeline.current.attention = true;
-			timeline.current.refresh();
-		}
-		if (tui) progress();
+		if (timeline.current) timeline.current.attention = true;
+		progress();
 	});
 	pi.on("ui_prompt_end", () => {
 		promptDepth = Math.max(0, promptDepth - 1);
-		if (timeline.current) {
-			timeline.current.attention = promptDepth > 0;
-			timeline.current.refresh();
-		}
-		if (tui) progress();
+		if (timeline.current) timeline.current.attention = promptDepth > 0;
+		progress();
 	});
 	// Low-level agent_end can precede compaction or queued continuation. Record
 	// its outcome here, but keep the timer/group alive until the SDK settles.

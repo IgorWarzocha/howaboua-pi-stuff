@@ -68,7 +68,10 @@ export async function openCodexSSE<TApi extends Api>(
 
 	let errorSignal: ReturnType<typeof combineAbortSignals> | undefined;
 	try {
-		const retryAfter = codexRetryAfterDeadline(response.headers);
+		// Capture the deadline before reading the body or notifying response hooks.
+		const retryAfter = codexRetryAfterDeadline(
+			response.headers.get("retry-after"),
+		);
 		// Known failed headers start recovery even if the error body never finishes.
 		// The parsed body still owns fatal-code classification, not this clock.
 		if (!response.ok && isRetryableStreamStatus(response.status)) {

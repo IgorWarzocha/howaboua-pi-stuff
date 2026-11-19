@@ -1,5 +1,6 @@
 import {
 	mkdir,
+	open,
 	readdir,
 	readFile,
 	rm,
@@ -12,6 +13,8 @@ import { join } from "node:path";
 const RESULT_TTL_MS = 60 * 60 * 1_000;
 const SCREENSHOT_TTL_MS = 24 * 60 * 60 * 1_000;
 const TEXT_BUDGET_BYTES = 32_000;
+// At least one byte per UTF-16 unit, plus one unit of surrogate lookahead.
+const RESULT_READ_BYTES = 2 * (TEXT_BUDGET_BYTES - 2 + 1);
 
 export function artifactDirectory(): string {
 	return process.env["XDG_RUNTIME_DIR"]
@@ -19,8 +22,11 @@ export function artifactDirectory(): string {
 		: join(tmpdir(), `browser-tool-${process.getuid?.() ?? "user"}`);
 }
 
-function resultPath(handle: string): string {
-	return join(artifactDirectory(), `result-${handle}.txt`);
+function resultPath(handle: string, legacy = false): string {
+	return join(
+		artifactDirectory(),
+		`result-${handle}.${legacy ? "txt" : "utf16le"}`,
+	);
 }
 
 export async function screenshotPath(request: {
@@ -50,19 +56,14 @@ export async function pruneArtifacts(now = Date.now()): Promise<number> {
 	try {
 		names = await readdir(artifactDirectory());
 	} catch (error) {
-		if (
-			error &&
-			typeof error === "object" &&
-			"code" in error &&
-			error.code === "ENOENT"
-		) {
-			return 0;
-		}
+		if (isMissing(error)) return 0;
 		throw error;
 	}
 	let removed = 0;
 	for (const name of names.filter((candidate) =>
-		/^(?:result-[a-f0-9-]{36}\.txt|browser-.*\.png)$/.test(candidate),
+		/^(?:result-[a-f0-9-]{36}\.(?:txt|utf16le)|browser-.*\.png)$/.test(
+			candidate,
+		),
 	)) {
 		const path = join(artifactDirectory(), name);
 		try {
@@ -74,14 +75,7 @@ export async function pruneArtifacts(now = Date.now()): Promise<number> {
 				removed++;
 			}
 		} catch (error) {
-			if (
-				!error ||
-				typeof error !== "object" ||
-				!("code" in error) ||
-				error.code !== "ENOENT"
-			) {
-				throw error;
-			}
+			if (!isMissing(error)) throw error;
 		}
 	}
 	return removed;
@@ -90,17 +84,34 @@ export async function pruneArtifacts(now = Date.now()): Promise<number> {
 function chunkForJson(
 	value: string,
 	offset = 0,
-	budget = TEXT_BUDGET_BYTES,
 ): { text: string; end: number } {
 	let bytes = 2;
 	let end = offset;
-	for (const character of value.slice(offset)) {
-		const next = Buffer.byteLength(JSON.stringify(character)) - 2;
-		if (bytes + next > budget) break;
+	while (end < value.length) {
+		const point = value.codePointAt(end)!;
+		const next = jsonCharacterBytes(point);
+		if (bytes + next > TEXT_BUDGET_BYTES) break;
 		bytes += next;
-		end += character.length;
+		end += point > 0xffff ? 2 : 1;
 	}
 	return { text: value.slice(offset, end), end };
+}
+
+function jsonCharacterBytes(point: number): number {
+	if (point < 0x20) {
+		return point === 8 ||
+			point === 9 ||
+			point === 10 ||
+			point === 12 ||
+			point === 13
+			? 2
+			: 6;
+	}
+	if (point === 0x22 || point === 0x5c) return 2;
+	if (point < 0x80) return 1;
+	if (point < 0x800) return 2;
+	if (point >= 0xd800 && point <= 0xdfff) return 6;
+	return point <= 0xffff ? 3 : 4;
 }
 
 async function cacheResult(value: string): Promise<string> {
@@ -109,7 +120,11 @@ async function cacheResult(value: string): Promise<string> {
 		recursive: true,
 		mode: 0o700,
 	});
-	await writeFile(resultPath(handle), value, { mode: 0o600 });
+	// Fixed-width code units allow seeks at every accepted JS string offset.
+	await writeFile(resultPath(handle), value, {
+		encoding: "utf16le",
+		mode: 0o600,
+	});
 	return handle;
 }
 
@@ -131,48 +146,99 @@ export async function limitedText(
 	};
 }
 
+function checkOffset(offset: number, length: number): void {
+	if (offset > length) {
+		throw new Error(`offset ${offset} exceeds result length ${length}`);
+	}
+}
+
+async function readResultPage(path: string, offset: number) {
+	const file = await open(path, "r");
+	try {
+		const { size } = await file.stat();
+		if (size % 2)
+			throw new Error("Cached result is incomplete; rerun the original action");
+		const length = size / 2;
+		checkOffset(offset, length);
+		const position = offset * 2;
+		const bytes = Buffer.allocUnsafe(
+			Math.min(size - position, RESULT_READ_BYTES),
+		);
+		let used = 0;
+		while (used < bytes.length) {
+			const { bytesRead } = await file.read(
+				bytes,
+				used,
+				bytes.length - used,
+				position + used,
+			);
+			if (!bytesRead)
+				throw new Error(
+					"Cached result is incomplete; rerun the original action",
+				);
+			used += bytesRead;
+		}
+		const chunk = chunkForJson(bytes.toString("utf16le"));
+		return { text: chunk.text, end: offset + chunk.end, length };
+	} finally {
+		await file.close();
+	}
+}
+
+function isMissing(error: unknown): boolean {
+	return (
+		!!error &&
+		typeof error === "object" &&
+		"code" in error &&
+		error.code === "ENOENT"
+	);
+}
+
 export async function readCachedResult(request: {
 	handle: string;
 	offset: number;
 }): Promise<Record<string, unknown>> {
-	let value: string;
+	const { handle, offset } = request;
+	let path = resultPath(handle);
+	let page;
 	try {
-		value = await readFile(resultPath(request.handle), "utf8");
+		page = await readResultPage(path, offset);
 	} catch (error) {
-		if (
-			error &&
-			typeof error === "object" &&
-			"code" in error &&
-			error.code === "ENOENT"
-		) {
+		if (!isMissing(error)) throw error;
+		// Let handles issued by the previous worker finish during their short TTL.
+		path = resultPath(handle, true);
+		let value: string;
+		try {
+			value = await readFile(path, "utf8");
+		} catch (legacyError) {
+			if (!isMissing(legacyError)) throw legacyError;
 			throw new Error(
-				`result handle not found: ${request.handle}; check the host or rerun the original action`,
+				`result handle not found: ${handle}; check the host or rerun the original action`,
 			);
 		}
-		throw error;
+		checkOffset(offset, value.length);
+		page = { ...chunkForJson(value, offset), length: value.length };
 	}
-	if (request.offset > value.length) {
-		throw new Error(
-			`offset ${request.offset} exceeds result length ${value.length}`,
-		);
-	}
-	const chunk = chunkForJson(value, request.offset);
-	const complete = chunk.end >= value.length;
+	const complete = page.end >= page.length;
 	if (complete) {
-		await rm(resultPath(request.handle), { force: true });
+		await rm(path, { force: true });
 	}
 	return {
-		handle: request.handle,
-		offset: request.offset,
-		text: chunk.text,
+		handle,
+		offset,
+		text: page.text,
 		complete,
-		...(complete ? {} : { next_offset: chunk.end }),
+		...(complete ? {} : { next_offset: page.end }),
 	};
 }
 
 export async function discardCachedResult(
 	handle: string,
 ): Promise<Record<string, unknown>> {
-	await rm(resultPath(handle), { force: true });
+	await Promise.all(
+		[resultPath(handle), resultPath(handle, true)].map((path) =>
+			rm(path, { force: true }),
+		),
+	);
 	return { discarded: handle };
 }

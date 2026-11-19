@@ -10,7 +10,11 @@ export class ActivityGroup {
 	readonly calls: ActivityCall[] = [];
 	readonly members = new Map<
 		string,
-		{ invalidate?: () => void; anchorEligible: boolean }
+		{
+			invalidate?: () => void;
+			invalidateHeading?: () => void;
+			anchorEligible: boolean;
+		}
 	>();
 	readonly notices = new Map<string, string>();
 	readonly noticeWarnings = new Set<string>();
@@ -20,7 +24,7 @@ export class ActivityGroup {
 	readonly stage = new CurrentStage();
 	endedAt: number | undefined;
 	outcome: "completed" | "interrupted" = "completed";
-	startedAt: number;
+	readonly startedAt: number;
 	readonly estimated: boolean;
 
 	constructor(startedAt: number, estimated = false) {
@@ -41,6 +45,22 @@ export class ActivityGroup {
 		for (const [id, member] of this.members)
 			if (member.anchorEligible) return id;
 		return undefined;
+	}
+
+	refreshHeading(): boolean {
+		const id = this.anchorId;
+		const invalidateHeading =
+			id === undefined ? undefined : this.members.get(id)?.invalidateHeading;
+		if (!invalidateHeading) return false;
+		invalidateHeading();
+		return true;
+	}
+
+	refreshAnchor(previous: string | undefined): void {
+		const next = this.anchorId;
+		if (previous === next) return;
+		if (previous !== undefined) this.members.get(previous)?.invalidate?.();
+		if (next !== undefined) this.members.get(next)?.invalidate?.();
 	}
 
 	refresh(exceptId?: string): void {

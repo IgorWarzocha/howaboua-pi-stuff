@@ -32,8 +32,8 @@ export async function agentsHelp(
 	const profiles = await loadAgentProfiles();
 	return {
 		commands: gpt
-			? "commands:true lists slash commands/descriptions, NEVER executes; default=this session; target/machine→another"
-			: "commands: true lists available slash commands with descriptions; defaults to this session, target and machine optionally select another session; does not execute commands",
+			? "commands:true lists slash commands+descriptions; target with optional machine→another session"
+			: "commands:true lists this session's slash commands and descriptions. Supply target and optionally machine for another session.",
 		actions: {
 			help: "",
 			list: "machine?",
@@ -53,14 +53,14 @@ export async function agentsHelp(
 		},
 		rules: {
 			peers: gpt
-				? "Existing session≠your sub-agent; send/watch need no attach. Contact≠shared Notes/Board; attach changes membership"
-				: "Existing sessions may be independent peers, not your sub-agents. Messaging and watching need no attachment. Contact does not imply shared Notes or Board membership; attach changes sharing",
+				? "Existing sessions may be independent peers; send/watch leave Notes/Board access unchanged"
+				: "Existing sessions may be independent peers. You can send or watch without attaching or changing shared Notes or Board access.",
 			read: gpt
 				? "latest(default)=last reply+pending extension messages; visible=current TUI screen; recent=TUI scrollback, lines default 40. Findings→returned Notes path if shared Notes available"
 				: "latest (default) returns the last reply and pending extension messages; visible reads the current TUI screen; recent reads TUI scrollback, lines default 40. For findings, read the returned Notes path when shared Notes is available",
 			reply: gpt
-				? "Extension report/read template required; send≠resolve; returns after acceptance, never waits resumed work"
-				: "Use the extension-authored template from its report/read; send does not resolve it. Replies return after acceptance, without waiting for resumed work",
+				? "MUST use extension report/read template via reply, not send. Returns on acceptance without waiting for resumed work"
+				: "To resolve an extension request, use its report or read template with reply. The call returns on acceptance without waiting for resumed work.",
 			machine: gpt
 				? "machine omitted=local Pi host; list/find omitted=all machines; select current machine name or ID from list"
 				: "Omit for local (host running Pi); list/find omit for all machines. Select a current machine name or ID from list",
@@ -68,8 +68,8 @@ export async function agentsHelp(
 				? "target=Pi session reference or terminal; /root=live spawn root"
 				: "Use the Pi session reference or terminal target; /root selects the live root of saved spawn ancestry",
 			resume: gpt
-				? "send/assign to owned closed worker→resume saved session+reporting unless unwatched; /quit never resumes"
-				: "Sending or assigning to an owned closed worker resumes its saved session and reporting unless unwatched; /quit never resumes",
+				? "send/assign to owned closed worker→resume saved session; restore reporting unless unwatched"
+				: "Sending or assigning to an owned closed worker resumes its saved session and restores reporting unless unwatched.",
 			label: "Short Pi session name; app tabs use default names",
 			placement:
 				"terminal (default), new_tab, new_workspace; new_tab needs space ID",
@@ -81,27 +81,26 @@ export async function agentsHelp(
 					}
 				: {}),
 			send: gpt
-				? "Messages wake idle agents; ONLY concrete blocker/ownership conflict/usable handoff that changes next action. NO acknowledgements/status-only/standby. Close→/quit directly, NO preceding message or wait/watch"
-				: "Messages wake idle agents. Send only a concrete blocker, ownership conflict or usable handoff that changes the recipient's next action; skip acknowledgements, status-only updates and standby reminders. Close with /quit directly, without another message first. No waiting or watching.",
+				? "Wakes idle agents; only concrete blocker, ownership conflict or actionable handoff. Skip acknowledgements, status-only updates and standby reminders"
+				: "Messages wake idle agents. Send only a concrete blocker, ownership conflict or usable handoff that changes the recipient's next action. Skip acknowledgements, status-only updates and standby reminders.",
 			assign: gpt
-				? "Delegate/update work; active→share pending result, NEVER replace wait"
-				: "Delegate or update work; active updates share its pending result, never replace an existing wait",
+				? "Delegate/update work; active update shares pending result and preserves existing wait"
+				: "Delegate or update work. Updating active work shares its pending result and preserves the existing wait.",
 			focus: gpt
-				? "Running session; passive arrival+return call, NO task/watch; voice default false, true=async active mic transfer; handoff=context; remote=target Herdr session≠client machine"
-				: "Select a running session; passive arrival with return call, no task/watch. voice defaults false; true carries the active microphone asynchronously. handoff adds context. Remote focus selects the target's Herdr session, not the client's machine",
-			attach: boardAvailable
+				? "Running session; passive arrival+return call, no task/watch. voice:true→async active mic transfer; handoff=context; remote focus stays on target host"
+				: "Focus a running session on its host. It gets a passive arrival with a return call and optional handoff context, not a task or watch. voice:true also transfers the active microphone asynchronously.",
+			sharing: boardAvailable
 				? gpt
-					? "Idle target; context/board=independent sharing/membership; omitted=false, at least one true; NO task/watch"
-					: "Idle target; context/board choose shared access and board membership independently; omitted=false, at least one true; no task/watch"
+					? "attach/detach require idle target. Select scope: context:true for Notes/history, board:true for board membership, or both"
+					: "The target MUST be idle for attach or detach. Select what changes: context:true for Notes and history, board:true for board membership, or both."
 				: gpt
-					? "Idle target; context:true=shared notes/history; boards unavailable; NO task/watch"
-					: "Idle target; context:true shares notes/history; shared boards unavailable; no task/watch",
-			detach: gpt
-				? "Idle target; stop context/board independently; omitted=false, at least one true; counterpart checkpoints remain readonly"
-				: "Stop context/board independently; omitted=false, at least one true; retain counterpart checkpoints read-only; idle target",
+					? "attach/detach require idle target + context:true for Notes/history; boards unavailable"
+					: "The target MUST be idle for attach or detach. Select Notes and history with context:true. Boards are unavailable.",
+			attach: "Changes sharing only, without assigning or watching",
+			detach: "Counterpart checkpoints remain read-only",
 			blocking: gpt
-				? "spawn/assign default false→dispatch then return; true→wait for result; profile overrides spawn. Background reports automatic→do other work/end turn, NO poll"
-				: "spawn/assign return after dispatch by default. Set blocking:true to wait for the result; profile blocking overrides spawn. Background reports arrive automatically: do other work or end this turn, never poll",
+				? "spawn/assign default→return on dispatch; blocking:true→wait; profile overrides spawn. Reports automatic→other work/end turn; MUST NOT poll"
+				: "spawn and assign return after dispatch by default. Set blocking:true to wait for the result. Spawn profiles can override it. Background reports arrive automatically; do other work or end the turn instead of polling.",
 			share_context: gpt
 				? "Profile false→isolated notes/history; otherwise→controller sharing setting"
 				: "Profile false isolates notes/history; otherwise follows controller sharing setting",
@@ -109,11 +108,11 @@ export async function agentsHelp(
 				? "Delegation/watch→report subsequent work UNTIL unwatch/close"
 				: "Delegation and watch keep reporting subsequent work until unwatch or close",
 			prompt: gpt
-				? "Outcome + completion evidence + context. Shared dependency→ONE owner; peers consume handoff. Keep original outcome covered when redirecting. Trust agent approach; avoid needless restrictions/narrowing"
-				: "Give a distinct outcome, completion evidence and necessary context. Shared dependencies need one owner; peers consume its handoff. Keep the original outcome covered when redirecting work. Trust the agent's approach; avoid unnecessary restrictions and overly narrow scope",
+				? "Task + done criteria + needed context. Give real constraints; let the worker choose how. Assign shared work once. Redirecting? Keep the original task covered"
+				: "State the task, what counts as done, and any context or constraints. Leave the approach to the worker. Assign shared work once. If you redirect a worker, keep its original task covered.",
 			slash: gpt
-				? "Leading / routes target commands/skills/templates; commands skip task wait EVEN assign/spawn; blocked→choices; /quit exits Pi+closes terminal"
-				: "Leading / routes target commands/skills/templates. Commands skip task waiting, even with assign/spawn; blocked commands return available choices. /quit shuts down Pi and closes its terminal",
+				? "Leading /→target command/skill/template; bypasses task waits even via assign/spawn; blocked→choices. Close Pi+terminal via send /quit directly; no advance message, wait/watch or resume"
+				: "A leading / routes to a target command, skill or template. Commands bypass task waits even with assign or spawn; blocked commands return available choices. To close Pi and its terminal, send /quit directly without a preceding message, wait or watch. /quit never resumes a closed worker.",
 			reuse: gpt
 				? "Keep each agent until task verified complete; corrections→same agent; then close. Unrelated task→new agent; reviews independent"
 				: "Keep each agent available until its task is verified complete; return corrections to it before closing. Use separate agents for unrelated work and independent reviews.",
@@ -124,7 +123,7 @@ export async function agentsHelp(
 				: {}),
 		},
 		profiles: describeProfiles(profiles),
-		advanced: "hc --skill: terminal processes and machines",
+		advanced: "hc --skill: non-agent processes and machines",
 	};
 }
 

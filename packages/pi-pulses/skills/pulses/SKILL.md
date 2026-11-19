@@ -4,7 +4,7 @@ name: pulses
 description: "Read before creating or changing a saved pulse routine."
 ---
 
-Create `.pi/pulses/<self-explanatory-name>.md` with a lowercase kebab-case filename. In Git, use the original repository root, not a linked worktree. Otherwise use the main session's working directory.
+Create `.pi/pulses/<lowercase-kebab-case-name>.md` in the original Git repository root (not a linked worktree), or in the main session's working directory outside Git.
 
 ```markdown
 ---
@@ -18,10 +18,10 @@ Check the agreed sources for changes since the previous run.
 Post actionable findings to the designated available destination.
 ```
 
-`schedule` is required: `manual`, `every 30m`, `every 5h`, `every 2d`, `daily 09:00`, `weekly fri 17:00` or `at <datetime>`. Use an explicit timezone offset for a one-time timestamp when timezone matters. Daily and weekly times and `quietHours` use the host's local timezone. Checks run every five minutes.
+`schedule` REQUIRED: `manual`, `every 30m`, `every 5h`, `every 2d`, `daily 09:00`, `weekly fri 17:00` or `at <datetime>`. Give one-time timestamps an explicit offset when timezone matters. Daily and weekly times and `quietHours` use the host's local timezone. Checks run every five minutes.
 
-`enabled` defaults to `true`. Set it to `false` to pause automatic runs while keeping explicit runs available. `quietHours` is optional and accepts `HH:MM-HH:MM`, including overnight ranges. Optional `title` replaces the filename as the display title.
+`enabled: false` pauses automatic runs (default: enabled). Optional `quietHours` uses `HH:MM-HH:MM`, including overnight ranges. Optional `title` overrides the display name.
 
-Keep the body a short SOP: the actual task, sources, destination and consequential limits. Do not duplicate general skill guidance or require loading skills that the task does not need. Define concrete destinations only when available. The worker receives the body plus standard result-routing and procedural-feedback instructions, so do not repeat those instructions in each definition.
+Keep the body a short SOP: task, sources, available destinations and consequential limits. Include only skills the task needs. Pulses adds result-routing and procedural-feedback instructions automatically.
 
-Use ordinary file tools to edit definitions. Disable routines worth keeping for later; delete obsolete ones. There is no separate configuration API. `pulses({})` lists paths and flags invalid definitions. `pulses({run: "name"})` requests an immediate run, including when automatic scheduling is disabled. Explicit runs bypass quiet hours and leave the recurrence schedule unchanged.
+Edit definitions with ordinary file tools. Disable routines worth keeping; delete obsolete ones. `pulses({})` lists paths and flags invalid definitions. `pulses({run: "name"})` uses the filename without `.md` to run immediately, ignoring `enabled` and `quietHours` without changing recurrence.

@@ -255,11 +255,12 @@ export function remoteDeliverySource(
 				entry.details.id === delivery.id,
 		);
 	const event = events[0];
+	if (events.length !== 1 || event?.type !== "custom_message")
+		throw new Error("Remote delivery is missing its canonical provenance");
+	const canonical = readRemoteDelivery(event.details);
 	if (
-		events.length !== 1 ||
-		event?.type !== "custom_message" ||
-		JSON.stringify(readRemoteDelivery(event.details)) !==
-			JSON.stringify(delivery)
+		canonical !== delivery &&
+		JSON.stringify(canonical) !== JSON.stringify(delivery)
 	)
 		throw new Error("Remote delivery is missing its canonical provenance");
 	const branch = ctx.sessionManager.getBranch(event.id);

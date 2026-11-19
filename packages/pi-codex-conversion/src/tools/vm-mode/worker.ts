@@ -219,10 +219,15 @@ function flushGuest(): void {
 	runInContext("void 0", context);
 }
 
-function runScript(source: string): unknown {
-	return new Script(source, { filename: "vm-code-cell.js" }).runInContext(
-		context,
-	);
+function runScript(source: string, parseError?: unknown): unknown {
+	let script: Script;
+	try {
+		script = new Script(source, { filename: "vm-code-cell.js" });
+	} catch (error) {
+		// A plain script reports the first await, hiding the actual syntax error.
+		throw parseError ?? error;
+	}
+	return script.runInContext(context);
 }
 
 function thrown(error: unknown): { name: string; message: string } {
@@ -373,7 +378,7 @@ async function run(
 		rejectConflicts(planned.bindings);
 		if (planned.awaited) await runModule(planned.source);
 		else {
-			runScript(planned.source);
+			runScript(planned.source, planned.parseError);
 			await quiescent();
 		}
 		if (failure) {

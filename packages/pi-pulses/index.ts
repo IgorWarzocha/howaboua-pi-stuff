@@ -11,7 +11,7 @@ import { isPulseDue, isPulseQuietAt, pulseDueKey } from "./src/schedule.js";
 import { PulseStore } from "./src/state.js";
 
 const RESULT_GUIDANCE =
-	"Use appropriate available tools or destinations for substantive task results and logs. Your final assistant message to the main agent should briefly confirm completion and point to the outcome, without repeating it. Report failures, ambiguities or suggested improvements to the pulse procedure only in that final assistant message, separately from the completion summary. Do not put this procedural feedback in task logs, notes or boards. Do not edit the pulse definition unless its instructions explicitly authorise it";
+	"Deliver substantive results and logs through appropriate available tools or destinations. In your final message to the main agent, report the outcome and point to results without repeating them. Report procedural failures, ambiguities or suggestions separately and only in that final message. You MUST NOT edit the pulse definition unless it explicitly authorises the edit";
 
 export default async function pulses(pi: ExtensionAPI) {
 	const bridge = connectPulseRunner(pi);
@@ -271,11 +271,9 @@ export default async function pulses(pi: ExtensionAPI) {
 				"error" in item ? [relative(current.repo.root, item.path)] : [],
 			);
 			return [
-				'Run: {run:"check-new-issues"}; authoring: {skill:true}',
+				'Run: {run:"<filename without .md>"}; authoring: {skill:true}',
 				...valid,
-				...(invalid.length
-					? ["", "Invalid definitions — see {skill:true}:", ...invalid]
-					: []),
+				...(invalid.length ? ["", "Invalid definitions:", ...invalid] : []),
 			].join("\n");
 		},
 		async run(ctx, id) {

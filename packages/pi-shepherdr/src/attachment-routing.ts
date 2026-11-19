@@ -7,6 +7,7 @@ import type {
 } from "@howaboua/pi-agent-comms/context-sharing";
 import type { AttachmentNotes } from "./attachment-notes.js";
 import {
+	ATTACHMENT_CONTEXT_CHANGED,
 	type AttachmentRoute,
 	attachmentOwner,
 	attachmentRoutes,
@@ -57,9 +58,7 @@ export class AttachmentRouting {
 					? request.agentName
 					: link.alias;
 			if (!isDeepStrictEqual(native, canonicalContextIdentity(link.controller)))
-				throw new Error(
-					"Shared notes are unavailable. Use messages to exchange the context you need.",
-				);
+				throw new Error(ATTACHMENT_CONTEXT_CHANGED);
 			const next = {
 				...request,
 				sessionId: link.target.sessionId,
@@ -125,9 +124,7 @@ export class AttachmentRouting {
 					? request.agentName
 					: link.controllerAlias;
 			if (!isDeepStrictEqual(native, canonicalContextIdentity(link.target)))
-				throw new Error(
-					"Shared notes are unavailable. Use messages to exchange the context you need.",
-				);
+				throw new Error(ATTACHMENT_CONTEXT_CHANGED);
 			const next = {
 				...request,
 				sessionId: link.controller.sessionId,

@@ -13,6 +13,10 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
 
+## November 19 Responses Lite images
+
+Matched the unified image budget in Codex `rust-v0.170.0` and `39c29c3bb6`: up to 6,000 pixels on the longest side and 10,000 tiles of 32×32 pixels. This changes the images sent to Responses Lite, not Pi's saved originals. PCC prepares them after Pi's payload hooks so history rewrites remain authoritative. Unlike Codex's history admission, PCC serializes cold resizes per request and caches successful preparation within a bounded session budget.
+
 ## November 17 GPT-6.2
 
 The authenticated Codex catalogue advertises GPT-6.2 Sol with a 500K context and Astra with a 272K context, both supporting Responses Lite and live reasoning updates. Supplemental registrations fill the released Pi 1.5.2 catalogue gap without replacing future upstream entries. Pi's supported reasoning selectors map to `low` through `max`; backend-only `ultra` is not exposed.

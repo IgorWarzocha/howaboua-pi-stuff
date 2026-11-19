@@ -29,7 +29,6 @@ export default async function webRunExtension(pi: ExtensionAPI): Promise<void> {
 	let gpt = false;
 	let registration: Awaited<ReturnType<typeof registerWebRunInCodeMode>>;
 	const ordinary = {
-		description: tool.description,
 		guidelines: tool.promptGuidelines,
 	};
 	try {
@@ -38,12 +37,9 @@ export default async function webRunExtension(pi: ExtensionAPI): Promise<void> {
 		registerGptPromptMode(pi, (active) => {
 			if (gpt !== active) {
 				gpt = active;
-				tool.description = active
-					? "Web search/navigation"
-					: ordinary.description;
 				if (active)
 					tool.promptGuidelines = [
-						"web_run: calls=returned turn refs; final citations=Markdown result URLs; never refs/cite…",
+						"web_run: navigation→returned ref_ids; cite only Markdown links to result URLs",
 					];
 				else if (ordinary.guidelines)
 					tool.promptGuidelines = ordinary.guidelines;
@@ -81,9 +77,11 @@ async function registerWebRunInCodeMode(
 			await import(CODE_MODE_MODULE);
 		return registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
-				usage: gpt()
-					? 'tools.web__run({search_query?:[{q:string,recency?:number,domains?:string[]}],image_query?:[{q:string}],open?:[{ref_id:string,lineno?:number}],click?:[{ref_id:string,id:number}],find?:[{ref_id:string,pattern:string}],response_length?:"short"|"medium"|"long"}) // calls=returned ref_ids; final citations=Markdown result URLs; never refs/cite markers'
-					: 'tools.web__run({search_query?:[{q:string,recency?:number,domains?:string[]}],image_query?:[{q:string}],open?:[{ref_id:string,lineno?:number}],click?:[{ref_id:string,id:number}],find?:[{ref_id:string,pattern:string}],response_length?:"short"|"medium"|"long"}) // calls use returned ref_ids; final answers use Markdown result URLs, never refs/cite markers',
+				usage:
+					'tools.web__run({search_query?:[{q:string,recency?:number,domains?:string[]}],image_query?:[{q:string}],open?:[{ref_id:string,lineno?:number}],click?:[{ref_id:string,id:number}],find?:[{ref_id:string,pattern:string}],response_length?:"short"|"medium"|"long",settings?:{search_context_size?:"low"|"medium"|"high"}}) // ' +
+					(gpt()
+						? "navigation→returned ref_ids (open: URLs too); cite only Markdown result links"
+						: "Navigate by returned ref_id (open also accepts URLs). Cite only Markdown links to result URLs"),
 				promptMetadata: false,
 				toolName: { namespace: "web", name: "run" },
 				resultValue: webRunCodeModeResult,
