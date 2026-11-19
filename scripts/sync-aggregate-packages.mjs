@@ -3,27 +3,12 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import { listActivePackageDirs } from "./active-packages.mjs";
+import { bundleExcludedPackages } from "./aggregate-package-policy.mjs";
 import { PI_PEER_RANGE, pi1PeerDependencies } from "./pi-sdk-policy.mjs";
 
 const root = process.cwd();
 const packagesDir = join(root, "packages");
 const aggregateDirs = new Set(["pi-stuff", "pi-skills", "pi-extensions"]);
-const bundleExcludedPackages = new Set([
-	"@howaboua/pi-agent-comms",
-	"@howaboua/pi-agent-board",
-	"@howaboua/pi-notes-compaction",
-	"@howaboua/pi-observatory",
-	"@howaboua/pi-browser",
-	"@howaboua/pi-chatgpt-sites",
-	"@howaboua/pi-chill",
-	"@howaboua/pi-sandbox",
-	"@howaboua/pi-codex-conversion",
-	"@howaboua/pi-codex-guardian",
-	"@howaboua/pi-codex-imagegen",
-	"@howaboua/pi-skill-omarchy-help",
-	"@howaboua/pi-subdir-agents",
-	"@howaboua/pi-codex-web-run",
-]);
 const packages = listActivePackageDirs(root)
 	.filter((dir) => !aggregateDirs.has(dir))
 	.map((dir) => ({

@@ -14,17 +14,12 @@
   },
   "dependencies": {
     "@howaboua/pi-ask": "0.0.20",
-    "@howaboua/pi-auto-trees": "0.1.19",
     "@howaboua/pi-better-skills-tool": "0.0.13",
     "@howaboua/pi-cache-hit-predictor": "0.0.1",
     "@howaboua/pi-gippity-control": "0.0.32",
     "@howaboua/pi-github-watch": "0.0.7",
     "@howaboua/pi-gpt-switcher": "0.1.7",
-    "@howaboua/pi-grok-realtime": "0.0.6",
-    "@howaboua/pi-pet": "0.1.9",
     "@howaboua/pi-shepherdr": "1.0.2",
-    "@howaboua/pi-smart-btw": "0.2.8",
-    "@howaboua/pi-subagent-review": "0.2.27",
     "@howaboua/pi-suggestions": "0.0.3",
     "@howaboua/pi-unicode-charts": "0.1.4"
   },

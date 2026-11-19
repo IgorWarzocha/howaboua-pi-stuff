@@ -10,8 +10,8 @@ Pi packages run with your local permissions. You can obviously trust me, a stran
 
 | Package | Includes | Deliberate exclusions |
 |---|---|---|
-| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 13 general extensions and 15 shareable skills | Agent Comms, Browser, Sites, Observatory, Sandbox, Codex extensions, nested AGENTS loader and Omarchy support |
-| [`@howaboua/pi-extensions`](./packages/pi-extensions) | 13 general extensions | Agent Comms, Browser, Sites, Observatory, Sandbox, Codex extensions and nested AGENTS loader |
+| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 9 general extensions and 15 shareable skills | Agent Comms, Browser, Sites, Observatory, Sandbox, Codex extensions, nested AGENTS loader and Omarchy support |
+| [`@howaboua/pi-extensions`](./packages/pi-extensions) | 9 general extensions | Agent Comms, Browser, Sites, Observatory, Sandbox, Codex extensions and nested AGENTS loader |
 | [`@howaboua/pi-skills`](./packages/pi-skills) | 15 shareable skills | Omarchy support |
 
 ```bash
@@ -20,6 +20,8 @@ pi install npm:@howaboua/pi-stuff
 pi install npm:@howaboua/pi-extensions
 pi install npm:@howaboua/pi-skills
 ```
+
+Auto Trees, Grok Realtime, Pet, Smart BTW and Subagent Review are standalone installs. Follow their links in the extension list below.
 
 `pi-codex-conversion` is separate because it changes Pi's tool surface for GPT/Codex models. `pi-codex-web-run` and `pi-codex-imagegen` are separate because they use Codex endpoints and login. `omarchy-help` is separate because it targets Arch desktops configured with Omarchy.
 
