@@ -155,6 +155,7 @@ export function createCodexTransportStream<TApi extends Api>(
 						? { ...effectiveOptions, signal: attemptSignal.signal }
 						: effectiveOptions;
 					let websocketStarted = false;
+					let requestBytes: number | undefined;
 					const timing = requestTiming.start(lane, "websocket");
 					try {
 						await processWebSocketStream(
@@ -187,6 +188,9 @@ export function createCodexTransportStream<TApi extends Api>(
 								reconstructedRequestBody: reconstructedBody,
 								token: canonicalSessionToken,
 								decision: canonicalHistory,
+							},
+							(bytes) => {
+								requestBytes = bytes;
 							},
 						);
 						if (callerSignal?.aborted) throw new Error("Request was aborted");
@@ -270,10 +274,7 @@ export function createCodexTransportStream<TApi extends Api>(
 									phase: websocketStarted
 										? "after_message_stream_start"
 										: "before_message_stream_start",
-									requestBytes: Buffer.byteLength(
-										serializeCodexRequest(body),
-										"utf8",
-									),
+									...(requestBytes === undefined ? {} : { requestBytes }),
 								},
 							),
 						);

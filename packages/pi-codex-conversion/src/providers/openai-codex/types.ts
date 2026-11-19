@@ -55,7 +55,7 @@ export interface AcquiredWebSocket {
 export interface CachedWebSocketContinuationState {
 	lastRequestBody: ResponsesBody;
 	lastResponseId: string;
-	lastResponseItems: unknown[];
+	lastResponseItems: readonly unknown[];
 }
 
 export type CanonicalHistoryDecision =

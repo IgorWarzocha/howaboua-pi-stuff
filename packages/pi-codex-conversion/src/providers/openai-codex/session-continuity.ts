@@ -131,11 +131,11 @@ export function recordCanonicalSessionResponse(args: {
 	reconstructedRequestBody?: ResponsesBody | undefined;
 	responseItems: readonly unknown[];
 	token?: CanonicalSessionToken | undefined;
-}): void {
+}): CanonicalSessionState | undefined {
 	if (!args.sessionId) return;
 	if (args.token && !canonicalSessionTokenMatches(args.sessionId, args.token))
 		return;
-	canonicalSessions.set(args.sessionId, {
+	const snapshot = {
 		accountId: args.accountId,
 		url: args.url,
 		...structuredClone({
@@ -145,7 +145,9 @@ export function recordCanonicalSessionResponse(args: {
 			).input,
 			responseItems: args.responseItems,
 		}),
-	});
+	};
+	canonicalSessions.set(args.sessionId, snapshot);
+	return snapshot;
 }
 
 export function captureCanonicalSessionToken(
