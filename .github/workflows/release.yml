@@ -40,12 +40,11 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       # npm provides its bundled node-gyp before Bun starts native install hooks.
       - run: npm run install:ci
-      - name: Build pi-codex-conversion extension
+      # Sandbox's optional Code integration and other package checks import Codex dist.
+      - name: Build Codex Conversion for workspace consumers
         run: bun run --cwd packages/pi-codex-conversion build
-      - name: Build pi-sandbox controller
-        run: bun run --cwd packages/pi-sandbox build
-      - name: Verify packed Pi extensions load in isolation
-        run: node scripts/verify-pi-extension-artifact.mjs --no-build packages/pi-codex-conversion packages/pi-sandbox
+      - name: Verify the packed Pi Sandbox extension loads in isolation
+        run: node scripts/verify-pi-extension-artifact.mjs packages/pi-sandbox
       - name: Verify bundled Grok audio binaries
         run: node packages/pi-grok-realtime/scripts/plan-audio-binaries.mjs --check
       - name: Bootstrap aggregate package changesets
