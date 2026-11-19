@@ -22,7 +22,7 @@ export const GPT_ISOLATED_EXEC_GUIDANCE =
 
 export const VM_EXEC_DESCRIPTION = `Run JavaScript; source only, no JSON or fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
-let, const, function and class persist in this conversation, including across await
+Top-level let, const, function and class persist for the conversation, including across await. Declare temporary helpers and values with const or let inside { ... }
 Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, console, ALL_TOOLS
 content(value) emits MCP text/images in order
 No Node, imports, fetch or timers
@@ -30,7 +30,7 @@ A stall, cancellation, memory limit or terminate drops conversation bindings`;
 
 export const GPT_VM_EXEC_DESCRIPTION = `JavaScript tool composition; source ONLY, NO JSON/fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
-let/const/function/class persist in this conversation, including across await
+Top-level let/const/function/class persist for conversation incl await. Temporary helpers/values→{ ... } with const/let
 Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, console, ALL_TOOLS
 content(value)→emit MCP text/images in order
 NO Node/imports/fetch/timers
