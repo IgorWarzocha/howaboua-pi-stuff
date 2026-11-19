@@ -126,7 +126,7 @@ function withScriptErrorRecovery(
 		!/Identifier ['"][^'"]+['"] has already been declared/.test(errorText)
 	)
 		return errorText;
-	return `${errorText}\nRecovery: reuse the existing binding, choose a new name, or retry one-off code inside { ... }; restart only if the binding itself is unusable`;
+	return `${errorText}\nRecovery: choose a new name or retry one-off code inside { ... }. Reuse the existing binding only after checking its value is still correct`;
 }
 
 export function formatNotebookMemoryWarning(

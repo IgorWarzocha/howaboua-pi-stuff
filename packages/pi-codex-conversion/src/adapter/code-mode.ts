@@ -295,7 +295,7 @@ function createNestedTools(
 					customRendering: runtime.state.config.ui.toolRenaming,
 				}),
 				imageCapable
-					? 'tools.view_image({ path: string, detail?: "original" })'
+					? 'tools.view_image({ path: string, detail?: "original" }) // pass result to image()'
 					: "tools.view_image({ path: string })",
 				{},
 				{ ...(imageCapable ? { resultValue: codeModeImageResult } : {}) },

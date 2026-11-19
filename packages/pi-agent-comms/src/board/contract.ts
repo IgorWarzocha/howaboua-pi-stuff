@@ -119,7 +119,23 @@ const requiredFields: Partial<Record<BoardAction, string[]>> = {
 };
 const requestValidator = compile(Request);
 
+export function prepareBoardArguments(value: unknown): unknown {
+	if (
+		typeof value === "object" &&
+		value !== null &&
+		!Array.isArray(value) &&
+		"action" in value &&
+		value.action === "reply"
+	) {
+		if (!("thread_id" in value) || value.thread_id === undefined)
+			throw new Error("thread_id is required for a reply");
+		return { ...value, action: "post" };
+	}
+	return value;
+}
+
 export function parseBoardRequest(value: unknown): BoardParams {
+	value = prepareBoardArguments(value);
 	if (
 		value === undefined ||
 		(typeof value === "object" &&
@@ -149,7 +165,11 @@ export function parseBoardRequest(value: unknown): BoardParams {
 				id,
 			)
 		)
-			throw new Error(`${field} must be a UUID`);
+			throw new Error(
+				field === "thread_id"
+					? "thread_id must be a full UUID. Use list_threads on the same board and channel and copy thread_id."
+					: `${field} must be a UUID`,
+			);
 		if (id !== undefined) request[field] = id.toLowerCase();
 	}
 	if (
