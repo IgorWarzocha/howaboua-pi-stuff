@@ -30,7 +30,6 @@ export function registerSubdirContextAutoload(
 		>
 	>,
 ): void {
-	const explicitlyRead = new Set<string>();
 	let fingerprints = new Map<string, string>();
 	let currentCwd = "";
 	let cwdAgentsPath = "";
@@ -45,7 +44,6 @@ export function registerSubdirContextAutoload(
 	function restoreSession(ctx: ExtensionContext): void {
 		currentCwd = resolvePath(ctx.cwd, process.cwd());
 		cwdAgentsPath = path.join(currentCwd, "AGENTS.md");
-		explicitlyRead.clear();
 		fingerprints = collectBranchFingerprints(ctx, currentCwd, cwdAgentsPath);
 	}
 
@@ -131,10 +129,7 @@ export function registerSubdirContextAutoload(
 		for (const target of targets) {
 			const searchRoot = contentRootForTarget(target);
 			if (!searchRoot) continue;
-			if (path.basename(target) === "AGENTS.md") {
-				explicitlyRead.add(target);
-				continue;
-			}
+			if (path.basename(target) === "AGENTS.md") continue;
 			let probe = target;
 			try {
 				if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
@@ -173,7 +168,7 @@ export function registerSubdirContextAutoload(
 					content,
 					sha256,
 				});
-				if (!previous && !explicitlyRead.has(agentsPath)) loadedNow.push(rel);
+				if (!previous) loadedNow.push(rel);
 			} catch (error) {
 				if (error instanceof Error) failedFiles.push({ agentsPath, error });
 			}
@@ -203,6 +198,33 @@ export function registerSubdirContextAutoload(
 
 	pi.on("tool_result", async (event, ctx) => {
 		if (!currentCwd) restoreSession(ctx);
+
+		// A native read exposes its result directly. A Code trace does not
+		// prove the cell printed the file, and a partial read is not delivery.
+		if (!event.isError && event.toolName === "read") {
+			const [target] = targetsForEvent(event);
+			const [item] = event.content;
+			if (
+				target &&
+				target !== cwdAgentsPath &&
+				path.basename(target) === "AGENTS.md" &&
+				event.content.length === 1 &&
+				item?.type === "text"
+			) {
+				const content = await fs.promises
+					.readFile(target, "utf8")
+					.catch(() => undefined);
+				if (content !== undefined && content === item.text) {
+					const sha256 = fingerprint(content);
+					fingerprints.set(target, sha256);
+					return {
+						details: mergePersistedContextDetails(event.details, [
+							{ path: relativePath(target), sha256 },
+						]),
+					};
+				}
+			}
+		}
 
 		const discoveryEvents = codeModeDiscoveryEvents(event);
 		if (event.isError) discoveryEvents.shift();
