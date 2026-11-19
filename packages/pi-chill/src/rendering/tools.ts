@@ -138,11 +138,16 @@ export class ActivityRenderers {
 					}
 				})();
 				view.offShell = undefined;
-				if (this.isEnabled() && group.anchorId === call.id) {
-					container.addChild(
-						renderActivityHeading(group, theme, context.outputPad),
-					);
+				const enabled = this.isEnabled();
+				const heading =
+					enabled && group.anchorId === call.id
+						? renderActivityHeading(group, theme, context.outputPad)
+						: undefined;
+				if (member) {
+					if (heading) member.invalidateHeading = () => heading.invalidate();
+					else delete member.invalidateHeading;
 				}
+				if (heading) container.addChild(heading);
 				if (!this.isEnabled() || rawVisible(context)) {
 					// The wrapped renderer owns its own mutable state and cached components.
 					// Passing Chill's container back as lastComponent would corrupt reuse.

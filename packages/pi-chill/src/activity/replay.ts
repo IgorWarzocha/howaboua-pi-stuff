@@ -14,6 +14,8 @@ export function replayActivity(
 ): void {
 	let startedAt: number | undefined;
 	let endedAt = 0;
+	let inTurn = false;
+	let customKickoff: ActivityGroup | undefined;
 	for (const entry of entries) {
 		const time = Date.parse(entry.timestamp);
 		if (Number.isFinite(time)) endedAt = time;
@@ -21,25 +23,44 @@ export function replayActivity(
 			entry.type === "custom" &&
 			activityEntryTypes.some((type) => type === entry.customType)
 		) {
-			timeline.current ??= new ActivityGroup(startedAt ?? endedAt, true);
-			timeline.addEntry(entry);
+			if (inTurn)
+				timeline.current ??= new ActivityGroup(startedAt ?? endedAt, true);
+			timeline.addEntry(entry, true);
 			continue;
 		}
-		if (
-			entry.type === "custom_message" &&
-			entry.display &&
-			activityMessageTypes.some((type) => type === entry.customType)
-		) {
-			timeline.current ??= new ActivityGroup(startedAt ?? endedAt, true);
-			timeline.addMessage({ ...entry, timestamp: endedAt }, true, entry.id);
+		if (entry.type === "custom_message") {
+			customKickoff = undefined;
+			if (
+				entry.display &&
+				activityMessageTypes.some((type) => type === entry.customType)
+			) {
+				if (inTurn)
+					timeline.current ??= new ActivityGroup(startedAt ?? endedAt, true);
+				const group = timeline.addMessage(
+					{ ...entry, timestamp: endedAt },
+					true,
+					entry.id,
+				);
+				if (!inTurn) customKickoff = group;
+			}
 			continue;
 		}
 		if (entry.type !== "message") continue;
 		const message = entry.message;
 		if (message.role === "user") {
+			customKickoff = undefined;
 			timeline.userStarted();
+			inTurn = true;
 			startedAt = endedAt;
 		} else if (message.role === "assistant") {
+			// Delivery mode is not stored. Only the last custom message before a
+			// reply can stand in for an unrecorded kickoff, never older idle rows.
+			if (customKickoff) {
+				timeline.current = customKickoff;
+				timeline.start();
+				customKickoff = undefined;
+			}
+			inTurn = true;
 			timeline.assistantStarted();
 			timeline.assistantUpdated(message.content);
 			const tools = message.content.filter(
@@ -66,6 +87,7 @@ export function replayActivity(
 					message.stopReason === "stop" ? "completed" : "interrupted",
 				);
 				startedAt = undefined;
+				inTurn = false;
 			}
 		} else if (message.role === "toolResult") {
 			const member = timeline.calls.get(message.toolCallId);
@@ -80,6 +102,8 @@ export function replayActivity(
 					member.call.status === "error",
 				);
 			}
+		} else {
+			customKickoff = undefined;
 		}
 	}
 	timeline.finish(

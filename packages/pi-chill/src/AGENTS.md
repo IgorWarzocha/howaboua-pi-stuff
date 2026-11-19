@@ -1,8 +1,10 @@
 - Add folded notices to both activity/policy.ts opt-ins and rendering/notices.ts projection. Keep unknown content recoverable. Never infer success from unfamiliar envelopes.
+- Preserve current and persisted peer sender envelopes; pending extension messages retain their full reply payload and warning status. Notebook and TS startup failures both warn.
+- Compact off-mode PCC notices only for known persisted shapes; unfamiliar data remains recoverable without PCC installed.
 - Summary wording/density belongs in activity/current-stage.ts, headings in activity/group.ts. Distinguish running, completed, failed and blocked. Nested evidence may replace executor labels, never invent activity.
 - Fit current width, preserve renderer state and both expansion levels. Empty children cannot remove native parent spacers.
-- Standalone watch notices stay at their native positions, outside work groups. Saved notices do not identify whether delivery queued a continuation or started an idle run.
-- Keep notice text and heading components across frames. Group changes must refresh members; invalidate retained headings and folded native children even while detached.
+- Standalone watch and pre-run notices stay at their native positions, outside later work groups. Saved custom messages do not identify how delivery started or continued a run.
+- Progress invalidates only the anchor heading; Pi's tool invalidation rebuilds the native row. Preserve detached heading and tool caches on full invalidation.
 - Timeline changes cover live index.ts handlers, restore and compaction pruning. Only agent_settled completes runs. Repeated starts/queued input preserve duration and open state.
 - Anchors select rows, never move them. Assistant rows precede streamed text/tools. Retire only earlier rows after visible text arrives. Final answers may have no successor activity row, so settlement must retain disclosure at a surviving position.
 - Restore only the active branch. Never fabricate archived tool rows for rollover continuity.
