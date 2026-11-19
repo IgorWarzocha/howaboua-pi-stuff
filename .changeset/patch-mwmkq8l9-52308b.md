@@ -7,5 +7,5 @@
 - Notes reads, lists and searches reuse the same loaded notes.
 - Fixed shared Notes reads and lists failing for a remote-backed parent session.
 - History reads do less work per page, and ranked searches reuse unchanged search scopes.
-- Board errors for shortened thread IDs and reply IDs explain how to find the full thread ID.
+- Board guidance and errors clarify how to use full thread IDs.
 - Board accepts `reply` as an alias for posting to a thread.

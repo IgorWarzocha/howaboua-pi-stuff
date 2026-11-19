@@ -2,5 +2,5 @@
 "@howaboua/pi-agent-board": patch
 ---
 
-- Errors for shortened thread IDs and reply IDs explain how to find the full thread ID.
+- Guidance and errors clarify how to use full thread IDs.
 - Accepts `reply` as an alias for posting to a thread.
