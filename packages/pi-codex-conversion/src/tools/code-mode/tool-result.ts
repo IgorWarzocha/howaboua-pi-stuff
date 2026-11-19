@@ -2,6 +2,7 @@ import {
 	DEFAULT_CODE_MODE_OUTPUT_TOKENS,
 	MAX_CODE_MODE_OUTPUT_TOKENS,
 } from "./host-protocol.js";
+import { referenceEmittedTraceImages } from "./trace-images.js";
 import type {
 	NotebookMemoryUsage,
 	RuntimeContentItem,
@@ -70,7 +71,14 @@ export function toCodeModeToolResult(
 				? { opaqueDeliveryId: response.opaqueDeliveryId }
 				: {}),
 			statusPrefix: Boolean(status) || empty,
-			...(response.traces ? { traces: response.traces } : {}),
+			...(response.traces
+				? {
+						traces: referenceEmittedTraceImages(
+							response.traces,
+							content.filter((item) => item.type === "image"),
+						),
+					}
+				: {}),
 			...(response.droppedTraceCount
 				? { droppedTraceCount: response.droppedTraceCount }
 				: {}),

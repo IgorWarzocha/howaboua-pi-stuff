@@ -150,6 +150,8 @@ export interface RuntimeToolTrace {
 	/** Completed Pi nested-call identities; may stay empty until in-flight calls return. */
 	nativeCallIds?: string[] | undefined;
 	result?: RuntimeToolResult | undefined;
+	/** Positions of result images stored in the same Pi message's outer content. */
+	emittedImages?: { contentIndex: number; imageIndex: number }[] | undefined;
 	error?: string | undefined;
 }
 
