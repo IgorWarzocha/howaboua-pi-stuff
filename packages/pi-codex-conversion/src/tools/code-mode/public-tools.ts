@@ -99,11 +99,12 @@ export function registerPublicCodeModeTools(
 	let currentExec = exec;
 	registerGptPromptMode(pi, (active, context) => {
 		gpt = active;
-		const js = context !== undefined && runtime.executionKind(context) === "js";
-		const vm = context !== undefined && runtime.executionKind(context) === "vm";
-		const ts = context !== undefined && runtime.executionKind(context) === "ts";
-		const deno =
-			context !== undefined && runtime.executionKind(context) === "notebook";
+		const kind =
+			context === undefined ? "code" : runtime.executionKind(context);
+		const vm = kind === "vm";
+		const js = kind === "js";
+		const notebook = kind === "ts" || kind === "notebook";
+		const language = notebook ? "TypeScript" : "JavaScript";
 		const description = vm
 			? active
 				? GPT_VM_EXEC_DESCRIPTION
@@ -114,12 +115,12 @@ export function registerPublicCodeModeTools(
 					: JS_EXEC_DESCRIPTION
 				: (active ? GPT_EXEC_DESCRIPTION : EXEC_DESCRIPTION).replace(
 						"JavaScript",
-						ts ? "TypeScript" : "JavaScript",
+						language,
 					) +
-					(ts || deno
+					(notebook
 						? `\n${active ? GPT_ISOLATED_EXEC_GUIDANCE : ISOLATED_EXEC_GUIDANCE}`
 						: "");
-		const executionMode = ts || js || deno ? "parallel" : "sequential";
+		const executionMode = notebook || js ? "parallel" : "sequential";
 		if (
 			currentExec.description !== description ||
 			currentExec.executionMode !== executionMode
@@ -130,7 +131,7 @@ export function registerPublicCodeModeTools(
 				...exec,
 				description,
 				executionMode,
-				promptSnippet: `Compose tools with ${ts ? "TypeScript" : "JavaScript"}`,
+				promptSnippet: `Run ${language} cells`,
 			};
 			pi.registerTool(currentExec);
 		}
@@ -153,7 +154,7 @@ function createExecTool(
 		executionMode: "sequential",
 		label: "Exec",
 		description: EXEC_DESCRIPTION,
-		promptSnippet: "Compose tools with JavaScript",
+		promptSnippet: "Run JavaScript cells",
 		parameters: EXEC_PARAMETERS,
 		constrainedSampling: CODE_MODE_EXEC_CONSTRAINED_SAMPLING,
 		prepareLoadout: (loadout) => runtime.prepareLoadout(loadout),
