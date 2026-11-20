@@ -40,14 +40,14 @@ export function renderActivityHeading(
 	outputPad = 1,
 ): Component {
 	const container = new (class extends Container {
-		private cached: { width: number; lines: string[] } | undefined;
+		private cached: { width: number; lines: readonly string[] } | undefined;
 
 		override invalidate(): void {
 			this.cached = undefined;
 			super.invalidate();
 		}
 
-		override render(width: number): string[] {
+		override render(width: number): readonly string[] {
 			if (this.cached?.width !== width) {
 				this.cached = { width, lines: super.render(width) };
 			}

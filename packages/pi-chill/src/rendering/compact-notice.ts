@@ -146,7 +146,7 @@ export function createCompactNoticeRenderer() {
 		let pad = 0;
 		let open: boolean | undefined;
 		const box = new (class extends Box {
-			override render(width: number): string[] {
+			override render(width: number): readonly string[] {
 				if (width < 1) return [];
 				const nextPad = Math.min(outputPad, Math.floor((width - 1) / 2));
 				if (pad !== nextPad) this.setPaddingX((pad = nextPad));

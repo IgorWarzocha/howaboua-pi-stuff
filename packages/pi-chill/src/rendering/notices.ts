@@ -197,7 +197,7 @@ export function activityMessageRenderer(
 				super.invalidate();
 			}
 
-			override render(width: number): string[] {
+			override render(width: number): readonly string[] {
 				this.clear();
 				if (!isEnabled()) {
 					if (
@@ -285,7 +285,7 @@ export function activityEntryRenderer(
 				super.invalidate();
 			}
 
-			override render(width: number): string[] {
+			override render(width: number): readonly string[] {
 				this.clear();
 				if (!isEnabled()) {
 					compactTitle ??= compactEntryTitle(entry.customType, data) ?? null;

@@ -161,10 +161,15 @@ function renderCollapsedOutput(
 	context: ExecCommandRenderContextLike | undefined,
 ) {
 	let cached:
-		| { width: number; lines: string[]; skipped: number; rawTruncated: boolean }
+		| {
+				width: number;
+				lines: readonly string[];
+				skipped: number;
+				rawTruncated: boolean;
+		  }
 		| undefined;
 	return {
-		render(width: number): string[] {
+		render(width: number): readonly string[] {
 			if (!cached || cached.width !== width) {
 				const output = collapsedOutput(result, theme);
 				const preview = output.text

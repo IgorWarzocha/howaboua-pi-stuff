@@ -131,11 +131,11 @@
     "@earendil-works/pi-tui": ">=1.0.0"
   },
   "devDependencies": {
-    "@earendil-works/pi-agent-core": "1.5.2",
-    "@earendil-works/pi-ai": "1.5.2",
-    "@earendil-works/pi-coding-agent": "1.5.2",
-    "@earendil-works/pi-codemode": "1.5.2",
-    "@earendil-works/pi-tui": "1.5.2",
+    "@earendil-works/pi-agent-core": "1.6.0",
+    "@earendil-works/pi-ai": "1.6.0",
+    "@earendil-works/pi-coding-agent": "1.6.0",
+    "@earendil-works/pi-codemode": "1.6.0",
+    "@earendil-works/pi-tui": "1.6.0",
     "@types/node": "26.6.6",
     "@types/ws": "^8.18.2",
     "quickjs-wasi": "3.6.2",
@@ -144,7 +144,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "@earendil-works/pi-schema": "1.5.2",
+    "@earendil-works/pi-schema": "1.6.0",
     "@howaboua/pi-browser": "^0.0.13",
     "acorn": "8.15.0",
     "openai": "7.55.0",

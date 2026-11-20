@@ -157,7 +157,7 @@ function formatFooter(activeTab: SettingsTab): string {
 	return "  Tab/Shift+Tab to switch sections · Esc to close";
 }
 
-function withSettingsFooter(lines: string[], theme: Theme): string[] {
+function withSettingsFooter(lines: readonly string[], theme: Theme): string[] {
 	const next = [...lines];
 	for (let index = next.length - 1; index >= 0; index -= 1) {
 		if (next[index]?.includes("Enter/Space")) {
@@ -172,7 +172,7 @@ function withSettingsFooter(lines: string[], theme: Theme): string[] {
 }
 
 function withConfigScopeDetails(
-	lines: string[],
+	lines: readonly string[],
 	theme: Theme,
 	scope: CodexConversionConfigScope,
 ): string[] {
@@ -188,7 +188,7 @@ function withConfigScopeDetails(
 }
 
 function withContextPortabilityWarning(
-	lines: string[],
+	lines: readonly string[],
 	theme: Theme,
 	width: number,
 ): string[] {
@@ -215,7 +215,10 @@ function formatToolsDetails(theme: Theme, configPath: string): string[] {
 	];
 }
 
-function withSettingsDetails(lines: string[], details: string[]): string[] {
+function withSettingsDetails(
+	lines: readonly string[],
+	details: string[],
+): string[] {
 	const next = [...lines];
 	const footerIndex = next.findIndex((line) => line.includes("Enter/Space"));
 	next.splice(footerIndex < 0 ? next.length : footerIndex, 0, ...details, "");
