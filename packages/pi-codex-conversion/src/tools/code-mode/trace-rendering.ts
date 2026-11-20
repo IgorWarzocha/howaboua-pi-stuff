@@ -31,8 +31,9 @@ export function renderTraceAndOutput(
 	traces: RuntimeToolTrace[],
 	droppedTraceCount: number,
 	tools: CodeModeToolDefinition[],
-	output: Component,
-	hasOutput: boolean,
+	renderOutput: (
+		visibleTraceText: ReadonlySet<string>,
+	) => Component | undefined,
 	options: { expanded: boolean; isPartial: boolean },
 	theme: CodeModeRenderTheme,
 	context: CodeModeRenderContext | undefined,
@@ -40,7 +41,9 @@ export function renderTraceAndOutput(
 	renderStore: CodeModeNestedRenderStore,
 	traceStates: Map<string, NestedRenderState>,
 ): Component {
-	if (traces.length === 0 && droppedTraceCount === 0) return output;
+	const visibleTraceText = new Set<string>();
+	if (traces.length === 0 && droppedTraceCount === 0)
+		return renderOutput(visibleTraceText) ?? new Container();
 	const byName = new Map(tools.map((tool) => [tool.name, tool]));
 	const container = new Container();
 	const match = matchEmittedImages(images);
@@ -67,10 +70,12 @@ export function renderTraceAndOutput(
 			match,
 			renderStore,
 			traceStates,
+			visibleTraceText,
 		);
 		for (const component of rendered) container.addChild(component);
 	}
-	if (hasOutput) {
+	const output = renderOutput(visibleTraceText);
+	if (output) {
 		container.addChild(new Spacer(1));
 		container.addChild(output);
 	}
@@ -87,6 +92,7 @@ function renderTrace(
 	match: ReturnType<typeof matchEmittedImages>,
 	renderStore: CodeModeNestedRenderStore,
 	traceStates: Map<string, NestedRenderState>,
+	visibleTraceText: Set<string>,
 ): Component[] {
 	const programmatic = isProgrammaticTool(tool) ? tool : undefined;
 	const captured = renderStore.get(trace.id);
@@ -158,9 +164,28 @@ function renderTrace(
 		if (!customResultRendered)
 			components.push(new Text(theme.fg("error", trace.error), 4, 0));
 	} else if (rendererResult && !customResultRendered) {
+		const text = traceResultText(rendererResult);
+		// Custom renderers can omit or transform text; only the full generic
+		// renderer proves which bytes are visible.
+		if (
+			options.expanded &&
+			!options.isPartial &&
+			trace.status === "done" &&
+			text
+		) {
+			visibleTraceText.add(text);
+			if (trace.name === "exec_command" || trace.name === "write_stdin") {
+				const plainSuccess = "Exit code: 0\nOutput:\n";
+				if (text.startsWith(plainSuccess))
+					visibleTraceText.add(
+						'{"exit_code":0}\nOutput:\n' + text.slice(plainSuccess.length),
+					);
+			}
+		}
 		components.push(
 			renderGenericTraceResult(
 				rendererResult,
+				text,
 				theme,
 				options.expanded || options.isPartial,
 				context,
@@ -217,19 +242,21 @@ function renderGenericTraceCall(
 	return new Text(text, 0, 0);
 }
 
+function traceResultText(result: RuntimeToolResult): string {
+	return result.content
+		.filter((item) => item.type === "text")
+		.map((item) => item.text)
+		.join("\n");
+}
+
 function renderGenericTraceResult(
 	result: RuntimeToolResult,
+	text: string,
 	theme: CodeModeRenderTheme,
 	full: boolean,
 	context: CodeModeRenderContext | undefined,
 	renderState: NestedRenderState,
 ): Component {
-	const text = result.content
-		.filter(
-			(item): item is { type: "text"; text: string } => item.type === "text",
-		)
-		.map((item) => item.text)
-		.join("\n");
 	const images =
 		context?.showImages === false
 			? []

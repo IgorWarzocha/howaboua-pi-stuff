@@ -11,6 +11,7 @@
 - Code image viewing and binding-conflict errors now give clearer recovery guidance.
 - Code and Notebook guidance clarifies binding reuse, patch syntax, rollback limits and restorable hook dependencies.
 - Code and Notebook no longer save a second copy of images already included in the tool result.
+- Expanded Code and Notebook cells show repeated tool output once without changing what the agent receives.
 - QuickJS Code uses Pi's bundled runtime and no longer downloads its own.
 - VM Code reports the actual syntax error when a cell with top-level `await` is malformed.
 - VM Code guidance puts temporary helpers and values in block scope to avoid redeclaration errors.

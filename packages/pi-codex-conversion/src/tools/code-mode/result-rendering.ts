@@ -110,10 +110,9 @@ function renderCodeModeResult(
 		content[0].text === notebookMemoryText
 			? content.slice(1)
 			: content;
-	const text = renderedContent
+	const textBlocks = renderedContent
 		.filter((item) => item.type === "text" && typeof item.text === "string")
-		.map((item) => item.text)
-		.join("\n");
+		.map((item) => item.text ?? "");
 	const scriptErrorRenderedByTrace = Boolean(
 		details.scriptError &&
 		details.traces?.some(
@@ -122,13 +121,11 @@ function renderCodeModeResult(
 		),
 	);
 	const status = scriptErrorRenderedByTrace ? "" : statusText(details);
-	const outputText = [text, status].filter(Boolean).join("\n");
 	const tone = context?.isError
 		? "error"
 		: details.status === "yielded"
 			? "accent"
 			: "dim";
-	const renderedText = outputText ? theme.fg(tone, outputText) : "";
 	const images = renderedContent.filter(
 		(item): item is RenderedToolContent & { data: string; mimeType: string } =>
 			item.type === "image" &&
@@ -146,9 +143,15 @@ function renderCodeModeResult(
 		!context?.isError &&
 		!details.scriptError &&
 		!details.notification;
-	const displayText = !showOutput
-		? ""
-		: hidePreview
+	const renderOutput = (visibleTraceText: ReadonlySet<string>) => {
+		if (!showOutput) return undefined;
+		const text = textBlocks
+			.filter((block) => !visibleTraceText.has(block))
+			.join("\n");
+		const outputText = [text, status].filter(Boolean).join("\n");
+		if (!outputText) return undefined;
+		const renderedText = theme.fg(tone, outputText);
+		const displayText = hidePreview
 			? [
 					previewText(text ? theme.fg(tone, text) : "", theme, true, context),
 					status ? theme.fg(tone, status) : "",
@@ -158,15 +161,13 @@ function renderCodeModeResult(
 			: options.expanded || options.isPartial
 				? renderedText
 				: previewText(renderedText, theme, false, context);
-	const output = showOutput
-		? renderTextAndImages(displayText, [], theme)
-		: new Container();
+		return renderTextAndImages(displayText, [], theme);
+	};
 	const body = renderTraceAndOutput(
 		details.traces ?? [],
 		details.droppedTraceCount ?? 0,
 		tools,
-		output,
-		showOutput && Boolean(renderedText),
+		renderOutput,
 		options,
 		theme,
 		context,
@@ -194,7 +195,7 @@ function renderCodeModeResult(
 	if (
 		details.traces?.length ||
 		details.droppedTraceCount ||
-		renderedText ||
+		(showOutput && (textBlocks.some(Boolean) || status)) ||
 		images.length
 	) {
 		container.addChild(new Spacer(1));
