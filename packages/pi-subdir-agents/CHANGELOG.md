@@ -1,5 +1,10 @@
 # @howaboua/pi-subdir-agents
 
+## 0.0.10
+
+- Updates use Pi's native changelog notices and `collapseChangelog` instead of custom suppression.
+- Nested AGENTS.md guidance is saved once per delivery without duplicating its text in session metadata.
+
 ## 0.0.9
 
 - Expanded AGENTS.md notices now use the same muted theme colour as their summaries.

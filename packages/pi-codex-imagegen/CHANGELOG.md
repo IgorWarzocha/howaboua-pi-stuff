@@ -1,5 +1,10 @@
 # @howaboua/pi-codex-imagegen
 
+## 0.0.16
+
+- Displaying generated images inline no longer rereads the saved files.
+- Image help shows the current access mode's arguments once, including how to select an edit target.
+
 ## 0.0.15
 
 - Generated images now display once in ordinary and nested tool results.

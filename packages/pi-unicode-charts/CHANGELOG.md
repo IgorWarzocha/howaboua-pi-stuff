@@ -1,5 +1,9 @@
 # @howaboua/pi-unicode-charts
 
+## 0.1.5
+
+- Shortened chart-format guidance in both prompt modes.
+
 ## 0.1.4
 
 - Requires Pi 1.5 or newer.

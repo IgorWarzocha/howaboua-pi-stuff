@@ -1,5 +1,9 @@
 # @howaboua/pi-pet
 
+## 0.1.10
+
+- The pet authoring guide clarifies reference-image requirements and when generation jobs are complete.
+
 ## 0.1.9
 
 - The animated pet canvas now exposes its accessible name to screen readers.

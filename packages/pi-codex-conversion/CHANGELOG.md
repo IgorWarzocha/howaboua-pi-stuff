@@ -1,5 +1,21 @@
 # Changelog
 
+## 5.0.2
+
+- Added GPT Live 1.1 voice with an OpenAI API key. Codex login remains the default.
+- Active voice calls carry their summary and spoken conversation across compaction and Notes rollovers. Refresh waits for playback to finish, or keeps the current call open if playback does not settle.
+- Codex Responses Lite preserves more screenshot detail, up to Codex's 6,000-pixel and 10,000-patch limits.
+- Reduced memory use when preparing image-heavy Codex requests and continuing WebSocket sessions.
+- Codex honours `Retry-After` in streamed errors and `Retry-After-Ms` in HTTP and streamed errors.
+- Codex omits reasoning effort when the model declares the requested level unsupported.
+- Auto Reasoning guidance maps effort levels to the work ahead and recommends changing effort by work phase rather than by tool call.
+- QuickJS Code uses Pi's bundled runtime instead of downloading another copy.
+- VM Code reports the actual syntax error in malformed cells with top-level `await`. Its guidance explains how to scope temporary variables to avoid redeclaration errors.
+- TS mode accepts empty-object help calls, matching other Code and Notebook modes.
+- Code and Notebook guidance covers in-cell data processing, binding reuse, patch syntax, rollback limits and restorable hook dependencies. Image and binding errors explain how to recover.
+- Code and Notebook no longer save a second copy of images already included in the tool result. Expanded cells omit text already shown in a nested tool trace.
+- Notes checkpoints no longer repeat an unchanged tool list.
+
 ## 5.0.1
 
 - Added VM Code with conversation-local bindings, top-level `await`, bounded memory and hard cancellation.

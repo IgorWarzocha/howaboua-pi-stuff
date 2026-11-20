@@ -1,6 +1,6 @@
 {
   "name": "@howaboua/pi-unicode-charts",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Terminal-native Unicode charts for Pi Markdown",
   "type": "module",
   "main": "src/index.ts",
@@ -56,13 +56,13 @@
     "@earendil-works/pi-coding-agent": "1.6.0",
     "@types/node": "^26.6.6",
     "typescript": "^7.0.2",
-    "@howaboua/pi-codex-conversion": "5.0.1",
+    "@howaboua/pi-codex-conversion": "5.0.2",
     "oxfmt": "^0.78.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=1.5.0",
     "@earendil-works/pi-tui": ">=1.0.0",
-    "@howaboua/pi-codex-conversion": ">=5.0.1"
+    "@howaboua/pi-codex-conversion": ">=5.0.2"
   },
   "peerDependenciesMeta": {
     "@howaboua/pi-codex-conversion": {

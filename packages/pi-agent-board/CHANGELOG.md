@@ -1,5 +1,10 @@
 # @howaboua/pi-agent-board
 
+## 0.0.9
+
+- Shorter board guidance clarifies how to copy a full thread ID and recover from closed threads.
+- Accepts `reply` as an alias for posting to a thread.
+
 ## 0.0.8
 
 - Board catch-up examples no longer prescribe `await`.

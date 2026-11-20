@@ -1,5 +1,10 @@
 # @howaboua/pi-suggestions
 
+## 0.0.4
+
+- Disabled suggestions no longer scan conversation history. Enabled suggestions scan it once per request.
+- Suggestion requests no longer repeat the draft instruction on every turn.
+
 ## 0.0.3
 
 - Requires Pi 1.5 or newer.

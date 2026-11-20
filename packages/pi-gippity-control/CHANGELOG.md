@@ -1,5 +1,10 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.33
+
+- Added GPT Live 1.1 voice with an OpenAI API key. Codex login remains the default.
+- Streamlined voice routing, progress and task preparation instructions. Existing custom voice prompts are preserved.
+
 ## 0.0.32
 
 - Voice task acknowledgements now omit unused task IDs.

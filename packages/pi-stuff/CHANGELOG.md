@@ -1,5 +1,21 @@
 # @howaboua/pi-stuff
 
+## 0.0.117
+
+**Bundle removals**
+
+- Grok Realtime and Pet are no longer bundled. Install either separately with `pi install npm:@howaboua/pi-grok-realtime` or `pi install npm:@howaboua/pi-pet`.
+- Removed the retired Auto Trees, Smart BTW and Subagent Review extensions.
+
+**Bundled updates**
+
+- GipPity Control adds optional GPT Live 1.1 voice with an OpenAI API key.
+- GitHub Watch shows known review-bot quota notices without waking the agent.
+- Better Skills Tool fixes empty-object discovery and avoids opening unrelated skill files.
+- Shepherdr fixes stale attachments blocking unrelated Notes and History lookups.
+- Suggestions skips history scans when disabled and scans once per request when enabled.
+- Ask and Unicode Charts have shorter agent guidance.
+
 ## 0.0.116
 
 - Include bundled package updates:
