@@ -24,7 +24,17 @@ const commentProperties = {
 	updatedAt: str(),
 	viewerDidAuthor: bool(),
 };
-const comment = obj(commentProperties, { open: true });
+const comment = obj(
+	{
+		...commentProperties,
+		body: str(),
+		author: union([
+			obj({ __typename: str(), login: str() }, { open: true }),
+			nul(),
+		]),
+	},
+	{ open: true },
+);
 const reviewComment = obj(
 	{
 		...commentProperties,
@@ -74,6 +84,7 @@ const reviewCommentFields = `${commentFields} url state`;
 
 export interface ThreadSnapshot {
 	conversation: Map<string, string>;
+	userNotices: Map<string, string>;
 	unresolved: Map<
 		string,
 		{
@@ -81,6 +92,15 @@ export interface ThreadSnapshot {
 			url: string;
 		}
 	>;
+}
+
+function isCodexCreditNotice(item: Static<typeof comment>): boolean {
+	return (
+		item.author?.__typename === "Bot" &&
+		item.author.login === "chatgpt-codex-connector" &&
+		item.body.trim().replace(/\s+/g, " ") ===
+			"Codex usage limits have been reached for code reviews. Please check with the admins of this repo to increase the limits by adding credits. Credits must be used to enable repository wide code reviews."
+	);
 }
 
 export async function threadSnapshot(
@@ -140,19 +160,24 @@ export async function threadSnapshot(
 	const path = `.data.repository.${thread.kind === "pr" ? "pullRequest" : "issue"}`;
 	const snapshot: ThreadSnapshot = {
 		conversation: new Map(),
+		userNotices: new Map(),
 		unresolved: new Map(),
 	};
 	for await (const nodes of pages(
 		connection(
-			`comments(first:100,after:$cursor) { nodes { ${commentFields} } ${paging} }`,
+			`comments(first:100,after:$cursor) { nodes { ${commentFields} body author { __typename login } } ${paging} }`,
 		),
 		`${path}.comments`,
 		variables,
 		commentPage,
 	)) {
-		for (const item of nodes)
-			if (!item.viewerDidAuthor)
-				snapshot.conversation.set(item.id, item.updatedAt);
+		for (const item of nodes) {
+			if (item.viewerDidAuthor) continue;
+			const audience = isCodexCreditNotice(item)
+				? snapshot.userNotices
+				: snapshot.conversation;
+			audience.set(item.id, item.updatedAt);
+		}
 	}
 	if (thread.kind === "issue") return snapshot;
 	for await (const nodes of pages(

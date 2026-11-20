@@ -106,6 +106,15 @@ export default async function (pi: ExtensionAPI) {
 				const conversationChanges = [...seen.conversation].filter(
 					([id, version]) => watch.seen.conversation.get(id) !== version,
 				).length;
+				if (
+					[...seen.userNotices].some(
+						([id, version]) => watch.seen.userNotices.get(id) !== version,
+					)
+				)
+					ctx.ui.notify(
+						`Codex review reached its credit limit: ${watch.thread.url}`,
+						"warning",
+					);
 				const reviewChanged = [...seen.unresolved].some(
 					([id, item]) =>
 						watch.seen.unresolved.get(id)?.version !== item.version,
@@ -205,6 +214,7 @@ export default async function (pi: ExtensionAPI) {
 				return result(`${thread.url}: already watching. ${AUTOMATIC_UPDATES}`);
 			let seen: ThreadSnapshot = {
 				conversation: new Map(),
+				userNotices: new Map(),
 				unresolved: new Map(),
 			};
 			const runSnapshot =
@@ -234,6 +244,7 @@ export default async function (pi: ExtensionAPI) {
 				// Baseline conversation history, but surface existing unresolved threads on the first check.
 				seen: previous?.seen ?? {
 					conversation: seen.conversation,
+					userNotices: seen.userNotices,
 					unresolved: new Map(),
 				},
 				controller: new AbortController(),
