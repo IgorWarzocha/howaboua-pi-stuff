@@ -2,6 +2,10 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
+- Use GPT Live 1.1 for voice with an OpenAI API key instead of a Codex login.
+- Keep the active voice call's previous summary and spoken conversation when refreshing after compaction or a Notes window rollover.
+- Wait for voice playback to settle before switching to refreshed context.
+- Stop repeating the unchanged tool list after a Notes window checkpoint.
 - Fixed TS mode rejecting empty-object help calls accepted by Code and Notebook.
 - Code image viewing and binding-conflict errors now give clearer recovery guidance.
 - Code and Notebook guidance clarifies binding reuse, patch syntax, rollback limits and restorable hook dependencies.

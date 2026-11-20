@@ -1,3 +1,5 @@
+import { GIPPITY_VOICE_MODEL_OPTIONS } from "../../adapter/activation/config-contract.ts";
+
 export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
 (() => {
   const panel = document.querySelector('#voice-settings');
@@ -5,7 +7,8 @@ export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
   const fields = document.querySelector('#settings-fields');
   const status = document.querySelector('#settings-status');
   const reload = document.querySelector('#reload-settings');
-  const switches = ['autoResumeRealtime', 'refreshRealtimeAfterCompaction', 'delegationAcknowledgements', 'forwardReasoningSummaries'];
+  const switches = ['autoResumeRealtime', 'refreshRealtimeAfterCompaction', 'forwardReasoningSummaries'];
+  const voiceModels = ${JSON.stringify(GIPPITY_VOICE_MODEL_OPTIONS)};
   let loaded = false;
   let busy = false;
   const request = async (options) => {
@@ -25,18 +28,18 @@ export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
     select.value = current;
   };
   const updateProvider = () => {
-    const apiModel = form.elements.namedItem('model').value !== 'codex-live-1.1';
+    const kind = voiceModels[form.elements.namedItem('model').value].kind;
+    const apiModel = kind !== 'codex';
     for (const element of form.querySelectorAll('[data-codex-voice]')) element.hidden = apiModel;
-    for (const element of form.querySelectorAll('[data-realtime-voice]')) element.hidden = !apiModel;
+    for (const element of form.querySelectorAll('[data-api-voice]')) element.hidden = !apiModel;
+    for (const element of form.querySelectorAll('[data-realtime-voice]')) element.hidden = kind !== 'realtime';
     document.querySelector('#setting-model-requirement').textContent = apiModel
       ? 'Uses the named Pi provider\'s API key and endpoint. API usage is billed separately; a ChatGPT login is not an API key.'
       : 'Uses your OpenAI Codex login in Pi.';
   };
   form.elements.namedItem('model').addEventListener('change', updateProvider);
   const display = (data) => {
-    const modelLabel = (model) => model === 'realtime-2.1' ? 'GPT-Realtime-2.1 (API)'
-      : model === 'realtime-2.1-mini' ? 'GPT-Realtime-2.1 Mini (API)' : 'Codex Live (OAuth)';
-    fillSelect('model', data.voiceModels.map((model) => ({value:model, label:modelLabel(model)})), data.config.model);
+    fillSelect('model', data.voiceModels.map((model) => ({value:model, label:voiceModels[model].label})), data.config.model);
     form.elements.namedItem('apiProvider').value = data.config.apiProvider;
     fillSelect('realtimeVoice', data.realtimeVoices.map((voice) => ({value:voice, label:voice})), data.config.realtimeVoice);
     fillSelect('realtimeAlternateVoice', data.realtimeVoices.map((voice) => ({value:voice, label:voice})), data.config.realtimeAlternateVoice);
@@ -50,13 +53,14 @@ export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
     const modelValue = (model) => JSON.stringify(model);
     const models = data.contextModels.slice();
     const current = data.config.contextModel;
-    if (current && !models.some((model) => modelValue(model) === modelValue(current))) models.push(current);
-    fillSelect('contextModel', [{value:'null', label:'Off'}, ...models.map((model) => ({
+    if (current && current !== 'current' && !models.some((model) => modelValue(model) === modelValue(current))) models.push(current);
+    fillSelect('contextModel', [{value:'null', label:'Off'}, {value:modelValue('current'), label:'Default'}, ...models.map((model) => ({
       value:modelValue(model), label:model.provider + '/' + model.modelId,
     }))], modelValue(current));
     fillSelect('contextReasoning', data.contextReasoningLevels.map((level) => ({value:level, label:level})), data.config.contextReasoning);
     document.querySelector('#setting-task-delegation-model').textContent = data.config.taskDelegationModel;
     fillSelect('taskDelegationReasoning', data.contextReasoningLevels.map((level) => ({value:level, label:level})), data.config.taskDelegationReasoning);
+    form.elements.namedItem('delegationAcknowledgements').checked = data.config.delegationAcknowledgements;
     for (const key of switches) form.elements.namedItem(key).checked = data.config[key];
     document.querySelector('#settings-scope').textContent = 'Save location: ' + data.scope;
     loaded = true;
@@ -88,7 +92,9 @@ export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
       contextModel:JSON.parse(form.elements.namedItem('contextModel').value),
       contextReasoning:form.elements.namedItem('contextReasoning').value,
     };
-    if (patch.model === 'codex-live-1.1') {
+    const kind = voiceModels[patch.model].kind;
+    if (kind === 'codex') {
+      patch.delegationAcknowledgements = form.elements.namedItem('delegationAcknowledgements').checked;
       patch.taskDelegationReasoning = form.elements.namedItem('taskDelegationReasoning').value;
       patch.v3Voice = form.elements.namedItem('v3Voice').value;
       patch.v3AlternateVoice = form.elements.namedItem('v3AlternateVoice').value;
@@ -96,7 +102,7 @@ export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
       patch.realtimeVoice = form.elements.namedItem('realtimeVoice').value;
       patch.realtimeAlternateVoice = form.elements.namedItem('realtimeAlternateVoice').value;
       patch.apiProvider = form.elements.namedItem('apiProvider').value;
-      patch.webSearch = form.elements.namedItem('webSearch').checked;
+      if (kind === 'realtime') patch.webSearch = form.elements.namedItem('webSearch').checked;
     }
     for (const key of switches) patch[key] = form.elements.namedItem(key).checked;
     setBusy(true);

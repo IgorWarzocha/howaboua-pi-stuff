@@ -75,14 +75,29 @@ export async function startControllerConversation(options: {
 			onUserTranscript: options.lifecycle.onUserTranscript,
 			onTranscriptTail: options.lifecycle.onTranscriptTail,
 			onAudioDiagnostics: options.lifecycle.onAudioDiagnostics,
-			rewriteDelegation: (turn, signal) =>
-				rewriteTaskDelegation(options.ctx, options.config.voice, turn, signal),
+			rewriteDelegation: (turn, signal) => {
+				const model = options.ctx.model;
+				if (options.config.voice.model === "api-live-1.1" && !model)
+					throw new Error("Select a Pi model before delegating voice work.");
+				const voice =
+					options.config.voice.model === "api-live-1.1" && model
+						? {
+								...options.config.voice,
+								taskDelegationModel: `${model.provider}/${model.id}`,
+							}
+						: options.config.voice;
+				return rewriteTaskDelegation(options.ctx, voice, turn, signal);
+			},
 			onDelegationError: (error) =>
 				options.ctx.ui.notify(error.message, "error"),
 			onEvent: options.lifecycle.onEvent,
 		},
 		realtimePeer,
-		options.config.voice.model !== "codex-live-1.1",
+		options.config.voice.model === "api-live-1.1"
+			? "api-live"
+			: options.config.voice.model === "codex-live-1.1"
+				? "codex"
+				: "realtime",
 	);
 	options.lifecycle.onCreated(session);
 	if (options.signal?.aborted) {

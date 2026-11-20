@@ -3,7 +3,9 @@ import type { GippityControlConfig } from "../../config.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
 import {
+	buildApiLiveCallRequest,
 	buildRealtimeCallRequest,
+	parseApiLiveAnswer,
 	type RealtimeCallSetup,
 	setupRealtimeCall,
 } from "./call-setup.ts";
@@ -60,15 +62,20 @@ export class ConversationSetup {
 		const sdp = await this.peer.start(config);
 		if (!this.isStarting()) return;
 		const headers = new Headers(auth.headers);
-		const publicRealtime = config.voice.model !== "codex-live-1.1";
+		const apiLive = config.voice.model === "api-live-1.1";
+		const publicRealtime = config.voice.model !== "codex-live-1.1" && !apiLive;
 		if (!publicRealtime) {
-			headers.set("openai-alpha", "quicksilver=v2");
+			headers.delete("openai-alpha");
+			if (!apiLive) headers.set("openai-alpha", "quicksilver=v2");
 			headers.set("content-type", "application/json");
 		} else {
 			headers.delete("content-type");
 			headers.delete("openai-alpha");
 		}
-		const endpoint = `${auth.baseUrl.replace(/\/+$/, "")}/realtime/calls${publicRealtime ? "" : "?intent=quicksilver&architecture=avas"}`;
+		const baseUrl = auth.baseUrl.replace(/\/+$/, "");
+		const endpoint = apiLive
+			? `${baseUrl}/live/sessions`
+			: `${baseUrl}/realtime/calls${publicRealtime ? "" : "?intent=quicksilver&architecture=avas"}`;
 		const setupAbortController = new AbortController();
 		this.setupAbortController = setupAbortController;
 		let requestBody: string | FormData;
@@ -104,7 +111,16 @@ export class ConversationSetup {
 				}),
 			);
 			requestBody = form;
-		} else
+		} else if (apiLive)
+			requestBody = JSON.stringify(
+				buildApiLiveCallRequest(
+					sdp,
+					config.voice.realtimeVoice,
+					instructions,
+					initialItems,
+				),
+			);
+		else
 			requestBody = JSON.stringify(
 				buildRealtimeCallRequest(sdp, config, instructions, initialItems),
 			);
@@ -129,9 +145,9 @@ export class ConversationSetup {
 			throw new Error(
 				"Voice access was denied (HTTP 403). Check account access and any network or browser challenge.",
 			);
-		if (status !== 201 && publicRealtime)
+		if (status !== 201 && (publicRealtime || apiLive))
 			throw new Error(
-				`Realtime call failed (HTTP ${status}). Check the OpenAI API key, model access and billing, then start voice again.`,
+				`${apiLive ? "GPT Live" : "Realtime"} call failed (HTTP ${status}). Check the OpenAI API key, model access and billing, then start voice again.`,
 			);
 		if (status !== 201)
 			throw new Error(
@@ -141,14 +157,14 @@ export class ConversationSetup {
 		const peerReady = Promise.withResolvers<void>();
 		this.peerReady = peerReady;
 		this.onStatus("connecting…");
-		this.peer.applyAnswer(answer);
+		this.peer.applyAnswer(apiLive ? parseApiLiveAnswer(answer) : answer);
 		let timeout: ReturnType<typeof setTimeout> | undefined;
 		try {
 			await Promise.race([
 				peerReady.promise,
 				new Promise<void>((_resolve, reject) => {
 					timeout = setTimeout(
-						() => reject(new Error("Codex voice peer did not become ready")),
+						() => reject(new Error("Voice connection did not become ready")),
 						PEER_READY_TIMEOUT_MS,
 					);
 				}),

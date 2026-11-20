@@ -188,8 +188,20 @@ export class CodexVoiceController {
 
 	resetSessionContext(): void {
 		this.contextRefresh.cancel();
+		this.runtime.voiceCallContext = undefined;
 		this.presentation.resetPrompts();
 		this.messages.resetSessionContext();
+	}
+	resetVoiceBranch(ctx: ExtensionContext): void {
+		if (
+			this.runtime.voiceCallContext?.sessionId !==
+			ctx.sessionManager.getSessionId()
+		)
+			return;
+		this.runtime.voiceCallContext = {
+			sessionId: ctx.sessionManager.getSessionId(),
+			through: ctx.sessionManager.getLeafId(),
+		};
 	}
 	announceDictation(ctx: ExtensionContext): void {
 		this.messages.setContext(ctx);

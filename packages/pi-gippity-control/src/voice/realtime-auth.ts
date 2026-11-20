@@ -2,6 +2,10 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import {
+	type GippityControlConfig,
+	GIPPITY_VOICE_MODEL_OPTIONS,
+} from "../config.ts";
 import { type CodexVoiceAuth, resolveCodexVoiceAuth } from "./auth.ts";
 import { resolveRealtimeProvider } from "./realtime-provider.ts";
 import {
@@ -94,17 +98,30 @@ async function resolvePublicRealtimeAuth(
 	};
 }
 
-export function resolveRealtimeVoiceAuth(
+export async function resolveRealtimeVoiceAuth(
 	ctx: ExtensionContext,
-	config: { voice: { model: string; apiProvider: string; webSearch: boolean } },
+	config: {
+		voice: Pick<
+			GippityControlConfig["voice"],
+			"model" | "apiProvider" | "webSearch"
+		>;
+	},
 	pi?: ExtensionAPI,
 ): Promise<CodexVoiceAuth> {
-	return config.voice.model === "codex-live-1.1"
-		? resolveCodexVoiceAuth(ctx)
-		: resolvePublicRealtimeAuth(
+	switch (GIPPITY_VOICE_MODEL_OPTIONS[config.voice.model].kind) {
+		case "codex":
+			return resolveCodexVoiceAuth(ctx);
+		case "live":
+			return {
+				...(await resolveRealtimeProvider(ctx, config.voice.apiProvider)),
+				officialCodex: false,
+			};
+		case "realtime":
+			return resolvePublicRealtimeAuth(
 				ctx,
 				config.voice.apiProvider,
 				pi,
 				config.voice.webSearch,
 			);
+	}
 }

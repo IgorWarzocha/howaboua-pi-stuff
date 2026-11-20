@@ -9,7 +9,6 @@ import {
 	VOICE_CONTEXT_REASONING_LEVELS,
 	normalizeRealtimeV3Voice,
 	normalizeVoiceContextReasoning,
-	type VoiceContextModel,
 	type RealtimeV3Voice,
 	type VoiceContextReasoning,
 } from "../../adapter/activation/config.ts";
@@ -30,7 +29,7 @@ interface VoiceSettings {
 	webSearch: boolean;
 	v3Voice: RealtimeV3Voice;
 	v3AlternateVoice: RealtimeV3Voice;
-	contextModel?: VoiceContextModel | undefined;
+	contextModel?: CodexConversionConfig["voice"]["contextModel"];
 	contextReasoning: VoiceContextReasoning;
 	taskDelegationReasoning: VoiceContextReasoning;
 	autoResumeRealtime: boolean;
@@ -122,10 +121,11 @@ export function createVoiceSettings(dependencies: VoiceSettingsDependencies) {
 					patch[key] = normalizeVoiceContextReasoning(value);
 				} else if (key === "contextModel") {
 					if (value === null) patch.contextModel = undefined;
+					else if (value === "current") patch.contextModel = value;
 					else {
 						if (!value || typeof value !== "object" || Array.isArray(value))
 							throw new LanVoiceSettingsError(
-								"Choose a listed context model or Off",
+								"Choose a listed context model, Default, or Off",
 							);
 						const model = value as Record<string, unknown>;
 						if (
@@ -135,7 +135,10 @@ export function createVoiceSettings(dependencies: VoiceSettingsDependencies) {
 						)
 							throw new LanVoiceSettingsError("Invalid context model");
 						const current = readConfig().voice.contextModel;
-						const selected = [...models(), ...(current ? [current] : [])].find(
+						const selected = [
+							...models(),
+							...(current && current !== "current" ? [current] : []),
+						].find(
 							(entry) =>
 								entry.provider === model["provider"] &&
 								entry.modelId === model["modelId"],

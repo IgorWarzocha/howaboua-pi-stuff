@@ -1,5 +1,6 @@
 import type { ActiveVoiceGuard } from "../active-owner.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import { ApiLiveFinalizationError } from "../conversation/api-live-close.ts";
 import type { CodexVoiceSessionMessages } from "../session-messages.ts";
 import { formatVoiceAudioError } from "../setup.ts";
 import type { ControllerHandoff } from "./handoff.ts";
@@ -46,6 +47,11 @@ export class ControllerLifecycle {
 			if (currentVoiceSession(this.runtime.state) === session)
 				await this.stop({ announce: true, finishAcceptedWork: true });
 		} catch (error) {
+			if (this.runtime.state.type === "idle") {
+				if (error instanceof ApiLiveFinalizationError)
+					this.runtime.context?.ui.notify(error.message, "warning");
+				return;
+			}
 			if (
 				currentVoiceSession(this.runtime.state) === session &&
 				session.playbackSealed
@@ -54,7 +60,14 @@ export class ControllerLifecycle {
 					`Voice ended before speaker playback could be confirmed: ${error instanceof Error ? error.message : String(error)}`,
 					"error",
 				);
-				await this.stop({ announce: true, finishAcceptedWork: true });
+				try {
+					await this.stop({ announce: true, finishAcceptedWork: true });
+				} catch (stopError) {
+					this.runtime.context?.ui.notify(
+						`Voice ended with an error: ${stopError instanceof Error ? stopError.message : String(stopError)}`,
+						"warning",
+					);
+				}
 				return;
 			}
 			if (
@@ -110,10 +123,13 @@ export class ControllerLifecycle {
 				}),
 			]);
 		} finally {
-			stoppedPlan?.onStopped?.();
+			try {
+				stoppedPlan?.onStopped?.();
+			} finally {
+				if (wasMuted) this.callbacks.notifyMute(false);
+				this.messages.voiceStopped(endedMode);
+			}
 		}
-		if (wasMuted) this.callbacks.notifyMute(false);
-		this.messages.voiceStopped(endedMode);
 	}
 
 	async finishDictation(options?: { announce?: boolean }): Promise<void> {

@@ -129,17 +129,17 @@ export function createLanVoiceWebUi(piTheme: Theme): string {
           <label data-codex-voice for="setting-alternate-voice">Alternate voice</label><select data-codex-voice id="setting-alternate-voice" name="v3AlternateVoice"></select>
           <label data-codex-voice for="setting-task-delegation-model">Task delegation model</label><output data-codex-voice id="setting-task-delegation-model"></output>
           <label data-codex-voice for="setting-task-delegation-reasoning">Task delegation reasoning</label><select data-codex-voice id="setting-task-delegation-reasoning" name="taskDelegationReasoning"></select>
-          <label data-realtime-voice for="setting-api-provider" hidden>API provider</label><input data-realtime-voice id="setting-api-provider" name="apiProvider" type="text" maxlength="512" autocomplete="off" autocapitalize="none" spellcheck="false" hidden>
-          <label data-realtime-voice for="setting-realtime-voice" hidden>Primary voice</label><select data-realtime-voice id="setting-realtime-voice" name="realtimeVoice" hidden></select>
-          <label data-realtime-voice for="setting-realtime-alternate-voice" hidden>Alternate voice</label><select data-realtime-voice id="setting-realtime-alternate-voice" name="realtimeAlternateVoice" hidden></select>
+          <label data-api-voice for="setting-api-provider" hidden>API provider</label><input data-api-voice id="setting-api-provider" name="apiProvider" type="text" maxlength="512" autocomplete="off" autocapitalize="none" spellcheck="false" hidden>
+          <label data-api-voice for="setting-realtime-voice" hidden>Primary voice</label><select data-api-voice id="setting-realtime-voice" name="realtimeVoice" hidden></select>
+          <label data-api-voice for="setting-realtime-alternate-voice" hidden>Alternate voice</label><select data-api-voice id="setting-realtime-alternate-voice" name="realtimeAlternateVoice" hidden></select>
           <label data-realtime-voice class="setting-switch" hidden><input type="checkbox" name="webSearch" aria-describedby="setting-web-search-requirement">Realtime web search</label>
           <small data-realtime-voice id="setting-web-search-requirement" hidden>Requires the Web Run extension and its account setup.</small>
           <label for="setting-context-model">Context summary model</label><select id="setting-context-model" name="contextModel"></select>
-          <small>Off starts without a Pi context summary. Models use their own account's pricing or subscription allowance.</small>
+          <small>Default uses the current Pi model for GPT Live and Codex Luna otherwise. Off skips the summary.</small>
           <label for="setting-context-reasoning">Context summary reasoning</label><select id="setting-context-reasoning" name="contextReasoning"></select>
           <label class="setting-switch"><input type="checkbox" name="autoResumeRealtime">Resume dropped calls automatically</label>
           <label class="setting-switch"><input type="checkbox" name="refreshRealtimeAfterCompaction">Refresh voice context after compaction</label>
-          <label class="setting-switch"><input type="checkbox" name="delegationAcknowledgements">Acknowledge delegated work</label>
+          <label data-codex-voice class="setting-switch"><input type="checkbox" name="delegationAcknowledgements">Acknowledge delegated work</label>
           <label class="setting-switch"><input type="checkbox" name="forwardReasoningSummaries">Speak Pi reasoning summaries</label>
           <button id="save-settings" type="submit">Save settings</button>
         </fieldset>

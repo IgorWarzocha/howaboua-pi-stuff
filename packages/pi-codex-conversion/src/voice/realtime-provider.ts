@@ -1,7 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { normalizeVoiceApiProvider } from "../adapter/activation/config.ts";
 
-/** Resolve one user-selected account and route before any Realtime request. */
+/** Resolve one user-selected account and route before any API voice request. */
 export async function resolveRealtimeProvider(
 	ctx: ExtensionContext,
 	name: string,
@@ -17,7 +17,7 @@ export async function resolveRealtimeProvider(
 	const registry = ctx.modelRegistry;
 	const provider = registry.getProvider(name);
 	const authError =
-		"Realtime requires an API key for the exact API provider name in voice settings. Configure that provider in Pi, or change the name. ChatGPT and OAuth logins cannot be used.";
+		"API voice requires an API key for the provider named in voice settings. Configure that provider in Pi, or change the name. ChatGPT and OAuth logins cannot be used.";
 	let auth;
 	try {
 		auth = await registry.getProviderAuth(name);
@@ -31,7 +31,7 @@ export async function resolveRealtimeProvider(
 	)
 		throw new Error(authError);
 	const routeError =
-		"Realtime requires a valid HTTP or HTTPS base URL for the selected API provider. Configure its endpoint in Pi without URL credentials, query or fragment, then start again.";
+		"API voice requires a valid HTTP or HTTPS base URL for the selected provider. Configure its endpoint in Pi without URL credentials, query or fragment, then start again.";
 	// Pi's resolved auth endpoint overrides the provider endpoint. Chat model
 	// overrides do not apply: voice selects a provider, not a chat model.
 	const route = auth.auth.baseUrl ?? provider.baseUrl;
@@ -54,7 +54,7 @@ export async function resolveRealtimeProvider(
 		throw new Error(routeError);
 	const baseUrl = url.href.replace(/\/+$/, "");
 	const headerError =
-		"Realtime could not use the selected provider's API headers. Configure valid headers matching its API key in Pi, then start again.";
+		"Voice could not use the selected provider's API headers. Configure valid headers matching its API key in Pi, then start again.";
 	const key = auth.auth.apiKey;
 	const makeHeaders = (values: typeof auth.auth.headers) => {
 		const headers = new Headers();

@@ -2,6 +2,7 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { SettingItem } from "@earendil-works/pi-tui";
 import {
 	GIPPITY_VOICE_MODELS,
+	GIPPITY_VOICE_MODEL_OPTIONS,
 	type GippityControlConfig,
 	normalizeRealtimeV3Voice,
 	normalizeVoiceContextReasoning,
@@ -25,6 +26,8 @@ export function buildGippitySettings(
 	tui: { requestRender(): void },
 	webSearchAvailable?: boolean,
 ): Setting[] {
+	const { kind } = GIPPITY_VOICE_MODEL_OPTIONS[config.voice.model];
+	const apiModel = kind !== "codex";
 	return [
 		...(["inputDevice", "outputDevice"] as const).map((key): Setting => ({
 			id: key,
@@ -64,27 +67,29 @@ export function buildGippitySettings(
 			id: "voiceModel",
 			label: "Voice model",
 			description:
-				"Codex Live uses your Codex login. GPT-Realtime requires an OpenAI API key, billed separately. Applies on the next call without restarting the current call.",
-			currentValue: formatVoiceModel(config.voice.model),
-			values: GIPPITY_VOICE_MODELS.map(formatVoiceModel),
+				"Codex Live uses your Codex login. API models require an API key and are billed separately. Applies on the next call.",
+			currentValue: GIPPITY_VOICE_MODEL_OPTIONS[config.voice.model].label,
+			values: GIPPITY_VOICE_MODELS.map(
+				(model) => GIPPITY_VOICE_MODEL_OPTIONS[model].label,
+			),
 			update: (value, current) => ({
 				...current,
 				voice: {
 					...current.voice,
 					model:
 						GIPPITY_VOICE_MODELS.find(
-							(model) => formatVoiceModel(model) === value,
+							(model) => GIPPITY_VOICE_MODEL_OPTIONS[model].label === value,
 						) ?? current.voice.model,
 				},
 			}),
 		},
-		...(config.voice.model !== "codex-live-1.1"
+		...(apiModel
 			? [
 					{
 						id: "apiProvider",
 						label: "API provider",
 						description:
-							"Exact Pi provider name. Uses its API key and endpoint on the next Realtime call. Default: openai.",
+							"Exact Pi provider name. Uses its API key and endpoint on the next call. Default: openai.",
 						currentValue: config.voice.apiProvider,
 						submenu: (value: string, back: (value?: string) => void) =>
 							new ApiProviderPicker(value, back, theme),
@@ -95,7 +100,7 @@ export function buildGippitySettings(
 					},
 				]
 			: []),
-		...(config.voice.model === "codex-live-1.1"
+		...(kind === "codex"
 			? [
 					{
 						id: "taskDelegationModel",
@@ -118,7 +123,6 @@ export function buildGippitySettings(
 				]
 			: []),
 		...(["primary", "alternate"] as const).map((role) => {
-			const apiModel = config.voice.model !== "codex-live-1.1";
 			const codexKey = role === "primary" ? "v3Voice" : "v3AlternateVoice";
 			const realtimeKey =
 				role === "primary" ? "realtimeVoice" : "realtimeAlternateVoice";
@@ -156,7 +160,7 @@ export function buildGippitySettings(
 			};
 			return { ...item, update };
 		}),
-		...(config.voice.model !== "codex-live-1.1"
+		...(kind === "realtime"
 			? [
 					{
 						id: "webSearch",
@@ -190,19 +194,25 @@ export function buildGippitySettings(
 				},
 			}),
 		},
-		{
-			id: "delegationAcknowledgements",
-			label: "Speak delegation acknowledgements",
-			currentValue: config.voice.delegationAcknowledgements ? "on" : "off",
-			values: ["off", "on"],
-			update: (value, current) => ({
-				...current,
-				voice: {
-					...current.voice,
-					delegationAcknowledgements: value === "on",
-				},
-			}),
-		},
+		...(kind === "codex"
+			? [
+					{
+						id: "delegationAcknowledgements",
+						label: "Speak delegation acknowledgements",
+						currentValue: config.voice.delegationAcknowledgements
+							? "on"
+							: "off",
+						values: ["off", "on"],
+						update: (value: string, current: GippityControlConfig) => ({
+							...current,
+							voice: {
+								...current.voice,
+								delegationAcknowledgements: value === "on",
+							},
+						}),
+					},
+				]
+			: []),
 		{
 			id: "forwardReasoningSummaries",
 			label: "Forward reasoning summaries for compatible models",
@@ -296,10 +306,4 @@ function formatVoiceName(voice: string): string {
 
 function formatContextModel(model: VoiceContextModel): string {
 	return `${model.provider}/${model.modelId}`;
-}
-
-function formatVoiceModel(model: string): string {
-	if (model === "realtime-2.1") return "GPT-Realtime-2.1 (API)";
-	if (model === "realtime-2.1-mini") return "GPT-Realtime-2.1 Mini (API)";
-	return "Codex Live (OAuth)";
 }
