@@ -17,7 +17,7 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 
 Pi now supplies the GPT-6.2 Sol and Astra catalogue entries. PCC uses them when present and retains its fallbacks for Pi 1.5. PCC already places the leading system prompt in a developer input item and carries reasoning changes in chronological configuration updates, so it does not also add Pi's reasoning replay mechanism.
 
-PCC already retries the Codex WebSocket lifetime-limit error on a fresh connection. It now matches Pi's 45-minute reuse limit, leaving time for the next response before Codex closes the connection at one hour. Replacing a socket discards only its connection-scoped continuation, not the canonical session history.
+PCC follows [Codex CLI](https://github.com/openai/codex/blob/rust-v0.171.0/codex-rs/core/tests/suite/client_websockets.rs#L2033-L2063) and reconnects on the server's WebSocket lifetime-limit error. Pi's 45-minute preemptive rotation is not part of that policy.
 
 ## November 19 Responses Lite images
 

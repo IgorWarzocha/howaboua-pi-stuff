@@ -17,9 +17,6 @@ import { clearCanonicalSessions } from "./session-continuity.ts";
 
 type ReleaseOptions = NonNullable<Parameters<AcquiredWebSocket["release"]>[0]>;
 
-// Codex closes sockets after an hour, even during a response. Leave 15 minutes
-// for a new turn without interrupting a socket that is already leased.
-const MAX_WEBSOCKET_AGE_MS = 45 * 60 * 1000;
 const websocketSessionCache = new Map<
 	string,
 	Map<string, SessionWebSocketCacheEntry>
@@ -260,9 +257,7 @@ export async function acquireWebSocket(
 	let routeEntries = websocketSessionCache.get(sessionId);
 	const cached = routeEntries?.get(routeKey);
 	if (cached) {
-		const socketAgeMs = Math.max(0, Date.now() - cached.createdAtMs);
-		const agedOut = socketAgeMs >= MAX_WEBSOCKET_AGE_MS;
-		if (!cached.busy && !agedOut && isWebSocketReusable(cached.socket)) {
+		if (!cached.busy && isWebSocketReusable(cached.socket)) {
 			observeWebSocketDiagnostics(cached.socket, diagnostics);
 			cached.busy = true;
 			return {
@@ -270,7 +265,7 @@ export async function acquireWebSocket(
 				routeKey,
 				entry: cached,
 				reused: true,
-				socketAgeMs,
+				socketAgeMs: Math.max(0, Date.now() - cached.createdAtMs),
 				release: ({ keep, closeAfter }: ReleaseOptions = {}) => {
 					if (!keep || !isWebSocketReusable(cached.socket)) {
 						closeReleasedWebSocket(cached.socket, sessionId, closeAfter);
@@ -305,13 +300,11 @@ export async function acquireWebSocket(
 			};
 		}
 
-		closeWebSocketSilently(
-			cached.socket,
-			1000,
-			agedOut ? "socket_max_age" : "stale_socket",
-		);
-		routeEntries?.delete(routeKey);
-		if (routeEntries?.size === 0) websocketSessionCache.delete(sessionId);
+		if (!isWebSocketReusable(cached.socket)) {
+			closeWebSocketSilently(cached.socket, 1000, "stale_socket");
+			routeEntries?.delete(routeKey);
+			if (routeEntries?.size === 0) websocketSessionCache.delete(sessionId);
+		}
 	}
 
 	const socket = await connectWebSocket(
