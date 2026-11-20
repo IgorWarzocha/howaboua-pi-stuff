@@ -13,6 +13,7 @@ import {
 } from "./model-role-config.js";
 import { openModelRoleScreen } from "./model-role-screen.js";
 import { modelIsActive } from "./settings.js";
+import { selectedWindowRole } from "./window-message.js";
 import { windowDetails } from "./windows.js";
 
 const GUIDANCE_TYPE = "notes-compaction:roles";
@@ -46,7 +47,7 @@ export function createModelRoles(
 		const previousError = configError;
 		load();
 		if (configError && configError !== previousError)
-			ctx.ui.notify(`Model roles unavailable: ${configError}`, "error");
+			ctx.ui.notify(`Roles unavailable: ${configError}`, "error");
 		const startingWindow =
 			event.messageType === "custom"
 				? windowDetails({ ...event.message, type: "custom_message" })
@@ -57,31 +58,21 @@ export function createModelRoles(
 				(entry) =>
 					entry.type === "custom_message" && entry.customType === GUIDANCE_TYPE,
 			);
-		if (!config.roles.length && !previous) return;
-		const reasoning = pi.getThinkingLevel();
-		const matching = config.roles
-			.filter(
-				(role) =>
-					role.provider === ctx.model?.provider &&
-					role.model === ctx.model?.id &&
-					role.reasoning === reasoning,
-			)
-			.map((role) => role.id);
-		const currentRole =
-			matching.length === 0
-				? "none (no matching preset)"
-				: matching.length === 1
-					? matching.join(", ")
-					: `ambiguous (${matching.join(", ")})`;
+		const selected =
+			startingWindow?.role ??
+			selectedWindowRole(ctx.sessionManager.getBranch());
+		if (!config.roles.length && !previous && !selected) return;
+		const current = config.roles.find((role) => role.id === selected);
+		const heading = `Current role: ${current?.id ?? (selected ? `${selected} (no longer configured)` : "none")}`;
 		const content = config.roles.length
 			? [
-					`Current role: ${currentRole}`,
+					heading,
 					lifecycle.gptPromptMode()
-						? 'Roles=user-configured model+reasoning presets, not capabilities/permissions. Each agent, including workers, chooses its own role autonomously; NO parent/user approval needed. Main work enters substantial new phase→reassess descriptions, switch for sustained better fit. Single specialised question/brief detour≠switch; any role can do general work. Change your own role, not delegate just to access one. Save notes→new_context({role: "name"})→fresh window, same session; omit role→keep preset.'
-						: 'Roles select user-configured model and reasoning presets, not capabilities or permissions. Each agent, including workers, chooses its own role autonomously; no parent or user approval needed. Reassess the descriptions when your main work enters a substantial new phase, and switch for a sustained better fit, not a single specialised question or brief detour. Any role can do general work. Change your own role rather than delegating just to access one. Save notes, then call new_context({role: "name"}) to open a fresh window in this session; omit role to keep the current preset.',
+						? 'Roles set focus, not permissions. Substantial next phase better suited to another role→SHOULD switch yourself before starting. Research done→switch before substantial authorised implementation; MAY finish a small understood fix here if authorised. Research-only→report findings. MUST save decisions, evidence paths and next step immediately before new_context({role:"name"}). Omit role→keep role.'
+						: 'Roles set your focus, not your permissions. You SHOULD switch yourself before starting a substantial phase better suited to another role. After research, switch before substantial authorised implementation. You MAY finish a small, understood fix in place if authorised. If the request was research only, report your findings. To switch, you MUST save the decision, evidence paths and next step immediately before calling new_context({role: "name"}). Omit role to keep it.',
 					...config.roles.map((role) => `- ${role.id}: ${role.description}`),
 				].join("\n")
-			: "No model roles available. Call new_context without role.";
+			: `${heading}\nNo roles available. Call new_context without role.`;
 		if (
 			startingWindow?.kind !== "window" &&
 			previous?.type === "custom_message" &&
@@ -141,12 +132,12 @@ export function createModelRoles(
 		load();
 		if (configError)
 			throw new Error(
-				"Model roles are unavailable. Continue here and ask the user to check /roles.",
+				"Roles are unavailable. Continue here and ask the user to check /roles.",
 			);
 		const role = config.roles.find((candidate) => candidate.id === id);
 		if (!role)
 			throw new Error(
-				`Unknown role ${JSON.stringify(id)}. Use a configured role or omit role to keep the current model.`,
+				`Unknown role ${JSON.stringify(id)}. Use a configured role or omit role to keep your current role.`,
 			);
 		const model = ctx.modelRegistry.find(role.provider, role.model);
 		if (!model)
@@ -192,15 +183,12 @@ export function createModelRoles(
 
 	async function command(args: string, ctx: ExtensionCommandContext) {
 		if (args.trim()) {
-			ctx.ui.notify(
-				"Use /roles to view roles and JSON configuration guidance.",
-				"info",
-			);
+			ctx.ui.notify("Use /roles to view roles.", "info");
 			return;
 		}
 		if (!ctx.hasUI) {
 			ctx.ui.notify(
-				`Configure model roles in ${roleConfigPath()}. Open /roles in interactive Pi for guidance.`,
+				`Open /roles in interactive Pi, or edit ${roleConfigPath()}.`,
 				"info",
 			);
 			return;

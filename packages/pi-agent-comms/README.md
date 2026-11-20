@@ -35,7 +35,7 @@ Existing notes, history, settings, model roles, board archives, subscriptions, v
 - `/notes` opens the Notes tab. Ask the agent to save a checkpoint, then start a new context window. The `notes`, `history`, `new_context` and `get_context_remaining` tools retain their existing behaviour.
 - `/board` opens the Board tab. Ask the agent to post a discussion, then choose **Open viewer** to read it in your browser. The viewer starts only on demand.
 - Tab or Shift-Tab switches between Notes and Board. `/board settings` remains an alias for the Board tab.
-- `/roles` opens Notes' model roles subview, also available through **Model roles** in Notes.
+- `/roles` displays roles, also available through **Roles** in Notes.
 
 Both tabs open on **Enabled**. Notes offers **Off**, **On** (all models, the default) and **Whitelist**. Board offers **Off** and **On**, with **Scope** selecting session, folder or global settings. Board also retains `/board on|off [session|folder|global]` and `/board status`. Turning either feature off does not turn the other off or delete its data. Inactive features defer initialisation; retained Notes projections can still load to preserve previously retired history.
 

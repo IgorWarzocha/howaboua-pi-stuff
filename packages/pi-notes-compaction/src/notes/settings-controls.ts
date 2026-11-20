@@ -57,7 +57,7 @@ export function createNotesSettingsControls(
 			},
 			{
 				id: "roles",
-				label: "Model roles",
+				label: "Roles",
 				currentValue: "select…",
 				values: ["select…", "view…"],
 			},

@@ -72,8 +72,7 @@ const NEW_CONTEXT_SCHEMA = obj(
 		role: opt(
 			str({
 				minLength: 1,
-				description:
-					"Configured model-role ID, not an agent name or handoff text",
+				description: "Configured role ID, not an agent name or handoff text",
 			}),
 		),
 	},
@@ -89,7 +88,13 @@ export function newContextSchema(
 	return obj(
 		{
 			...(roleIds.length
-				? { role: opt({ ...oneOf(roleIds), type: "string" }) }
+				? {
+						role: opt({
+							...oneOf(roleIds),
+							type: "string",
+							description: "Your next role in this session",
+						}),
+					}
 				: {}),
 			...(taskCompletionRollover
 				? {
@@ -111,7 +116,7 @@ export function prepareNewContextArguments(input: unknown) {
 	const args = input ?? {};
 	if (!newContextSchemaValidator.check(args))
 		throw new Error(
-			"Use {} to continue in fresh context; optional role selects a configured preset. resume must be true or false.",
+			"Use {} for a fresh context window. Pass a configured role ID to switch roles. resume must be true or false.",
 		);
 	return args;
 }

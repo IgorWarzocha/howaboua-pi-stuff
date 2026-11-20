@@ -211,13 +211,10 @@ export function createNotesFeature(
 		},
 	});
 	pi.registerCommand("roles", {
-		description: "View model roles and JSON configuration guidance",
+		description: "View agent roles",
 		handler: async (args, ctx) => {
 			if (args.trim()) {
-				ctx.ui.notify(
-					"Use /roles to view roles and JSON configuration guidance.",
-					"info",
-				);
+				ctx.ui.notify("Use /roles to view roles.", "info");
 				return;
 			}
 			const next = await open(ctx, "roles");
