@@ -331,7 +331,7 @@ async function startConversation(
 				runtime.state = { type: "conversation", session };
 				// Startup is asynchronous. Sample current work, not the turn that
 				// was active before auth, context preparation, and peer setup.
-				if (!options.ctx.isIdle()) session.agentStarted();
+				if (!options.ctx.isIdle()) session.agentTurn.agentStarted();
 				if (peer) options.realtimePeerPlan?.onActive?.(session, peer);
 			},
 			onError: (session, error) => {

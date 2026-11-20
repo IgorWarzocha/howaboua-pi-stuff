@@ -1,21 +1,23 @@
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
-import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { VoiceAudioDiagnostics } from "../helper-protocol.ts";
 import { CANCELLED, interruptible } from "../cancellation.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
+import { realtimeContextTransition, realtimeGreeting } from "../prompts.ts";
 import type { RealtimeVoiceTurn } from "../turns.ts";
 import { ConversationSetup } from "./connection.ts";
+import { ConversationAgentTurn } from "./agent-turn.ts";
+import { ApiLiveSessionHandshake } from "./api-live-session-handshake.ts";
 import { ApiLiveTurns } from "./api-live-turns.ts";
-import { closeApiLiveSession } from "./api-live-close.ts";
-import type { RealtimePiInputBehavior } from "./handoff.ts";
 import type { CodexRealtimePeer, CodexRealtimePeerEvent } from "./peer.ts";
 import { PlaybackSettlement } from "./playback-settlement.ts";
 import { PublicRealtimeTurns } from "./public-turns.ts";
 import { ConversationTurns } from "./turn-events.ts";
 import {
 	type RealtimeVoiceEventDetails,
+	realtimeCallSignal,
 	realtimePeerStateFailure,
+	terminalRealtimeTransportError,
 } from "./wire.ts";
 
 import type { PreparedVoiceTask } from "./end-call.ts";
@@ -40,6 +42,7 @@ export interface CodexConversationCallbacks {
 }
 
 export class CodexRealtimeConversation {
+	readonly agentTurn: ConversationAgentTurn;
 	private readonly callbacks: CodexConversationCallbacks;
 	private readonly setup: ConversationSetup;
 	private readonly peer: CodexRealtimePeer;
@@ -47,21 +50,14 @@ export class CodexRealtimeConversation {
 		| ConversationTurns
 		| PublicRealtimeTurns
 		| ApiLiveTurns;
-	private readonly protocol: "codex" | "realtime" | "api-live";
+	private readonly apiLive: ApiLiveSessionHandshake | undefined;
 	private readonly playback: PlaybackSettlement;
 	private state: ConversationState = "idle";
 	private closePromise: Promise<void> | undefined;
 	private inputMuted = false;
 	finishingAcceptedWork = false;
-	private ending = false;
-	private endAfterResult: { id: string; active: boolean } | undefined;
-	private endingOutput = 0;
 	private readonly closing = new AbortController();
 	private established = false;
-	private apiLiveStarted = false;
-	private apiLiveClosing = false;
-	private apiLiveFinalization: Promise<void> | undefined;
-	private apiLiveFinalizationError: unknown;
 	private inputChanged = Promise.withResolvers<void>();
 
 	constructor(
@@ -71,7 +67,8 @@ export class CodexRealtimeConversation {
 	) {
 		this.callbacks = callbacks;
 		this.peer = peer;
-		this.protocol = protocol;
+		this.apiLive =
+			protocol === "api-live" ? new ApiLiveSessionHandshake(peer) : undefined;
 		this.setup = new ConversationSetup(
 			peer,
 			() => this.state === "starting",
@@ -84,22 +81,14 @@ export class CodexRealtimeConversation {
 		);
 		const turnCallbacks: CodexConversationCallbacks = {
 			...callbacks,
-			onEndCall: (finalOutputObserved = false, resultDelegationId) => {
-				if (resultDelegationId) {
-					this.endAfterResult = { id: resultDelegationId, active: false };
-					this.turns.sendContext(
-						{ type: "session" },
-						"commentary",
-						"The user wants the requested answer before ending the call. When its result arrives, speak the answer and a brief farewell.",
-					);
-				} else this.beginEnding(finalOutputObserved);
-			},
+			onEndCall: (finalOutputObserved, resultDelegationId) =>
+				this.agentTurn.requestEnd(finalOutputObserved, resultDelegationId),
 		};
 		const active = () => this.state === "active";
 		const fail = (error: Error) => this.fail(error);
 		this.playback = new PlaybackSettlement(peer, {
 			isActive: active,
-			isEnding: () => this.ending,
+			isEnding: () => this.agentTurn.isEnding,
 			hasPendingOutput: (includeQueuedResponse) =>
 				this.turns.speakableResponsePending ||
 				(includeQueuedResponse &&
@@ -111,14 +100,10 @@ export class CodexRealtimeConversation {
 			protocol === "api-live"
 				? new ApiLiveTurns(turnCallbacks, peer, active, fail, {
 						onInputStarted: () => {
-							this.ending = false;
-							this.endAfterResult = undefined;
+							this.agentTurn.interruptEnding();
 							checkPlayback();
 						},
-						onInputChanged: () => {
-							this.inputChanged.resolve();
-							this.inputChanged = Promise.withResolvers<void>();
-						},
+						onInputChanged: () => this.noteInputChanged(),
 						onOutputFinished: () => {
 							this.playback.recordOutputFinished();
 							checkPlayback();
@@ -134,6 +119,14 @@ export class CodexRealtimeConversation {
 							checkPlayback,
 						)
 					: new ConversationTurns(turnCallbacks, peer, active, fail);
+		this.agentTurn = new ConversationAgentTurn(this.turns.handoff, {
+			sendContext: (channel, text) =>
+				this.turns.sendContext({ type: "session" }, channel, text),
+			completedOutputs: () => this.playback.completedOutputs,
+			hasPendingOutput: () => this.turns.speakableResponsePending,
+			onListening: () => this.callbacks.onStatus("listening"),
+			onEndCall: () => this.callbacks.onEndCall?.(),
+		});
 		this.peer.onEvent((event) => this.handlePeerEvent(event));
 		this.peer.onExit((error) => this.drop(error));
 	}
@@ -168,13 +161,7 @@ export class CodexRealtimeConversation {
 
 	greet(contextual: boolean, arrival = false): void {
 		if (this.state !== "active") return;
-		this.appendVoiceInstruction(
-			arrival
-				? "The user has just arrived from another session by voice. Give a short, distinctive arrival greeting that makes the switch clear and naturally acknowledges this session's topic or state. Do not repeat the continuity summary or start a task. Then wait for them to speak."
-				: contextual
-					? "The voice session has started with context from the ongoing conversation. Greet the user by naturally acknowledging the relevant topic, state, or next step. Do not give a generic hello or repeat the context summary. Then wait for them to speak."
-					: "The voice session has started. Give the user a short, distinctive greeting with some personality; a bare generic hello is not enough. Then wait for them to speak.",
-		);
+		this.appendVoiceInstruction(realtimeGreeting(contextual, arrival));
 	}
 
 	announcePrompt(prompt: string): void {
@@ -186,13 +173,7 @@ export class CodexRealtimeConversation {
 		reason: "threshold" | "overflow" | "rollover",
 	): void {
 		if (this.state !== "active") return;
-		const prompt =
-			reason === "rollover"
-				? "I'm moving to a fresh context window and carrying our conversation forward. Briefly acknowledge this in your natural voice."
-				: reason === "overflow"
-					? "The conversation exceeded its context limit and is being compacted. The interrupted work will continue automatically afterward. Please announce this briefly in your natural voice."
-					: "The conversation is being compacted. Please announce this briefly in your natural voice.";
-		this.appendVoiceInstruction(prompt);
+		this.appendVoiceInstruction(realtimeContextTransition(reason));
 	}
 
 	private appendVoiceInstruction(text: string): void {
@@ -202,33 +183,6 @@ export class CodexRealtimeConversation {
 
 	private appendSpeakableContext(text: string): void {
 		this.turns.sendContext({ type: "session" }, "speakable", text);
-	}
-
-	activateDelegation(id: string): void {
-		if (this.endAfterResult?.active && this.endAfterResult.id !== id)
-			this.endAfterResult = undefined;
-		this.turns.handoff.activate(id);
-		if (this.endAfterResult?.id === id) this.endAfterResult.active = true;
-	}
-
-	agentStarted(): void {
-		this.turns.handoff.agentStarted();
-	}
-
-	piInput(
-		input: unknown,
-		streamingBehavior?: RealtimePiInputBehavior,
-	): boolean {
-		const routed = this.turns.handoff.piInput(input, streamingBehavior);
-		if (routed && streamingBehavior === undefined)
-			this.endAfterResult = undefined;
-		return routed;
-	}
-
-	piUserMessage(message: unknown): boolean {
-		const consumed = this.turns.handoff.piUserMessage(message);
-		if (consumed) this.endAfterResult = undefined;
-		return consumed;
 	}
 
 	get microphoneMuted(): boolean {
@@ -241,67 +195,8 @@ export class CodexRealtimeConversation {
 		this.inputMuted = muted;
 	}
 
-	streamAgentDelta(delta: string): void {
-		if (this.ending) return;
-		this.turns.handoff.stream(delta);
-	}
-
-	resumeAgentWork(): void {
-		if (this.ending) return;
-		this.turns.handoff.flushProgress();
-	}
-
-	agentProgress(content: string, reasoningSummary?: string): void {
-		if (this.ending) return;
-		this.turns.handoff.progress(content, reasoningSummary);
-	}
-
-	agentResult(
-		content: string,
-		stopReason: AssistantMessage["stopReason"],
-	): void {
-		if (this.ending) return;
-		if (stopReason !== "stop") {
-			this.turns.handoff.progress(content);
-			this.failDeferredEnding();
-			return;
-		}
-		this.turns.handoff.result(content);
-		if (this.endAfterResult?.active && content.trim()) this.beginEnding(false);
-	}
-
-	settleAgentTurn(): void {
-		this.failDeferredEnding();
-		if (this.ending) {
-			this.turns.handoff.clear();
-			return;
-		}
-		this.turns.handoff.settle();
-		if (!this.turns.speakableResponsePending)
-			this.callbacks.onStatus("listening");
-	}
-
-	private failDeferredEnding(): void {
-		if (this.endAfterResult?.active) {
-			this.endAfterResult = undefined;
-			this.appendSpeakableContext(
-				"The requested answer did not complete. Tell the user it could not be finished and the call remains open; they can retry or stop the call.",
-			);
-		}
-	}
-
-	private beginEnding(finalOutputObserved: boolean): void {
-		if (this.ending) return;
-		this.endAfterResult = undefined;
-		this.ending = true;
-		this.endingOutput =
-			this.playback.completedOutputs + (finalOutputObserved ? 0 : 1);
-		this.turns.handoff.clear();
-		this.callbacks.onEndCall?.();
-	}
-
 	get isEndingCall(): boolean {
-		return this.ending;
+		return this.agentTurn.isEnding;
 	}
 
 	get playbackSealed(): boolean {
@@ -311,29 +206,12 @@ export class CodexRealtimeConversation {
 	/** Require the closing response observed since delegation, not an initially idle call. */
 	async waitForFinalPlayback(): Promise<void> {
 		await this.waitForPlaybackEnd(this.closing.signal, {
-			minimumOutputs: this.endingOutput,
+			minimumOutputs: this.agentTurn.finalOutputTarget,
 		});
-		if (!this.ending) throw new Error("Call ending interrupted by new speech");
-		await this.finalizeApiLive();
+		if (!this.agentTurn.isEnding)
+			throw new Error("Call ending interrupted by new speech");
+		await this.apiLive?.finalize();
 		await this.peer.finishPlayback?.(this.closing.signal);
-	}
-
-	private finalizeApiLive(): Promise<void> {
-		if (this.apiLiveFinalization) return this.apiLiveFinalization;
-		if (this.protocol !== "api-live" || !this.apiLiveStarted)
-			return Promise.resolve();
-		this.apiLiveClosing = true;
-		this.apiLiveFinalization = (async () => {
-			try {
-				await closeApiLiveSession(this.peer);
-			} catch (error) {
-				this.apiLiveFinalizationError = error;
-			} finally {
-				this.apiLiveStarted = false;
-				this.apiLiveClosing = false;
-			}
-		})();
-		return this.apiLiveFinalization;
 	}
 
 	waitForPlaybackEnd(
@@ -388,13 +266,13 @@ export class CodexRealtimeConversation {
 				this.turns instanceof ApiLiveTurns)
 				? this.turns.finishDelegations()
 				: undefined;
-		await this.finalizeApiLive();
+		await this.apiLive?.finalize();
 		await this.peer.close();
 		if (this.finishingAcceptedWork) {
 			await accepted;
 			this.turns.drainConversation();
 		}
-		if (this.apiLiveFinalizationError) throw this.apiLiveFinalizationError;
+		this.apiLive?.throwIfFailed();
 	}
 
 	private handlePeerEvent(event: CodexRealtimePeerEvent): void {
@@ -406,7 +284,7 @@ export class CodexRealtimeConversation {
 			return;
 		if (event.type === "error") {
 			const error = new Error(event.message);
-			if (terminalTransportError(event.message)) this.drop(error);
+			if (terminalRealtimeTransportError(event.message)) this.drop(error);
 			else this.fail(error);
 			return;
 		}
@@ -422,45 +300,32 @@ export class CodexRealtimeConversation {
 			this.callbacks.onAudioDiagnostics?.(event.diagnostics);
 		if (event.type === "data") {
 			if (!event.message || typeof event.message !== "object") return;
-			const message = event.message as {
-				type?: string;
-				turn?: { role?: string };
-				response?: { status?: string };
-			};
-			if (this.protocol === "api-live" && message.type === "session.started") {
-				this.apiLiveStarted = true;
+			const signal = realtimeCallSignal(event.message);
+			if (this.apiLive && signal === "api-started") {
+				this.apiLive.markStarted();
 				this.setup.ready();
 				this.callbacks.onStatus("listening");
 			}
-			if (this.protocol === "api-live" && message.type === "session.closed") {
-				const wasStarted = this.apiLiveStarted;
-				this.apiLiveStarted = false;
-				if (!this.apiLiveClosing && wasStarted)
+			if (this.apiLive && signal === "api-closed") {
+				if (this.apiLive.markClosed())
 					this.drop(new Error("The voice session ended. Start voice again."));
 				return;
 			}
-			if (
-				message.type === "input_audio_buffer.speech_started" ||
-				(message.type === "turn.created" && message.turn?.role === "user") ||
-				(message.type === "response.done" &&
-					message.response?.status === "cancelled")
-			) {
-				this.ending = false;
-				this.endAfterResult = undefined;
+			if (signal === "interrupt") {
+				this.agentTurn.interruptEnding();
 				if (this.turns instanceof PublicRealtimeTurns)
 					this.turns.cancelEndCall();
 			}
-			if (
-				(message.type === "turn.done" && message.turn?.role === "assistant") ||
-				(message.type === "response.done" &&
-					message.response?.status === "completed")
-			)
-				this.playback.recordOutputFinished();
+			if (signal === "output-finished") this.playback.recordOutputFinished();
 			this.turns.receive(event.message);
-			this.inputChanged.resolve();
-			this.inputChanged = Promise.withResolvers<void>();
+			this.noteInputChanged();
 		}
 		if (event.type === "state") this.handleHelperState(event.state);
+	}
+
+	private noteInputChanged(): void {
+		this.inputChanged.resolve();
+		this.inputChanged = Promise.withResolvers<void>();
 	}
 
 	private handleHelperState(state: string): void {
@@ -470,7 +335,7 @@ export class CodexRealtimeConversation {
 			return;
 		}
 		if (state === "ready" || state === "listening") {
-			if (this.protocol !== "api-live") {
+			if (!this.apiLive) {
 				this.setup.ready();
 				this.callbacks.onStatus("listening");
 			}
@@ -511,12 +376,4 @@ export class CodexRealtimeConversation {
 			else this.callbacks.onError(error);
 		});
 	}
-}
-
-function terminalTransportError(message: string): boolean {
-	return (
-		message === "DataChannel is not opened" ||
-		message.startsWith("realtime speaker stream ended:") ||
-		message.startsWith("realtime microphone stream failed:")
-	);
 }
