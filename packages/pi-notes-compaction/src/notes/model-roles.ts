@@ -68,8 +68,8 @@ export function createModelRoles(
 			? [
 					heading,
 					lifecycle.gptPromptMode()
-						? 'Roles set focus, not permissions. Substantial next phase better suited to another role→SHOULD switch yourself before starting. Research done→switch before substantial authorised implementation; MAY finish a small understood fix here if authorised. Research-only→report findings. MUST save decisions, evidence paths and next step immediately before new_context({role:"name"}). Omit role→keep role.'
-						: 'Roles set your focus, not your permissions. You SHOULD switch yourself before starting a substantial phase better suited to another role. After research, switch before substantial authorised implementation. You MAY finish a small, understood fix in place if authorised. If the request was research only, report your findings. To switch, you MUST save the decision, evidence paths and next step immediately before calling new_context({role: "name"}). Omit role to keep it.',
+						? 'Roles set focus, not permissions. No approval needed to switch or continue in-scope work. Research done→MAY finish a small understood fix here; substantial next phase better suited to another role→SHOULD switch yourself before starting. Research-only→report findings. MUST save decisions, evidence paths and next step immediately before new_context({role:"name"}). Omit role→keep role.'
+						: 'Roles set your focus, not your permissions. You do not need approval to switch roles or continue work within your task. After research, you MAY finish a small, understood fix in place. You SHOULD switch yourself before a substantial next phase better suited to another role. If the request was research only, report your findings. To switch, you MUST save the decision, evidence paths and next step immediately before calling new_context({role: "name"}). Omit role to keep it.',
 					...config.roles.map((role) => `- ${role.id}: ${role.description}`),
 				].join("\n")
 			: `${heading}\nNo roles available. Call new_context without role.`;
