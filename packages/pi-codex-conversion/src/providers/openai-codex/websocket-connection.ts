@@ -123,6 +123,7 @@ export function closeWebSocketSilently(
 			"session_reset",
 			"release",
 			"stale_socket",
+			"socket_max_age",
 		].includes(reason)
 			? reason
 			: "other";

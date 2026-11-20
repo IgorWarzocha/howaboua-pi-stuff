@@ -4,14 +4,20 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 
 ## Reference baseline
 
-- Pi SDK baseline: published `1.5.1`
-- Stock provider comparison: published Pi `1.5.1` (2026-11-10)
+- Pi SDK baseline: published `1.6.0`
+- Stock provider comparison: published Pi `1.6.0` (2026-11-20)
 - Codex checkout reviewed through: `1b1835f751ebdc0cfc50b3fe55d4571dbb294563` (2026-09-28)
 - WebSocket/session review: `ecc78e4cf5607ecf5f080d682eae0ecb650868ae` (2026-10-01)
 - Exact apply-patch source revision: [`src/tools/rust/UPSTREAM.apply-patch`](src/tools/rust/UPSTREAM.apply-patch)
 - Exact image utility source revision: [`src/tools/rust/crates/codex-utils-image/UPSTREAM`](src/tools/rust/crates/codex-utils-image/UPSTREAM)
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
+
+## Pi 1.6 compatibility
+
+Pi now supplies the GPT-6.2 Sol and Astra catalogue entries. PCC uses them when present and retains its fallbacks for Pi 1.5. PCC already places the leading system prompt in a developer input item and carries reasoning changes in chronological configuration updates, so it does not also add Pi's reasoning replay mechanism.
+
+PCC already retries the Codex WebSocket lifetime-limit error on a fresh connection. It now matches Pi's 45-minute reuse limit, leaving time for the next response before Codex closes the connection at one hour. Replacing a socket discards only its connection-scoped continuation, not the canonical session history.
 
 ## November 19 Responses Lite images
 
