@@ -4,7 +4,10 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
-import { renderVoiceStartupContext } from "../context.ts";
+import {
+	priorVoiceCallHistory,
+	voiceTranscriptSince,
+} from "../call-context.ts";
 import {
 	prepareControllerRealtimeContext,
 	type PreparedRealtimeContext,
@@ -12,11 +15,6 @@ import {
 	type VoiceControllerRuntime,
 } from "./start.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
-import {
-	REALTIME_EVENT_ENTRY_TYPE,
-	REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE,
-	REALTIME_VOICE_MESSAGE_TYPE,
-} from "../message-types.ts";
 
 export interface RealtimeContextRefreshOptions {
 	sourceLeafId?: string | undefined;
@@ -83,8 +81,10 @@ export class RealtimeContextRefresh {
 		const previous = activeState.session;
 		const generation = this.runtime.startGeneration;
 		const leafId = conversationLeafId(ctx);
-		const voiceLeafId = ctx.sessionManager.getLeafId();
 		const sessionId = ctx.sessionManager.getSessionId();
+		const call = this.runtime.voiceCallContext;
+		const sourceBranch = ctx.sessionManager.getBranch(options.sourceLeafId);
+		const through = sourceBranch.at(-1)?.id ?? null;
 		const plan = this.runtime.realtimePeerPlan;
 		const abortController = new AbortController();
 		this.abortController = abortController;
@@ -100,12 +100,13 @@ export class RealtimeContextRefresh {
 				signal,
 				sourceLeafId: options.sourceLeafId,
 				forceSummary: true,
+				priorVoiceHistory: priorVoiceCallHistory(call, sessionId, sourceBranch),
 			});
-			// Finish accepted speech on the old call, including its delegation decision.
-			if (prepared.summary) await previous.waitForInput(signal);
+			if (prepared.summary) await previous.waitForRefreshBoundary(signal);
 			if (
 				signal.aborted ||
 				ctx.sessionManager.getSessionId() !== sessionId ||
+				this.runtime.voiceCallContext !== call ||
 				!this.isCurrent(previous, generation, abortController)
 			)
 				return;
@@ -116,16 +117,7 @@ export class RealtimeContextRefresh {
 				);
 				return;
 			}
-			const tail = voiceContextSince(ctx, voiceLeafId);
-			if (tail) {
-				prepared.initialItems?.push({
-					type: "message",
-					role: "developer",
-					content: [
-						{ type: "input_text", text: renderVoiceStartupContext(tail) },
-					],
-				});
-			}
+			prepared.refreshCursor = { sessionId, through };
 			await this.callbacks.replace(
 				ctx,
 				config,
@@ -166,49 +158,10 @@ export class RealtimeContextRefresh {
 }
 
 function conversationLeafId(ctx: ExtensionContext): string | undefined {
-	// Voice arrivals are carried after the summary, not grounds to discard it.
+	// Raw captions and diagnostics don't change projected Pi conversation.
 	return ctx.sessionManager
 		.getBranch()
-		.findLast(
-			(entry) =>
-				entry.type !== "custom" ||
-				(entry.customType !== REALTIME_EVENT_ENTRY_TYPE &&
-					entry.customType !== REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE &&
-					entry.customType !== REALTIME_VOICE_MESSAGE_TYPE),
-		)?.id;
-}
-
-function voiceContextSince(
-	ctx: ExtensionContext,
-	leafId: string | null,
-): string {
-	const branch = ctx.sessionManager.getBranch();
-	const tail = branch.slice(
-		branch.findIndex((entry) => entry.id === leafId) + 1,
-	);
-	return tail
-		.flatMap((entry) => {
-			if (
-				entry.type !== "custom" ||
-				!entry.data ||
-				typeof entry.data !== "object"
-			)
-				return [];
-			if (
-				entry.customType === REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE &&
-				"transcript" in entry.data &&
-				typeof entry.data.transcript === "string"
-			)
-				return [`user: ${entry.data.transcript}`];
-			if (
-				entry.customType === REALTIME_VOICE_MESSAGE_TYPE &&
-				"input" in entry.data &&
-				typeof entry.data.input === "string"
-			)
-				return [`assistant: ${entry.data.input}`];
-			return [];
-		})
-		.join("\n");
+		.findLast((entry) => entry.type !== "custom")?.id;
 }
 
 interface ContextReplacementCallbacks {
@@ -247,6 +200,7 @@ export async function replaceRealtimeContext({
 }): Promise<void> {
 	if (!callbacks.prepareRealtimePrompt(ctx))
 		throw new Error("Realtime voice prompt is unavailable");
+	const call = runtime.voiceCallContext;
 	markRealtimePeerInactive(
 		runtime,
 		previous,
@@ -275,6 +229,31 @@ export async function replaceRealtimeContext({
 		runtime.state.type !== "reconnecting"
 	)
 		return;
+	const cursor = prepared.refreshCursor;
+	const tail =
+		runtime.voiceCallContext === call &&
+		cursor?.sessionId === ctx.sessionManager.getSessionId()
+			? voiceTranscriptSince(ctx.sessionManager.getBranch(), cursor.through)
+			: undefined;
+	if (tail === undefined) {
+		callbacks.fail(
+			new Error("Conversation changed while reconnecting voice"),
+			previous,
+		);
+		return;
+	}
+	// Closing can flush a final caption. This tail wasn't covered by the summary.
+	if (tail)
+		prepared.initialItems?.push({
+			type: "message",
+			role: "developer",
+			content: [
+				{
+					type: "input_text",
+					text: `Voice conversation after the summary snapshot. Use as background.\n\n${tail}`,
+				},
+			],
+		});
 	const replacement = await callbacks.startReplacement(
 		ctx,
 		config,

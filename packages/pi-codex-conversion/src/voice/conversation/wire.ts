@@ -117,6 +117,42 @@ export function realtimePeerStateFailure(state: string): string | undefined {
 	return undefined;
 }
 
+export function terminalRealtimeTransportError(message: string): boolean {
+	return (
+		message === "DataChannel is not opened" ||
+		message.startsWith("realtime speaker stream ended:") ||
+		message.startsWith("realtime microphone stream failed:")
+	);
+}
+
+/** Read only the cross-protocol signals that change call lifecycle. */
+export function realtimeCallSignal(value: object) {
+	const message = value as {
+		type?: string;
+		turn?: { role?: string };
+		response?: { status?: string };
+	};
+	switch (message.type) {
+		case "session.started":
+			return "api-started";
+		case "session.closed":
+			return "api-closed";
+		case "input_audio_buffer.speech_started":
+			return "interrupt";
+		case "turn.created":
+			if (message.turn?.role === "user") return "interrupt";
+			break;
+		case "turn.done":
+			if (message.turn?.role === "assistant") return "output-finished";
+			break;
+		case "response.done":
+			if (message.response?.status === "cancelled") return "interrupt";
+			if (message.response?.status === "completed") return "output-finished";
+			break;
+	}
+	return undefined;
+}
+
 function utf8Tail(value: string, maxBytes: number): string {
 	if (Buffer.byteLength(value) <= maxBytes) return value;
 	let start = value.length;

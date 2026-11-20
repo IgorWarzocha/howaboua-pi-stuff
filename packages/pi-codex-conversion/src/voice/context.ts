@@ -14,6 +14,7 @@ import type {
 	CodexConversionConfig,
 	VoiceContextModel,
 } from "../adapter/activation/config.ts";
+import { DEFAULT_VOICE_CONTEXT_MODEL } from "../adapter/activation/config.ts";
 import { projectContextBranch } from "../compaction.ts";
 import { createNativeVoiceContextSummary } from "./native-context.ts";
 import { REALTIME_DELEGATION_MESSAGE_TYPE } from "./ui.ts";
@@ -47,8 +48,20 @@ export async function buildRealtimeInitialItems(args: {
 	signal?: AbortSignal | undefined;
 	sourceLeafId?: string | undefined;
 	forceSummary?: boolean | undefined;
+	priorVoiceHistory?: string | undefined;
 }): Promise<RealtimeInitialMessageItem[] | undefined> {
-	const selected = args.config.voice.contextModel;
+	const configured = args.config.voice.contextModel;
+	let selected: VoiceContextModel | undefined;
+	if (configured === "current") {
+		if (args.config.voice.model === "api-live-1.1") {
+			const model = args.ctx.model;
+			if (!model)
+				throw new Error(
+					"Select a Pi model for voice context, or turn voice context off.",
+				);
+			selected = { provider: model.provider, modelId: model.id };
+		} else selected = DEFAULT_VOICE_CONTEXT_MODEL;
+	} else selected = configured;
 	const initialItems: RealtimeInitialMessageItem[] = [];
 	if (selected) {
 		const reasoning = args.config.voice.contextReasoning;
@@ -65,7 +78,9 @@ export async function buildRealtimeInitialItems(args: {
 			reasoning,
 			entries,
 		);
-		let text = args.forceSummary ? undefined : summaryCache.get(cacheKey);
+		// Call-scoped history is not represented by the projected branch cache key.
+		const useCache = !args.forceSummary && !args.priorVoiceHistory;
+		let text = useCache ? summaryCache.get(cacheKey) : undefined;
 		if (!text) {
 			args.onSummaryStatus?.(true);
 			try {
@@ -74,13 +89,15 @@ export async function buildRealtimeInitialItems(args: {
 					selected,
 					reasoning,
 					entries,
+					args.priorVoiceHistory,
 					args.signal,
 				);
 				if (generated) {
 					text = generated;
 					if (
+						useCache &&
 						cacheKey ===
-						voiceContextCacheKey(args.ctx, selected, reasoning, project())
+							voiceContextCacheKey(args.ctx, selected, reasoning, project())
 					) {
 						summaryCache.set(cacheKey, text);
 						while (summaryCache.size > SUMMARY_CACHE_LIMIT)
@@ -114,8 +131,12 @@ async function createVoiceContextSummary(
 	selected: VoiceContextModel,
 	reasoning: CodexConversionConfig["voice"]["contextReasoning"],
 	entries: readonly SessionEntry[],
+	priorVoiceHistory: string | undefined,
 	signal?: AbortSignal,
 ): Promise<string | undefined> {
+	const request = priorVoiceHistory
+		? `${priorVoiceHistory}\n\nSome spoken turns may also appear in the Pi history. Include overlapping information only once.\n\n${VOICE_CONTEXT_REQUEST}`
+		: VOICE_CONTEXT_REQUEST;
 	if (latestCompactionIsOpaque(entries))
 		return requireSummary(
 			await createNativeVoiceContextSummary({
@@ -123,14 +144,14 @@ async function createVoiceContextSummary(
 				entries,
 				model: { ...selected, reasoning },
 				systemPrompt: VOICE_CONTEXT_SYSTEM_PROMPT,
-				request: VOICE_CONTEXT_REQUEST,
+				request,
 				...(signal ? { signal } : {}),
 			}),
 		);
 
 	const messages = buildSessionContext([...entries]).messages;
 	const conversation = serializeVoiceConversation(messages);
-	if (!conversation) return undefined;
+	if (!conversation && !priorVoiceHistory) return undefined;
 	const model = resolveSelectedModel(ctx, selected);
 	return requireSummary(
 		await completeWithSelectedModel(
@@ -144,7 +165,9 @@ async function createVoiceContextSummary(
 						content: [
 							{
 								type: "text",
-								text: `## Conversation History\n\n${conversation}\n\n${VOICE_CONTEXT_REQUEST}`,
+								text: conversation
+									? `## Conversation History\n\n${conversation}\n\n${request}`
+									: request,
 							},
 						],
 						timestamp: Date.now(),
@@ -217,7 +240,7 @@ function resolveSelectedModel(
 	const model = ctx.modelRegistry.find(selected.provider, selected.modelId);
 	if (!model)
 		throw new Error(
-			`Voice context model is unavailable: ${selected.provider}/${selected.modelId}`,
+			`Voice context model is unavailable: ${selected.provider}/${selected.modelId}. Choose another context model or turn voice context off in settings.`,
 		);
 	return model;
 }
@@ -233,7 +256,10 @@ async function completeWithSelectedModel(
 	if (!provider)
 		throw new Error(`Voice context provider is unavailable: ${model.provider}`);
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-	if (!auth.ok) throw new Error(auth.error);
+	if (!auth.ok)
+		throw new Error(
+			`Voice context could not use ${model.provider}/${model.id}: ${auth.error}. Choose another context model or turn voice context off in settings.`,
+		);
 	const requestModel = auth.baseUrl
 		? { ...model, baseUrl: auth.baseUrl }
 		: model;

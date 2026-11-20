@@ -26,12 +26,12 @@ export class ControllerAgent {
 				if (this.runtime.state.type !== "conversation") return;
 				const current = this.runtime.state.session;
 				// Delegation IDs belong to their call. Carried work uses session output.
-				if (current === source) current.activateDelegation(id);
-				else current.piInput(input);
+				if (current === source) current.agentTurn.activateDelegation(id);
+				else current.agentTurn.piInput(input);
 			},
 			onDelegationFailed: () => {
 				if (this.runtime.state.type === "conversation")
-					this.runtime.state.session.settleAgentTurn();
+					this.runtime.state.session.agentTurn.settleAgentTurn();
 			},
 			onDeliveryUnavailable: (message) => {
 				this.runtime.context?.ui.notify(message, "error");
@@ -42,7 +42,7 @@ export class ControllerAgent {
 	agentStarted(): void {
 		this.messages.agentStarted();
 		if (this.runtime.state.type === "conversation")
-			this.runtime.state.session.agentStarted();
+			this.runtime.state.session.agentTurn.agentStarted();
 	}
 
 	filterContext(messages: ContextEvent["messages"]): ContextEvent["messages"] {
@@ -52,7 +52,7 @@ export class ControllerAgent {
 	piInput(input: unknown, streamingBehavior?: "steer" | "followUp"): boolean {
 		return (
 			this.runtime.state.type === "conversation" &&
-			this.runtime.state.session.piInput(input, streamingBehavior)
+			this.runtime.state.session.agentTurn.piInput(input, streamingBehavior)
 		);
 	}
 
@@ -60,19 +60,19 @@ export class ControllerAgent {
 		if (this.messages.delegationConsumed(message)) return true;
 		return (
 			this.runtime.state.type === "conversation" &&
-			this.runtime.state.session.piUserMessage(message)
+			this.runtime.state.session.agentTurn.piUserMessage(message)
 		);
 	}
 
 	streamUpdate(update: AssistantMessageEvent): void {
 		if (this.runtime.state.type !== "conversation") return;
 		if (update.type === "text_delta")
-			this.runtime.state.session.streamAgentDelta(update.delta);
+			this.runtime.state.session.agentTurn.streamAgentDelta(update.delta);
 		else if (
 			update.type === "thinking_start" ||
 			update.type === "toolcall_start"
 		)
-			this.runtime.state.session.resumeAgentWork();
+			this.runtime.state.session.agentTurn.resumeAgentWork();
 	}
 
 	finishAgentMessage(
@@ -84,7 +84,7 @@ export class ControllerAgent {
 			.flatMap((part) => (part.type === "text" ? [part.text] : []))
 			.join("\n");
 		if (message.stopReason === "toolUse") {
-			this.runtime.state.session.agentProgress(
+			this.runtime.state.session.agentTurn.agentProgress(
 				completedText,
 				forwardReasoningSummaries
 					? completedVoiceReasoningSummary(message)
@@ -92,12 +92,15 @@ export class ControllerAgent {
 			);
 			return;
 		}
-		this.runtime.state.session.agentResult(completedText, message.stopReason);
+		this.runtime.state.session.agentTurn.agentResult(
+			completedText,
+			message.stopReason,
+		);
 	}
 
 	settleTurn(): void {
 		if (this.runtime.state.type === "conversation")
-			this.runtime.state.session.settleAgentTurn();
+			this.runtime.state.session.agentTurn.settleAgentTurn();
 		this.messages.agentSettled();
 	}
 }

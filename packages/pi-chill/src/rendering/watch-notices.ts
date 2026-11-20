@@ -42,7 +42,9 @@ export function watchNoticeRenderer(): MessageRenderer {
 		opened.addChild(
 			new Markdown(message.content, outputPad, 0, getMarkdownTheme()),
 		);
-		let cached: { width: number; open: boolean; lines: string[] } | undefined;
+		let cached:
+			| { width: number; open: boolean; lines: readonly string[] }
+			| undefined;
 		const component = {
 			invalidate() {
 				cached = undefined;

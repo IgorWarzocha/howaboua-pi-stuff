@@ -7,6 +7,10 @@ import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { resolveCodexVoiceAuth } from "../auth.ts";
 import { CANCELLED, interruptible } from "../cancellation.ts";
 import {
+	priorVoiceCallHistory,
+	type VoiceCallContext,
+} from "../call-context.ts";
+import {
 	buildRealtimeInitialItems,
 	type RealtimeInitialMessageItem,
 } from "../context.ts";
@@ -53,11 +57,13 @@ export interface VoiceControllerRuntime {
 	voiceStatus: string;
 	inputTooQuiet: boolean;
 	realtimePeerPlan?: RealtimePeerPlan | undefined;
+	voiceCallContext?: VoiceCallContext | undefined;
 }
 
 export interface PreparedRealtimeContext {
 	initialItems: RealtimeInitialMessageItem[] | undefined;
 	summary?: string | undefined;
+	refreshCursor?: Omit<VoiceCallContext, "summary"> | undefined;
 }
 
 export async function prepareControllerRealtimeContext(options: {
@@ -68,6 +74,7 @@ export async function prepareControllerRealtimeContext(options: {
 	onSummaryStatus?: ((active: boolean) => void) | undefined;
 	sourceLeafId?: string | undefined;
 	forceSummary?: boolean | undefined;
+	priorVoiceHistory?: string | undefined;
 }): Promise<PreparedRealtimeContext> {
 	let summary: string | undefined;
 	const initialItems = await buildRealtimeInitialItems({
@@ -76,6 +83,7 @@ export async function prepareControllerRealtimeContext(options: {
 		config: options.config,
 		sourceLeafId: options.sourceLeafId,
 		forceSummary: options.forceSummary,
+		priorVoiceHistory: options.priorVoiceHistory,
 		onSummarySelected: (value) => {
 			summary = value;
 		},
@@ -140,6 +148,21 @@ export async function startControllerMode(options: {
 	// Only a prepared refresh preserves the existing call's queued Pi work.
 	if (!options.resume || !options.preparedRealtimeContext)
 		options.messages.setContext(options.ctx);
+	const voiceCursor =
+		options.mode === "realtime"
+			? (options.preparedRealtimeContext?.refreshCursor ?? {
+					sessionId: options.ctx.sessionManager.getSessionId(),
+					through: options.ctx.sessionManager.getLeafId(),
+				})
+			: undefined;
+	const droppedCall =
+		options.resume &&
+		!options.preparedRealtimeContext &&
+		runtime.voiceCallContext?.sessionId === voiceCursor?.sessionId
+			? runtime.voiceCallContext
+			: undefined;
+	const voiceScope = droppedCall ?? voiceCursor;
+	runtime.voiceCallContext = voiceScope;
 	runtime.state =
 		options.mode === "realtime"
 			? { type: "connecting", mode: "realtime", phase: "authorizing" }
@@ -156,6 +179,13 @@ export async function startControllerMode(options: {
 	};
 	setStartupStatus("connecting…");
 	try {
+		const priorVoiceHistory = droppedCall
+			? priorVoiceCallHistory(
+					droppedCall,
+					options.ctx.sessionManager.getSessionId(),
+					options.ctx.sessionManager.getBranch(),
+				)
+			: undefined;
 		const startup = await interruptible(
 			Promise.all([
 				options.mode === "realtime"
@@ -168,6 +198,7 @@ export async function startControllerMode(options: {
 								pi: options.pi,
 								ctx: options.ctx,
 								config: options.config,
+								priorVoiceHistory,
 								onSummaryStatus: (active) => {
 									setStartupStatus(active ? "summarizing…" : "connecting…");
 								},
@@ -187,6 +218,11 @@ export async function startControllerMode(options: {
 			runtime.state.type !== "connecting"
 		)
 			return;
+		if (
+			(options.preparedRealtimeContext?.refreshCursor || droppedCall) &&
+			runtime.voiceCallContext !== voiceScope
+		)
+			throw new Error("Conversation changed while reconnecting voice");
 		if (options.mode === "dictation") await startDictation(options, auth);
 		else
 			await startConversation(
@@ -206,8 +242,17 @@ export async function startControllerMode(options: {
 			if (activeState.type !== "conversation") {
 				return;
 			}
-			if (realtimeContext?.summary)
+			if (
+				voiceCursor &&
+				runtime.voiceCallContext === voiceScope &&
+				realtimeContext?.summary
+			) {
+				runtime.voiceCallContext = {
+					...voiceCursor,
+					summary: realtimeContext.summary,
+				};
 				options.messages.contextSummary(realtimeContext.summary);
+			}
 			if (runtime.announcedMode !== options.mode) {
 				runtime.announcedMode = options.mode;
 				options.messages.modeStarted(options.mode);
@@ -286,7 +331,7 @@ async function startConversation(
 				runtime.state = { type: "conversation", session };
 				// Startup is asynchronous. Sample current work, not the turn that
 				// was active before auth, context preparation, and peer setup.
-				if (!options.ctx.isIdle()) session.agentStarted();
+				if (!options.ctx.isIdle()) session.agentTurn.agentStarted();
 				if (peer) options.realtimePeerPlan?.onActive?.(session, peer);
 			},
 			onError: (session, error) => {
@@ -361,6 +406,7 @@ function cancelStart(
 	runtime.state = { type: "idle" };
 	runtime.config = undefined;
 	runtime.realtimePeerPlan = undefined;
+	runtime.voiceCallContext = undefined;
 	runtime.voiceStatus = "";
 	runtime.inputTooQuiet = false;
 	runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);

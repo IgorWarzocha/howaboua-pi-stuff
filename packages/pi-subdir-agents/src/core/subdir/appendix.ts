@@ -1,5 +1,4 @@
-import type { PersistedContextFile } from "./details.js";
-
+type AgentsContextFile = { path: string; content: string };
 type TextContent = { type: "text"; text: string };
 
 function escapeXml(value: string): string {
@@ -12,7 +11,7 @@ function escapeXml(value: string): string {
 
 export function appendAgentsContext<TContent extends { type: string }>(
 	content: TContent[],
-	files: PersistedContextFile[],
+	files: readonly AgentsContextFile[],
 ): Array<TContent | TextContent> {
 	if (!files.length) return content;
 	const appendix = [

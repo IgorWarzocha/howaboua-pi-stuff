@@ -78,7 +78,7 @@ export function createAutoReasoning(
 			defaultActive: false,
 			label: "Change Reasoning",
 			description:
-				"Adjust reasoning when useful: raise for difficulty or uncertainty, lower for routine work. Effective next request",
+				"Use low for routine work, medium for a quick survey, high to trace a cause across systems, and xhigh when causes may interact. Change when the next phase needs a different level, not per tool call. Applies next request, never below the user's setting.",
 			parameters: PARAMETERS,
 			...auxiliaryToolRenderers(
 				"Reasoning adjustment failed",

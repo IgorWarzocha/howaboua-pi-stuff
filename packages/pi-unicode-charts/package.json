@@ -53,7 +53,7 @@
     "access": "public"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "1.5.2",
+    "@earendil-works/pi-coding-agent": "1.6.0",
     "@types/node": "^26.6.6",
     "typescript": "^7.0.2",
     "@howaboua/pi-codex-conversion": "5.0.1",

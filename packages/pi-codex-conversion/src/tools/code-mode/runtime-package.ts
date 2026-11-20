@@ -9,8 +9,7 @@ interface RuntimePackage {
 }
 export class RuntimeInstallError extends Error {}
 
-/** Reuse an exact installed payload when available, otherwise install only on
- * demand. Pi may already ship the JS engine; its dependency is not our guarantee. */
+/** Reuse an exact installed payload when available, otherwise install on demand. */
 export async function runtimePackage(
 	name: string,
 	version: string,

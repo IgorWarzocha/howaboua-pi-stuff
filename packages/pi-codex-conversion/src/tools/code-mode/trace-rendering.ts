@@ -4,11 +4,11 @@ import {
 	Spacer,
 	Text,
 } from "@earendil-works/pi-tui";
+import { previewText, renderTextAndImages } from "./render-content.js";
 import {
-	type EmittedImageCounts,
-	previewText,
-	renderTextAndImages,
-} from "./render-content.js";
+	matchEmittedImages,
+	restoreEmittedTraceImages,
+} from "./trace-images.js";
 import {
 	CodeModeNestedRenderStore,
 	type NestedRenderState,
@@ -20,26 +20,33 @@ import type {
 	CodeModeToolDefinition,
 	ProgrammaticCodeModeToolDefinition,
 	RuntimeToolTrace,
+	RuntimeToolResult,
 } from "./types.js";
 
 export { CodeModeNestedRenderStore } from "./trace-render-state.js";
+
+type OuterImages = Parameters<typeof matchEmittedImages>[0];
 
 export function renderTraceAndOutput(
 	traces: RuntimeToolTrace[],
 	droppedTraceCount: number,
 	tools: CodeModeToolDefinition[],
-	output: Component,
-	hasOutput: boolean,
+	renderOutput: (
+		visibleTraceText: ReadonlySet<string>,
+	) => Component | undefined,
 	options: { expanded: boolean; isPartial: boolean },
 	theme: CodeModeRenderTheme,
 	context: CodeModeRenderContext | undefined,
-	emittedImages: EmittedImageCounts,
+	images: OuterImages,
 	renderStore: CodeModeNestedRenderStore,
 	traceStates: Map<string, NestedRenderState>,
 ): Component {
-	if (traces.length === 0 && droppedTraceCount === 0) return output;
+	const visibleTraceText = new Set<string>();
+	if (traces.length === 0 && droppedTraceCount === 0)
+		return renderOutput(visibleTraceText) ?? new Container();
 	const byName = new Map(tools.map((tool) => [tool.name, tool]));
 	const container = new Container();
+	const match = matchEmittedImages(images);
 	if (droppedTraceCount > 0) {
 		container.addChild(
 			new Text(
@@ -59,13 +66,16 @@ export function renderTraceAndOutput(
 			options,
 			theme,
 			context,
-			emittedImages,
+			images,
+			match,
 			renderStore,
 			traceStates,
+			visibleTraceText,
 		);
 		for (const component of rendered) container.addChild(component);
 	}
-	if (hasOutput) {
+	const output = renderOutput(visibleTraceText);
+	if (output) {
 		container.addChild(new Spacer(1));
 		container.addChild(output);
 	}
@@ -78,20 +88,21 @@ function renderTrace(
 	options: { expanded: boolean; isPartial: boolean },
 	theme: CodeModeRenderTheme,
 	context: CodeModeRenderContext | undefined,
-	emittedImages: EmittedImageCounts,
+	images: OuterImages,
+	match: ReturnType<typeof matchEmittedImages>,
 	renderStore: CodeModeNestedRenderStore,
 	traceStates: Map<string, NestedRenderState>,
+	visibleTraceText: Set<string>,
 ): Component[] {
 	const programmatic = isProgrammaticTool(tool) ? tool : undefined;
 	const captured = renderStore.get(trace.id);
 	const renderState = traceStates.get(trace.id) ?? { state: {} };
 	traceStates.set(trace.id, renderState);
-	const renderedTrace = withoutEmittedImages(
-		captured.result ? { ...trace, result: captured.result } : trace,
-		emittedImages,
+	const rendererResult = withoutEmittedImages(
+		captured.result ?? restoreEmittedTraceImages(trace, images),
+		match,
 	);
 	const rendererInput = captured.input ?? trace.input;
-	const rendererResult = renderedTrace.result;
 	const partial = trace.status === "running" || trace.status === "blocked";
 	const renderContext: CodeModeNestedRenderContext = {
 		...(context?.keyHint ? { keyHint: context.keyHint } : {}),
@@ -152,10 +163,29 @@ function renderTrace(
 	if (trace.status === "error" && trace.error) {
 		if (!customResultRendered)
 			components.push(new Text(theme.fg("error", trace.error), 4, 0));
-	} else if (renderedTrace.result && !customResultRendered) {
+	} else if (rendererResult && !customResultRendered) {
+		const text = traceResultText(rendererResult);
+		// Custom renderers can omit or transform text; only the full generic
+		// renderer proves which bytes are visible.
+		if (
+			options.expanded &&
+			!options.isPartial &&
+			trace.status === "done" &&
+			text
+		) {
+			visibleTraceText.add(text);
+			if (trace.name === "exec_command" || trace.name === "write_stdin") {
+				const plainSuccess = "Exit code: 0\nOutput:\n";
+				if (text.startsWith(plainSuccess))
+					visibleTraceText.add(
+						'{"exit_code":0}\nOutput:\n' + text.slice(plainSuccess.length),
+					);
+			}
+		}
 		components.push(
 			renderGenericTraceResult(
-				renderedTrace,
+				rendererResult,
+				text,
 				theme,
 				options.expanded || options.isPartial,
 				context,
@@ -176,20 +206,16 @@ function renderTrace(
 }
 
 function withoutEmittedImages(
-	trace: RuntimeToolTrace,
-	emittedImages: EmittedImageCounts,
-): RuntimeToolTrace {
-	if (!trace.result || emittedImages.size === 0) return trace;
-	const content = trace.result.content.filter((item) => {
-		if (item.type !== "image") return true;
-		const counts = emittedImages.get(item.mimeType);
-		const count = counts?.get(item.data) ?? 0;
-		if (!counts || count === 0) return true;
-		counts.set(item.data, count - 1);
-		return false;
-	});
-	if (content.length === trace.result.content.length) return trace;
-	return { ...trace, result: { ...trace.result, content } };
+	result: RuntimeToolResult | undefined,
+	match: ReturnType<typeof matchEmittedImages>,
+): RuntimeToolResult | undefined {
+	if (!result) return undefined;
+	const content = result.content.filter(
+		(item) => item.type !== "image" || match(item) < 0,
+	);
+	return content.length === result.content.length
+		? result
+		: { ...result, content };
 }
 
 function renderGenericTraceCall(
@@ -216,21 +242,21 @@ function renderGenericTraceCall(
 	return new Text(text, 0, 0);
 }
 
+function traceResultText(result: RuntimeToolResult): string {
+	return result.content
+		.filter((item) => item.type === "text")
+		.map((item) => item.text)
+		.join("\n");
+}
+
 function renderGenericTraceResult(
-	trace: RuntimeToolTrace,
+	result: RuntimeToolResult,
+	text: string,
 	theme: CodeModeRenderTheme,
 	full: boolean,
 	context: CodeModeRenderContext | undefined,
 	renderState: NestedRenderState,
 ): Component {
-	const result = trace.result;
-	if (!result) return new Container();
-	const text = result.content
-		.filter(
-			(item): item is { type: "text"; text: string } => item.type === "text",
-		)
-		.map((item) => item.text)
-		.join("\n");
 	const images =
 		context?.showImages === false
 			? []

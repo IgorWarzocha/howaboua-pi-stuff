@@ -48,11 +48,10 @@ Idle rollover is off by default. Choose 25m, 55m, 2h, 6h or 12h in `/notes`. Hou
 
 ## Management
 
-### Model roles
+### Roles
 
-`/roles` opens the Roles tab. `/notes` opens its existing Notes tab. Press Tab
-or Shift-Tab to move between them. The Roles tab is read-only and shows the
-configuration path, configured values and a JSON example. Edit
+`/roles` lists configured roles. Press Tab or Shift-Tab to switch between Roles
+and Notes. Edit
 `<Pi agent directory>/notes-compaction/model-roles.json` to define roles:
 
 ```json
@@ -73,15 +72,14 @@ Create the parent directory and file if missing. Use an available Pi provider
 and exact model ID. Role IDs start with a lowercase letter and contain only
 lowercase letters, numbers and hyphens. Reasoning accepts `off`, `minimal`,
 `low`, `medium`, `high`, `xhigh` or `max`. Roles have no shipped model assignments.
-Changes apply on the next turn or when reopening the tab. All defined roles
+Changes apply on the next turn or when reopening the list. All defined roles
 are available to the agent. The old `enabled` property is ignored.
 
-Only role IDs and descriptions are shared with the agent. After saving its
-checkpoint, it can call `new_context` with an optional `role` when a sustained
-scope shift warrants a different role. The next context window uses that role's
-model and reasoning in the same session. Without a role, `new_context` keeps the
-current model. There is no manual role switching or recommendation acceptance
-workflow.
+The agent sees its selected role and the available role descriptions, not
+the model or reasoning settings. After saving a checkpoint, it can pass a
+configured role ID to `new_context` to switch in the same session. Omit the
+role to keep the current one. A Shepherdr spawn profile does not select a
+Notes role.
 
 Notes must be active for both models. Pi handles authentication and clamps
 unsupported reasoning levels. Provider capabilities and context limits still

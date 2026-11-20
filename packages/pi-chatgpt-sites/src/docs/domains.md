@@ -12,8 +12,8 @@ Use resource name `domain` in calls. Sites does not register domains; the user m
 Typical flow:
 
 1. Add the apex domain or subdomain.
-2. Show the returned DNS names, record types, and values to the user.
+2. Show the DNS names, types and values the user needs to set. Do not report DNS as changed.
 3. Wait for the user to update DNS at their provider.
 4. Refresh status after propagation.
 
-Do not claim that DNS was changed merely because the domain was added in Sites. Never remove or replace a domain to solve a transient propagation delay.
+For propagation delays, wait and refresh instead of removing or replacing the domain.

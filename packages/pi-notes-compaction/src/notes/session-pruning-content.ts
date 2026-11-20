@@ -187,7 +187,13 @@ export function pruneContent(
 										trimPreviousWindow: window.trim,
 									},
 								}
-							: { protocol: 1, kind: window.kind, identity, trim: window.trim },
+							: {
+									protocol: 1,
+									kind: window.kind,
+									identity,
+									trim: window.trim,
+									...(window.role === undefined ? {} : { role: window.role }),
+								},
 				}
 			: tombstone(entry);
 	}

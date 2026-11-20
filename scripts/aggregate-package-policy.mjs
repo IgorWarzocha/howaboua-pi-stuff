@@ -1,0 +1,18 @@
+export const bundleExcludedPackages = new Set([
+	"@howaboua/pi-agent-board",
+	"@howaboua/pi-agent-comms",
+	"@howaboua/pi-browser",
+	"@howaboua/pi-chatgpt-sites",
+	"@howaboua/pi-chill",
+	"@howaboua/pi-codex-conversion",
+	"@howaboua/pi-codex-guardian",
+	"@howaboua/pi-codex-imagegen",
+	"@howaboua/pi-codex-web-run",
+	"@howaboua/pi-grok-realtime",
+	"@howaboua/pi-notes-compaction",
+	"@howaboua/pi-observatory",
+	"@howaboua/pi-pet",
+	"@howaboua/pi-sandbox",
+	"@howaboua/pi-skill-omarchy-help",
+	"@howaboua/pi-subdir-agents",
+]);

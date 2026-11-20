@@ -35,7 +35,7 @@ export function registerNoteSaveMarkers(
 		if (!enabled()) return undefined;
 		const content = theme.fg("success", "✓ Notes saved");
 		return new (class extends Text {
-			override render(width: number): string[] {
+			override render(width: number): readonly string[] {
 				const leaf = manager?.getLeafId();
 				const windowId = currentWindowId();
 				if (

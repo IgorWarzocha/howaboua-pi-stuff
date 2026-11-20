@@ -6,12 +6,14 @@ import type {
 	SearchRequest,
 	SearchResponse,
 } from "./history-search-protocol.js";
+import { HistoryPages } from "./history-windows.js";
 
 const UNAVAILABLE =
 	"History request failed. Use list/read or ask user to check /notes.";
 
 /** Worker owns derived storage; JSONL and the caller own content and scope. */
 export class HistorySearch {
+	readonly pages = new HistoryPages();
 	private worker: Worker | undefined;
 	private sessionId: string | undefined;
 	private file: string | undefined;
@@ -263,6 +265,7 @@ export class HistorySearch {
 
 	close(): void {
 		this.stop(new Error("History session changed; retry the query"));
+		this.pages.clear();
 		this.sessionId = undefined;
 		this.file = undefined;
 	}

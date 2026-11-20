@@ -2,7 +2,6 @@ import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { Static } from "@earendil-works/pi-schema";
 import { Text } from "@earendil-works/pi-tui";
 import {
-	IMAGE_CONTEXT_GUIDANCE,
 	IMAGE_GENERATION_TOOL_NAME,
 	IMAGE_GENERATION_UNSUPPORTED_MESSAGE,
 	type ImageGenerationToolOptions,
@@ -10,12 +9,8 @@ import {
 	supportsExecutableImageGeneration,
 	supportsImageInputs,
 } from "./contract.js";
-import { executeCodexImageGeneration } from "./execute.js";
-import {
-	formatImagegenOutput,
-	type ImagegenOutput,
-	imageContentsFromImagegenOutput,
-} from "./output.js";
+import { generateImageArtifacts } from "./execute.js";
+import { formatImagegenOutput, type ImagegenOutput } from "./output.js";
 import { renderToolCell } from "./render.js";
 import { readImagegenSettings } from "./settings.js";
 
@@ -28,9 +23,7 @@ export function createImageGenerationTool(
 	return {
 		name: IMAGE_GENERATION_TOOL_NAME,
 		label: IMAGE_GENERATION_TOOL_NAME,
-		description:
-			"Generate/edit images; omit selectors to generate. " +
-			IMAGE_CONTEXT_GUIDANCE,
+		description: "Generate or edit images",
 		...(options.promptSnippet === false
 			? {}
 			: { promptSnippet: "Generate/edit" }),
@@ -47,16 +40,14 @@ export function createImageGenerationTool(
 				readImagegenSettings().access !== "openai"
 			)
 				throw new Error(IMAGE_GENERATION_UNSUPPORTED_MESSAGE);
-			const details = await executeCodexImageGeneration(
+			const { details, imageContent } = await generateImageArtifacts(
 				params,
 				ctx,
 				signal,
+				supportsImageInputs(ctx.model),
 				options,
 				toolCallId,
 			);
-			const imageContent = supportsImageInputs(ctx.model)
-				? imageContentsFromImagegenOutput(details)
-				: [];
 			return {
 				content: [
 					{ type: "text", text: formatImagegenOutput(details) },

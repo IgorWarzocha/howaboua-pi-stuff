@@ -2,8 +2,12 @@ import type {
 	EntryRenderer,
 	MessageRenderer,
 } from "@earendil-works/pi-coding-agent";
-import { Container, Text } from "@earendil-works/pi-tui";
+import { type Component, Container, Text } from "@earendil-works/pi-tui";
 import type { ActivityTimeline } from "../activity/timeline.js";
+import {
+	compactEntryTitle,
+	createCompactNoticeRenderer,
+} from "./compact-notice.js";
 import { renderActivityHeading } from "./heading.js";
 
 type CustomMessage = Parameters<MessageRenderer>[0];
@@ -53,32 +57,38 @@ function peerContent(
 			unescapeAttribute(value ?? ""),
 		]),
 	);
+	const machine = source["machine"] || source["host"];
+	const terminal = source["terminal"] || source["pane"];
 	if (
 		(source["kind"] !== "message" && source["kind"] !== "task") ||
-		!source["host"] ||
-		!source["pane"]
+		!machine ||
+		!terminal
 	)
 		return undefined;
 	const name =
-		source["name"] ||
-		source["pane_name"] ||
-		source["tab_name"] ||
-		source["pane"];
+		source["name"] || source["pane_name"] || source["tab_name"] || terminal;
 	return {
-		identity: `${name} (${source["host"]})`,
+		identity: `${name} (${machine})`,
 		body: content.slice(envelope[0].length),
 	};
 }
 
 function eventContent(
 	details: unknown,
+	original: string,
 ): { label: string; body: string; warning: boolean } | undefined {
 	const value = record(details);
 	const state = value?.["state"];
 	if (
 		!value ||
 		typeof value["paneId"] !== "string" ||
-		!["blocked", "question", "failed", "finished"].includes(String(state))
+		![
+			"blocked",
+			"question",
+			"failed",
+			"finished",
+			"extension-message",
+		].includes(String(state))
 	)
 		return undefined;
 	const string = (key: string) =>
@@ -89,7 +99,13 @@ function eventContent(
 	]
 		.filter(Boolean)
 		.join(" / ");
-	const label = `${identity} · ${state === "question" ? "question pending" : state}`;
+	const stateLabel =
+		state === "extension-message"
+			? "extension message pending"
+			: state === "question"
+				? "question pending"
+				: state;
+	const label = `${identity} · ${stateLabel}`;
 	const fields = [
 		string("task"),
 		string("blockedOn"),
@@ -97,7 +113,11 @@ function eventContent(
 	].filter(Boolean);
 	const ask = record(value["ask"]);
 	if (ask) fields.push(JSON.stringify(ask, null, 2));
-	return { label, body: fields.join("\n\n"), warning: state !== "finished" };
+	return {
+		label,
+		body: state === "extension-message" ? original : fields.join("\n\n"),
+		warning: state !== "finished",
+	};
 }
 
 export function activityMessageRenderer(
@@ -108,7 +128,9 @@ export function activityMessageRenderer(
 		object,
 		{ expanded: boolean; generation: number }
 	>();
-	return (message, { expanded, outputPad }, theme) => {
+	const compactNotice = createCompactNoticeRenderer();
+	return (message, { expanded, outputPad, keyHint }, theme) => {
+		compactNotice.observe(message, expanded);
 		const id = timeline.messageId(message);
 		const group = timeline.addMessage(message);
 		const member = group.members.get(id);
@@ -130,7 +152,7 @@ export function activityMessageRenderer(
 				: undefined;
 		const event =
 			message.customType === "herdr-agent-event"
-				? eventContent(message.details)
+				? eventContent(message.details, original)
 				: undefined;
 		const label = peer
 			? `message from ${peer.identity}`
@@ -164,18 +186,33 @@ export function activityMessageRenderer(
 		const hintText = hint
 			? new Text(unescapeAttribute(hint), outputPad, 0)
 			: undefined;
+		const title = record(message.details)?.["title"];
+		let offNotice: Component | undefined;
 		const component = new (class extends Container {
 			override invalidate(): void {
 				// The heading may be detached while another row anchors the group.
 				heading.invalidate();
+				offNotice?.invalidate();
 				updateLabel();
 				super.invalidate();
 			}
 
-			override render(width: number): string[] {
+			override render(width: number): readonly string[] {
 				this.clear();
 				if (!isEnabled()) {
-					this.addChild(originalText);
+					if (
+						message.customType === "codex-developer-message" &&
+						typeof message.content === "string"
+					) {
+						offNotice ??= compactNotice.render(
+							message,
+							typeof title === "string" ? title : "Context update",
+							message.content,
+							{ expanded, keyHint, outputPad },
+							theme,
+						);
+						this.addChild(offNotice);
+					} else this.addChild(originalText);
 					return super.render(width);
 				}
 				if (group.anchorId === id) this.addChild(heading);
@@ -187,8 +224,11 @@ export function activityMessageRenderer(
 				return super.render(width);
 			}
 		})();
-		if (member) member.invalidate = () => component.invalidate();
-		group.refresh();
+		if (member) {
+			member.invalidate = () => component.invalidate();
+			member.invalidateHeading = () => heading.invalidate();
+		}
+		if (isEnabled()) group.refreshHeading();
 		return component;
 	};
 }
@@ -201,7 +241,9 @@ export function activityEntryRenderer(
 		object,
 		{ expanded: boolean; generation: number }
 	>();
-	return (entry, { expanded }, theme) => {
+	const compactNotice = createCompactNoticeRenderer();
+	return (entry, { expanded, keyHint }, theme) => {
+		compactNotice.observe(entry, expanded);
 		const id = `entry:${entry.id}`;
 		const group = timeline.addEntry(entry);
 		const previous = nativeExpansion.get(entry);
@@ -215,41 +257,67 @@ export function activityEntryRenderer(
 		)
 			group.nativeExpansion(expanded, id);
 		const data = record(entry.data);
-		const raw = JSON.stringify(entry.data, null, 2) ?? "";
+		let serialized: string | undefined;
+		const raw = () =>
+			(serialized ??= JSON.stringify(entry.data, null, 2) ?? "");
 		const title = typeof data?.["title"] === "string" ? data["title"] : "";
 		const content =
-			typeof data?.["content"] === "string" ? data["content"] : raw;
+			typeof data?.["content"] === "string" ? data["content"] : raw();
 		const readable = [title, content].filter(Boolean).join("\n");
 		if (
 			entry.customType === "codex-notebook-status" &&
-			title === "Notebook status unavailable"
+			(title === "Notebook status unavailable" ||
+				title === "TS status unavailable")
 		) {
 			group.notices.set(id, title);
 			group.noticeWarnings.add(id);
 		}
 		const heading = renderActivityHeading(group, theme);
 		const readableText = new Text(readable, 1, 0);
-		const detailText = expanded ? new Text(raw, 1, 0) : readableText;
+		let rawText: Text | undefined;
+		const details = () => (rawText ??= new Text(raw(), 1, 0));
+		let compactTitle: string | null | undefined;
+		let offNotice: Component | undefined;
 		const component = new (class extends Container {
 			override invalidate(): void {
 				heading.invalidate();
+				offNotice?.invalidate();
 				super.invalidate();
 			}
 
-			override render(width: number): string[] {
+			override render(width: number): readonly string[] {
 				this.clear();
-				if (!isEnabled()) this.addChild(readableText);
-				else {
+				if (!isEnabled()) {
+					compactTitle ??= compactEntryTitle(entry.customType, data) ?? null;
+					if (compactTitle) {
+						offNotice ??= compactNotice.render(
+							entry,
+							compactTitle,
+							content,
+							{ expanded, keyHint },
+							theme,
+						);
+						this.addChild(offNotice);
+					} else {
+						const compaction =
+							entry.customType === "codex-native-compaction-display" &&
+							typeof data?.["content"] === "string";
+						this.addChild(expanded && !compaction ? details() : readableText);
+					}
+				} else {
 					if (group.anchorId === id) this.addChild(heading);
 					if (group.open || (group.anchorId === undefined && expanded))
-						this.addChild(detailText);
+						this.addChild(expanded ? details() : readableText);
 				}
 				return super.render(width);
 			}
 		})();
 		const member = group.members.get(id);
-		if (member) member.invalidate = () => component.invalidate();
-		group.refresh();
+		if (member) {
+			member.invalidate = () => component.invalidate();
+			member.invalidateHeading = () => heading.invalidate();
+		}
+		if (isEnabled()) group.refreshHeading();
 		return component;
 	};
 }

@@ -7,9 +7,8 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { findAgentsFiles } from "./subdir/agents-chain.js";
 import { appendAgentsContext } from "./subdir/appendix.js";
-import { collectBranchContext } from "./subdir/branch-state.js";
-import type { PersistedContextFile } from "./subdir/details.js";
-import { mergePersistedContextDetails } from "./subdir/details.js";
+import { collectBranchFingerprints } from "./subdir/branch-state.js";
+import { fingerprint, mergePersistedContextDetails } from "./subdir/details.js";
 import { contentRootForTarget, resolvePath } from "./subdir/paths.js";
 import {
 	isContentSearchShellCommand,
@@ -31,8 +30,7 @@ export function registerSubdirContextAutoload(
 		>
 	>,
 ): void {
-	const loadedAgents = new Set<string>();
-	const loadedAgentsContent = new Map<string, string>();
+	let fingerprints = new Map<string, string>();
 	let currentCwd = "";
 	let cwdAgentsPath = "";
 
@@ -43,24 +41,10 @@ export function registerSubdirContextAutoload(
 		return (relative || absolutePath).replaceAll("\\", "/");
 	}
 
-	function resetSession(cwd: string): void {
-		currentCwd = resolvePath(cwd, process.cwd());
+	function restoreSession(ctx: ExtensionContext): void {
+		currentCwd = resolvePath(ctx.cwd, process.cwd());
 		cwdAgentsPath = path.join(currentCwd, "AGENTS.md");
-		loadedAgents.clear();
-		loadedAgentsContent.clear();
-		loadedAgents.add(cwdAgentsPath);
-	}
-
-	function ensureSession(cwd: string): void {
-		if (!currentCwd) resetSession(cwd);
-	}
-
-	function mergeRuntimeFromBranch(branchContext: Map<string, string>): void {
-		loadedAgents.add(cwdAgentsPath);
-		for (const [agentsPath, content] of branchContext.entries()) {
-			loadedAgents.add(agentsPath);
-			loadedAgentsContent.set(agentsPath, content);
-		}
+		fingerprints = collectBranchFingerprints(ctx, currentCwd, cwdAgentsPath);
 	}
 
 	function targetsForEvent(event: DiscoveryEvent): string[] {
@@ -145,10 +129,7 @@ export function registerSubdirContextAutoload(
 		for (const target of targets) {
 			const searchRoot = contentRootForTarget(target);
 			if (!searchRoot) continue;
-			if (path.basename(target) === "AGENTS.md") {
-				loadedAgents.add(path.normalize(target));
-				continue;
-			}
+			if (path.basename(target) === "AGENTS.md") continue;
 			let probe = target;
 			try {
 				if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
@@ -164,32 +145,36 @@ export function registerSubdirContextAutoload(
 		return [...paths];
 	}
 
-	async function readAppendixFiles(
-		agentFiles: string[],
-		branchContext: Map<string, string>,
-	) {
+	async function readAppendixFiles(agentFiles: string[]) {
 		const loadedNow: string[] = [];
-		const persistedFiles: PersistedContextFile[] = [];
-		const appendixFiles: PersistedContextFile[] = [];
+		const appendixFiles: Array<{
+			absolute: string;
+			path: string;
+			content: string;
+			sha256: string;
+		}> = [];
 		const failedFiles: Array<{ agentsPath: string; error: Error }> = [];
 
 		for (const agentsPath of agentFiles) {
 			try {
 				const content = await fs.promises.readFile(agentsPath, "utf-8");
-				const wasLoaded = loadedAgents.has(agentsPath);
-				const previousContent =
-					loadedAgentsContent.get(agentsPath) ?? branchContext.get(agentsPath);
-				const changed = previousContent !== content;
+				const previous = fingerprints.get(agentsPath);
+				const sha256 = fingerprint(content);
+				if (previous === sha256) continue;
 				const rel = relativePath(agentsPath);
-				if (changed) persistedFiles.push({ path: rel, content });
-				if (!wasLoaded || changed) appendixFiles.push({ path: rel, content });
-				if (!wasLoaded) loadedNow.push(rel);
+				appendixFiles.push({
+					absolute: agentsPath,
+					path: rel,
+					content,
+					sha256,
+				});
+				if (!previous) loadedNow.push(rel);
 			} catch (error) {
 				if (error instanceof Error) failedFiles.push({ agentsPath, error });
 			}
 		}
 
-		return { appendixFiles, failedFiles, loadedNow, persistedFiles };
+		return { appendixFiles, failedFiles, loadedNow };
 	}
 
 	function notifyLoaded(ctx: ExtensionContext, loadedNow: string[]): void {
@@ -205,27 +190,51 @@ export function registerSubdirContextAutoload(
 		_event: unknown,
 		ctx: ExtensionContext,
 	): void => {
-		resetSession(ctx.cwd);
+		restoreSession(ctx);
 	};
 
 	pi.on("session_start", handleSessionChange);
 	pi.on("session_tree", handleSessionChange);
 
 	pi.on("tool_result", async (event, ctx) => {
-		ensureSession(ctx.cwd);
+		if (!currentCwd) restoreSession(ctx);
+
+		// A native read exposes its result directly. A Code trace does not
+		// prove the cell printed the file, and a partial read is not delivery.
+		if (!event.isError && event.toolName === "read") {
+			const [target] = targetsForEvent(event);
+			const [item] = event.content;
+			if (
+				target &&
+				target !== cwdAgentsPath &&
+				path.basename(target) === "AGENTS.md" &&
+				event.content.length === 1 &&
+				item?.type === "text"
+			) {
+				const content = await fs.promises
+					.readFile(target, "utf8")
+					.catch(() => undefined);
+				if (content !== undefined && content === item.text) {
+					const sha256 = fingerprint(content);
+					fingerprints.set(target, sha256);
+					return {
+						details: mergePersistedContextDetails(event.details, [
+							{ path: relativePath(target), sha256 },
+						]),
+					};
+				}
+			}
+		}
 
 		const discoveryEvents = codeModeDiscoveryEvents(event);
 		if (event.isError) discoveryEvents.shift();
 		const targets = discoveryEvents.flatMap(targetsForEvent);
 		if (!targets.length) return undefined;
 
-		const branchContext = collectBranchContext(ctx, currentCwd, cwdAgentsPath);
-		mergeRuntimeFromBranch(branchContext);
-
 		const agentFiles = agentsForTargets(targets);
 		if (!agentFiles.length) return undefined;
 
-		const result = await readAppendixFiles(agentFiles, branchContext);
+		const result = await readAppendixFiles(agentFiles);
 		if (ctx.hasUI) {
 			for (const failed of result.failedFiles) {
 				ctx.ui.notify(
@@ -235,10 +244,12 @@ export function registerSubdirContextAutoload(
 			}
 		}
 
-		if (!result.persistedFiles.length && !result.appendixFiles.length)
-			return undefined;
+		if (!result.appendixFiles.length) return undefined;
+		const receipts = result.appendixFiles.map(({ path, sha256 }) => ({
+			path,
+			sha256,
+		}));
 		const sent =
-			result.appendixFiles.length > 0 &&
 			typeof developerMessages?.trySendCodexDeveloperCustomMessage ===
 				"function" &&
 			developerMessages.trySendCodexDeveloperCustomMessage(
@@ -249,30 +260,20 @@ export function registerSubdirContextAutoload(
 						.map((item) => item.text)
 						.join("\n"),
 					display: true,
-					details: mergePersistedContextDetails(undefined, {
-						files: result.appendixFiles,
-					}),
+					details: mergePersistedContextDetails(undefined, receipts),
 				},
 				// triggerTurn:false skips the live loop and only persists history.
 				{ deliverAs: "steer" },
 			);
 
 		// Commit only after delivery; failed sends must remain retryable.
-		for (const file of result.appendixFiles) {
-			const absolutePath = resolvePath(file.path, currentCwd);
-			loadedAgents.add(absolutePath);
-			loadedAgentsContent.set(absolutePath, file.content);
-		}
+		for (const { absolute, sha256 } of result.appendixFiles)
+			fingerprints.set(absolute, sha256);
 		if (sent) return undefined;
 		notifyLoaded(ctx, result.loadedNow);
-		const details = result.persistedFiles.length
-			? mergePersistedContextDetails(event.details, {
-					files: result.persistedFiles,
-				})
-			: event.details;
 		return {
 			content: appendAgentsContext(event.content, result.appendixFiles),
-			details,
+			details: mergePersistedContextDetails(event.details, receipts),
 		};
 	});
 }

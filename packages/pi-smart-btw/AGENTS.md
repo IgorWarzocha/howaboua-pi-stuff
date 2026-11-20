@@ -1,1 +1,0 @@
-- Persist side answers and clear markers with `appendEntry`, not model-facing messages. Only explicit injection may put an answer into the main conversation.

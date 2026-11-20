@@ -16,7 +16,8 @@ import {
 	visibleWidth,
 } from "@earendil-works/pi-tui";
 
-type DelegatedEditor = EditorComponent & Partial<CustomEditor>;
+type DelegatedEditor = EditorComponent &
+	Partial<Omit<CustomEditor, keyof EditorComponent>>;
 type EditorFactory = NonNullable<
 	ReturnType<ExtensionContext["ui"]["getEditorComponent"]>
 >;
@@ -159,7 +160,7 @@ class SuggestionEditor implements EditorComponent, Focusable {
 		);
 	}
 
-	render(width: number): string[] {
+	render(width: number): readonly string[] {
 		this.displayed = undefined;
 		const lines = this.inner.render(width);
 		const prediction = this.state.prediction;

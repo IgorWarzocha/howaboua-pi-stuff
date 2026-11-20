@@ -88,6 +88,7 @@ export async function processWebSocketStream<TApi extends Api>(
 				decision?: CanonicalHistoryDecision | undefined;
 		  }
 		| undefined,
+	onRequestBytes?: (bytes: number) => void,
 ): Promise<void> {
 	let streamStarted = false;
 	const idleTimeoutMs = normalizeTimeoutMs(
@@ -199,9 +200,14 @@ export async function processWebSocketStream<TApi extends Api>(
 		if (INTERRUPT_ON_CANCEL && options?.signal?.aborted)
 			throw new Error("Request was aborted");
 		diagnostics?.timing.sent();
-		socket.send(
-			serializeCodexRequest({ type: "response.create", ...requestBody }),
-		);
+		{
+			const json = serializeCodexRequest({
+				type: "response.create",
+				...requestBody,
+			});
+			onRequestBytes?.(Buffer.byteLength(json, "utf8"));
+			socket.send(json);
+		}
 		requestSent = true;
 		await processMappedCodexResponsesStream(
 			startWebSocketOutputOnFirstEvent(
@@ -235,25 +241,10 @@ export async function processWebSocketStream<TApi extends Api>(
 		} else {
 			assertSuccessfulCodexOutput(output);
 			for (const item of responseItems) options?.onOutputItemDone?.(item);
-			// Compaction callers validate and store checkpoints. Until then its output
-			// must not replace the sampling baseline, including on invalid-output failure.
-			if (
-				!options?.canonicalCompaction &&
-				useCachedContext &&
-				entry &&
-				output.responseId
-			) {
-				entry.continuation = {
-					lastRequestBody: fullBody,
-					lastResponseId: output.responseId,
-					lastResponseItems: responseItems,
-				};
-			}
-			// A transient socket means another request already owns this session lane.
-			// Its concurrent history has no canonical ordering, so only the retained
-			// cached lane may advance the baseline used by later compaction.
 			if (entry && !options?.canonicalCompaction) {
-				recordCanonicalSessionResponse({
+				// Only the ordered cached lane records canonical history. Compaction
+				// must validate its checkpoint without replacing the sampling baseline.
+				const snapshot = recordCanonicalSessionResponse({
 					sessionId: options?.sessionId,
 					url,
 					accountId,
@@ -262,6 +253,16 @@ export async function processWebSocketStream<TApi extends Api>(
 					responseItems,
 					token: canonical?.token,
 				});
+				if (useCachedContext && output.responseId) {
+					// Share the detached canonical snapshot instead of retaining both
+					// the hook-owned request graph and its replay copy. A stale canonical
+					// token can still have a valid, independent socket continuation.
+					entry.continuation = {
+						lastRequestBody: snapshot?.requestBody ?? fullBody,
+						lastResponseId: output.responseId,
+						lastResponseItems: snapshot?.responseItems ?? responseItems,
+					};
+				}
 			}
 		}
 		releaseOnce({ keep: keepConnection });

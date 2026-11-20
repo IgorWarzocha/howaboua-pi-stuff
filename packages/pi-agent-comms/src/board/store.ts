@@ -112,7 +112,9 @@ export class BoardStore {
 	root(board: string, id: string): PostRecord {
 		const post = this.post(board, id);
 		if (post.thread_id !== id)
-			throw new Error("thread_id must identify a first post");
+			throw new Error(
+				`thread_id points to a reply. Use root thread_id ${post.thread_id}.`,
+			);
 		return post;
 	}
 	threadStatus(

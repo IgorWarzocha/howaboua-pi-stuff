@@ -24,7 +24,7 @@ tools.sites({
 });
 ```
 
-Keys are case-sensitive. Do not repeat a key or put it in both lists. Only listed keys change. Mark sensitive values with `is_secret: true` and do not echo them in prose or logs. The tool deliberately cannot read values from arbitrary environment variables or files. For secrets that should never enter model context, use the Sites settings UI instead.
+Keys are case-sensitive. List each key once across both lists; other keys stay unchanged. Mark sensitive values with `is_secret: true`. You MUST NOT echo them in prose or logs. For secrets that must stay outside model context, use the Sites Settings UI. These tools cannot import local environment variables or files.
 
 Calling this action changes production runtime configuration immediately.
 

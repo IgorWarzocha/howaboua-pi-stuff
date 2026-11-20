@@ -12,7 +12,8 @@ import { useHistory } from "./history.js";
 import type { HistorySearch } from "./history-search.js";
 import type { NotesLifecycle } from "./lifecycle.js";
 import { noteResult } from "./note-result.js";
-import { collectNotes, normalizeNoteParams, useNotes } from "./notes.js";
+import { normalizeNoteParams, readNotes } from "./note-query.js";
+import { collectNotes, writeNote } from "./notes.js";
 import { lookupNotes } from "./notes-lookup.js";
 import {
 	readSharedHistory,
@@ -101,27 +102,29 @@ export function createQueryExecutor(
 			if (alias)
 				localRaw[key] = `${identity.agentName}${value.slice(alias.length)}`;
 		}
+		const agent = lifecycle.agent(ctx);
 		const params = queryArguments(
 			"notes",
-			normalizeNoteParams(localRaw, lifecycle.agent(ctx)),
+			normalizeNoteParams(localRaw, agent),
 		);
 		if (signal?.aborted) throw new Error("Note operation cancelled");
-		const local = useNotes(
-			pi,
-			store,
-			params,
-			ctx,
-			lifecycle.agent(ctx),
-			lifecycle.windows.current?.currentWindowId ?? "",
-			lifecycle.runId,
-			shared,
-		);
 		if (
 			params["action"] === "write_file" ||
 			params["action"] === "append_to_file"
 		)
 			return {
-				...noteResult(local),
+				...noteResult(
+					writeNote(
+						pi,
+						store,
+						params,
+						ctx,
+						agent,
+						lifecycle.windows.current?.currentWindowId ?? "",
+						lifecycle.runId,
+						shared,
+					),
+				),
 				details: {
 					...(shared
 						? { codexHistoryNotes: {}, notesCompactionRouted: true }
@@ -135,6 +138,7 @@ export function createQueryExecutor(
 				},
 			};
 		const notes = collectNotes(store, ctx.sessionManager.getBranch());
+		const local = readNotes(notes, params, agent);
 		if (
 			params["action"] === "read_file" &&
 			notes.get(params["path"] as string)?.mode === "replace"

@@ -23,7 +23,10 @@ export interface VmBindings {
 	vars: string[];
 	functions: string[];
 }
-export type VmPlan = { awaited: boolean; source: string; bindings: VmBindings };
+export type VmPlan = { source: string; bindings: VmBindings } & (
+	| { awaited: true }
+	| { awaited: false; parseError?: unknown }
+);
 
 const FUNCTION = new Set([
 	"FunctionDeclaration",
@@ -52,7 +55,12 @@ export function planVmCell(
 		}) as unknown as Syntax;
 	} catch (error) {
 		if (declaredEarly(error)) throw error;
-		return { awaited: false, source, bindings: noBindings() };
+		return {
+			awaited: false,
+			source,
+			bindings: noBindings(),
+			parseError: error,
+		};
 	}
 	const bindings = scriptBindings(program);
 	if (!containsAwait(program)) return { awaited: false, source, bindings };

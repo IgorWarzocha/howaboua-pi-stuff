@@ -20,7 +20,7 @@ const format = (tokens: number) => `${tokens.toLocaleString("en-US")} tokens`;
 class PickerPanel extends Container {
 	list?: SettingsList;
 	submenuOpen = false;
-	override render(width: number): string[] {
+	override render(width: number): readonly string[] {
 		return this.submenuOpen && this.list
 			? this.list.render(width)
 			: super.render(width);

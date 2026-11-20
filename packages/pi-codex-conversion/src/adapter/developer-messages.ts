@@ -214,6 +214,7 @@ export class CodexDeveloperMessageBridge {
 		ctx?: ExtensionContext,
 		responsesLite = false,
 		baseUrl?: string,
+		imageCacheSessionId?: string,
 	): Promise<void> {
 		if (!isRecord(payload) || !Array.isArray(payload["input"])) return;
 		assertRemoteDeliveryPairs(payload["input"]);
@@ -223,6 +224,7 @@ export class CodexDeveloperMessageBridge {
 			ctx,
 			responsesLite,
 			baseUrl,
+			imageCacheSessionId,
 		);
 		const deliveries = new Map<string, RemoteDelivery>();
 		for (const value of this.carriers.values())
@@ -296,7 +298,10 @@ export class CodexDeveloperMessageBridge {
 				);
 			let expected = remoteDeliveryItems(delivery);
 			if (responsesLite && delivery.images.length)
-				expected = await prepareResponsesLiteConversationInput(expected);
+				expected = await prepareResponsesLiteConversationInput(
+					expected,
+					imageCacheSessionId,
+				);
 			const output: unknown = payload["input"][index + 1];
 			if (
 				JSON.stringify(item) !== JSON.stringify(expected[0]) ||
@@ -327,6 +332,7 @@ export class CodexDeveloperMessageBridge {
 		ctx: ExtensionContext | undefined,
 		responsesLite: boolean,
 		baseUrl: string | undefined,
+		imageCacheSessionId: string | undefined,
 	): Promise<void> {
 		const originalIds = new Set(
 			input.flatMap((call) =>
@@ -383,7 +389,10 @@ export class CodexDeveloperMessageBridge {
 					continue;
 				let expected = remoteDeliveryItems(delivery);
 				if (responsesLite && delivery.images.length)
-					expected = await prepareResponsesLiteConversationInput(expected);
+					expected = await prepareResponsesLiteConversationInput(
+						expected,
+						imageCacheSessionId,
+					);
 				if (
 					sameRemoteOutput(
 						item["output"],
@@ -480,10 +489,11 @@ function sameRemoteOutput(
 	blockedImages: unknown,
 ): boolean {
 	// Exact protected text/cipher ordering, allowing only the owning image transform or text-only projection.
+	const serializedActual = JSON.stringify(actual);
 	return (
-		JSON.stringify(actual) === JSON.stringify(expected) ||
-		JSON.stringify(actual) === JSON.stringify(withoutImages) ||
-		JSON.stringify(actual) === JSON.stringify(blockedImages)
+		serializedActual === JSON.stringify(expected) ||
+		serializedActual === JSON.stringify(withoutImages) ||
+		serializedActual === JSON.stringify(blockedImages)
 	);
 }
 

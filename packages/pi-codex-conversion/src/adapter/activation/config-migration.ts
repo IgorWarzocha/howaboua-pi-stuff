@@ -150,7 +150,12 @@ export function migrateCodexConversionConfigIfNeeded(
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai["harnessIdentifierHeader"],
 		},
 	};
-	return { migrated: true, config };
+	return {
+		migrated: true,
+		config: isObject(value["voice"])
+			? { ...config, voice: value["voice"] }
+			: config,
+	};
 }
 
 function migrateCompactionOptions(

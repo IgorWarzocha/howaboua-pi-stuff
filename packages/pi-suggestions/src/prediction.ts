@@ -12,7 +12,7 @@ import { type ConversationSnapshot, conversationUpdate } from "./context.js";
 import { cleanupSessionResources } from "./session-resources.js";
 
 const instruction =
-	"Draft one concise next request from the user to the assistant. Output only the request.";
+	"Return only one concise draft of the user's next request to the assistant.";
 
 interface PredictionSession {
 	id: string;
@@ -42,7 +42,7 @@ export class Predictions {
 		if (previous) cleanupSessionResources(previous.id);
 	}
 
-	sync(snapshot: ConversationSnapshot): void {
+	private sync(snapshot: ConversationSnapshot): void {
 		const current = this.session;
 		if (
 			current &&

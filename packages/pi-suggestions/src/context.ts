@@ -144,5 +144,5 @@ export function conversationUpdate(
 				: {}),
 			turns: turns.map(({ role, text }) => ({ role, text })),
 		},
-	)}\n\nDraft the next request from the user to the assistant:`;
+	)}`;
 }

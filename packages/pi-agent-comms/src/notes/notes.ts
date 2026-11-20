@@ -5,7 +5,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { isContextAgentName } from "./agent-identity.js";
 import type { NoteSnapshotData } from "./bridge.js";
-import { canonicalPath, readNotes } from "./note-query.js";
+import { canonicalPath } from "./note-query.js";
 import { type NoteRevision, NotesStore, type SessionRef } from "./store.js";
 
 export { normalizeNoteParams, readNotes } from "./note-query.js";
@@ -239,7 +239,7 @@ export function noteHints(
 		: "";
 }
 
-export function useNotes(
+export function writeNote(
 	pi: ExtensionAPI,
 	store: NotesStore,
 	params: Record<string, unknown>,
@@ -252,51 +252,48 @@ export function useNotes(
 	const notes = collectNotes(store, ctx.sessionManager.getBranch());
 	const action = params["action"];
 	const root = `${agent}/notes/`;
-	if (action === "write_file" || action === "append_to_file") {
-		const path = params["path"] as string;
-		const text = params["text"];
-		if (typeof text !== "string")
-			throw new Error(`notes ${action} requires text`);
-		const previous = notes.get(path);
-		const next =
-			action === "append_to_file" ? (previous?.text ?? "") + text : text;
-		if (Buffer.byteLength(next) > 1_000_000)
-			throw new Error("Note file exceeds the 1,000,000-byte limit");
-		const now = Date.now();
-		// Append never pretends to decode a remote base. The remote fragment remains separate.
-		const mode =
-			action === "write_file" ? "replace" : (previous?.mode ?? "append");
-		let revision: NoteRevision;
-		try {
-			revision = store.write(sessionRef(ctx), {
-				path,
-				text: next,
-				mode,
-				createdAt: previous?.createdAt ?? now,
-				updatedAt: now,
-			});
-		} catch {
-			throw new Error(
-				"Local note could not be saved. The selected branch remains unchanged. Retry after local storage is available.",
-			);
-		}
-		try {
-			pi.appendEntry(NOTE_RECEIPT, {
-				protocol: 1,
-				sessionId: ctx.sessionManager.getSessionId(),
-				windowId,
-				runId,
-				...(routed ? { origin: "routed" as const } : {}),
-				revision,
-			} satisfies NoteReceipt);
-		} catch {
-			throw new Error(
-				`Note ${root}${path} was stored but not attached to this session. Read it before retrying the write.`,
-			);
-		}
-		return {
-			file: { path: `${root}${path}` },
-		};
+	const path = params["path"] as string;
+	const text = params["text"];
+	if (typeof text !== "string")
+		throw new Error(`notes ${action} requires text`);
+	const previous = notes.get(path);
+	const next =
+		action === "append_to_file" ? (previous?.text ?? "") + text : text;
+	if (Buffer.byteLength(next) > 1_000_000)
+		throw new Error("Note file exceeds the 1,000,000-byte limit");
+	const now = Date.now();
+	// Append never pretends to decode a remote base. The remote fragment remains separate.
+	const mode =
+		action === "write_file" ? "replace" : (previous?.mode ?? "append");
+	let revision: NoteRevision;
+	try {
+		revision = store.write(sessionRef(ctx), {
+			path,
+			text: next,
+			mode,
+			createdAt: previous?.createdAt ?? now,
+			updatedAt: now,
+		});
+	} catch {
+		throw new Error(
+			"Local note could not be saved. The selected branch remains unchanged. Retry after local storage is available.",
+		);
 	}
-	return readNotes(notes, params, agent);
+	try {
+		pi.appendEntry(NOTE_RECEIPT, {
+			protocol: 1,
+			sessionId: ctx.sessionManager.getSessionId(),
+			windowId,
+			runId,
+			...(routed ? { origin: "routed" as const } : {}),
+			revision,
+		} satisfies NoteReceipt);
+	} catch {
+		throw new Error(
+			`Note ${root}${path} was stored but not attached to this session. Read it before retrying the write.`,
+		);
+	}
+	return {
+		file: { path: `${root}${path}` },
+	};
 }

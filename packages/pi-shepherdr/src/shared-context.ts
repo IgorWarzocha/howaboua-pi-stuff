@@ -339,7 +339,7 @@ export class SharedAgentContext {
 				);
 		}
 		throw new Error(
-			`No shared context agent ${request.agentName} in this session family`,
+			`No shared context agent ${request.agentName} is reachable from this session. Request a handoff from the owner.`,
 		);
 	}
 

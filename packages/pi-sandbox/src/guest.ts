@@ -77,7 +77,22 @@ export async function checked(
 	return result.output;
 }
 export async function guestExists(vm: VM, path: string): Promise<boolean> {
-	return (await execute(vm, `test -e ${q(path)}`, "/", 3000)).exitCode === 0;
+	// This short builtin cannot leave a process tree behind. Keep it out of the
+	// command watchdog and login shell, especially for completion polling.
+	const result = await vm.exec(["/bin/sh", "-c", 'test -e "$1"', "sh", path], {
+		cwd: "/",
+		signal: AbortSignal.timeout(3000),
+		stdout: "ignore",
+		stderr: "buffer",
+	});
+	if (!result.signal) {
+		if (result.exitCode === 0) return true;
+		if (result.exitCode === 1 && !result.stderr) return false;
+	}
+	const reason =
+		result.stderr.trim() ||
+		(result.signal ? `signal ${result.signal}` : `exit ${result.exitCode}`);
+	throw new Error(`Could not check guest path ${path}: ${reason}`);
 }
 export const serviceRoot = "/var/lib/pi-sandbox/services";
 export async function serviceRunning(vm: VM, name: string): Promise<boolean> {

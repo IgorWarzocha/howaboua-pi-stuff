@@ -152,8 +152,10 @@ export function createCodexSessionLifecycle(
 			void ui.refreshUsageStatus(ctx);
 			prepareCodeModeHost(codeMode, ctx);
 		},
-		tree: async (_event, ctx) => {
+		tree: async (event, ctx) => {
 			activate(ctx);
+			if (event.oldLeafId !== event.newLeafId)
+				runtime.voice.resetVoiceBranch(ctx);
 			const previousMode = state.executionMode;
 			runtime.resetTransport(ctx.sessionManager.getSessionId());
 			// Internal rollover preserves the admission that requested it.

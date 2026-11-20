@@ -2,6 +2,7 @@ import {
 	DEFAULT_CODE_MODE_OUTPUT_TOKENS,
 	MAX_CODE_MODE_OUTPUT_TOKENS,
 } from "./host-protocol.js";
+import { referenceEmittedTraceImages } from "./trace-images.js";
 import type {
 	NotebookMemoryUsage,
 	RuntimeContentItem,
@@ -70,7 +71,14 @@ export function toCodeModeToolResult(
 				? { opaqueDeliveryId: response.opaqueDeliveryId }
 				: {}),
 			statusPrefix: Boolean(status) || empty,
-			...(response.traces ? { traces: response.traces } : {}),
+			...(response.traces
+				? {
+						traces: referenceEmittedTraceImages(
+							response.traces,
+							content.filter((item) => item.type === "image"),
+						),
+					}
+				: {}),
 			...(response.droppedTraceCount
 				? { droppedTraceCount: response.droppedTraceCount }
 				: {}),
@@ -118,7 +126,7 @@ function withScriptErrorRecovery(
 		!/Identifier ['"][^'"]+['"] has already been declared/.test(errorText)
 	)
 		return errorText;
-	return `${errorText}\nRecovery: reuse the existing binding, choose a new name, or retry one-off code inside { ... }; restart only if the binding itself is unusable`;
+	return `${errorText}\nRecovery: choose a new name or retry one-off code inside { ... }. Reuse the existing binding only after checking its value is still correct`;
 }
 
 export function formatNotebookMemoryWarning(

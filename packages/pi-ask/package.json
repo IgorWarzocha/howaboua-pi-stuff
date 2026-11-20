@@ -55,9 +55,9 @@
   },
   "devDependencies": {
     "@howaboua/pi-codex-conversion": "5.0.1",
-    "@earendil-works/pi-ai": "1.5.2",
-    "@earendil-works/pi-coding-agent": "1.5.2",
-    "@earendil-works/pi-tui": "1.5.2",
+    "@earendil-works/pi-ai": "1.6.0",
+    "@earendil-works/pi-coding-agent": "1.6.0",
+    "@earendil-works/pi-tui": "1.6.0",
     "typescript": "^7.0.2",
     "oxfmt": "^0.78.0"
   },
@@ -73,6 +73,6 @@
   "main": "index.ts",
   "exports": "./index.ts",
   "dependencies": {
-    "@earendil-works/pi-schema": "1.5.2"
+    "@earendil-works/pi-schema": "1.6.0"
   }
 }

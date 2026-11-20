@@ -25,6 +25,7 @@ import { RolloverRequests } from "./rollover.js";
 import type { IdleMinutes, NewWindowRequests } from "./settings.js";
 import { savedNotesIdentity } from "./shared-notes.js";
 import type { NotesStore } from "./store.js";
+import { selectedWindowRole } from "./window-message.js";
 import {
 	SETTLEMENT_ENTRY,
 	WINDOW_MESSAGE,
@@ -234,9 +235,11 @@ export class NotesLifecycle {
 			trim,
 			"window",
 			this.gptPromptMode(),
+			handoff?.id ?? selectedWindowRole(ctx.sessionManager.getBranch()),
 		);
 		this.windows.current = ids;
-		if (handoff) message.content = `${message.content}\n\nRole: ${handoff.id}`;
+		if (triggerTurn)
+			message.content = `${message.content}\n\nContinuation: read relevant notes, then resume any unfinished task. Follow current instructions.`;
 		this.sendMessage(message, { triggerTurn });
 	}
 

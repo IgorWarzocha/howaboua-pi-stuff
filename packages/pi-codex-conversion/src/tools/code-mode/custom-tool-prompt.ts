@@ -7,11 +7,16 @@ import {
 	translateCodeModeUsage,
 } from "./tool-identity.ts";
 
-export const EXEC_DESCRIPTION = `Run JavaScript to compose tools; source only, no JSON or fences
+const JS_CELL_DESCRIPTION =
+	"Run JavaScript to process data or call tools; source only, no JSON or fences";
+const GPT_JS_CELL_DESCRIPTION =
+	"JavaScript computation/tool calls; source ONLY, NO JSON/fences";
+
+export const EXEC_DESCRIPTION = `${JS_CELL_DESCRIPTION}
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
 Bare values are discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; content(value) emits MCP text/images in order; text(value) prints serialized output; notify(value) emits; both return undefined; yield_control() yields`;
 
-export const GPT_EXEC_DESCRIPTION = `JavaScript tool composition; source ONLY, NO JSON/fences
+export const GPT_EXEC_DESCRIPTION = `${GPT_JS_CELL_DESCRIPTION}
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
 Bare values discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; content(value)→emit MCP text/images in order; text(value)→print serialized output; notify(value)→emit; both→undefined; yield_control()→yield`;
 
@@ -20,29 +25,29 @@ export const ISOLATED_EXEC_GUIDANCE =
 export const GPT_ISOLATED_EXEC_GUIDANCE =
 	'Concurrent isolated: // @exec: {"isolated":true}; last checkpoint; shared vars unchanged';
 
-export const VM_EXEC_DESCRIPTION = `Run JavaScript; source only, no JSON or fences
+export const VM_EXEC_DESCRIPTION = `${JS_CELL_DESCRIPTION}
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
-let, const, function and class persist in this conversation, including across await
+Put one-off const and let declarations inside { ... }. Top-level bindings persist
 Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, console, ALL_TOOLS
 content(value) emits MCP text/images in order
 No Node, imports, fetch or timers
 A stall, cancellation, memory limit or terminate drops conversation bindings`;
 
-export const GPT_VM_EXEC_DESCRIPTION = `JavaScript tool composition; source ONLY, NO JSON/fences
+export const GPT_VM_EXEC_DESCRIPTION = `${GPT_JS_CELL_DESCRIPTION}
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
-let/const/function/class persist in this conversation, including across await
+One-off const/let→{ ... }; top-level→persists
 Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, console, ALL_TOOLS
 content(value)→emit MCP text/images in order
 NO Node/imports/fetch/timers
 Stall/cancel/memory limit/terminate→bindings dropped; next exec fresh`;
 
-export const JS_EXEC_DESCRIPTION = `Run JavaScript; source only, no JSON or fences
+export const JS_EXEC_DESCRIPTION = `${JS_CELL_DESCRIPTION}
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
 Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
 content(value) emits MCP text/images in order
 No Node, imports, fetch, timers or TypeScript checking`;
 
-export const GPT_JS_EXEC_DESCRIPTION = `JavaScript tool composition; source ONLY, NO JSON/fences
+export const GPT_JS_EXEC_DESCRIPTION = `${GPT_JS_CELL_DESCRIPTION}
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
 Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
 content(value)→emit MCP text/images in order
@@ -206,7 +211,7 @@ export function buildCodeModeToolsPrompt(
 						: "exec is a persistent TypeScript kernel with imports, npm, Node and Web APIs; live bindings and module instances persist across cells"
 					: executionKind === "notebook"
 						? gpt
-							? "exec=persistent Deno/TS; console/imports/npm/Deno/Web APIs; small programs across cells; globals MAY predate agent/session"
+							? "exec=persistent Deno/TS; console/imports/npm/Deno/Web APIs; small programs across cells; globals can predate agent/session"
 							: "exec is a persistent Deno/TypeScript notebook with console, imports, npm, Deno, and Web APIs; globals may come from earlier agents and sessions. Build small programs on retained state across cells"
 						: gpt
 							? "exec=fresh restricted JS; NO console/imports/Node/browser APIs"

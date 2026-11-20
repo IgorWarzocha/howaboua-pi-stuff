@@ -4,14 +4,24 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 
 ## Reference baseline
 
-- Pi SDK baseline: published `1.5.1`
-- Stock provider comparison: published Pi `1.5.1` (2026-11-10)
+- Pi SDK baseline: published `1.6.0`
+- Stock provider comparison: published Pi `1.6.0` (2026-11-20)
 - Codex checkout reviewed through: `1b1835f751ebdc0cfc50b3fe55d4571dbb294563` (2026-09-28)
 - WebSocket/session review: `ecc78e4cf5607ecf5f080d682eae0ecb650868ae` (2026-10-01)
 - Exact apply-patch source revision: [`src/tools/rust/UPSTREAM.apply-patch`](src/tools/rust/UPSTREAM.apply-patch)
 - Exact image utility source revision: [`src/tools/rust/crates/codex-utils-image/UPSTREAM`](src/tools/rust/crates/codex-utils-image/UPSTREAM)
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
+
+## Pi 1.6 compatibility
+
+Pi now supplies the GPT-6.2 Sol and Astra catalogue entries. PCC uses them when present and retains its fallbacks for Pi 1.5. PCC already places the leading system prompt in a developer input item and carries reasoning changes in chronological configuration updates, so it does not also add Pi's reasoning replay mechanism.
+
+PCC follows [Codex CLI](https://github.com/openai/codex/blob/rust-v0.171.0/codex-rs/core/tests/suite/client_websockets.rs#L2033-L2063) and reconnects on the server's WebSocket lifetime-limit error. Pi's 45-minute preemptive rotation is not part of that policy.
+
+## November 19 Responses Lite images
+
+Matched the unified image budget in Codex `rust-v0.170.0` and `39c29c3bb6`: up to 6,000 pixels on the longest side and 10,000 tiles of 32×32 pixels. This changes the images sent to Responses Lite, not Pi's saved originals. PCC prepares them after Pi's payload hooks so history rewrites remain authoritative. Unlike Codex's history admission, PCC serializes cold resizes per request and caches successful preparation within a bounded session budget.
 
 ## November 17 GPT-6.2
 

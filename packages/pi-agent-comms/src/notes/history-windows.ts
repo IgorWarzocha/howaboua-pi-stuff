@@ -9,15 +9,42 @@ interface HistoryItem {
 	role: string;
 	tool_name?: string;
 	tool_namespace?: string;
-	content: string;
+	render(): string;
 }
 
-// Cache lazy metadata, not rendered content: Pi retains persisted entries, so
-// caching serialized tool arguments would duplicate them for the session lifetime.
+/** Keep at most one in-flight render, independent of Pi's retained entry count. */
+export class HistoryPages {
+	private continuation:
+		| { item: WeakRef<HistoryItem>; rendered: string }
+		| undefined;
+
+	read(item: HistoryItem, offset: number, limit: number) {
+		const cached =
+			this.continuation?.item.deref() === item ? this.continuation : undefined;
+		const full = cached?.rendered ?? item.render();
+		const content = full.slice(offset, offset + limit);
+		const next = offset + content.length;
+		this.continuation =
+			next < full.length
+				? (cached ?? { item: new WeakRef(item), rendered: full })
+				: undefined;
+		return {
+			content,
+			total_chars: full.length,
+			...(next < full.length ? { next_offset_chars: next } : {}),
+		};
+	}
+
+	clear(): void {
+		this.continuation = undefined;
+	}
+}
+
+// Cache lazy metadata, not rendered content: Pi retains persisted entries.
 const cachedItems = new WeakMap<SessionEntry, HistoryItem>();
 const indexItems = new WeakMap<
 	HistoryItem,
-	Pick<HistoryItem, "item_id" | "content">
+	{ item_id: string; content: string }
 >();
 function customHistoryRole(
 	entry: Extract<SessionEntry, { type: "custom_message" }>,
@@ -169,9 +196,7 @@ export async function historyWindows(
 								: {}),
 						}
 					: {}),
-				get content() {
-					return render();
-				},
+				render,
 			};
 			if (message.role === "user" || message.role === "assistant") {
 				const body = message.content;
@@ -201,7 +226,7 @@ export async function historyWindows(
 				window_id: windowId,
 				item_id: entry.id,
 				role: customHistoryRole(entry),
-				get content() {
+				render() {
 					return typeof entry.content === "string"
 						? entry.content
 						: entry.content

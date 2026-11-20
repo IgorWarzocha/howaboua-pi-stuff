@@ -46,7 +46,7 @@ export function registerCodexTools(
 	const normalReasoningDescription = reasoning.description;
 	registerGptPromptMode(pi, (active) => {
 		const description = active
-			? "Reasoning asneeded: hard/uncertain→raise; routine→lower; nextrequest"
+			? "Routine→low; quick survey→medium; cross-system cause→high; interacting causes→xhigh. Change by work phase, not per call. Next request; user setting is the floor"
 			: normalReasoningDescription;
 		if (reasoning.description !== description) {
 			reasoning.description = description;

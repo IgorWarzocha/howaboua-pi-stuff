@@ -213,7 +213,10 @@ export async function resolveCanonicalCompactionReplay(args: {
 	reconstructedInput: readonly ResponsesInputItem[];
 }) {
 	const reconstructedInput = args.codeMode
-		? await prepareResponsesLiteConversationInput(args.reconstructedInput)
+		? await prepareResponsesLiteConversationInput(
+				args.reconstructedInput,
+				args.sessionId,
+			)
 		: args.reconstructedInput;
 	return resolveCanonicalCompactionPromptInput(
 		args.sessionId,

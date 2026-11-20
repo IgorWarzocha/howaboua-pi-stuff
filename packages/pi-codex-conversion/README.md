@@ -153,7 +153,7 @@ Pi's footer shows cache percentage. Enable **Codex diagnostics** under `/codex o
 <details>
 <summary><strong>Execution modes and custom tools</strong></summary>
 
-Code and Deno download their runtimes on first use. TS and QuickJS Code reuse matching installed packages or download them with npm. First use needs registry access when packages are missing. Cached runtimes work offline, and unselected modes do not download anything.
+Code and Deno download their runtimes on first use. TS reuses matching installed packages or downloads them with npm. QuickJS Code and VM Code need no separate runtime download. Cached runtimes work offline, and unselected modes do not download anything.
 
 In Notebook and TS modes, ask your agent to inspect, save, load or clean up notebook state. The `notebook` tool provides its own action help. **Restart and cancellation do not undo file changes or other external tool effects.**
 
@@ -177,7 +177,7 @@ Concurrent isolated cells start from the last checkpoint and save separate candi
 
 Select **QuickJS Code** to compose tools in JavaScript. Each call starts fresh, with up to four cells running concurrently. Variables and closures do not carry between calls. Use `store` and `load` for conversation-local JSON data that does not persist to disk.
 
-Run Pi under Node. The environment has no Node APIs, imports, direct network access, timers or TypeScript checking. The agent uses tools for host operations.
+Use a package-manager installation of Pi under Node. QuickJS Code uses the QuickJS runtime that ships with Pi. The environment has no Node APIs, imports, direct network access, timers or TypeScript checking. The agent uses tools for host operations.
 
 QuickJS Code replaces JS Notebook. Existing `js` settings select QuickJS Code. Old notebook files are left untouched but are not loaded. There are no checkpoints, profiles, project-shared variables or `notebook` controls in this mode.
 
@@ -219,17 +219,20 @@ See the [working examples](./examples/custom-tools/) and [definition contract](.
 <details>
 <summary><strong>Voice, dictation and remote access</strong></summary>
 
-Choose **Voice model** in `/codex voice` or the browser interface. Voice runs independently of the active text model.
+Choose **Voice model** in `/codex voice` or the browser interface. Changing the Pi model does not interrupt a voice call.
 
 | Voice model | Credential |
 | --- | --- |
 | `codex-live-1.1`, the default | Pi's legacy `openai-codex` login |
+| `api-live-1.1` | An OpenAI API key configured in Pi |
 | `realtime-2.1` | An OpenAI API key configured in Pi |
 | `realtime-2.1-mini` | An OpenAI API key configured in Pi |
 
-Codex Live and dictation use OAuth through `/login openai-codex`. Selecting a Realtime voice model does not change dictation's login. For Realtime, enter the exact, case-sensitive Pi provider name in **API provider** in terminal or LAN voice settings. The default is `openai`. GipPity uses that provider's API key, headers and compatible Realtime endpoint without storing or displaying the key. Configure the provider's Realtime-compatible endpoint in Pi. Missing keys, OAuth credentials and invalid endpoints are rejected without falling back to another account. Changes apply on the next call. Realtime API calls are billed separately through the selected provider. Sign in with ChatGPT does not provide this API access or replace the legacy Codex login.
+Codex Live and dictation use OAuth through `/login openai-codex`. Selecting an API voice model does not change dictation's login. For API voice models, enter the exact, case-sensitive Pi provider name in **API provider** in terminal or LAN voice settings. The default is `openai`. GipPity uses that provider's API key, headers and compatible endpoint without storing or displaying the key. Missing keys, OAuth credentials and invalid endpoints are rejected without falling back to another account. Changes apply on the next call. API voice calls are billed separately through the selected provider. Sign in with ChatGPT does not provide this API access or replace the legacy Codex login.
 
 Codex Live rewrites the current voice conversation interval into a self-contained task before sending it to Pi. **Task delegation model** shows the configured model without a picker. Change `voice.taskDelegationModel` in the JSON configuration to use another `provider/model` value. The default is `openai-codex/gpt-6-luna`. Choose **Task delegation reasoning** separately in terminal or LAN settings. It defaults to `low` and is independent of voice context summarisation. These settings apply only to Codex Live; GPT-Realtime still sends tasks directly through `send_task`.
+
+GPT Live 1.1 on the API uses the current Pi model to prepare voice requests before sending them to Pi. The **Default** context summarisation setting also uses the current Pi model for API Live.
 
 Realtime models use `send_task` to send Pi a self-contained task with relevant voice-discussion decisions and constraints. Busy Pi sessions receive it as steering, with existing tools and confirmations preserved. Realtime models can also use developer-registered voice tools. For optional search, load `@howaboua/pi-codex-web-run`, configure its access and enable **Realtime web search**. Search uses Web Run's configured provider and credentials.
 

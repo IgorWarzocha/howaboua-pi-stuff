@@ -90,8 +90,8 @@
     }
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "1.5.2",
-    "@earendil-works/pi-tui": "1.5.2",
+    "@earendil-works/pi-coding-agent": "1.6.0",
+    "@earendil-works/pi-tui": "1.6.0",
     "@types/node": "^26.6.6",
     "electron": "44.10.2",
     "knip": "^6.45.0",
@@ -108,6 +108,6 @@
     "access": "public"
   },
   "dependencies": {
-    "@earendil-works/pi-schema": "1.5.2"
+    "@earendil-works/pi-schema": "1.6.0"
   }
 }

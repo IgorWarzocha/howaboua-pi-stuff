@@ -71,16 +71,19 @@ export class PublicRealtimeTurns {
 	private readonly peer: CodexRealtimePeer;
 	private readonly isActive: () => boolean;
 	private readonly onFailure: (error: Error) => void;
+	private readonly onOutputChanged: () => void;
 	constructor(
 		callbacks: CodexConversationCallbacks,
 		peer: CodexRealtimePeer,
 		isActive: () => boolean,
 		onFailure: (error: Error) => void,
+		onOutputChanged: () => void,
 	) {
 		this.callbacks = callbacks;
 		this.peer = peer;
 		this.isActive = isActive;
 		this.onFailure = onFailure;
+		this.onOutputChanged = onOutputChanged;
 		this.playback = new RealtimePlayback((suppressed) =>
 			peer.setSpeakerSuppressed(suppressed),
 		);
@@ -105,6 +108,9 @@ export class PublicRealtimeTurns {
 	}
 	get hasPendingInput(): boolean {
 		return this.speech;
+	}
+	get hasQueuedResponse(): boolean {
+		return this.awaitingResponse || this.continuation || this.pendingTools > 0;
 	}
 	audioActivity(): void {
 		this.playback.audioActivity();
@@ -315,6 +321,7 @@ export class PublicRealtimeTurns {
 		});
 		if (continueResponse) this.continuation = true;
 		this.schedule();
+		this.onOutputChanged();
 	}
 	private send(event: unknown): void {
 		try {

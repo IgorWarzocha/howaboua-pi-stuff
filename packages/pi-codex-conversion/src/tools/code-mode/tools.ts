@@ -1,8 +1,9 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type {
-	ExtensionAPI,
-	ExtensionContext,
+import {
+	getPackageDir,
+	type ExtensionAPI,
+	type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import {
 	type CustomToolDiscoveryError,
@@ -170,7 +171,10 @@ async function replaceLegacyState(
 ): Promise<CodeModeProcessState> {
 	// 2.2.0 stored the runtime directly and retained stale providers across reloads.
 	if (isSharedRuntime(legacy)) await legacy.shutdownHost();
-	return { runtime: new SharedCodeModeRuntime(), boundApis: new WeakSet() };
+	return {
+		runtime: new SharedCodeModeRuntime(getPackageDir),
+		boundApis: new WeakSet(),
+	};
 }
 
 function isSharedRuntime(value: unknown): value is SharedCodeModeRuntime {

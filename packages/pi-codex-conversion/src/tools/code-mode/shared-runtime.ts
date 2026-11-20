@@ -103,10 +103,15 @@ export class SharedCodeModeRuntime {
 	private runtimeClientTransition: Promise<void> = Promise.resolve();
 	private clientStartupAbort: AbortController | undefined;
 	private customPromptToolsSnapshot: CodeModeToolDefinition[] | undefined;
+	private readonly getPiPackageDir: () => string;
 	private readonly opaqueResults = new OpaqueResultState(
 		(ctx) => this.activeProviders(ctx),
 		(ctx) => this.opaqueOwner(ctx),
 	);
+
+	constructor(getPiPackageDir: () => string) {
+		this.getPiPackageDir = getPiPackageDir;
+	}
 
 	opaqueContextGuard(ctx: ExtensionContext): Promise<OpaqueContextGuard> {
 		return this.opaqueResults.opaqueContextGuard(ctx);
@@ -308,7 +313,10 @@ export class SharedCodeModeRuntime {
 					kind === "js"
 						? import("../js-mode/client.ts").then(
 								({ JsCodeClient }) =>
-									new JsCodeClient(clientOptions, this.renderStore),
+									new JsCodeClient(
+										{ ...clientOptions, piPackageDir: this.getPiPackageDir() },
+										this.renderStore,
+									),
 							)
 						: kind === "vm"
 							? import("../vm-mode/client.ts").then(

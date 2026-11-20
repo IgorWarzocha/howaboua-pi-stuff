@@ -190,6 +190,8 @@ New writes stay local. `write_file` creates an authoritative replacement. `appen
 
 `history` reads the selected Pi branch. Remote history lookup is an optional additional source. A note window, Pi branch and remote archive are distinct objects.
 
+Notes marks its empty native window checkpoint with `details["pi-notes-compaction/window-checkpoint"] === 1`. Its `firstKeptEntryId` is the committed window boundary; the checkpoint preserves the entries from that boundary onward rather than summarising them. Consumers may retain their prior state only when its required entries survive that cut.
+
 ### Discover Notes projection
 
 The process-local `pi-notes-compaction:owner:v1` channel accepts `{ protocol: 1, reply(owner) }`. The reply is synchronous during event emission, not after an awaited operation. Discover during loading and again at `session_start`. Do not serialise callback objects into worker messages.

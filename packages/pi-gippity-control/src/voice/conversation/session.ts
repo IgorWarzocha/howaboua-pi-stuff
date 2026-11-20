@@ -5,6 +5,8 @@ import type { RealtimeInitialMessageItem } from "../context.ts";
 import type { VoiceAudioDiagnostics } from "../helper-protocol.ts";
 import type { RealtimeVoiceTurn } from "../turns.ts";
 import { ConversationSetup } from "./connection.ts";
+import { ApiLiveTurns } from "./api-live-turns.ts";
+import { closeApiLiveSession } from "./api-live-close.ts";
 import type { PreparedVoiceTask } from "./end-call.ts";
 import { type RealtimePiInputBehavior } from "./handoff.ts";
 import type { CodexRealtimePeer, CodexRealtimePeerEvent } from "./peer.ts";
@@ -34,7 +36,12 @@ export class CodexRealtimeConversation {
 	private readonly callbacks: CodexConversationCallbacks;
 	private readonly setup: ConversationSetup;
 	private readonly peer: CodexRealtimePeer;
-	private readonly turns: ConversationTurns | PublicRealtimeTurns;
+	private readonly turns:
+		| ConversationTurns
+		| PublicRealtimeTurns
+		| ApiLiveTurns;
+	private readonly protocol: "codex" | "realtime" | "api-live";
+	private readonly playbackChecks = new Set<() => void>();
 	private state: ConversationState = "idle";
 	private closePromise: Promise<void> | undefined;
 	private inputMuted = false;
@@ -45,14 +52,19 @@ export class CodexRealtimeConversation {
 	private endingOutput = 0;
 	private readonly closing = new AbortController();
 	private established = false;
+	private apiLiveStarted = false;
+	private apiLiveClosing = false;
+	private apiLiveFinalization: Promise<void> | undefined;
+	private apiLiveFinalizationError: unknown;
 
 	constructor(
 		callbacks: CodexConversationCallbacks,
 		peer: CodexRealtimePeer,
-		publicRealtime = false,
+		protocol: "codex" | "realtime" | "api-live" = "codex",
 	) {
 		this.callbacks = callbacks;
 		this.peer = peer;
+		this.protocol = protocol;
 		this.setup = new ConversationSetup(
 			peer,
 			() => this.state === "starting",
@@ -63,25 +75,40 @@ export class CodexRealtimeConversation {
 			},
 			(status) => this.callbacks.onStatus(status),
 		);
-		const Turns = publicRealtime ? PublicRealtimeTurns : ConversationTurns;
-		this.turns = new Turns(
-			{
-				...callbacks,
-				onEndCall: (finalOutputObserved = false, resultDelegationId) => {
-					if (resultDelegationId) {
-						this.endAfterResult = { id: resultDelegationId, active: false };
-						this.turns.sendContext(
-							{ type: "session" },
-							"commentary",
-							"The user wants the requested answer before ending the call. When its result arrives, speak the answer and a brief farewell.",
-						);
-					} else this.beginEnding(finalOutputObserved);
-				},
+		const turnCallbacks: CodexConversationCallbacks = {
+			...callbacks,
+			onEndCall: (finalOutputObserved = false, resultDelegationId) => {
+				if (resultDelegationId) {
+					this.endAfterResult = { id: resultDelegationId, active: false };
+					this.turns.sendContext(
+						{ type: "session" },
+						"commentary",
+						"The user wants the requested answer before ending the call. When its result arrives, speak the answer and a brief farewell.",
+					);
+				} else this.beginEnding(finalOutputObserved);
 			},
-			peer,
-			() => this.state === "active",
-			(error) => this.fail(error),
-		);
+		};
+		const active = () => this.state === "active";
+		const fail = (error: Error) => this.fail(error);
+		this.turns =
+			protocol === "api-live"
+				? new ApiLiveTurns(turnCallbacks, peer, active, fail, {
+						onInputStarted: () => {
+							this.ending = false;
+							this.endAfterResult = undefined;
+							for (const check of this.playbackChecks) check();
+						},
+						onOutputFinished: () => {
+							this.completedOutputs++;
+							for (const check of this.playbackChecks) check();
+						},
+						onOutputChanged: () => {
+							for (const check of this.playbackChecks) check();
+						},
+					})
+				: protocol === "realtime"
+					? new PublicRealtimeTurns(turnCallbacks, peer, active, fail)
+					: new ConversationTurns(turnCallbacks, peer, active, fail);
 		this.peer.onEvent((event) => this.handlePeerEvent(event));
 		this.peer.onExit((error) => this.drop(error));
 	}
@@ -116,7 +143,7 @@ export class CodexRealtimeConversation {
 
 	greet(contextual: boolean, arrival = false): void {
 		if (this.state !== "active") return;
-		this.appendSpeakableContext(
+		this.appendVoiceInstruction(
 			arrival
 				? "The user has just arrived from another session by voice. Give a short, distinctive arrival greeting that makes the switch clear and naturally acknowledges this session's topic or state. Do not repeat the continuity summary or start a task. Then wait for them to speak."
 				: contextual
@@ -136,7 +163,12 @@ export class CodexRealtimeConversation {
 			reason === "overflow"
 				? "The conversation exceeded its context limit and is being compacted. The interrupted work will continue automatically afterward. Please announce this briefly in your natural voice."
 				: "The conversation is being compacted. Please announce this briefly in your natural voice.";
-		this.appendSpeakableContext(prompt);
+		this.appendVoiceInstruction(prompt);
+	}
+
+	private appendVoiceInstruction(text: string): void {
+		if (this.turns instanceof ApiLiveTurns) this.turns.sendInstructions(text);
+		else this.appendSpeakableContext(text);
 	}
 
 	private appendSpeakableContext(text: string): void {
@@ -246,7 +278,26 @@ export class CodexRealtimeConversation {
 	async waitForFinalPlayback(): Promise<void> {
 		await this.waitForPlaybackEnd(this.closing.signal, this.endingOutput);
 		if (!this.ending) throw new Error("Call ending interrupted by new speech");
+		await this.finalizeApiLive();
 		await this.peer.finishPlayback?.(this.closing.signal);
+	}
+
+	private finalizeApiLive(): Promise<void> {
+		if (this.apiLiveFinalization) return this.apiLiveFinalization;
+		if (this.protocol !== "api-live" || !this.apiLiveStarted)
+			return Promise.resolve();
+		this.apiLiveClosing = true;
+		this.apiLiveFinalization = (async () => {
+			try {
+				await closeApiLiveSession(this.peer);
+			} catch (error) {
+				this.apiLiveFinalizationError = error;
+			} finally {
+				this.apiLiveStarted = false;
+				this.apiLiveClosing = false;
+			}
+		})();
+		return this.apiLiveFinalization;
 	}
 
 	/** Quiet peer activity is best-effort: the helper has no speaker-drain acknowledgement. */
@@ -260,6 +311,7 @@ export class CodexRealtimeConversation {
 				removeEvent();
 				removeExit();
 				signal.removeEventListener("abort", aborted);
+				this.playbackChecks.delete(check);
 				if (error) reject(error);
 				else resolve();
 			};
@@ -287,6 +339,7 @@ export class CodexRealtimeConversation {
 			);
 			const removeEvent = this.peer.onEvent(check);
 			const removeExit = this.peer.onExit(finish);
+			this.playbackChecks.add(check);
 			signal.addEventListener("abort", aborted, { once: true });
 			check();
 		});
@@ -299,7 +352,10 @@ export class CodexRealtimeConversation {
 	}
 
 	async waitForDelegations(signal: AbortSignal): Promise<void> {
-		if (this.turns instanceof ConversationTurns)
+		if (
+			this.turns instanceof ConversationTurns ||
+			this.turns instanceof ApiLiveTurns
+		)
 			await this.turns.waitForDelegations(signal);
 	}
 
@@ -314,14 +370,18 @@ export class CodexRealtimeConversation {
 		this.inputMuted = false;
 		this.setup.finish();
 		const accepted =
-			this.finishingAcceptedWork && this.turns instanceof ConversationTurns
+			this.finishingAcceptedWork &&
+			(this.turns instanceof ConversationTurns ||
+				this.turns instanceof ApiLiveTurns)
 				? this.turns.finishDelegations()
 				: undefined;
+		await this.finalizeApiLive();
 		await this.peer.close();
 		if (this.finishingAcceptedWork) {
 			await accepted;
 			this.turns.drainConversation();
 		}
+		if (this.apiLiveFinalizationError) throw this.apiLiveFinalizationError;
 	}
 
 	private handlePeerEvent(event: CodexRealtimePeerEvent): void {
@@ -338,7 +398,11 @@ export class CodexRealtimeConversation {
 			return;
 		}
 		if (event.type === "playback_activity") {
-			if (this.turns instanceof PublicRealtimeTurns) this.turns.audioActivity();
+			if (
+				this.turns instanceof PublicRealtimeTurns ||
+				this.turns instanceof ApiLiveTurns
+			)
+				this.turns.audioActivity();
 			else this.turns.playback.audioActivity();
 		}
 		if (event.type === "audio_diagnostics")
@@ -350,6 +414,18 @@ export class CodexRealtimeConversation {
 				turn?: { role?: string };
 				response?: { status?: string };
 			};
+			if (this.protocol === "api-live" && message.type === "session.started") {
+				this.apiLiveStarted = true;
+				this.setup.ready();
+				this.callbacks.onStatus("listening");
+			}
+			if (this.protocol === "api-live" && message.type === "session.closed") {
+				const wasStarted = this.apiLiveStarted;
+				this.apiLiveStarted = false;
+				if (!this.apiLiveClosing && wasStarted)
+					this.drop(new Error("The voice session ended. Start voice again."));
+				return;
+			}
 			if (
 				message.type === "input_audio_buffer.speech_started" ||
 				(message.type === "turn.created" && message.turn?.role === "user") ||
@@ -379,8 +455,10 @@ export class CodexRealtimeConversation {
 			return;
 		}
 		if (state === "ready" || state === "listening") {
-			this.setup.ready();
-			this.callbacks.onStatus("listening");
+			if (this.protocol !== "api-live") {
+				this.setup.ready();
+				this.callbacks.onStatus("listening");
+			}
 		} else if (state === "connecting" || state === "connected")
 			this.callbacks.onStatus("connecting…");
 		else if (state === "disconnected") this.callbacks.onStatus("reconnecting…");
@@ -410,7 +488,13 @@ export class CodexRealtimeConversation {
 		this.setup.finish();
 		if (dropped) this.callbacks.onDrop(error);
 		else this.callbacks.onError(error);
-		void this.close();
+		void this.close().catch((failure: unknown) => {
+			const error =
+				failure instanceof Error ? failure : new Error(String(failure));
+			if (this.callbacks.onDelegationError)
+				this.callbacks.onDelegationError(error);
+			else this.callbacks.onError(error);
+		});
 	}
 }
 

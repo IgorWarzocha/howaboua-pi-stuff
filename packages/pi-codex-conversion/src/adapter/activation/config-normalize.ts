@@ -49,7 +49,10 @@ export function normalizeCodexConversionConfig(
 	const openai = isObject(value["openai"]) ? value["openai"] : {};
 	const inputDevice = normalizeOptionalString(voice["inputDevice"]);
 	const outputDevice = normalizeOptionalString(voice["outputDevice"]);
-	const contextModel = normalizeVoiceContextModel(voice["contextModel"]);
+	const contextModel =
+		voice["contextModel"] === "current"
+			? "current"
+			: normalizeVoiceContextModel(voice["contextModel"]);
 	const notebookProfile = normalizeNotebookProfile(notebook["profile"]);
 	const executionMode =
 		normalizeExecutionMode(value["executionMode"]) ??

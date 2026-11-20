@@ -214,7 +214,7 @@ export function registerBoardActivityRenderer(pi: ExtensionAPI): void {
 		new (class extends Text {
 			private readonly createdGeneration = generation;
 			private persisted = false;
-			override render(width: number): string[] {
+			override render(width: number): readonly string[] {
 				if (!sessionManager) return [];
 				const padding = Math.min(
 					outputPad,

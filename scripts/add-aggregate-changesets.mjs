@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import {
 	existsSync,
 	readdirSync,
@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { listActivePackageDirs } from "./active-packages.mjs";
+import { bundleExcludedPackages } from "./aggregate-package-policy.mjs";
 import { promotePendingChangesets } from "./pending-changesets.mjs";
 
 const root = process.cwd();
@@ -19,100 +20,66 @@ const aggregateNames = new Set([
 	"@howaboua/pi-extensions",
 	"@howaboua/pi-skills",
 ]);
-const aggregateExcludedNames = new Set([
-	"@howaboua/pi-agent-comms",
-	"@howaboua/pi-agent-board",
-	"@howaboua/pi-notes-compaction",
-	"@howaboua/pi-observatory",
-	"@howaboua/pi-browser",
-	"@howaboua/pi-chatgpt-sites",
-	"@howaboua/pi-chill",
-	"@howaboua/pi-sandbox",
-	"@howaboua/pi-codex-conversion",
-	"@howaboua/pi-codex-imagegen",
-	"@howaboua/pi-shepherdr2",
-	"@howaboua/pi-skill-omarchy-help",
-	"@howaboua/pi-subdir-agents",
-	"@howaboua/pi-codex-web-run",
-]);
 const generatedFiles = [
 	"aggregate-bundles.md",
 	"aggregate-stuff.md",
 	"aggregate-extensions.md",
 	"aggregate-skills.md",
 ];
-const removalBase = process.env.AGGREGATE_BASE ?? "HEAD~1";
-
 function readJson(path) {
 	return JSON.parse(readFileSync(path, "utf8"));
 }
 
-function removedBundledPackageChanges() {
+function bundleVersionBase(path, version) {
+	if (process.env.AGGREGATE_BASE) return process.env.AGGREGATE_BASE;
+	// Keep removals pending until versioning records them, even across other
+	// merges. A publish tag would still be absent on the first run after versioning.
+	const base = execFileSync(
+		"git",
+		[
+			"log",
+			"--first-parent",
+			"-1",
+			"--format=%H",
+			"-S",
+			`"version": ${JSON.stringify(version)}`,
+			"HEAD",
+			"--",
+			path,
+		],
+		{ cwd: root, encoding: "utf8" },
+	).trim();
+	if (!base) throw new Error(`Cannot find the version commit for ${path}`);
+	return base;
+}
+
+function removedBundledPackageChanges(publishedNames) {
 	return [
 		["pi-extensions", "extension"],
 		["pi-skills", "skill"],
 	].flatMap(([dir, kind]) => {
 		const path = `packages/${dir}/package.json`;
-		const previous = spawnSync("git", ["show", `${removalBase}:${path}`], {
-			cwd: root,
-			encoding: "utf8",
-		});
-		if (previous.status !== 0) return [];
-		const previousDependencies = JSON.parse(previous.stdout).dependencies ?? {};
-		const currentDependencies = readJson(join(root, path)).dependencies ?? {};
-		return Object.keys(previousDependencies)
-			.filter((name) => !(name in currentDependencies))
+		const current = readJson(join(root, path));
+		const base = bundleVersionBase(path, current.version);
+		const previous = JSON.parse(
+			execFileSync("git", ["show", `${base}:${path}`], {
+				cwd: root,
+				encoding: "utf8",
+			}),
+		);
+		return Object.keys(previous.dependencies ?? {})
+			.filter(
+				(name) =>
+					!publishedNames.has(name) || !(name in (current.dependencies ?? {})),
+			)
 			.map((name) => ({
 				name,
-				body: `Remove retired bundled ${kind}`,
+				body: publishedNames.has(name)
+					? `No longer bundled. Install separately with \`pi install npm:${name}\``
+					: `Remove retired bundled ${kind}`,
 				kind,
 			}));
 	});
-}
-
-function retiredPackageChanges() {
-	const diff = spawnSync(
-		"git",
-		["diff", "--name-status", "--diff-filter=D", removalBase, "--", "packages"],
-		{ cwd: root, encoding: "utf8" },
-	);
-	if (diff.status !== 0) return [];
-
-	return diff.stdout
-		.split("\n")
-		.filter(Boolean)
-		.flatMap((line) => {
-			const path = line.slice(2);
-			if (!/^packages\/[^/]+\/package\.json$/.test(path)) return [];
-			const previous = spawnSync("git", ["show", `${removalBase}:${path}`], {
-				cwd: root,
-				encoding: "utf8",
-			});
-			if (previous.status !== 0) return [];
-			const pkg = JSON.parse(previous.stdout);
-			if (pkg.private === true || aggregateExcludedNames.has(pkg.name))
-				return [];
-			return [
-				...(Array.isArray(pkg.pi?.extensions) && pkg.pi.extensions.length > 0
-					? [
-							{
-								name: pkg.name,
-								body: "Remove retired bundled extension",
-								kind: "extension",
-							},
-						]
-					: []),
-				...(Array.isArray(pkg.pi?.skills) && pkg.pi.skills.length > 0
-					? [
-							{
-								name: pkg.name,
-								body: "Remove retired bundled skill",
-								kind: "skill",
-							},
-						]
-					: []),
-			];
-		});
 }
 
 function parseChangeset(text) {
@@ -178,15 +145,26 @@ const packageInfos = listActivePackageDirs(root).map((dir) => ({
 	pkg: readJson(join(packagesDir, dir, "package.json")),
 }));
 
-const changedExtensions = [];
-const changedSkills = [];
+const removedBundledPackages = removedBundledPackageChanges(
+	new Set(
+		packageInfos
+			.filter(({ pkg }) => pkg.private !== true)
+			.map(({ pkg }) => pkg.name),
+	),
+);
+const changedExtensions = removedBundledPackages.filter(
+	({ kind }) => kind === "extension",
+);
+const changedSkills = removedBundledPackages.filter(
+	({ kind }) => kind === "skill",
+);
 
 for (const { pkg } of packageInfos) {
 	if (
 		pkg.private === true ||
 		!changesByPackage.has(pkg.name) ||
 		aggregateNames.has(pkg.name) ||
-		aggregateExcludedNames.has(pkg.name)
+		bundleExcludedPackages.has(pkg.name)
 	)
 		continue;
 	const hasExtensions =
@@ -197,20 +175,6 @@ for (const { pkg } of packageInfos) {
 		if (hasExtensions) changedExtensions.push(entry);
 		if (hasSkills) changedSkills.push(entry);
 	}
-}
-
-const removedBundledPackages = removedBundledPackageChanges();
-const removedKeys = new Set(
-	removedBundledPackages.map(({ name, kind }) => `${kind}:${name}`),
-);
-for (const retired of [
-	...removedBundledPackages,
-	...retiredPackageChanges().filter(
-		({ name, kind }) => !removedKeys.has(`${kind}:${name}`),
-	),
-]) {
-	if (retired.kind === "extension") changedExtensions.push(retired);
-	else changedSkills.push(retired);
 }
 
 const changedStuff = [...changedExtensions, ...changedSkills];

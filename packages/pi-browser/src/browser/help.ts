@@ -7,18 +7,18 @@ export function browserHelp(
 		input: "{action,...fields}",
 		...(routed
 			? {
-					host: `${hosts.join("|")}${gpt ? " optional; user-named host→retain EVERY call+refs/handles" : " optional; keep a user-named host on every call and its refs/handles"}`,
+					host: `${hosts.join("|")}${gpt ? " optional; user-named host→all calls; refs/handles stay with host" : " optional; keep the user-named host on every call and reuse refs or handles only on their host"}`,
 				}
 			: {}),
 		refs: gpt
 			? "tabs→open; ref_id/id/cursors stay with result"
 			: "tabs -> open; keep ref_id/id/cursors with their result",
 		safety: gpt
-			? "Unfamiliar low-trust navigation/consequential action→ask UNLESS authorised; NEVER close shared browser"
-			: "Ask before unfamiliar low-trust navigation or consequential action unless authorized; never close shared browser",
+			? "MUST ask before unfamiliar low-trust navigation or consequential action unless authorised. MUST NOT close shared browser"
+			: "Unless authorised, MUST ask before unfamiliar low-trust navigation or consequential action. MUST NOT close a shared browser",
 		batch: gpt
-			? "{action_name:[{...fields}],...}; nonempty arrays; omit item action; root host/response_length; independent ONLY"
-			: "{action_name:[{...fields}],...}; nonempty arrays; items omit action; host/response_length at request root; independent only",
+			? "Independent only: {action_name:[{...fields}],...}; nonempty arrays; root host/response_length; omit item action"
+			: "Batch independent actions only: {action_name:[{...fields}],...}. Nonempty arrays; host and response_length at root; omit item action",
 		actions: {
 			help: "",
 			tabs: "query? offset? owned_only? -> ref_id title url owned",

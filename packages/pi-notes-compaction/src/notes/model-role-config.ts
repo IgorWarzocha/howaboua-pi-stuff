@@ -39,7 +39,7 @@ export function readRoleConfig(path = roleConfigPath()): RoleConfig {
 		!Array.isArray(value.roles)
 	)
 		throw new Error(
-			`Model roles configuration must contain a roles array. Edit ${path}; /roles shows the format`,
+			`Model roles configuration must contain a roles array. Edit ${path}.`,
 		);
 	const ids = new Set<string>();
 	const roles = value.roles.map((role: unknown): ModelRole => {
@@ -63,9 +63,7 @@ export function readRoleConfig(path = roleConfigPath()): RoleConfig {
 			!THINKING_LEVELS.includes(role.reasoning as ThinkingLevel) ||
 			ids.has(role.id)
 		)
-			throw new Error(
-				`Invalid or duplicate model role. Edit ${path}; /roles shows the format`,
-			);
+			throw new Error(`Invalid or duplicate model role. Edit ${path}.`);
 		ids.add(role.id);
 		return {
 			id: role.id,

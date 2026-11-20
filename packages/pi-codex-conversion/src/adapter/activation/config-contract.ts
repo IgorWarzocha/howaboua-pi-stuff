@@ -12,10 +12,23 @@ export function normalizeVoiceApiProvider(value: unknown): string | undefined {
 
 export const GIPPITY_VOICE_MODELS = [
 	"codex-live-1.1",
+	"api-live-1.1",
 	"realtime-2.1",
 	"realtime-2.1-mini",
 ] as const;
 type GippityVoiceModel = (typeof GIPPITY_VOICE_MODELS)[number];
+export const GIPPITY_VOICE_MODEL_OPTIONS = {
+	"codex-live-1.1": { label: "Codex Live (OAuth)", kind: "codex" },
+	"api-live-1.1": { label: "GPT Live 1.1 (API)", kind: "live" },
+	"realtime-2.1": { label: "GPT-Realtime-2.1 (API)", kind: "realtime" },
+	"realtime-2.1-mini": {
+		label: "GPT-Realtime-2.1 Mini (API)",
+		kind: "realtime",
+	},
+} as const satisfies Record<
+	GippityVoiceModel,
+	{ label: string; kind: "codex" | "live" | "realtime" }
+>;
 export const OPENAI_REALTIME_VOICES = [
 	"alloy",
 	"ash",
@@ -74,6 +87,10 @@ export type VoiceContextReasoning =
 	(typeof VOICE_CONTEXT_REASONING_LEVELS)[number];
 export const DEFAULT_VOICE_CONTEXT_REASONING: VoiceContextReasoning = "high";
 export type VoiceContextModel = { provider: string; modelId: string };
+export const DEFAULT_VOICE_CONTEXT_MODEL: VoiceContextModel = {
+	provider: "openai-codex",
+	modelId: "gpt-6-luna",
+};
 
 export const REALTIME_V3_VOICES = [
 	"juniper",
@@ -148,7 +165,7 @@ export interface CodexConversionConfig {
 		muteShortcut: string;
 		serverShortcut: string;
 		dictationShortcutMode: DictationShortcutMode;
-		contextModel?: VoiceContextModel | undefined;
+		contextModel?: VoiceContextModel | "current" | undefined;
 		contextReasoning: VoiceContextReasoning;
 		taskDelegationModel: string;
 		taskDelegationReasoning: VoiceContextReasoning;
@@ -220,10 +237,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		muteShortcut: "ctrl+alt+m",
 		serverShortcut: "ctrl+alt+g",
 		dictationShortcutMode: "push",
-		contextModel: {
-			provider: "openai-codex",
-			modelId: "gpt-6-luna",
-		},
+		contextModel: "current",
 		contextReasoning: DEFAULT_VOICE_CONTEXT_REASONING,
 		taskDelegationModel: "openai-codex/gpt-6-luna",
 		taskDelegationReasoning: "low",

@@ -13,7 +13,7 @@ const PACKAGE_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const PACKAGED_VOICE_DIR = join(PACKAGE_ROOT, "src", "voice");
 const CONNECTED_PI_RUNTIME_CONTRACT = `## Connected Pi runtime
 
-You have a connected Pi agent with the active session's tools and environment. Delegate requests that require tools or actions or depend on current, external, project, or session facts not already present in the conversation. Keep self-contained conversation and reasoning in voice when no unavailable state or action is required. Never claim tools or host access are unavailable; delegate and use Pi's result.`;
+Pi has the active session's tools and environment. Delegate requests requiring tools, actions or facts absent from the conversation; use Pi's result instead of claiming you lack access. Keep self-contained conversation and reasoning in voice.`;
 
 export interface CodexVoiceSystemPromptStatus {
 	created: boolean;

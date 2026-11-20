@@ -34,6 +34,13 @@ interface Execution {
 }
 const MAX_CELLS = 4;
 
+type JsClientOptions = Pick<
+	CodeModeClientOptions,
+	"maxHeapMiB" | "prepareToolInput"
+> & {
+	piPackageDir: string;
+};
+
 /** Owns admission and delegate lifetime; workers retain no user VM between executions. */
 export class JsCodeClient implements CodeModeExecutionClient {
 	private readonly delegate: CodeModeDelegateRuntime;
@@ -45,10 +52,10 @@ export class JsCodeClient implements CodeModeExecutionClient {
 	private startup = new AbortController();
 	private identity: string | undefined;
 	private readonly stored = new Map<string, string>();
-	private readonly options: CodeModeClientOptions;
+	private readonly options: JsClientOptions;
 
 	constructor(
-		options: CodeModeClientOptions,
+		options: JsClientOptions,
 		renderStore?: CodeModeNestedRenderStore,
 	) {
 		this.options = options;
@@ -200,7 +207,7 @@ export class JsCodeClient implements CodeModeExecutionClient {
 		const { cell } = execution;
 		try {
 			this.runtime ??= loadJsRuntime(
-				this.options.agentDir,
+				this.options.piPackageDir,
 				this.startup.signal,
 			).catch((error) => {
 				this.runtime = undefined;

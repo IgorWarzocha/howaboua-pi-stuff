@@ -35,10 +35,11 @@ export const NOTES_USAGE = "tools.notes()";
 export const HISTORY_USAGE = "tools.history()";
 export const NOTES_DESCRIPTION = "Virtual filesystem task checkpoints";
 export const NOTES_ROUTING_GUIDELINE =
-	"notes: task checkpoints and internal handoffs. MUST revise via write/append actions. Paths are virtual: read/write only through notes, never shell/filesystem tools. MUST NOT store project files or deliverables";
+	"notes: Access virtual note paths only through notes. MUST NOT store project files or deliverables";
 export const NEW_CONTEXT_DESCRIPTION =
-	"Start fresh context window. MUST save notes before calling";
-export const GPT_NEW_CONTEXT_DESCRIPTION = "Save notes→fresh context";
+	"Start a fresh context window. MUST successfully write or append your own notes immediately before calling";
+export const GPT_NEW_CONTEXT_DESCRIPTION =
+	"Fresh context. MUST write/append own notes successfully just before calling";
 const STRING = opt(str());
 const INTEGER = opt(int({ minimum: 1 }));
 const LINE = opt(union([int(), nul()]));
@@ -47,8 +48,7 @@ export const NOTES_SCHEMA = obj(
 		action: opt({ ...oneOf(NOTES_ACTIONS), type: "string" }),
 		path: opt(
 			union([str(), nul()], {
-				description:
-					"File for read/write/append; prefix for list/search; virtual filesystem, not files in the project",
+				description: "Note path for read/write/append; prefix for list/search",
 			}),
 		),
 		text: STRING,
@@ -72,8 +72,7 @@ const NEW_CONTEXT_SCHEMA = obj(
 		role: opt(
 			str({
 				minLength: 1,
-				description:
-					"Configured model-role ID, not an agent name or handoff text",
+				description: "Configured role ID, not an agent name or handoff text",
 			}),
 		),
 	},
@@ -89,7 +88,13 @@ export function newContextSchema(
 	return obj(
 		{
 			...(roleIds.length
-				? { role: opt({ ...oneOf(roleIds), type: "string" }) }
+				? {
+						role: opt({
+							...oneOf(roleIds),
+							type: "string",
+							description: "Your next role in this session",
+						}),
+					}
 				: {}),
 			...(taskCompletionRollover
 				? {
@@ -111,7 +116,7 @@ export function prepareNewContextArguments(input: unknown) {
 	const args = input ?? {};
 	if (!newContextSchemaValidator.check(args))
 		throw new Error(
-			"Use {} to continue in fresh context; optional role selects a configured preset. resume must be true or false.",
+			"Use {} for a fresh context window. Pass a configured role ID to switch roles. resume must be true or false.",
 		);
 	return args;
 }
@@ -282,9 +287,8 @@ export function queryHelp(
 							? "write=replace; append=add"
 							: "write replaces; append adds",
 						paths: gpt
-							? "Virtual≠disk; own list/search→omit path; relative=current agent; absolute=/<session ID>/notes[/path], not the agent ID alone"
-							: "Virtual note paths, not disk files. Omit path to list/search your notes. Relative paths use your agent; absolute paths require /<session ID>/notes[/path], not the agent ID alone",
-						usage: 'notes: {"action":"read","path":"checkpoint"}',
+							? "Own list/search→omit path; relative=own notes; absolute MUST use /<session ID>/notes[/path]"
+							: "Omit path to list or search your notes. Relative paths refer to your notes; absolute paths MUST use /<session ID>/notes with an optional path suffix",
 						ranges: gpt
 							? "start_line/stop_line=1-based inclusive; negative=from end; 0/null/omitted=first/last; out-of-range→clamp; reversed→empty"
 							: "start_line/stop_line inclusive, 1-based; negative from end; 0/null/omitted uses first/last line; out-of-range clamps; reversed returns empty content",
@@ -294,8 +298,8 @@ export function queryHelp(
 					}
 				: {
 						usage: gpt
-							? "query→search default; past chat→search≠browse; returned IDs unchanged"
-							: "With query, action defaults to search. Search past chat, don't browse it. Pass returned IDs unchanged",
+							? "query→search default; past chat→search rather than browse; reuse returned IDs unchanged"
+							: "With query, action defaults to search. Search past chat rather than browsing it. Reuse returned IDs unchanged",
 						search: gpt
 							? "recent_first=true→newest first"
 							: "recent_first=true uses newest first",

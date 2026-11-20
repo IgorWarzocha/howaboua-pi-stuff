@@ -61,13 +61,16 @@ export async function createNativeVoiceContextSummary(
 	);
 	if (!model)
 		throw new Error(
-			`Voice context model is unavailable: ${request.model.provider}/${request.model.modelId}`,
+			`Voice context model is unavailable: ${request.model.provider}/${request.model.modelId}. Choose another context model or turn voice context off in settings.`,
 		);
 	const provider = request.ctx.modelRegistry.getProvider(model.provider);
 	if (!provider)
 		throw new Error(`Voice context provider is unavailable: ${model.provider}`);
 	const auth = await request.ctx.modelRegistry.getApiKeyAndHeaders(model);
-	if (!auth.ok) throw new Error(auth.error);
+	if (!auth.ok)
+		throw new Error(
+			`Voice context could not use ${model.provider}/${model.id}: ${auth.error}. Choose another context model or turn voice context off in settings.`,
+		);
 	const requestModel = auth.baseUrl
 		? { ...model, baseUrl: auth.baseUrl }
 		: model;

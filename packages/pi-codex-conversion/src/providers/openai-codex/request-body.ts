@@ -188,13 +188,11 @@ export function buildRequestBody<TApi extends Api>(
 		const thinkingLevelMap = model.thinkingLevelMap as
 			| Record<string, string | null | undefined>
 			| undefined;
-		const effort =
-			reasoningEffort === "none"
-				? (thinkingLevelMap?.["off"] ?? "none")
-				: (thinkingLevelMap?.[reasoningEffort] ?? reasoningEffort);
-		if (effort === null) return body;
+		const level = reasoningEffort === "none" ? "off" : reasoningEffort;
+		const mappedEffort = thinkingLevelMap?.[level];
+		if (mappedEffort === null) return body;
 		body.reasoning = {
-			effort: clampReasoningEffort(model.id, effort),
+			effort: clampReasoningEffort(model.id, mappedEffort ?? reasoningEffort),
 			summary: ((
 				options as { reasoningSummary?: string | undefined } | undefined
 			)?.reasoningSummary ?? "auto") as string,

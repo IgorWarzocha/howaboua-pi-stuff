@@ -1,10 +1,10 @@
 import path from "node:path";
 
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { parsePersistedContextDetails } from "./details.js";
+import { fingerprint, parsePersistedContextDetails } from "./details.js";
 import { resolvePath } from "./paths.js";
 
-export function collectBranchContext(
+export function collectBranchFingerprints(
 	ctx: ExtensionContext,
 	currentCwd: string,
 	cwdAgentsPath: string,
@@ -28,7 +28,10 @@ export function collectBranchContext(
 			const absolute = resolvePath(file.path, currentCwd);
 			if (path.basename(absolute) !== "AGENTS.md" || absolute === cwdAgentsPath)
 				continue;
-			out.set(absolute, file.content);
+			out.set(
+				absolute,
+				"sha256" in file ? file.sha256 : fingerprint(file.content),
+			);
 		}
 	}
 	return out;

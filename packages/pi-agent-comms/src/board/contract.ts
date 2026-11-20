@@ -119,7 +119,23 @@ const requiredFields: Partial<Record<BoardAction, string[]>> = {
 };
 const requestValidator = compile(Request);
 
+export function prepareBoardArguments(value: unknown): unknown {
+	if (
+		typeof value === "object" &&
+		value !== null &&
+		!Array.isArray(value) &&
+		"action" in value &&
+		value.action === "reply"
+	) {
+		if (!("thread_id" in value) || value.thread_id === undefined)
+			throw new Error("thread_id is required for a reply");
+		return { ...value, action: "post" };
+	}
+	return value;
+}
+
 export function parseBoardRequest(value: unknown): BoardParams {
+	value = prepareBoardArguments(value);
 	if (
 		value === undefined ||
 		(typeof value === "object" &&
@@ -149,7 +165,11 @@ export function parseBoardRequest(value: unknown): BoardParams {
 				id,
 			)
 		)
-			throw new Error(`${field} must be a UUID`);
+			throw new Error(
+				field === "thread_id"
+					? "thread_id must be a full UUID. Use list_threads on the same board and channel and copy thread_id."
+					: `${field} must be a UUID`,
+			);
 		if (id !== undefined) request[field] = id.toLowerCase();
 	}
 	if (
@@ -191,25 +211,25 @@ export const boardHelp = {
 	),
 	rules: {
 		scope:
-			"Defaults to your tree; board_id browses history, never writes. list_boards discovers saved boards",
-		post: "text required; exactly one of channel_name, new_channel_name, thread_id. Thread ID is the first post ID. New channel subscribes author to first posts",
+			"Defaults to your tree; use list_boards to find a read-only board_id",
+		post: "Choose exactly one of channel_name, new_channel_name, thread_id. A reply MUST use the full first post ID (thread_id from list_threads). New channel subscribes author to first posts",
 		set_status:
-			"Parent session only. Mark completed when the user confirms it's done, or abandoned when they drop it—not merely when agents finish. Closed threads reject replies; reopen first",
+			"The parent session alone sets status: completed when the user confirms it's done, abandoned when they drop it. Reopen closed threads before replying",
 		subscriptions:
 			"Exactly one of channel_name/thread_id; channel covers first posts, thread covers replies. target_agent defaults to you. Posting subscribes author to thread unless explicitly unsubscribed",
 		notify:
-			"agents_to_notify is one-time, excludes author; only running turns, no waking or offline notices",
+			"agents_to_notify sends a one-time notice to other agents on running turns",
 		agents:
 			"Agent reference /<Pi session ID>; saved legacy references remain valid",
 		paging:
-			"limit default20, cap50; cursor opaque, keep query/sort/full unchanged. Concurrent changes may shift pages",
+			"limit defaults to 20, max 50. Reuse returned cursors with unchanged query, sort and full. Concurrent changes may shift pages",
 		summaries:
-			"Closing may start summarization if enabled. Summarized threads return/search only summaries. full=true reads/searches original posts. Summary author filters match participants; read_post always reads originals",
+			"If enabled, closing can trigger summarization. Reads and searches default to any saved summary; full=true uses original posts. Summary author filters match participants; read_post always reads originals",
 		order:
-			"Newest first; get_channels by activity, list_threads sort=created|activity. read_thread pages newest replies with root on every page",
+			"Newest first; get_channels by activity, list_threads sort=created|activity. read_thread repeats the root on each page of replies",
 		text: "Case-insensitive substring search; max_chars_per_post default1000. read_post offsets count Unicode characters, limit_chars default20000. Continue at next_offset_chars<n_chars",
 		budget:
-			"Post cap64KiB, channel1-128 UTF-8 bytes without edge whitespace/control characters. Results cap8000 serialized UTF-8 bytes; reads may reduce limits, continue with returned cursor/offset",
+			"Posts max 64 KiB; channel names 1-128 UTF-8 bytes with no edge whitespace or control characters. Results max 8000 serialized UTF-8 bytes. Reads can lower limits; continue with returned cursor or offset",
 	},
 };
 
@@ -224,25 +244,23 @@ export function gptBoardHelp(value: unknown): unknown {
 	)
 		return value;
 	const compact: typeof boardHelp.rules = {
-		scope:
-			"Default=your tree; board_id→saved history READONLY; discover→list_boards",
-		post: "text required; EXACTLY one: channel_name|new_channel_name|thread_id. thread_id=first post ID; new channel→author subscribed to first posts",
+		scope: "Default=your tree; list_boards→read-only board_id",
+		post: "Exactly one: channel_name|new_channel_name|thread_id. Reply MUST use full first post ID (list_threads→thread_id). New channel→subscribe author to first posts",
 		set_status:
-			"Parent session ONLY; completed=user confirms done; abandoned=user drops it; NOT agents finish. Closed→reopen BEFORE reply",
+			"Parent session only; completed=user confirms done; abandoned=user drops it. Closed→reopen before reply",
 		subscriptions:
-			"EXACTLY one: channel_name|thread_id; channel=first posts, thread=replies; target_agent=you by default; posting→subscribe author UNLESS explicitly unsubscribed",
-		notify:
-			"agents_to_notify=once, excludes author; running turns ONLY; NO waking/offline notices",
+			"Exactly one: channel_name|thread_id; channel=first posts, thread=replies; target_agent defaults to you; post→subscribe author unless explicitly unsubscribed",
+		notify: "agents_to_notify→one-time notice to other agents on running turns",
 		agents: "Agent=/<Pi session ID>; legacy references accepted",
 		paging:
-			"limit default20 cap50; opaque cursor→unchanged query/sort/full; concurrent changes MAY shift pages",
+			"limit default 20 max 50; reuse cursor with unchanged query/sort/full; concurrent edits can shift pages",
 		summaries:
-			"Closing MAY summarise IF enabled; summarised threads return/search summaries ONLY; full=true reads/searches originals; summary author filters=participants; read_post=originals ALWAYS",
+			"Close can trigger summary if enabled; read/search default to saved summary; full=true→originals; summary author filters=participants; read_post→originals",
 		order:
-			"Newest first; get_channels→activity; list_threads sort=created|activity; read_thread→newest replies+root EVERY page",
+			"Newest first; get_channels by activity; list_threads sort=created|activity; read_thread repeats root each page",
 		text: "Case-insensitive substring; max_chars_per_post default1000; read_post→Unicode-char offsets, limit_chars default20000; next_offset_chars<n_chars→continue",
 		budget:
-			"Post≤64KiB; channel=1-128 UTF-8 bytes, NO edge whitespace/control chars; results≤8000 serialized UTF-8 bytes; reads MAY lower limits; continue returned cursor/offset",
+			"Post max 64 KiB; channel 1-128 UTF-8 bytes without edge whitespace/control chars. Result max 8000 serialized UTF-8 bytes. Reads can lower limits; continue at returned cursor/offset",
 	};
 	return {
 		...value,
