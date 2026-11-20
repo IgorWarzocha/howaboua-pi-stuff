@@ -10,6 +10,7 @@ import { ApiLiveTurns } from "./api-live-turns.ts";
 import { closeApiLiveSession } from "./api-live-close.ts";
 import type { RealtimePiInputBehavior } from "./handoff.ts";
 import type { CodexRealtimePeer, CodexRealtimePeerEvent } from "./peer.ts";
+import { PlaybackSettlement } from "./playback-settlement.ts";
 import { PublicRealtimeTurns } from "./public-turns.ts";
 import { ConversationTurns } from "./turn-events.ts";
 import {
@@ -20,7 +21,6 @@ import {
 import type { PreparedVoiceTask } from "./end-call.ts";
 
 type ConversationState = "idle" | "starting" | "active" | "failed" | "closed";
-const PLAYBACK_WAIT_MS = 30_000;
 
 export interface CodexConversationCallbacks {
 	onError(error: Error): void;
@@ -48,14 +48,13 @@ export class CodexRealtimeConversation {
 		| PublicRealtimeTurns
 		| ApiLiveTurns;
 	private readonly protocol: "codex" | "realtime" | "api-live";
-	private readonly playbackChecks = new Set<() => void>();
+	private readonly playback: PlaybackSettlement;
 	private state: ConversationState = "idle";
 	private closePromise: Promise<void> | undefined;
 	private inputMuted = false;
 	finishingAcceptedWork = false;
 	private ending = false;
 	private endAfterResult: { id: string; active: boolean } | undefined;
-	private completedOutputs = 0;
 	private endingOutput = 0;
 	private readonly closing = new AbortController();
 	private established = false;
@@ -98,9 +97,16 @@ export class CodexRealtimeConversation {
 		};
 		const active = () => this.state === "active";
 		const fail = (error: Error) => this.fail(error);
-		const checkPlayback = () => {
-			for (const check of this.playbackChecks) check();
-		};
+		this.playback = new PlaybackSettlement(peer, {
+			isActive: active,
+			isEnding: () => this.ending,
+			hasPendingOutput: (includeQueuedResponse) =>
+				this.turns.speakableResponsePending ||
+				(includeQueuedResponse &&
+					this.turns instanceof PublicRealtimeTurns &&
+					this.turns.hasQueuedResponse),
+		});
+		const checkPlayback = () => this.playback.recheck();
 		this.turns =
 			protocol === "api-live"
 				? new ApiLiveTurns(turnCallbacks, peer, active, fail, {
@@ -114,7 +120,7 @@ export class CodexRealtimeConversation {
 							this.inputChanged = Promise.withResolvers<void>();
 						},
 						onOutputFinished: () => {
-							this.completedOutputs++;
+							this.playback.recordOutputFinished();
 							checkPlayback();
 						},
 						onOutputChanged: checkPlayback,
@@ -288,7 +294,8 @@ export class CodexRealtimeConversation {
 		if (this.ending) return;
 		this.endAfterResult = undefined;
 		this.ending = true;
-		this.endingOutput = this.completedOutputs + (finalOutputObserved ? 0 : 1);
+		this.endingOutput =
+			this.playback.completedOutputs + (finalOutputObserved ? 0 : 1);
 		this.turns.handoff.clear();
 		this.callbacks.onEndCall?.();
 	}
@@ -329,57 +336,10 @@ export class CodexRealtimeConversation {
 		return this.apiLiveFinalization;
 	}
 
-	/** Quiet peer activity is best-effort: the helper has no speaker-drain acknowledgement. */
 	waitForPlaybackEnd(
-		signal: AbortSignal,
-		{ minimumOutputs = 0, includeQueuedResponse = false } = {},
+		...args: Parameters<PlaybackSettlement["waitForEnd"]>
 	): Promise<void> {
-		signal.throwIfAborted();
-		return new Promise((resolve, reject) => {
-			let quiet: ReturnType<typeof setTimeout> | undefined;
-			const finish = (error?: Error) => {
-				clearTimeout(timeout);
-				clearTimeout(quiet);
-				removeEvent();
-				removeExit();
-				signal.removeEventListener("abort", aborted);
-				this.playbackChecks.delete(check);
-				if (error) reject(error);
-				else resolve();
-			};
-			const check = () => {
-				clearTimeout(quiet);
-				if (minimumOutputs && !this.ending) {
-					finish(new Error("Call ending interrupted by new speech"));
-					return;
-				}
-				if (this.state !== "active") {
-					finish(new Error("The voice call closed before playback finished"));
-					return;
-				}
-				if (
-					this.completedOutputs >= minimumOutputs &&
-					!this.turns.speakableResponsePending &&
-					!(
-						includeQueuedResponse &&
-						this.turns instanceof PublicRealtimeTurns &&
-						this.turns.hasQueuedResponse
-					)
-				)
-					quiet = setTimeout(() => finish(), 500);
-			};
-			const aborted = () => finish(new Error("Playback wait cancelled"));
-			const timeout = setTimeout(
-				() =>
-					finish(new Error("Voice output did not finish within 30 seconds")),
-				PLAYBACK_WAIT_MS,
-			);
-			const removeEvent = this.peer.onEvent(check);
-			const removeExit = this.peer.onExit(finish);
-			this.playbackChecks.add(check);
-			signal.addEventListener("abort", aborted, { once: true });
-			check();
-		});
+		return this.playback.waitForEnd(...args);
 	}
 
 	async close(finishAcceptedWork = false): Promise<void> {
@@ -388,25 +348,11 @@ export class CodexRealtimeConversation {
 		return this.closePromise;
 	}
 
-	async waitForRefreshBoundary(signal: AbortSignal): Promise<void> {
-		await this.waitForInput(signal);
-		const deadline = AbortSignal.timeout(PLAYBACK_WAIT_MS);
-		const playbackSignal = AbortSignal.any([signal, deadline]);
-		try {
-			for (;;) {
-				const input = this.inputChanged;
-				await this.waitForPlaybackEnd(playbackSignal, {
-					includeQueuedResponse: true,
-				});
-				// Speech arriving during playback can queue another delegation or reply.
-				if (input === this.inputChanged) return;
-				await this.waitForInput(playbackSignal);
-			}
-		} catch (error) {
-			if (deadline.aborted && !signal.aborted)
-				throw new Error("Voice output did not settle within 30 seconds");
-			throw error;
-		}
+	waitForRefreshBoundary(signal: AbortSignal): Promise<void> {
+		return this.playback.waitForRefresh(signal, {
+			nextChange: () => this.inputChanged.promise,
+			waitUntilSettled: (currentSignal) => this.waitForInput(currentSignal),
+		});
 	}
 
 	private async waitForInput(signal: AbortSignal): Promise<void> {
@@ -509,7 +455,7 @@ export class CodexRealtimeConversation {
 				(message.type === "response.done" &&
 					message.response?.status === "completed")
 			)
-				this.completedOutputs++;
+				this.playback.recordOutputFinished();
 			this.turns.receive(event.message);
 			this.inputChanged.resolve();
 			this.inputChanged = Promise.withResolvers<void>();
