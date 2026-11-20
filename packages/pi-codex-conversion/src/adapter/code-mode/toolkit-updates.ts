@@ -99,13 +99,56 @@ export function recordCodeModeToolkit(
 			? [readToolkitUpdate(message.details)]
 			: [],
 	);
-	const compactionId =
-		ctx.sessionManager
-			.getBranch()
-			.findLast((entry) => entry.type === "compaction")?.id ?? null;
+	const branch = ctx.sessionManager.getBranch();
+	const compactionIndex = branch.findLastIndex(
+		(entry) => entry.type === "compaction",
+	);
+	const compaction = branch[compactionIndex];
+	const compactionId = compaction?.id ?? null;
 	const latest = visible.at(-1);
+	// Notes' empty checkpoint commits an existing cut; it does not replace retained notices.
+	let retainedAtWindowCheckpoint = false;
+	if (
+		latest &&
+		compaction?.type === "compaction" &&
+		compaction.summary === "" &&
+		compaction.details &&
+		typeof compaction.details === "object" &&
+		"pi-notes-compaction/window-checkpoint" in compaction.details &&
+		compaction.details["pi-notes-compaction/window-checkpoint"] === 1
+	) {
+		let boundaryFound = false;
+		let rootRetained = false;
+		let latestRetained = false;
+		let precedingCompaction: string | null = null;
+		let foundPrecedingCompaction = false;
+		for (let index = compactionIndex - 1; index >= 0; index--) {
+			const entry = branch[index]!;
+			if (
+				!boundaryFound &&
+				entry.type === "custom" &&
+				entry.customType === CODEX_TOOLKIT_UPDATE_TYPE &&
+				isCodexDeveloperMessageDetails(entry.data)
+			) {
+				rootRetained ||= entry.data.id === latest.rootId;
+				latestRetained ||= entry.data.id === latest.id;
+			}
+			if (entry.id === compaction.firstKeptEntryId) boundaryFound = true;
+			if (!foundPrecedingCompaction && entry.type === "compaction") {
+				precedingCompaction = entry.id;
+				foundPrecedingCompaction = true;
+			}
+			if (boundaryFound && foundPrecedingCompaction) break;
+		}
+		retainedAtWindowCheckpoint =
+			boundaryFound &&
+			rootRetained &&
+			latestRetained &&
+			latest.compactionId === precedingCompaction;
+	}
 	const previous =
-		latest?.compactionId === compactionId &&
+		latest &&
+		(latest.compactionId === compactionId || retainedAtWindowCheckpoint) &&
 		visible.some((update) => update.id === latest.rootId)
 			? latest
 			: undefined;

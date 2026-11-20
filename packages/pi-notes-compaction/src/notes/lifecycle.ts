@@ -236,6 +236,8 @@ export class NotesLifecycle {
 			this.gptPromptMode(),
 		);
 		this.windows.current = ids;
+		if (triggerTurn)
+			message.content = `${message.content}\n\nContinuation: read relevant notes, then resume any unfinished task. Follow current instructions.`;
 		if (handoff) message.content = `${message.content}\n\nRole: ${handoff.id}`;
 		this.sendMessage(message, { triggerTurn });
 	}

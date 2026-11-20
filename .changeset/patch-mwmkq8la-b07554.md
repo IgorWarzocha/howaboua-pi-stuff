@@ -3,6 +3,7 @@
 ---
 
 - Fix role switches and context rollover when a temporary reasoning boost expires.
+- Remind continuing agents to recover their notes and resume unfinished work after rollover.
 - Shorter Notes guidance clarifies the checkpoint required for context rollover.
 - Notes reads, lists and searches reuse the same loaded notes.
 - Fixed shared Notes reads and lists failing for a remote-backed parent session.
