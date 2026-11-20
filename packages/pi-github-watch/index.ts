@@ -112,7 +112,7 @@ export default async function (pi: ExtensionAPI) {
 					)
 				)
 					ctx.ui.notify(
-						`Codex review reached its credit limit: ${watch.thread.url}`,
+						`Automated review reached a usage limit: ${watch.thread.url}`,
 						"warning",
 					);
 				const reviewChanged = [...seen.unresolved].some(
