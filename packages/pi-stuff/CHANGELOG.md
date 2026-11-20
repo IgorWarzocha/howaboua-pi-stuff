@@ -2,20 +2,19 @@
 
 ## 0.0.117
 
-- Include bundled package updates:
+**Bundle removals**
 
-  - @howaboua/pi-auto-trees: Remove retired bundled extension.
-  - @howaboua/pi-grok-realtime: No longer bundled. Install separately with `pi install npm:@howaboua/pi-grok-realtime`.
-  - @howaboua/pi-pet: No longer bundled. Install separately with `pi install npm:@howaboua/pi-pet`.
-  - @howaboua/pi-smart-btw: Remove retired bundled extension.
-  - @howaboua/pi-subagent-review: Remove retired bundled extension.
-  - @howaboua/pi-ask: - Shorter review and planning prompts clarify when to ask, wait for a handoff or stop.
-  - @howaboua/pi-better-skills-tool: - Fixed Skills discovery failing on an empty object in Code and Notebook. - Skills discovery and reads no longer open unrelated skill files when Pi has already loaded the catalog. - Shorter Skills help explains how to combine body and reference reads.
-  - @howaboua/pi-gippity-control: - Added GPT Live 1.1 voice with an OpenAI API key. Codex login remains the default. - Streamlined voice routing, progress and task preparation instructions. Existing custom voice prompts are preserved.
-  - @howaboua/pi-github-watch: - Known Codex, Cursor Bugbot and CodeRabbit quota notices appear in the UI without waking the agent. - Shorter watch help clarifies target references, when watches stop and how to resume a paused watch.
-  - @howaboua/pi-shepherdr: - Shortened delegation guidance without repeating the task in the worker's instructions. - Clarified agent tool help for replies, sharing and closing sessions. - Fixed outdated attachments blocking notes and history lookups for unrelated agents.
-  - @howaboua/pi-suggestions: - Disabled suggestions no longer scan conversation history. Enabled suggestions scan it once per request. - Suggestion requests no longer repeat the draft instruction on every turn.
-  - @howaboua/pi-unicode-charts: Shortened chart-format guidance in both prompt modes.
+- Grok Realtime and Pet are no longer bundled. Install either separately with `pi install npm:@howaboua/pi-grok-realtime` or `pi install npm:@howaboua/pi-pet`.
+- Removed the retired Auto Trees, Smart BTW and Subagent Review extensions.
+
+**Bundled updates**
+
+- GipPity Control adds optional GPT Live 1.1 voice with an OpenAI API key.
+- GitHub Watch shows known review-bot quota notices without waking the agent.
+- Better Skills Tool fixes empty-object discovery and avoids opening unrelated skill files.
+- Shepherdr fixes stale attachments blocking unrelated Notes and History lookups.
+- Suggestions skips history scans when disabled and scans once per request when enabled.
+- Ask and Unicode Charts have shorter agent guidance.
 
 ## 0.0.116
 

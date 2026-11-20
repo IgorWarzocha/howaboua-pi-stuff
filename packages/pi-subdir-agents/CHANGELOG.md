@@ -2,11 +2,8 @@
 
 ## 0.0.10
 
-- Requires Pi 1.5 or newer.
-
-  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
-
-  Nested AGENTS.md guidance is saved once per delivery without duplicating its text in session metadata.
+- Updates use Pi's native changelog notices and `collapseChangelog` instead of custom suppression.
+- Nested AGENTS.md guidance is saved once per delivery without duplicating its text in session metadata.
 
 ## 0.0.9
 

@@ -3,23 +3,18 @@
 ## 5.0.2
 
 - Added GPT Live 1.1 voice with an OpenAI API key. Codex login remains the default.
-- Keep the active voice call's previous summary and spoken conversation when refreshing after compaction or a Notes window rollover.
-- Voice refresh waits for playback to settle. If playback does not settle, the current call stays open.
-- Stop repeating the unchanged tool list after a Notes window checkpoint.
-- Exec guidance identifies JavaScript and TypeScript cells as places to process data as well as call tools.
-- Fixed TS mode rejecting empty-object help calls accepted by Code and Notebook.
-- Code image viewing and binding-conflict errors now give clearer recovery guidance.
-- Code and Notebook guidance clarifies binding reuse, patch syntax, rollback limits and restorable hook dependencies.
-- Code and Notebook no longer save a second copy of images already included in the tool result.
-- Expanded Code and Notebook cells omit duplicate text already shown in a nested tool trace.
-- QuickJS Code uses Pi's bundled runtime and no longer downloads its own.
-- VM Code reports the actual syntax error when a cell with top-level `await` is malformed.
-- VM Code guidance puts temporary helpers and values in block scope to avoid redeclaration errors.
+- Active voice calls carry their summary and spoken conversation across compaction and Notes rollovers. Refresh waits for playback to finish, or keeps the current call open if playback does not settle.
 - Codex Responses Lite preserves more screenshot detail, up to Codex's 6,000-pixel and 10,000-patch limits.
-- Reduced memory use when preparing image-heavy Codex requests and continuing WebSocket sessions. Remote image validation reuses prepared images across turns.
+- Reduced memory use when preparing image-heavy Codex requests and continuing WebSocket sessions.
 - Codex honours `Retry-After` in streamed errors and `Retry-After-Ms` in HTTP and streamed errors.
 - Codex omits reasoning effort when the model declares the requested level unsupported.
-- Auto Reasoning guidance maps effort levels to the work ahead and tells agents to adjust by work phase, not per tool call.
+- Auto Reasoning guidance maps effort levels to the work ahead and recommends changing effort by work phase rather than by tool call.
+- QuickJS Code uses Pi's bundled runtime instead of downloading another copy.
+- VM Code reports the actual syntax error in malformed cells with top-level `await`. Its guidance explains how to scope temporary variables to avoid redeclaration errors.
+- TS mode accepts empty-object help calls, matching other Code and Notebook modes.
+- Code and Notebook guidance covers in-cell data processing, binding reuse, patch syntax, rollback limits and restorable hook dependencies. Image and binding errors explain how to recover.
+- Code and Notebook no longer save a second copy of images already included in the tool result. Expanded cells omit text already shown in a nested tool trace.
+- Notes checkpoints no longer repeat an unchanged tool list.
 
 ## 5.0.1
 
