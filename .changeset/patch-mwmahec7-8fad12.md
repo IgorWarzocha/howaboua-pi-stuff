@@ -2,16 +2,16 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-- Use GPT Live 1.1 for voice with an OpenAI API key instead of a Codex login.
+- Added GPT Live 1.1 voice with an OpenAI API key. Codex login remains the default.
 - Keep the active voice call's previous summary and spoken conversation when refreshing after compaction or a Notes window rollover.
-- Wait for voice playback to settle before switching to refreshed context.
+- Voice refresh waits for playback to settle. If playback does not settle, the current call stays open.
 - Stop repeating the unchanged tool list after a Notes window checkpoint.
 - Exec guidance identifies JavaScript and TypeScript cells as places to process data as well as call tools.
 - Fixed TS mode rejecting empty-object help calls accepted by Code and Notebook.
 - Code image viewing and binding-conflict errors now give clearer recovery guidance.
 - Code and Notebook guidance clarifies binding reuse, patch syntax, rollback limits and restorable hook dependencies.
 - Code and Notebook no longer save a second copy of images already included in the tool result.
-- Expanded Code and Notebook cells show repeated tool output once without changing what the agent receives.
+- Expanded Code and Notebook cells omit duplicate text already shown in a nested tool trace.
 - QuickJS Code uses Pi's bundled runtime and no longer downloads its own.
 - VM Code reports the actual syntax error when a cell with top-level `await` is malformed.
 - VM Code guidance puts temporary helpers and values in block scope to avoid redeclaration errors.
