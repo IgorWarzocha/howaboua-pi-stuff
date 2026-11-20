@@ -1,5 +1,9 @@
 # @howaboua/pi-codex-web-run
 
+## 0.0.12
+
+- Web tool guidance distinguishes navigation references from Markdown citations. Code and Notebook usage shows URL navigation and the optional search context size.
+
 ## 0.0.11
 
 - Requires Pi 1.5 or newer.

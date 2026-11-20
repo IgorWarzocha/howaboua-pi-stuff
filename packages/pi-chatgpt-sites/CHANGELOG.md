@@ -1,5 +1,9 @@
 # @howaboua/pi-chatgpt-sites
 
+## 0.0.5
+
+- Shorter Sites guides distinguish production authorisation, access checks and recovery after a partial publication.
+
 ## 0.0.4
 
 - Requires Pi 1.5 or newer.

@@ -1,5 +1,9 @@
 # @howaboua/pi-ask
 
+## 0.0.21
+
+- Shorter review and planning prompts clarify when to ask, wait for a handoff or stop.
+
 ## 0.0.20
 
 - Ask help now identifies `handoff` as a boolean.

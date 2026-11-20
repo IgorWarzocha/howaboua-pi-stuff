@@ -1,5 +1,15 @@
 # @howaboua/pi-browser
 
+## 0.0.14
+
+- Requires Pi 1.5 or newer.
+
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - Replaced the TypeBox dependency with Pi's native schema builders.
+
+  - Reading a page from a large browser result no longer rereads the whole result.
+  - Browser help clarifies when to ask before proceeding and how to keep references on the right host.
+
 ## 0.0.13
 
 - Fixed npm-installed Pi Browser blocking startup when Pi Codex Conversion is installed.

@@ -1,5 +1,9 @@
 # @howaboua/pi-observatory
 
+## 0.0.6
+
+- The investigation guide distinguishes read-only evidence gathering from starting the viewer or collectors.
+
 ## 0.0.5
 
 - Keep retained session details and historical statistics available after sparse history pruning.

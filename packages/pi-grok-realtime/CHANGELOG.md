@@ -1,5 +1,9 @@
 # @howaboua/pi-grok-realtime
 
+## 0.0.7
+
+- Streamlined voice instructions for delegating work, handling pauses and ending calls.
+
 ## 0.0.6
 
 - Voice task acknowledgements now omit unused task IDs.

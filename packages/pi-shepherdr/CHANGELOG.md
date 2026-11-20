@@ -1,5 +1,11 @@
 # @howaboua/pi-shepherdr
 
+## 1.0.3
+
+- Shortened delegation guidance without repeating the task in the worker's instructions.
+- Clarified agent tool help for replies, sharing and closing sessions.
+- Fixed outdated attachments blocking notes and history lookups for unrelated agents.
+
 ## 1.0.2
 
 - Fixed resumed workers failing to start or losing completion reports after crashes or restarts.

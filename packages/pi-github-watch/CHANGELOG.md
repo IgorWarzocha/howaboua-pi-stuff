@@ -1,5 +1,10 @@
 # @howaboua/pi-github-watch
 
+## 0.0.8
+
+- Known Codex, Cursor Bugbot and CodeRabbit quota notices appear in the UI without waking the agent.
+- Shorter watch help clarifies target references, when watches stop and how to resume a paused watch.
+
 ## 0.0.7
 
 - PR watches now notify when the head commit changes, even without a new comment or review.

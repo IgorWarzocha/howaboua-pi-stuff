@@ -1,5 +1,10 @@
 # @howaboua/pi-sandbox
 
+## 0.1.7
+
+- Sandbox command waits use fewer guest processes to check whether a command has finished.
+- Sandbox help clarifies command wait timeouts and warns against secrets in templates or setup commands.
+
 ## 0.1.6
 
 - Fixed short sandbox commands occasionally reporting a startup failure.

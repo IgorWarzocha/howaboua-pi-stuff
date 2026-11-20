@@ -1,6 +1,6 @@
 {
   "name": "@howaboua/pi-codex-imagegen",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "description": "Codex image generation and editing for Pi, Code Mode and Notebook Mode.",
   "type": "module",
   "license": "MIT",
@@ -48,14 +48,14 @@
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=1.5.0",
     "@earendil-works/pi-tui": ">=1.0.0",
-    "@howaboua/pi-codex-conversion": ">=5.0.1"
+    "@howaboua/pi-codex-conversion": ">=5.0.2"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "1.6.0",
     "@earendil-works/pi-tui": "1.6.0",
     "@types/node": "^26.6.6",
     "typescript": "^7.0.2",
-    "@howaboua/pi-codex-conversion": "5.0.1",
+    "@howaboua/pi-codex-conversion": "5.0.2",
     "oxfmt": "^0.78.0"
   },
   "pi": {
