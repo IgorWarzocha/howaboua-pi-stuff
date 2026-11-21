@@ -34,12 +34,15 @@ export function createNotesSettingsControls(
 	requestRender: () => void,
 ) {
 	const settings = options.settings();
-	const idleValue = (minutes: number) =>
-		minutes === 0
+	const idleValue = (minutes: number) => {
+		if (minutes === 25) return "25m (Codex GPT-5.6–6.1: ~30m cache)";
+		if (minutes === 115) return "2h (Codex GPT-6.2: ~2h cache observed)";
+		return minutes === 0
 			? "Off"
 			: minutes < 60
 				? `${minutes}m`
 				: `${Math.ceil(minutes / 60)}h`;
+	};
 	const list = new SettingsList(
 		[
 			{
