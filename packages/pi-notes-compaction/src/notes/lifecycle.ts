@@ -25,7 +25,7 @@ import { RolloverRequests } from "./rollover.js";
 import {
 	branchBackwards,
 	currentRun,
-	RolloverSaves,
+	findRolloverTail,
 	type RolloverTail,
 } from "./rollover-tail.js";
 import type {
@@ -63,7 +63,6 @@ export class NotesLifecycle {
 	private readonly checkpoint: FreshCheckpoint;
 	private readonly admission: IdleAdmission;
 	private readonly requests: RolloverRequests;
-	private readonly saves = new RolloverSaves();
 
 	private readonly pi: ExtensionAPI;
 	private readonly store: NotesStore;
@@ -90,7 +89,7 @@ export class NotesLifecycle {
 							false,
 							undefined,
 							undefined,
-							this.retainedTail(),
+							this.normalCompaction ? undefined : this.retainedTail(ctx),
 						)
 					: this.rollNotes(ctx),
 			() => this.requests.pending,
@@ -122,10 +121,7 @@ export class NotesLifecycle {
 		this.checkpoint.reset();
 		this.requests.reset();
 		this.runId = "";
-		this.windows.restore(
-			ctx?.sessionManager.getBranch() ?? [],
-			this.saves.restoreObserver(),
-		);
+		this.windows.restore(ctx?.sessionManager.getBranch() ?? []);
 	}
 	private initialize(
 		ctx: ExtensionContext,
@@ -198,22 +194,23 @@ export class NotesLifecycle {
 			this.windows.current?.currentWindowId,
 		);
 	}
-	private retainedTail(): RolloverTail | undefined {
+	private retainedTail(ctx: ExtensionContext): RolloverTail | undefined {
 		const windowId = this.windows.current?.currentWindowId;
 		if (windowId && this.rolloverTail !== "off")
-			return this.saves.tail(windowId, this.rolloverTail);
+			return findRolloverTail(ctx.sessionManager, windowId, this.rolloverTail);
 	}
 	private async rollNotes(
 		ctx: ExtensionContext,
 		instructions?: string,
 	): Promise<void> {
-		const tail = this.retainedTail();
-		if (
-			!instructions?.trim() &&
-			(tail || (this.rolloverTail === "off" && this.fresh(ctx)))
-		)
-			await this.requests.roll(ctx, false, undefined, undefined, tail);
-		else await this.checkpoint.start(ctx, instructions);
+		if (!instructions?.trim()) {
+			const tail = this.retainedTail(ctx);
+			if (tail || (this.rolloverTail === "off" && this.fresh(ctx))) {
+				await this.requests.roll(ctx, false, undefined, undefined, tail);
+				return;
+			}
+		}
+		await this.checkpoint.start(ctx, instructions);
 	}
 	requestRollover(
 		ctx: ExtensionContext,
@@ -273,7 +270,7 @@ export class NotesLifecycle {
 		if (
 			tail &&
 			leaf !== ctx.sessionManager.getLeafId() &&
-			this.retainedTail()?.firstKeptEntryId !== tail.firstKeptEntryId
+			this.retainedTail(ctx)?.firstKeptEntryId !== tail.firstKeptEntryId
 		)
 			throw new Error("Saved checkpoint changed before rollover");
 		// Prepare the outgoing provider first; the successor's full kickoff sees the new model.
@@ -328,10 +325,6 @@ export class NotesLifecycle {
 	): Promise<void> {
 		return this.requests.compactFailed(event, ctx);
 	}
-	compacted(ctx: ExtensionContext, checkpoint: boolean): void {
-		this.windows.restore(ctx.sessionManager.getBranch());
-		if (!checkpoint) this.saves.clear();
-	}
 	async settled(
 		event: AgentSettledEvent,
 		ctx: ExtensionContext,
@@ -344,10 +337,6 @@ export class NotesLifecycle {
 			);
 			if (terminal && this.windows.current) {
 				const windowId = this.windows.current.currentWindowId;
-				const run =
-					!event.aborted &&
-					this.runId &&
-					currentRun(ctx.sessionManager, this.runId);
 				this.pi.appendEntry(SETTLEMENT_ENTRY, {
 					protocol: 1,
 					windowId,
@@ -355,7 +344,6 @@ export class NotesLifecycle {
 					settledAt: Date.now(),
 					aborted: event.aborted,
 				});
-				if (run) this.saves.record(run, windowId, this.runId, terminal);
 			}
 		} catch (error) {
 			this.requests.clear();
@@ -380,7 +368,7 @@ export class NotesLifecycle {
 					throw new Error(
 						"No completed checkpoint; the current context remains",
 					);
-				const tail = this.retainedTail();
+				const tail = this.retainedTail(ctx);
 				if (this.rolloverTail !== "off" && !tail)
 					throw new Error(
 						"No eligible saved checkpoint; the current context remains",

@@ -11,10 +11,7 @@ import {
 	projectTreeCheckpointMessages,
 } from "./tree-checkpoint.js";
 import { projectTreeHandoffReads } from "./tree-handoff-read.js";
-import {
-	isWindowCheckpoint,
-	type WindowCheckpoints,
-} from "./window-checkpoint.js";
+import type { WindowCheckpoints } from "./window-checkpoint.js";
 
 export async function registerNotesHooks(
 	pi: ExtensionAPI,
@@ -184,9 +181,9 @@ export async function registerNotesHooks(
 	pi.on("session_compact_failed", async (event, ctx) => {
 		if (lifecycle.active) await lifecycle.compactFailed(event, ctx);
 	});
-	pi.on("session_compact", (event, ctx) => {
+	pi.on("session_compact", (_event, ctx) => {
 		if (lifecycle.active) {
-			lifecycle.compacted(ctx, isWindowCheckpoint(event.compactionEntry));
+			lifecycle.windows.restore(ctx.sessionManager.getBranch());
 			activation.refreshHistorySearch(ctx, true);
 		}
 	});

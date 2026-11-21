@@ -11,7 +11,7 @@ import { isWindowCheckpoint } from "./window-checkpoint.js";
 import {
 	messageWindowDetails,
 	SETTLEMENT_ENTRY,
-	type WindowDetails,
+	windowDetails,
 } from "./window-message.js";
 
 export interface RolloverTail {
@@ -37,10 +37,13 @@ export function projectTailMessage(
 	mode: RolloverTail["mode"],
 	completeCalls?: ReadonlySet<string>,
 ): AgentMessage | undefined {
+	// The successor's window carrier is outside this tail. Never replay
+	// outgoing identity or checkpoint reminders as conversation.
 	if (message.role === "custom")
-		return messageWindowDetails(message.customType, message.details)
-			? undefined
-			: message;
+		return mode === "full" &&
+			!messageWindowDetails(message.customType, message.details)
+			? message
+			: undefined;
 	if (mode === "full") {
 		if (message.role === "toolResult")
 			return completeCalls?.has(message.toolCallId) ? message : undefined;
@@ -146,8 +149,6 @@ export function readSettlement(entry: SessionEntry, windowId: string) {
 		};
 }
 
-type SavedGroup = Omit<RolloverTail, "mode">;
-
 function runMarker(entry: SessionEntry): string | undefined {
 	if (entry.type !== "custom" || entry.customType !== NOTES_RUN_ENTRY) return;
 	const data = entry.data;
@@ -188,14 +189,7 @@ function savedGroup(
 		)
 	)
 		return;
-	const cut = run.findLastIndex(
-		(entry) => entry.type === "compaction" && !isWindowCheckpoint(entry),
-	);
-	const first = lastSavedGroup(
-		cut < 0 ? run : run.slice(cut + 1),
-		windowId,
-		runId,
-	);
+	const first = lastSavedGroup(run, windowId, runId);
 	const message = first && sessionEntryToContextMessages(first)[0];
 	if (first && message)
 		return {
@@ -204,66 +198,39 @@ function savedGroup(
 		};
 }
 
-/** Index the selected branch during its existing restore, then update from each settled run. */
-export class RolloverSaves {
-	private saved: { windowId: string; group: SavedGroup } | undefined;
-
-	tail(windowId: string, mode: RolloverTail["mode"]): RolloverTail | undefined {
-		if (this.saved?.windowId === windowId) return { ...this.saved.group, mode };
-	}
-
-	clear(): void {
-		this.saved = undefined;
-	}
-
-	restoreObserver(): (
-		entry: SessionEntry,
-		details: WindowDetails | undefined,
-	) => void {
-		this.clear();
-		let run: SessionEntry[] = [];
-		let runId: string | undefined;
-		let windowId: string | undefined;
-		let lastMessage: SessionEntry | undefined;
-		return (entry, details) => {
-			if (details?.kind === "window")
-				windowId = details.identity.currentWindowId;
-			const marker = runMarker(entry);
-			if (
-				details?.trim ||
-				(entry.type === "compaction" && !isWindowCheckpoint(entry))
-			) {
-				this.clear();
-			} else if (marker) {
-				runId = marker;
-			} else if (runId) {
-				const settlement = windowId && readSettlement(entry, windowId);
-				if (
-					settlement &&
-					lastMessage?.id === settlement.completedEntryId &&
-					windowId
-				) {
-					this.record(run, windowId, runId, lastMessage);
-					runId = undefined;
-				} else {
-					run.push(entry);
-					if (entry.type === "message" && entry.message.role !== "system")
-						lastMessage = entry;
-				}
-				return;
-			}
+/** Inspect only current-branch parents, stopping at the newest proven save or a retirement cut. */
+export function findRolloverTail(
+	manager: ExtensionContext["sessionManager"],
+	windowId: string,
+	mode: RolloverTail["mode"],
+): RolloverTail | undefined {
+	let run: SessionEntry[] = [];
+	let settlement: ReturnType<typeof readSettlement>;
+	let terminal: SessionEntry | undefined;
+	let cut = false;
+	for (const entry of branchBackwards(manager)) {
+		if (
+			windowDetails(entry)?.trim ||
+			(entry.type === "compaction" && !isWindowCheckpoint(entry))
+		) {
+			if (!terminal || cut) break;
+			// A rollover kickoff or overflow can follow the run marker.
+			// Find only that marker behind the cut, not any older proof.
+			cut = true;
+		}
+		const runId = runMarker(entry);
+		if (runId) {
+			const group =
+				terminal && savedGroup(run.reverse(), windowId, runId, terminal);
+			if (group) return { mode, ...group };
+			if (cut) break;
 			run = [];
-			lastMessage = undefined;
-		};
-	}
-
-	record(
-		run: readonly SessionEntry[],
-		windowId: string,
-		runId: string,
-		terminal: SessionEntry,
-	): void {
-		const group = savedGroup(run, windowId, runId, terminal);
-		if (group) this.saved = { windowId, group };
+			settlement = terminal = undefined;
+		} else if (!cut) {
+			settlement ??= readSettlement(entry, windowId);
+			if (settlement && entry.id === settlement.completedEntryId)
+				terminal = entry;
+			if (terminal) run.push(entry);
+		}
 	}
 }

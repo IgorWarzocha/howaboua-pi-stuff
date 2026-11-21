@@ -137,7 +137,7 @@ export function createNotesSettingsControls(
 				id: "rolloverTail",
 				label: "Rollover tail",
 				description:
-					"Keep context after the last saved checkpoint on notes-only /compact and idle rollover. Conversation keeps messages; Full also keeps tool activity.",
+					"Keep context after the last saved checkpoint on notes-only /compact and idle rollover. Conversation keeps user messages and assistant replies. Full also keeps tool activity and extension messages.",
 				currentValue: ROLLOVER_TAIL_LABELS[settings.rolloverTail],
 				values: ROLLOVER_TAILS.map((mode) => ROLLOVER_TAIL_LABELS[mode]),
 			},

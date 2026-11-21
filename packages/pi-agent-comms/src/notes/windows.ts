@@ -51,10 +51,7 @@ export class Windows {
 	private compactedSinceBoundary = false;
 	private nativeKeptEntry: string | undefined;
 	private reminders = new Set<string>();
-	restore(
-		entries: readonly SessionEntry[],
-		observe?: (entry: SessionEntry, details: WindowDetails | undefined) => void,
-	): void {
+	restore(entries: readonly SessionEntry[]): void {
 		this.current = undefined;
 		this.identityEntry = undefined;
 		this.compactedSinceBoundary = false;
@@ -62,7 +59,6 @@ export class Windows {
 		this.reminders.clear();
 		for (const entry of entries) {
 			const details = windowDetails(entry);
-			observe?.(entry, details);
 			if (
 				entry.type === "custom_message" &&
 				(details?.kind === "window" || details?.kind === "identity")

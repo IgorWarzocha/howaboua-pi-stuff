@@ -42,7 +42,7 @@ Code and Notebook also accept `await tools.new_context(...)` after an awaited no
 
 Reminders arrive at 85% and 90% context use. With normal compaction off, `/compact` opens a Notes window. If there is no eligible save, it asks the agent to save a checkpoint first. Instructions after `/compact` guide that checkpoint. The new window waits for your next prompt. Overflow recovery still uses Pi's normal compaction.
 
-Set **Rollover tail** to **Conversation** to keep user messages, attachments and assistant replies since the last completed Notes save on the selected branch in this window. **Full** also keeps complete tool-call groups and reasoning. The carried conversation stays in its original order. It does not start another turn. With **Off** (the default), no tail is carried and only a save in the latest completed turn qualifies.
+Set **Rollover tail** to **Conversation** to keep user messages, attachments and assistant replies since the last completed Notes save on the selected branch in this window. **Full** also keeps complete tool-call groups, reasoning and extension messages. The carried conversation stays in its original order. It does not start another turn. With **Off** (the default), no tail is carried and only a save in the latest completed turn qualifies.
 
 Pi rejects `/compact` when there is too little history to prepare compaction, before extensions run. `new_context` follows the separate **New window requests** setting.
 
