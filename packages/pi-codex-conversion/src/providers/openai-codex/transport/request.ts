@@ -40,10 +40,7 @@ import {
 	recordWebSocketSseFallback,
 	validateWebSocketTimeoutOptions,
 } from "../websocket.ts";
-import {
-	isWebSocketMessageTooBigError,
-	isWebSocketUpgradeRequiredError,
-} from "../websocket-connection.ts";
+import { isWebSocketUpgradeRequiredError } from "../websocket-connection.ts";
 import {
 	hasRemoteCompactionV2Input,
 	withRemoteCompactionV2Feature,
@@ -268,8 +265,7 @@ export class CodexTransportRequest<TApi extends Api> {
 			if (
 				failure &&
 				!(failure.error instanceof CodexProtocolError) &&
-				(isWebSocketUpgradeRequiredError(failure.error) ||
-					isWebSocketMessageTooBigError(failure.error))
+				isWebSocketUpgradeRequiredError(failure.error)
 			) {
 				recordWebSocketSseFallback(effectiveOptions.sessionId);
 				diagnostics?.({
@@ -277,9 +273,7 @@ export class CodexTransportRequest<TApi extends Api> {
 					lane: diagnosticsLane(body),
 					from: "websocket",
 					to: "sse",
-					reason: isWebSocketUpgradeRequiredError(failure.error)
-						? "upgrade_required"
-						: "message_too_big",
+					reason: "upgrade_required",
 				});
 			}
 		}

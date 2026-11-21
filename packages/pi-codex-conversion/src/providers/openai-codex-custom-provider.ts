@@ -40,10 +40,8 @@ import {
 	closeOpenAICodexWebSocketSessions,
 	recordWebSocketSseFallback,
 } from "./openai-codex/websocket.ts";
-import {
-	isWebSocketMessageTooBigError,
-	isWebSocketUpgradeRequiredError,
-} from "./openai-codex/websocket-connection.ts";
+import { isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
+import { WebSocketMessageTooBigError } from "./openai-codex/websocket-size.ts";
 import {
 	codexCacheKeepaliveSocketSessionId,
 	prewarmWebSocket,
@@ -196,7 +194,7 @@ export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
 			!options.signal?.aborted &&
 			!(error instanceof CodexProtocolError) &&
 			(isWebSocketUpgradeRequiredError(error) ||
-				isWebSocketMessageTooBigError(error))
+				error instanceof WebSocketMessageTooBigError)
 		) {
 			recordWebSocketSseFallback(options.sessionId);
 			diagnostics?.({

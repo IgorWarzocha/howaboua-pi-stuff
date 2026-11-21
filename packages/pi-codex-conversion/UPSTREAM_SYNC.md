@@ -13,6 +13,10 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
 
+## November 21 WebSocket message limits
+
+Adapted Codex [#60841](https://github.com/openai/codex/pull/60841) and [#60840](https://github.com/openai/codex/pull/60840). PCC checks the exact UTF-8 size of each response request, including continuations and warmups, against the limit advertised by that connection. An oversized request or a 1009 close before the first text frame switches the session to HTTP. A 1009 close after output begins ends the incomplete response without replay. Released Pi 1.6.0 does not use the advertised limit or distinguish 1009 by when text arrives.
+
 ## Pi 1.6 compatibility
 
 Pi now supplies the GPT-6.2 Sol and Astra catalogue entries. PCC uses them when present and retains its fallbacks for Pi 1.5. PCC already places the leading system prompt in a developer input item and carries reasoning changes in chronological configuration updates, so it does not also add Pi's reasoning replay mechanism.

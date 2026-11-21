@@ -23,16 +23,6 @@ export interface WebSocketLike {
 	removeEventListener(type: string, listener: (event: unknown) => void): void;
 }
 
-export interface WebSocketConstructorLike {
-	new (
-		url: string,
-		options?:
-			| { headers?: Record<string, string> | undefined }
-			| string
-			| string[],
-	): WebSocketLike;
-}
-
 export interface SessionWebSocketCacheEntry {
 	socket: WebSocketLike;
 	busy: boolean;

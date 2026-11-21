@@ -52,6 +52,7 @@ import {
 } from "./session-continuity.ts";
 import { isResponsesLiteRequest } from "./responses-lite.ts";
 import { observeWebSocketInterruption } from "./websocket-interrupt.ts";
+import { sendWebSocketRequest } from "./websocket-size.ts";
 
 // TODO: recheck Codex's interrupt_on_cancel default before the next PR.
 // Keep dormant until upstream enables it; no settings or request option can opt in.
@@ -199,15 +200,15 @@ export async function processWebSocketStream<TApi extends Api>(
 		}
 		if (INTERRUPT_ON_CANCEL && options?.signal?.aborted)
 			throw new Error("Request was aborted");
-		diagnostics?.timing.sent();
-		{
-			const json = serializeCodexRequest({
+		sendWebSocketRequest(
+			socket,
+			serializeCodexRequest({
 				type: "response.create",
 				...requestBody,
-			});
-			onRequestBytes?.(Buffer.byteLength(json, "utf8"));
-			socket.send(json);
-		}
+			}),
+			onRequestBytes,
+		);
+		diagnostics?.timing.sent();
 		requestSent = true;
 		await processMappedCodexResponsesStream(
 			startWebSocketOutputOnFirstEvent(
@@ -399,14 +400,15 @@ export async function prewarmWebSocket<TApi extends Api>(
 				: {}),
 			previousResponseId: Boolean(requestBody.previous_response_id),
 		});
-		timing.sent();
-		socket.send(
+		sendWebSocketRequest(
+			socket,
 			serializeCodexRequest({
 				type: "response.create",
 				...requestBody,
 				...(generate ? {} : { generate: false }),
 			}),
 		);
+		timing.sent();
 		for await (const event of mapCodexEvents(
 			parseWebSocket(socket, options.signal, idleTimeoutMs, (value) => {
 				if (!preserveContinuation) turnState?.capturePrewarm(value);
