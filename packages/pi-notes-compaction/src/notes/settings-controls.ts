@@ -6,6 +6,7 @@ import { SettingsList } from "@earendil-works/pi-tui";
 import {
 	IDLE_MINUTES,
 	NEW_WINDOW_REQUESTS,
+	ROLLOVER_TAILS,
 	type NotesSettings,
 } from "./settings.js";
 import { TASK_BOUNDARY_PRESETS, taskBoundaryLabel } from "./task-boundary.js";
@@ -16,6 +17,12 @@ export type NotesSettingsAction =
 	| "sessionPruning"
 	| "roles"
 	| { settings: NotesSettings; selected: string };
+
+const ROLLOVER_TAIL_LABELS = {
+	off: "Off",
+	conversation: "Conversation",
+	full: "Full",
+} as const;
 
 export function createNotesSettingsControls(
 	ctx: ExtensionContext,
@@ -122,9 +129,17 @@ export function createNotesSettingsControls(
 				id: "idle",
 				label: "Idle rollover",
 				description:
-					"Roll over before the next input only with fresh notes from a completed turn. Not a cache-expiry guarantee.",
+					"Roll over before the next input once this interval elapses. The rollover tail setting governs checkpoint requests.",
 				currentValue: idleValue(settings.idleMinutes),
 				values: IDLE_MINUTES.map(idleValue),
+			},
+			{
+				id: "rolloverTail",
+				label: "Rollover tail",
+				description:
+					"Keep context after the last saved checkpoint on notes-only /compact and idle rollover. Conversation keeps user messages and assistant replies. Full also keeps tool activity and extension messages.",
+				currentValue: ROLLOVER_TAIL_LABELS[settings.rolloverTail],
+				values: ROLLOVER_TAILS.map((mode) => ROLLOVER_TAIL_LABELS[mode]),
 			},
 			{
 				id: "prune",
@@ -177,7 +192,12 @@ export function createNotesSettingsControls(
 				save({ ...current, normalCompaction: value === "on" });
 			else if (id === "taskCompletionRollover")
 				save({ ...current, taskCompletionRollover: value === "on" });
-			else if (id === "newWindowRequests") {
+			else if (id === "rolloverTail") {
+				const rolloverTail = ROLLOVER_TAILS.find(
+					(mode) => ROLLOVER_TAIL_LABELS[mode] === value,
+				);
+				if (rolloverTail) save({ ...current, rolloverTail });
+			} else if (id === "newWindowRequests") {
 				const newWindowRequests = NEW_WINDOW_REQUESTS.find(
 					(mode) => mode === value,
 				);

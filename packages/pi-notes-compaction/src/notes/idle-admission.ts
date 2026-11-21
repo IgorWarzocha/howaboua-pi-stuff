@@ -6,7 +6,7 @@ import type {
 	InputEventResult,
 } from "@earendil-works/pi-coding-agent";
 import type { NotesLifecycle } from "./lifecycle.js";
-import { SETTLEMENT_ENTRY } from "./windows.js";
+import { branchBackwards, readSettlement } from "./rollover-tail.js";
 
 interface HeldInput {
 	sessionId: string;
@@ -21,12 +21,17 @@ export class IdleAdmission {
 	private customAdmission: Promise<void> | undefined;
 	private readonly host: Pick<
 		NotesLifecycle,
-		"active" | "fresh" | "windows" | "idleMinutes"
+		| "active"
+		| "fresh"
+		| "windows"
+		| "idleMinutes"
+		| "normalCompaction"
+		| "rolloverTail"
 	>;
 	private readonly pi: ExtensionAPI;
 	private readonly roll: (
 		ctx: ExtensionContext,
-		triggerTurn: boolean,
+		source: "input" | "custom",
 	) => Promise<void>;
 	private readonly rolloverPending: () => boolean;
 	private readonly checkpointPending: () => boolean;
@@ -65,10 +70,11 @@ export class IdleAdmission {
 
 	prepareCustomTurn(ctx: ExtensionContext): Promise<void> | undefined {
 		if (this.customAdmission) return this.customAdmission;
+		// Shell wake and other custom deliveries keep their prior admission gate.
 		if (!this.host.active || !this.idleDue(ctx) || !this.host.fresh(ctx))
 			return;
 		const sessionId = ctx.sessionManager.getSessionId();
-		const preparation = this.roll(ctx, false)
+		const preparation = this.roll(ctx, "custom")
 			.then(() => {
 				if (
 					!this.host.active ||
@@ -83,6 +89,13 @@ export class IdleAdmission {
 		this.customAdmission = preparation;
 		return preparation;
 	}
+	private eligible(ctx: ExtensionContext): boolean {
+		return (
+			this.idleDue(ctx) &&
+			((!this.host.normalCompaction && this.host.rolloverTail !== "off") ||
+				this.host.fresh(ctx))
+		);
+	}
 	private idleDue(ctx: ExtensionContext): boolean {
 		if (
 			this.host.idleMinutes === 0 ||
@@ -92,38 +105,19 @@ export class IdleAdmission {
 			this.checkpointPending()
 		)
 			return false;
-		const branch = ctx.sessionManager.getBranch();
-		const terminal = branch.findLast(
-			(entry) => entry.type === "message" && entry.message.role !== "system",
-		);
-		if (!terminal) return false;
-		const settlement = ctx.sessionManager
-			.getEntries()
-			.findLast(
-				(entry) =>
-					entry.type === "custom" &&
-					entry.customType === SETTLEMENT_ENTRY &&
-					entry.data &&
-					typeof entry.data === "object" &&
-					"completedEntryId" in entry.data &&
-					entry.data.completedEntryId === terminal.id,
+		let settlement: ReturnType<typeof readSettlement>;
+		for (const entry of branchBackwards(ctx.sessionManager)) {
+			settlement ??= readSettlement(
+				entry,
+				this.host.windows.current.currentWindowId,
 			);
-		if (
-			settlement?.type !== "custom" ||
-			!settlement.data ||
-			typeof settlement.data !== "object"
-		)
-			return false;
-		const data = settlement.data;
-		return (
-			!("aborted" in data && data.aborted === true) &&
-			"windowId" in data &&
-			data.windowId === this.host.windows.current.currentWindowId &&
-			"settledAt" in data &&
-			typeof data.settledAt === "number" &&
-			Number.isFinite(data.settledAt) &&
-			Date.now() - data.settledAt >= this.host.idleMinutes * 60_000
-		);
+			if (entry.type === "message" && entry.message.role !== "system")
+				return (
+					settlement?.completedEntryId === entry.id &&
+					Date.now() - settlement.settledAt >= this.host.idleMinutes * 60_000
+				);
+		}
+		return false;
 	}
 	async input(
 		event: InputEvent,
@@ -141,7 +135,7 @@ export class IdleAdmission {
 			admit?.({ action: "continue" });
 			return { action: "handled" };
 		}
-		if (!this.held && (!this.idleDue(ctx) || !this.host.fresh(ctx))) return;
+		if (!this.held && !this.eligible(ctx)) return;
 		const held =
 			this.held ??
 			({
@@ -187,7 +181,7 @@ export class IdleAdmission {
 		held: HeldInput,
 	): Promise<void> {
 		held.phase = "rolling";
-		await this.roll(ctx, false);
+		await this.roll(ctx, "input");
 		if (
 			this.held !== held ||
 			held.sessionId !== ctx.sessionManager.getSessionId()

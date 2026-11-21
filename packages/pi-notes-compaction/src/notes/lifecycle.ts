@@ -22,7 +22,17 @@ import { IdleAdmission } from "./idle-admission.js";
 import type { ModelRoleHandoff } from "./model-roles.js";
 import { noteHints, sessionRef } from "./notes.js";
 import { RolloverRequests } from "./rollover.js";
-import type { IdleMinutes, NewWindowRequests } from "./settings.js";
+import {
+	branchBackwards,
+	currentRun,
+	findRolloverTail,
+	type RolloverTail,
+} from "./rollover-tail.js";
+import type {
+	IdleMinutes,
+	NewWindowRequests,
+	RolloverTailMode,
+} from "./settings.js";
 import { savedNotesIdentity } from "./shared-notes.js";
 import type { NotesStore } from "./store.js";
 import { selectedWindowRole } from "./window-message.js";
@@ -43,10 +53,12 @@ export class NotesLifecycle {
 	newWindowRequests: NewWindowRequests = "unrestricted";
 	taskCompletionRollover = false;
 	idleMinutes: IdleMinutes = 0;
+	rolloverTail: RolloverTailMode = "off";
 	taskBoundaryReminder = 0;
 	bridge: NotesBridge | undefined;
 	prepareReminder: NotesBridge["prepareReminder"];
 	prepareWindow: ((ctx: ExtensionContext) => Promise<void>) | undefined;
+	commitWindow: ((ctx: ExtensionContext) => Promise<void>) | undefined;
 	runId = "";
 	private readonly checkpoint: FreshCheckpoint;
 	private readonly admission: IdleAdmission;
@@ -62,15 +74,24 @@ export class NotesLifecycle {
 		);
 		this.requests = new RolloverRequests(
 			this,
-			(ctx, triggerTurn, trim, handoff) =>
-				this.openWindow(ctx, triggerTurn, trim, handoff),
+			(ctx, triggerTurn, trim, handoff, tail) =>
+				this.openWindow(ctx, triggerTurn, trim, handoff, tail),
 			(message, options) => this.sendMessage(message, options),
-			(ctx, instructions) => this.checkpoint.start(ctx, instructions),
+			(ctx, instructions) => this.rollNotes(ctx, instructions),
 		);
 		this.admission = new IdleAdmission(
 			this,
 			pi,
-			(ctx, triggerTurn) => this.requests.roll(ctx, triggerTurn),
+			(ctx, source) =>
+				this.normalCompaction || source === "custom"
+					? this.requests.roll(
+							ctx,
+							false,
+							undefined,
+							undefined,
+							this.normalCompaction ? undefined : this.retainedTail(ctx),
+						)
+					: this.rollNotes(ctx),
 			() => this.requests.pending,
 			() => this.checkpoint.pending,
 		);
@@ -162,11 +183,34 @@ export class NotesLifecycle {
 			: undefined;
 	}
 	fresh(ctx: ExtensionContext, runId?: string): boolean {
+		if (runId)
+			return hasFreshNotes(
+				currentRun(ctx.sessionManager, runId) ?? [],
+				this.windows.current?.currentWindowId,
+				runId,
+			);
 		return hasFreshNotes(
 			ctx.sessionManager.getBranch(),
 			this.windows.current?.currentWindowId,
-			runId,
 		);
+	}
+	private retainedTail(ctx: ExtensionContext): RolloverTail | undefined {
+		const windowId = this.windows.current?.currentWindowId;
+		if (windowId && this.rolloverTail !== "off")
+			return findRolloverTail(ctx.sessionManager, windowId, this.rolloverTail);
+	}
+	private async rollNotes(
+		ctx: ExtensionContext,
+		instructions?: string,
+	): Promise<void> {
+		if (!instructions?.trim()) {
+			const tail = this.retainedTail(ctx);
+			if (tail || (this.rolloverTail === "off" && this.fresh(ctx))) {
+				await this.requests.roll(ctx, false, undefined, undefined, tail);
+				return;
+			}
+		}
+		await this.checkpoint.start(ctx, instructions);
 	}
 	requestRollover(
 		ctx: ExtensionContext,
@@ -205,11 +249,13 @@ export class NotesLifecycle {
 		triggerTurn: boolean,
 		trim: boolean,
 		handoff?: ModelRoleHandoff,
+		tail?: RolloverTail,
 	): Promise<void> {
 		if (!ctx.isIdle())
 			throw new Error("Wait for the current run to settle before rollover");
 		const sessionId = ctx.sessionManager.getSessionId();
 		const windowId = this.windows.current?.currentWindowId;
+		const leaf = ctx.sessionManager.getLeafId();
 		if (trim) await this.prepareWindow?.(ctx);
 		const assertCurrentWindow = () => {
 			if (
@@ -221,6 +267,12 @@ export class NotesLifecycle {
 				throw new Error("Session changed before rollover");
 		};
 		assertCurrentWindow();
+		if (
+			tail &&
+			leaf !== ctx.sessionManager.getLeafId() &&
+			this.retainedTail(ctx)?.firstKeptEntryId !== tail.firstKeptEntryId
+		)
+			throw new Error("Saved checkpoint changed before rollover");
 		// Prepare the outgoing provider first; the successor's full kickoff sees the new model.
 		if (handoff) {
 			await handoff.activate(ctx);
@@ -236,11 +288,13 @@ export class NotesLifecycle {
 			"window",
 			this.gptPromptMode(),
 			handoff?.id ?? selectedWindowRole(ctx.sessionManager.getBranch()),
+			tail,
 		);
 		this.windows.current = ids;
 		if (triggerTurn)
 			message.content = `${message.content}\n\nContinuation: read relevant notes, then resume any unfinished task. Follow current instructions.`;
 		this.sendMessage(message, { triggerTurn });
+		if (tail) await this.commitWindow?.(ctx);
 	}
 
 	prepareCustomTurn(ctx: ExtensionContext): Promise<void> | undefined {
@@ -278,22 +332,22 @@ export class NotesLifecycle {
 		const checkpoint = this.checkpoint.take();
 		try {
 			this.store.updateFile(sessionRef(ctx));
-			const terminal = ctx.sessionManager
-				.getBranch()
-				.findLast(
-					(entry) =>
-						entry.type === "message" && entry.message.role !== "system",
-				);
-			if (terminal && this.windows.current)
+			const terminal = branchBackwards(ctx.sessionManager).find(
+				(entry) => entry.type === "message" && entry.message.role !== "system",
+			);
+			if (terminal && this.windows.current) {
+				const windowId = this.windows.current.currentWindowId;
 				this.pi.appendEntry(SETTLEMENT_ENTRY, {
 					protocol: 1,
-					windowId: this.windows.current.currentWindowId,
+					windowId,
 					completedEntryId: terminal.id,
 					settledAt: Date.now(),
 					aborted: event.aborted,
 				});
+			}
 		} catch (error) {
 			this.requests.clear();
+			checkpoint?.finish(error);
 			if (
 				checkpoint &&
 				(event.aborted ||
@@ -309,8 +363,21 @@ export class NotesLifecycle {
 			return;
 		}
 		if (checkpoint) {
-			if (!this.checkpoint.permitsRollover(checkpoint, event, ctx)) return;
-			await this.requests.roll(ctx, false);
+			try {
+				if (!this.checkpoint.permitsRollover(checkpoint, event, ctx))
+					throw new Error(
+						"No completed checkpoint; the current context remains",
+					);
+				const tail = this.retainedTail(ctx);
+				if (this.rolloverTail !== "off" && !tail)
+					throw new Error(
+						"No eligible saved checkpoint; the current context remains",
+					);
+				await this.requests.roll(ctx, false, undefined, undefined, tail);
+				checkpoint.finish();
+			} catch (error) {
+				checkpoint.finish(error);
+			}
 			return;
 		}
 		if (this.admission.drain()) return;

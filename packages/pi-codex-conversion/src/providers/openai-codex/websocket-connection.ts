@@ -1,4 +1,4 @@
-import { getWebSocketConstructor } from "./websocket-proxy.ts";
+import { createWebSocket } from "./websocket-proxy.ts";
 export { resolveWebSocketProxyForTarget } from "./websocket-proxy.ts";
 import { randomUUID } from "node:crypto";
 import {
@@ -184,32 +184,6 @@ function webSocketHttpStatus(
 	);
 }
 
-function webSocketCloseCode(
-	value: unknown,
-	seen = new Set<unknown>(),
-): number | undefined {
-	if (!value || typeof value !== "object" || seen.has(value)) return undefined;
-	seen.add(value);
-	const record = value as Record<string, unknown>;
-	for (const candidate of [record["closeCode"], record["code"]]) {
-		const parsed =
-			typeof candidate === "string" && /^\d+$/.test(candidate)
-				? Number(candidate)
-				: candidate;
-		if (
-			typeof parsed === "number" &&
-			Number.isInteger(parsed) &&
-			parsed >= 1000 &&
-			parsed <= 4999
-		)
-			return parsed;
-	}
-	return (
-		webSocketCloseCode(record["error"], seen) ??
-		webSocketCloseCode(record["cause"], seen)
-	);
-}
-
 function webSocketStatus(error: unknown): number | undefined {
 	const structured = webSocketHttpStatus(error);
 	if (structured !== undefined) return structured;
@@ -223,13 +197,6 @@ function webSocketStatus(error: unknown): number | undefined {
 
 export function isWebSocketUpgradeRequiredError(error: unknown): boolean {
 	return webSocketStatus(error) === 426;
-}
-
-export function isWebSocketMessageTooBigError(error: unknown): boolean {
-	if (webSocketCloseCode(error) === WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE)
-		return true;
-	const message = error instanceof Error ? error.message : String(error);
-	return /(?:\b1009\b|message too big)/i.test(message);
 }
 
 export function isPermanentWebSocketError(error: unknown): boolean {
@@ -312,7 +279,16 @@ export class WebSocketCloseError extends Error {
 	}
 }
 
-export function extractWebSocketCloseError(event: unknown): Error {
+export function isWebSocketSizeClose(error: unknown): boolean {
+	return (
+		error instanceof WebSocketCloseError &&
+		error.code === WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE
+	);
+}
+
+export function extractWebSocketCloseError(
+	event: unknown,
+): WebSocketCloseError {
 	if (event && typeof event === "object") {
 		const code =
 			"code" in event
@@ -337,7 +313,7 @@ export function extractWebSocketCloseError(event: unknown): Error {
 			},
 		);
 	}
-	return new Error("WebSocket closed");
+	return new WebSocketCloseError("WebSocket closed");
 }
 
 export async function connectWebSocket(
@@ -348,27 +324,14 @@ export async function connectWebSocket(
 	env?: ProviderEnv,
 	diagnostics?: CodexDiagnosticsSink,
 ): Promise<WebSocketLike> {
-	const WebSocketCtor = await getWebSocketConstructor(url, env);
-	if (signal?.aborted) throw new Error("Request was aborted");
-	if (!WebSocketCtor) {
-		throw new Error("WebSocket transport is not available in this runtime");
-	}
-
 	const wsHeaders = headersToRecord(headers);
 	delete wsHeaders["OpenAI-Beta"];
+	const socket = await createWebSocket(url, wsHeaders, env, signal);
+	observeWebSocketDiagnostics(socket, diagnostics, true);
 
 	return new Promise((resolve, reject) => {
 		let settled = false;
 		let timeout: ReturnType<typeof setTimeout> | undefined;
-		let socket: WebSocketLike;
-
-		try {
-			socket = new WebSocketCtor(url, { headers: wsHeaders });
-			observeWebSocketDiagnostics(socket, diagnostics, true);
-		} catch (error) {
-			reject(error instanceof Error ? error : new Error(String(error)));
-			return;
-		}
 
 		const onOpen = () => {
 			if (settled) return;

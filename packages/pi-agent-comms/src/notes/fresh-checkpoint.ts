@@ -39,6 +39,7 @@ interface Checkpoint {
 	requestId: string;
 	runId: string | undefined;
 	outcome: "completed" | "aborted" | "error" | undefined;
+	finish: (error?: unknown) => void;
 }
 
 // Owns checkpoint request/run association and completed-write eligibility.
@@ -60,7 +61,7 @@ export class FreshCheckpoint {
 		return Boolean(this.checkpoint);
 	}
 	reset(): void {
-		this.checkpoint = undefined;
+		this.take()?.finish(new Error("Session changed during checkpoint"));
 	}
 	take(): Checkpoint | undefined {
 		const checkpoint = this.checkpoint;
@@ -81,16 +82,18 @@ export class FreshCheckpoint {
 	outcome(outcome: "completed" | "aborted" | "error"): void {
 		if (this.checkpoint) this.checkpoint.outcome = outcome;
 	}
-	start(ctx: ExtensionContext, instructions?: string): void {
+	start(ctx: ExtensionContext, instructions?: string): Promise<void> {
 		if (!ctx.isIdle() || !this.host.windows.current || this.checkpoint)
 			throw new Error("A checkpoint cannot start until the session settles");
 		const requestId = randomUUID();
+		const { promise, resolve, reject } = Promise.withResolvers<void>();
 		this.checkpoint = {
 			sessionId: ctx.sessionManager.getSessionId(),
 			windowId: this.host.windows.current.currentWindowId,
 			requestId,
 			runId: undefined,
 			outcome: undefined,
+			finish: (error) => (error === undefined ? resolve() : reject(error)),
 		};
 		try {
 			this.sendMessage(
@@ -106,6 +109,7 @@ export class FreshCheckpoint {
 			this.checkpoint = undefined;
 			throw error;
 		}
+		return promise;
 	}
 
 	permitsRollover(

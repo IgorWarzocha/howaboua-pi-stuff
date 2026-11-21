@@ -123,7 +123,12 @@ export async function historyWindows(
 			)
 				windowId = boundary.identity.currentWindowId;
 			hasWindowBoundary = true;
-			if (boundary.trim) activeStart = position + 1;
+			if (boundary.trim) {
+				const tail =
+					boundary.tail && positions.get(boundary.tail.firstKeptEntryId);
+				activeStart =
+					tail !== undefined && tail < position ? tail : position + 1;
+			}
 		}
 		if (entry.type === "compaction") {
 			const kept = positions.get(entry.firstKeptEntryId);

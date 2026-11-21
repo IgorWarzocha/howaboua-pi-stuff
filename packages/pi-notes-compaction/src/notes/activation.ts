@@ -97,6 +97,7 @@ export function createNotesActivation(
 		lifecycle.newWindowRequests = value.newWindowRequests;
 		lifecycle.taskCompletionRollover = value.taskCompletionRollover;
 		lifecycle.idleMinutes = value.idleMinutes;
+		lifecycle.rolloverTail = value.rolloverTail;
 		lifecycle.taskBoundaryReminder = value.taskBoundaryReminder;
 	}
 	function start(

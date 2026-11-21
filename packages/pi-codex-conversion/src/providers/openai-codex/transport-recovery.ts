@@ -51,11 +51,12 @@ import {
 import {
 	isPermanentWebSocketError,
 	isWebSocketConnectionError,
-	isWebSocketMessageTooBigError,
+	isWebSocketSizeClose,
 	isWebSocketUnauthorizedError,
 	isWebSocketUpgradeRequiredError,
 } from "./websocket-connection.ts";
 import { processWebSocketStream } from "./websocket-stream.ts";
+import { WebSocketMessageTooBigError } from "./websocket-size.ts";
 import { recordCanonicalSessionResponse } from "./session-continuity.ts";
 import {
 	CodexRecoveryBudget,
@@ -155,6 +156,7 @@ export function createCodexTransportStream<TApi extends Api>(
 						? { ...effectiveOptions, signal: attemptSignal.signal }
 						: effectiveOptions;
 					let websocketStarted = false;
+					let websocketOutputEmitted = false;
 					let requestBytes: number | undefined;
 					const timing = requestTiming.start(lane, "websocket");
 					try {
@@ -163,7 +165,12 @@ export function createCodexTransportStream<TApi extends Api>(
 							withCodexTurnState(websocketBody, deps.turnState),
 							websocketHeaders,
 							output,
-							stream,
+							{
+								push(event) {
+									websocketOutputEmitted = true;
+									stream.push(event);
+								},
+							},
 							model,
 							accountId,
 							() => {
@@ -213,8 +220,17 @@ export function createCodexTransportStream<TApi extends Api>(
 					} catch (error) {
 						timing.finish(callerSignal?.aborted ? "aborted" : "failed");
 						if (callerSignal?.aborted) throw error;
+						const messageTooBig = error instanceof WebSocketMessageTooBigError;
+						if (
+							websocketOutputEmitted &&
+							(messageTooBig || isWebSocketSizeClose(error))
+						) {
+							recordFailure("websocket", error);
+							throw new NonRetryableProviderError(
+								"Codex stopped after output began because a WebSocket message was too large. The response was not replayed.",
+							);
+						}
 						const upgradeRequired = isWebSocketUpgradeRequiredError(error);
-						const messageTooBig = isWebSocketMessageTooBigError(error);
 						const unauthorized = isWebSocketUnauthorizedError(error);
 						const retryableWebSocketError =
 							(isCodexApiError(error) || !isPermanentWebSocketError(error)) &&
