@@ -26,7 +26,7 @@ export function buildDisplaySettings(
 				...current,
 				ui: { ...current.ui, toolRenaming: enabled },
 			}),
-			"Rename tool calls to user-friendly names.",
+			"Show custom tool call names and output in Pi. Does not rename tools for the agent.",
 		),
 		setting(
 			{

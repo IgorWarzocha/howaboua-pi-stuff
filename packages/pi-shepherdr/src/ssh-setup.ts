@@ -37,7 +37,7 @@ export function sshSetupItems(draft: SshSetupDraft): SettingItem[] {
 			currentValue: "Enter",
 			values: ["Enter"],
 			description:
-				"Opens hc machine add in the terminal. Ctrl+C cancels. Installation approvals stay interactive.",
+				"Set up this SSH host in the Core machine list. Approve any installation in the terminal; Ctrl+C cancels.",
 		},
 	];
 }

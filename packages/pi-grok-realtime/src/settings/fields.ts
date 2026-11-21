@@ -23,7 +23,7 @@ export function buildGrokSettings(
 			currentValue: config.access,
 			values: ["oauth", "api_key"],
 			description:
-				"Uses the matching active Pi credential for voice and dictation",
+				"Voice and dictation use Pi’s active xAI login or API key. The selection must match; it can’t switch credentials.",
 		},
 		{
 			id: "autoResume",
@@ -49,6 +49,8 @@ export function buildGrokSettings(
 		{
 			id: "contextModel",
 			label: "Context summary model",
+			description:
+				"Summarise the Pi conversation for voice. Current uses the active Pi model; Off skips the summary.",
 			currentValue: config.contextModel,
 			submenu: chooser(
 				"contextModel",
@@ -142,7 +144,8 @@ export function buildGrokSettings(
 			id: "silenceSeconds",
 			label: "Follow-up after silence (seconds)",
 			currentValue: String(config.silenceSeconds),
-			description: "0 turns follow-up off",
+			description:
+				"0 turns it off. Follow-ups pause while Pi works or the microphone is muted.",
 			submenu: (current, back) =>
 				input(
 					"silenceSeconds",

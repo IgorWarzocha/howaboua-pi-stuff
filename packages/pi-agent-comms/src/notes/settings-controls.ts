@@ -64,7 +64,7 @@ export function createNotesSettingsControls(
 				currentValue: "select…",
 				values: ["select…", "settings…"],
 				description:
-					"Per-session history limits and Run now. Memory savings require restarting Pi.",
+					"Set how long this session keeps older messages and tool activity, or preview a one-time prune. Restart Pi to free memory.",
 			},
 			{
 				id: "roles",
@@ -84,13 +84,15 @@ export function createNotesSettingsControls(
 				id: "rankedHistorySearch",
 				label: "Ranked history search",
 				description:
-					"BM25 for earlier user messages and assistant replies. Skips current context and tool activity.",
+					"Rank matches in user messages and assistant replies no longer in this session’s context. Live context and tool activity still use literal search.",
 				currentValue: settings.rankedHistorySearch ? "on" : "off",
 				values: ["off", "on"],
 			},
 			{
 				id: "noteSaveMarkers",
 				label: "Note-save markers",
+				description:
+					"Show the latest fresh save and mark the next prompt in the session tree if it has no label.",
 				currentValue: settings.noteSaveMarkers ? "on" : "off",
 				values: ["off", "on"],
 			},
@@ -98,7 +100,7 @@ export function createNotesSettingsControls(
 				id: "compact",
 				label: "Normal compaction",
 				description:
-					"Use Pi/PCC compaction for /compact and new_context. Off uses notes-only rollover; /compact then waits for your next prompt.",
+					"On summarises older context for /compact and new_context. Off starts from saved notes instead; /compact then waits for your next prompt.",
 				currentValue: settings.normalCompaction ? "on" : "off",
 				values: ["off", "on"],
 			},
@@ -106,7 +108,7 @@ export function createNotesSettingsControls(
 				id: "newWindowRequests",
 				label: "New window requests",
 				description:
-					"Off disables new_context. Pi-limits keeps the current window when Pi finds too little history to compact. Unrestricted accepts requests at any size. Normal compaction still chooses how windows roll over. Manual /compact and idle rollover are separate.",
+					"Off blocks agent requests. Pi-limits requires enough history for Pi to compact; unrestricted has no size minimum. Does not affect /compact or idle rollover.",
 				currentValue: settings.newWindowRequests,
 				values: [...NEW_WINDOW_REQUESTS],
 			},
@@ -114,7 +116,7 @@ export function createNotesSettingsControls(
 				id: "taskCompletionRollover",
 				label: "Task-completion rollover",
 				description:
-					"Allow new_context({resume: false}) when a task is complete: finish the reply, then wait in fresh context. Off keeps immediate continuation only.",
+					"At task completion, let the agent finish its reply and wait for your next prompt in a fresh window. Off allows only requests that continue immediately.",
 				currentValue: settings.taskCompletionRollover ? "on" : "off",
 				values: ["off", "on"],
 			},
@@ -122,7 +124,7 @@ export function createNotesSettingsControls(
 				id: "taskBoundaryReminder",
 				label: "Task-boundary reminder",
 				description:
-					"Suggest a separate-task rollover after this many used tokens, only with active capacity above 272k. Custom: edit taskBoundaryReminder in the notes settings JSON (whole tokens); 0 is off.",
+					"Remind the agent to start a fresh window between tasks once usage reaches this threshold. Only for windows larger than 272k tokens. Set taskBoundaryReminder in the notes settings JSON for a custom token count (0 disables).",
 				currentValue: taskBoundaryLabel(settings.taskBoundaryReminder),
 				values: [
 					...TASK_BOUNDARY_PRESETS.map(taskBoundaryLabel),
@@ -141,7 +143,7 @@ export function createNotesSettingsControls(
 				id: "rolloverTail",
 				label: "Rollover tail",
 				description:
-					"Keep context after the last saved checkpoint on notes-only /compact and idle rollover. Conversation keeps user messages and assistant replies. Full also keeps tool activity and extension messages.",
+					"For notes-only /compact and idle rollover: Conversation keeps user messages, attachments and assistant replies since the last completed Notes save. Full adds complete tool calls and extension messages. Both ask for a save if none qualifies.",
 				currentValue: ROLLOVER_TAIL_LABELS[settings.rolloverTail],
 				values: ROLLOVER_TAILS.map((mode) => ROLLOVER_TAIL_LABELS[mode]),
 			},

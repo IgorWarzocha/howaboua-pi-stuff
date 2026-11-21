@@ -77,7 +77,7 @@ export function buildAdapterSettings(
 			{
 				id: "heavySystemPromptOverwrite",
 				description:
-					"On removes Pi's generic scaffold. GPT also compresses PCC's instructions; savings vary with execution mode and context. Other extensions' instructions are preserved.",
+					"On replaces Pi’s default instructions with shorter ones. GPT also compresses the adapter’s instructions. Savings vary; other extensions’ instructions are kept.",
 				label: "Heavy system prompt overwrite",
 				currentValue:
 					config.prompt.heavySystemPromptOverwrite === "gpt"

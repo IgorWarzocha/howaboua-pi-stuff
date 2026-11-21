@@ -25,7 +25,8 @@ export function buildPanelItems(
 				label: "Refresh and reconnect",
 				currentValue: "Enter",
 				values: ["Enter"],
-				description: "Refresh Core machines and retry connections.",
+				description:
+					"Pick up changes to the machine list and retry disconnected machines.",
 			},
 			...options.fleet.statuses().map((machine) => ({
 				id: `machine:${machine.id}`,
@@ -59,7 +60,8 @@ export function buildPanelItems(
 			label: "Prioritize delegation",
 			currentValue: options.orchestration() ? "on" : "off",
 			values: ["off", "on"],
-			description: "Prefer delegation over direct work in this session.",
+			description:
+				"Tell this session’s agent to delegate by default. Does not start workers on its own.",
 		},
 	];
 }

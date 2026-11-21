@@ -49,6 +49,8 @@ export function buildGippitySettings(
 		{
 			id: "server",
 			label: "Control server",
+			description:
+				"Let browsers on your network control this Pi session without signing in. Stops when the Pi session changes.",
 			currentValue: lanVoice.status().running ? "on" : "off",
 			values: ["off", "on"],
 		},
@@ -184,6 +186,8 @@ export function buildGippitySettings(
 		{
 			id: "autoResumeRealtime",
 			label: "Auto-resume realtime voice",
+			description:
+				"Try to start a replacement when an established voice call drops.",
 			currentValue: config.voice.autoResumeRealtime ? "on" : "off",
 			values: ["off", "on"],
 			update: (value, current) => ({
@@ -229,6 +233,8 @@ export function buildGippitySettings(
 		{
 			id: "dictationMode",
 			label: "Dictation key behavior",
+			description:
+				"Hold the shortcut to record and release to finish, or press once to start and again to stop.",
 			currentValue:
 				config.voice.dictationShortcutMode === "push"
 					? "push to dictate"
@@ -245,6 +251,8 @@ export function buildGippitySettings(
 		{
 			id: "contextModel",
 			label: "Voice context model",
+			description:
+				"Give voice calls a summary of the Pi conversation. Off starts calls without that summary.",
 			currentValue: config.voice.contextModel
 				? formatContextModel(config.voice.contextModel)
 				: "off",
@@ -288,6 +296,8 @@ export function buildGippitySettings(
 		{
 			id: "refreshRealtimeAfterCompaction",
 			label: "Refresh realtime voice after compaction",
+			description:
+				"After compaction, replace the active call if a fresh context summary is available. Requires a Voice context model.",
 			currentValue: config.voice.refreshRealtimeAfterCompaction ? "on" : "off",
 			values: ["off", "on"],
 			update: (value, current) => ({

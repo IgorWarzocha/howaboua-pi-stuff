@@ -80,7 +80,7 @@ export function buildOpenAISettings(
 			item: {
 				id: "lunaCacheKeepaliveMinutes",
 				description:
-					"Limit idle Luna keepalive requests to this duration across versions. Uses quota. Off disables requests.",
+					"Send idle requests for up to this long to try to keep the prompt cached. Applies to all Luna versions. Uses quota; Off sends no requests.",
 				label: "Luna keepalive duration (global)",
 				currentValue:
 					config.openai.lunaCacheKeepaliveMinutes === 0
@@ -97,7 +97,7 @@ export function buildOpenAISettings(
 				id: "lunaCacheKeepaliveIntervalMinutes",
 				label: "Luna keepalive request interval (global)",
 				description:
-					"Choose 2.5 or 4.5 minutes between idle requests within the duration above. Does not enable keepalive. Cache retention is not guaranteed.",
+					"Time between idle requests when keepalive is enabled. Cache retention is not guaranteed.",
 				currentValue: `${config.openai.lunaCacheKeepaliveIntervalMinutes} mins`,
 				values: ["2.5 mins", "4.5 mins"],
 			},
@@ -142,7 +142,7 @@ export function buildOpenAISettings(
 			{
 				id: "harnessIdentifierHeader",
 				description:
-					"Choose Pi, Pi Codex Conversion or Codex as the request originator.",
+					"Identify the client on Codex requests. Off sends Pi’s usual identifier.",
 				label: "Harness identifier header",
 				currentValue:
 					config.openai.harnessIdentifierHeader === "codex"

@@ -111,7 +111,10 @@ async function manageAdvanced(
 		]);
 		if (!selected || selected === BACK) return config;
 		const value = (
-			await ctx.ui.input("Remote Node path", config.remoteNodePath)
+			await ctx.ui.input(
+				"Node.js executable on SSH hosts",
+				config.remoteNodePath,
+			)
 		)?.trim();
 		if (!value) continue;
 		try {
@@ -150,7 +153,7 @@ async function openBrowserSettings(
 	if (!config) return;
 	while (true) {
 		const hosts = `Hosts · ${config.hosts.length ? config.hosts.join(", ") : "local only"}`;
-		const machine = `This machine · ${currentMachineRoute(config) ?? "unnamed local"}`;
+		const machine = `Local host name for routing · ${currentMachineRoute(config) ?? "unnamed local"}`;
 		const selected = await ctx.ui.select("Browser settings", [
 			hosts,
 			machine,
@@ -164,10 +167,10 @@ async function openBrowserSettings(
 			continue;
 		}
 		if (selected === machine) {
-			const route = await ctx.ui.select("This machine", [
-				"Unnamed local browser",
-				...config.hosts,
-			]);
+			const route = await ctx.ui.select(
+				"Which listed host should open locally instead of over SSH?",
+				["Unnamed local browser", ...config.hosts],
+			);
 			if (route) {
 				config = setCurrentMachineRoute(
 					config,

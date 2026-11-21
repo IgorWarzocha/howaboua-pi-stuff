@@ -162,7 +162,7 @@ export function buildVoiceSettings(
 			{
 				id: "autoResumeRealtime",
 				description:
-					"Reconnect automatically if an active realtime voice call drops.",
+					"Try to start a replacement when an established voice call drops.",
 				label: "Auto-resume realtime voice",
 				currentValue: config.voice.autoResumeRealtime ? "on" : "off",
 				values: ["off", "on"],
@@ -292,7 +292,7 @@ export function buildVoiceSettings(
 			{
 				id: "refreshRealtimeAfterCompaction",
 				description:
-					"Summarize and start a fresh voice call at each context rollover or compaction. Requires a summarization model.",
+					"After context rollover or compaction, replace the active call if a fresh context summary is available. Requires a summary model.",
 				label: "Refresh voice context",
 				currentValue: config.voice.refreshRealtimeAfterCompaction
 					? "on"

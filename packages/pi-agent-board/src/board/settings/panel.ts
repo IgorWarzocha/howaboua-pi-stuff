@@ -50,27 +50,31 @@ export async function openBoardSettings(
 						{
 							id: "scope",
 							label: "Scope",
+							description: "Where the next Enabled change applies.",
 							currentValue: scope,
 							values: ["session", "folder", "global"],
 						},
 						{
 							id: "automatic",
 							label: "Automatic summaries",
-							description: "Summarise on closure. Uses model quota.",
+							description:
+								"Summarise threads when they are closed. Applies globally and uses model quota.",
 							currentValue: config.automatic ? "on" : "off",
 							values: ["off", "on"],
 						},
 						{
 							id: "model",
 							label: "Summary model",
-							description: "Global preference.",
+							description:
+								"Choose Luna or set a custom model in the global Board config.",
 							currentValue: config.selection === "luna" ? "Luna" : "Custom",
 							values: ["Luna", "Custom"],
 						},
 						{
 							id: "consolidate",
 							label: "Consolidate one-off threads",
-							description: "Sends a prompt to this session's agent.",
+							description:
+								"Ask this session’s agent to move related single-post threads into existing threads without closing threads or deleting posts. Run from the idle root session.",
 							currentValue: "select…",
 							values: ["select…", "run…"],
 						},
