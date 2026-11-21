@@ -84,7 +84,7 @@ export function createNotesSettingsControls(
 				id: "rankedHistorySearch",
 				label: "Ranked history search",
 				description:
-					"Rank matches in user messages and assistant replies no longer in this session’s context. Live context and tool activity still use literal search.",
+					"Rank matches by relevance (BM25) in user messages and assistant replies no longer in this session’s context. Live context and tool activity still use literal search.",
 				currentValue: settings.rankedHistorySearch ? "on" : "off",
 				values: ["off", "on"],
 			},
