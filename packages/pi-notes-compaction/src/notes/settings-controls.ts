@@ -35,8 +35,8 @@ export function createNotesSettingsControls(
 ) {
 	const settings = options.settings();
 	const idleValue = (minutes: number) => {
-		if (minutes === 25) return "25m (Codex GPT-5.6–6.1: ~30m cache)";
-		if (minutes === 115) return "2h (Codex GPT-6.2: ~2h cache observed)";
+		if (minutes === 25) return "25m (GPT-5.6–6.1)";
+		if (minutes === 115) return "2h (GPT-6.2)";
 		return minutes === 0
 			? "Off"
 			: minutes < 60
