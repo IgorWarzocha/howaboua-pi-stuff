@@ -110,6 +110,21 @@ export function registerCodexUi(
 			runtime.state.config.ui.backgroundShellWidget,
 	);
 	const renderNotice = createNoticeRenderer();
+	pi.registerMessageRenderer(
+		"codex-shell-completion",
+		(message, { expanded, outputPad, keyHint }, theme) =>
+			typeof message.content === "string"
+				? renderNotice(
+						message,
+						"Background shell completion",
+						message.content,
+						expanded,
+						theme,
+						keyHint,
+						outputPad,
+					)
+				: undefined,
+	);
 	pi.on("session_shutdown", () => invalidateUsageStatus());
 	pi.registerMessageRenderer<{ title?: unknown }>(
 		CODEX_DEVELOPER_MESSAGE_TYPE,
