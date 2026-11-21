@@ -6,9 +6,7 @@ Preserve existing `.openai/hosting.json` capabilities and add `"mcp"`. Implement
 - `tools/list`: return a `tools` array with each tool's `name` and `inputSchema`. Keep discovery free of private data.
 - `tools/call`: validate `params.name` and `params.arguments`, return MCP `content` blocks and set `isError: true` for tool failures.
 
-Sites authenticates at the hosting boundary. Trust its forwarded `oai-authenticated-user-id` as the Site-scoped user identity and `oai-authenticated-user-email` as verified email. Optional `oai-authenticated-user-full-name` is display data, percent-encoded UTF-8 when `oai-authenticated-user-full-name-encoding` is `percent-encoded-utf-8`. Decode only with that marker.
-
-Authorize every data-bearing call for that user and return HTTP 401/403 when unauthorized. Preserve Sites-managed OAuth and existing access rules. Service access does not supply a visitor identity or connected-app consent. Do not replace OAuth or widen access to make a call succeed.
+Authorise every data-bearing call against the forwarded Sites identity. Return HTTP 401 or 403 when unauthorised. Preserve Sites-managed OAuth and existing access rules. See `identity` for the forwarded headers and service access boundary.
 
 Publishing provisions the owner's App and private plugin. Republishing refreshes its tools from the Site's `tools/list`. Reuse this plugin; do not configure local MCP or login commands.
 

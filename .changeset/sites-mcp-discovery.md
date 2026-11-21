@@ -2,4 +2,7 @@
 "@howaboua/pi-chatgpt-sites": patch
 ---
 
-- Update Site-hosted MCP guidance for protocol discovery, plugin tool refresh and connection checks.
+- Added `site.open` to restore an existing Site's committed source into a new local checkout without publishing.
+- Fixed source saving with Sites-issued bearer credentials and added support for authenticated Work source proxies.
+- Fixed private deployment when the account does not expose the shared deployment route.
+- Updated the Sites guides for building, access, and connecting Site-hosted MCP tools.

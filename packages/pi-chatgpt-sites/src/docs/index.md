@@ -6,7 +6,7 @@ Call `sites` with `{resource, action, params}`. Omitted `project_id` uses `.open
 
 | Topic         | Resource actions                                    |
 | ------------- | --------------------------------------------------- |
-| `site`        | `site`: `list`, `get`, `create`, `update`, `slug`   |
+| `site`        | `site`: `list`, `get`, `open`, `create`, `update`, `slug` |
 | `version`     | `version`: `list`, `get`, `save`, `publish_private` |
 | `deployment`  | `deployment`: `deploy`, `status`                    |
 | `access`      | `access`: `get`, `update`                           |
@@ -17,4 +17,4 @@ Call `sites` with `{resource, action, params}`. Omitted `project_id` uses `.open
 | `database`    | `database`: `overview`, `rows`                      |
 | `schedules`   | `schedule`: `create`, `validate`                    |
 
-`building` covers build, storage and connector boundaries. `mcp` covers Site-hosted tools and connection. OAuth, Git credentials, secret environment values and service-access tokens are redacted.
+`building` covers build, storage, local preview, app connectors and WebMCP. `identity` covers sign-in and service access. `mcp` covers Site-hosted tools and connection. Git credentials stay out of results. Secret environment values and service-access tokens are redacted.

@@ -24,6 +24,12 @@ interface Recovery {
 	saved_version_id?: string;
 }
 
+export class SitesOperationUnavailable extends Error {
+	constructor() {
+		super("This Sites operation is unavailable for the account");
+	}
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -117,8 +123,7 @@ export class SitesClient {
 				.map(normalizeToolName);
 			return names.includes(expected);
 		});
-		if (!tool)
-			throw new Error("This Sites operation is unavailable for the account");
+		if (!tool) throw new SitesOperationUnavailable();
 		return tool;
 	}
 
@@ -253,6 +258,18 @@ function backendError(status: number, payload: unknown) {
 		/sites_publication_terms_required:\s*(https?:\/\/[^\s"}]+)/i,
 	);
 	const recovery = errorRecovery(payload);
+	if (
+		serialized.includes(
+			"The published Site does not declare an MCP server. Enable MCP and republish it.",
+		)
+	) {
+		return new Error(
+			"This published Site does not expose MCP. Publish a version with an MCP server before requesting its connection.",
+		);
+	}
+	if (status === 404 && serialized.includes("Action not found")) {
+		return new SitesOperationUnavailable();
+	}
 	const message = terms
 		? "ChatGPT Sites publication terms must be accepted before this operation can continue"
 		: recovery.saved_version_id
