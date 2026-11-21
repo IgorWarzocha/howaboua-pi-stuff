@@ -132,7 +132,7 @@ export function createNotesSettingsControls(
 				id: "idle",
 				label: "Idle rollover",
 				description:
-					"After this idle period, your next message can start a fresh window to avoid resending uncached history.",
+					"After this idle period, your next message starts a new window if the last turn saved notes.",
 				currentValue: idleValue(settings.idleMinutes),
 				values: IDLE_MINUTES.map(idleValue),
 			},
