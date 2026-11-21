@@ -36,6 +36,7 @@ export function createNotesSettingsControls(
 	const settings = options.settings();
 	const idleValue = (minutes: number) => {
 		if (minutes === 25) return "25m (GPT-5.6–6.1)";
+		if (minutes === 55) return "55m (Claude)";
 		if (minutes === 115) return "2h (GPT-6.2)";
 		return minutes === 0
 			? "Off"
@@ -132,7 +133,7 @@ export function createNotesSettingsControls(
 				id: "idle",
 				label: "Idle rollover",
 				description:
-					"After this idle period, your next message starts a new window if the last turn saved notes.",
+					"After this idle period, your next message starts a new window if the last turn saved notes. GPT intervals are recommendations, not cache limits.",
 				currentValue: idleValue(settings.idleMinutes),
 				values: IDLE_MINUTES.map(idleValue),
 			},
