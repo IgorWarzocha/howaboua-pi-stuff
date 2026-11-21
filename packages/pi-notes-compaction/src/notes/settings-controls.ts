@@ -132,7 +132,7 @@ export function createNotesSettingsControls(
 				id: "idle",
 				label: "Idle rollover",
 				description:
-					"After this long without activity, your next message can start a fresh context window instead of resending the full conversation when the model’s cache may be cold.",
+					"After this idle period, your next message can start a fresh window to avoid resending uncached history.",
 				currentValue: idleValue(settings.idleMinutes),
 				values: IDLE_MINUTES.map(idleValue),
 			},
