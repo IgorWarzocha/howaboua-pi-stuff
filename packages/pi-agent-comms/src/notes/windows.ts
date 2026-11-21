@@ -1,12 +1,19 @@
 import { randomUUID } from "node:crypto";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { getCurrentSystemMessage } from "@earendil-works/pi-ai";
-import type {
-	CustomMessageEntryDraft,
-	ExtensionContext,
-	SessionEntry,
+import {
+	sessionEntryToContextMessages,
+	type CustomMessageEntryDraft,
+	type ExtensionContext,
+	type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import type { NotesBridge, WindowIdentity } from "./bridge.js";
+import {
+	completeTailCalls,
+	projectTailEntry,
+	projectTailMessage,
+	tailMessageKey,
+} from "./rollover-tail.js";
 import {
 	renderTaskBoundaryReminder,
 	taskBoundaryEligible,
@@ -42,14 +49,20 @@ export class Windows {
 		  }
 		| undefined;
 	private compactedSinceBoundary = false;
+	private nativeKeptEntry: string | undefined;
 	private reminders = new Set<string>();
-	restore(entries: readonly SessionEntry[]): void {
+	restore(
+		entries: readonly SessionEntry[],
+		observe?: (entry: SessionEntry, details: WindowDetails | undefined) => void,
+	): void {
 		this.current = undefined;
 		this.identityEntry = undefined;
 		this.compactedSinceBoundary = false;
+		this.nativeKeptEntry = undefined;
 		this.reminders.clear();
 		for (const entry of entries) {
 			const details = windowDetails(entry);
+			observe?.(entry, details);
 			if (
 				entry.type === "custom_message" &&
 				(details?.kind === "window" || details?.kind === "identity")
@@ -57,7 +70,10 @@ export class Windows {
 				this.identityEntry = entry;
 			if (details?.kind === "window") {
 				this.current = details.identity;
-				if (details.trim) this.compactedSinceBoundary = false;
+				if (details.trim) {
+					this.compactedSinceBoundary = false;
+					this.nativeKeptEntry = undefined;
+				}
 			} else if (
 				details &&
 				(details.kind === "reminder" ||
@@ -74,6 +90,8 @@ export class Windows {
 				);
 				this.compactedSinceBoundary = true;
 			}
+			if (entry.type === "compaction" && isWindowCheckpoint(entry))
+				this.nativeKeptEntry = entry.firstKeptEntryId;
 		}
 	}
 	next(): WindowIdentity {
@@ -167,6 +185,24 @@ export class Windows {
 		prepareIdentity?: NotesBridge["prepareReminder"],
 	): AgentMessage[] {
 		if (this.compactedSinceBoundary) {
+			// A later Pi/PCC summary keeps its own suffix, not the original tail.
+			// If that suffix still crosses a Notes boundary, keep the tail's
+			// content policy on the surviving pre-boundary messages.
+			const boundary = messages.findLastIndex(
+				(message) =>
+					message.role === "custom" &&
+					messageWindowDetails(message.customType, message.details)?.trim ===
+						true,
+			);
+			const marker = messages[boundary];
+			const tail =
+				marker?.role === "custom" &&
+				messageWindowDetails(marker.customType, marker.details)?.tail;
+			if (tail)
+				messages = [
+					...this.projectTailMessages(messages.slice(0, boundary), tail, true),
+					...messages.slice(boundary),
+				];
 			const summary = messages.findIndex(
 				(message) => message.role === "compactionSummary",
 			);
@@ -231,6 +267,7 @@ export class Windows {
 			];
 		}
 		let boundary = -1;
+		let tail: WindowDetails["tail"];
 		for (let i = 0; i < messages.length; i++) {
 			const message = messages[i]!;
 			if (message.role !== "custom") continue;
@@ -239,24 +276,83 @@ export class Windows {
 				throw new Error(
 					"Invalid saved context window. Open an intact session branch to continue.",
 				);
-			if (details?.kind === "window" && details.trim) boundary = i;
+			if (details?.kind === "window" && details.trim) {
+				boundary = i;
+				tail = details.tail;
+			}
 		}
 		if (boundary < 0) return [...messages];
 		const system = getCurrentSystemMessage(messages.slice(0, boundary));
-		return system
-			? [system, ...messages.slice(boundary)]
-			: messages.slice(boundary);
+		let kept = boundary - 1;
+		while (
+			tail &&
+			kept >= 0 &&
+			tailMessageKey(messages[kept]!) !== tail.firstMessage
+		)
+			kept--;
+		const start =
+			kept >= 0
+				? kept
+				: tail && this.nativeKeptEntry === tail.firstKeptEntryId
+					? 0
+					: boundary;
+		const carried = tail
+			? this.projectTailMessages(messages.slice(start, boundary), tail, false)
+			: [];
+		return [
+			...(system ? [system] : []),
+			...carried,
+			...messages.slice(boundary),
+		];
+	}
+	private projectTailMessages(
+		messages: readonly AgentMessage[],
+		tail: NonNullable<WindowDetails["tail"]>,
+		preserveSummary: boolean,
+	): AgentMessage[] {
+		const complete =
+			tail.mode === "full" ? completeTailCalls(messages) : undefined;
+		return messages.flatMap((message) => {
+			if (message.role === "system" || message.role === "compactionSummary")
+				return preserveSummary ? [message] : [];
+			const projected = projectTailMessage(message, tail.mode, complete);
+			return projected ? [projected] : [];
+		});
 	}
 	projectBranch(entries: readonly SessionEntry[]): SessionEntry[] {
 		let boundary = -1;
+		let summarized = false;
+		let tail: WindowDetails["tail"];
 		for (let i = 0; i < entries.length; i++) {
 			const details = windowDetails(entries[i]!);
-			if (details?.kind === "window" && details.trim) boundary = i;
+			if (details?.kind === "window" && details.trim) {
+				boundary = i;
+				tail = details.tail;
+				summarized = false;
+			}
 			// Normal Pi/PCC compaction has already chosen its own checkpoint.
 			if (entries[i]!.type === "compaction" && !isWindowCheckpoint(entries[i]!))
-				boundary = -1;
+				summarized = true;
 		}
-		return entries.slice(Math.max(0, boundary)).map((entry): SessionEntry =>
+		let first = -1;
+		if (tail)
+			for (let i = boundary - 1; i >= 0; i--) {
+				if (entries[i]!.id === tail.firstKeptEntryId) {
+					first = i;
+					break;
+				}
+				if (windowDetails(entries[i]!)?.trim) break;
+			}
+		const start = summarized ? 0 : first >= 0 ? first : Math.max(0, boundary);
+		const complete =
+			tail?.mode === "full" && first >= 0
+				? completeTailCalls(
+						entries
+							.slice(first, boundary)
+							.flatMap(sessionEntryToContextMessages),
+					)
+				: undefined;
+		return entries.slice(start).map((entry, index): SessionEntry =>
 			isWindowCheckpoint(entry)
 				? {
 						type: "custom",
@@ -265,7 +361,12 @@ export class Windows {
 						timestamp: entry.timestamp,
 						customType: "notes-compaction:window-checkpoint",
 					}
-				: entry,
+				: tail &&
+					  first >= 0 &&
+					  start + index >= first &&
+					  start + index < boundary
+					? projectTailEntry(entry, tail.mode, complete)
+					: entry,
 		);
 	}
 }

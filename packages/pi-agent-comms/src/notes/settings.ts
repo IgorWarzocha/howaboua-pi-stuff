@@ -15,6 +15,8 @@ export const NEW_WINDOW_REQUESTS = [
 	"unrestricted",
 ] as const;
 export type NewWindowRequests = (typeof NEW_WINDOW_REQUESTS)[number];
+export const ROLLOVER_TAILS = ["off", "conversation", "full"] as const;
+export type RolloverTailMode = (typeof ROLLOVER_TAILS)[number];
 const DEFAULT_MODEL_WHITELIST = ["gpt-6.2-astra", "gpt-6.2-sol", "gpt-6-luna"];
 export interface NotesSettings {
 	active: "all" | "whitelist" | "off";
@@ -26,6 +28,7 @@ export interface NotesSettings {
 	newWindowRequests: NewWindowRequests;
 	taskCompletionRollover: boolean;
 	idleMinutes: IdleMinutes;
+	rolloverTail: RolloverTailMode;
 	taskBoundaryReminder: number;
 }
 
@@ -77,6 +80,7 @@ function readSettings(
 					newWindowRequests: "unrestricted",
 					taskCompletionRollover: false,
 					idleMinutes: 0,
+					rolloverTail: "off",
 					taskBoundaryReminder: 0,
 				}
 			);
@@ -110,6 +114,13 @@ function readSettings(
 			`Invalid modelWhitelist in ${path}. Use an array of model ID strings, then reload Pi.`,
 		);
 	const idleMinutes = "idleMinutes" in settings ? settings.idleMinutes : 0;
+	const rolloverTail = parseRolloverTail(
+		"rolloverTail" in settings ? settings.rolloverTail : "off",
+	);
+	if (!rolloverTail)
+		throw new Error(
+			"Invalid rollover tail. Choose Off, Conversation or Full in /notes.",
+		);
 	const rankedHistorySearch =
 		"rankedHistorySearch" in settings ? settings.rankedHistorySearch : false;
 	if (typeof rankedHistorySearch !== "boolean")
@@ -166,6 +177,7 @@ function readSettings(
 		newWindowRequests: newWindowRequests as NewWindowRequests,
 		taskCompletionRollover,
 		idleMinutes: idleMinutes as IdleMinutes,
+		rolloverTail,
 		taskBoundaryReminder,
 	};
 }
@@ -215,6 +227,7 @@ function readLegacySettings(
 			? (requests as NewWindowRequests)
 			: "unrestricted",
 		taskCompletionRollover: false,
+		rolloverTail: "off",
 		idleMinutes: [...IDLE_MINUTES, 5, 15].some((item) => item === idle)
 			? (idle as IdleMinutes)
 			: 0,
@@ -225,6 +238,10 @@ function readLegacySettings(
 				? reminder
 				: 0,
 	};
+}
+
+function parseRolloverTail(value: unknown): RolloverTailMode | undefined {
+	return ROLLOVER_TAILS.find((mode) => mode === value);
 }
 
 /** Global first, then the trusted project's explicitly configured values. */

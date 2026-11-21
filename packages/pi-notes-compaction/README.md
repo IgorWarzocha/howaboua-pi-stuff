@@ -40,11 +40,15 @@ The tool requires a successful checkpoint write immediately before the request. 
 
 Code and Notebook also accept `await tools.new_context(...)` after an awaited note save in the same cell. The native tool remains the advertised entry point. The nested callable does not add prompt guidance or a discovery listing.
 
-Reminders arrive at 85% and 90% context use. With normal compaction off, `/compact` opens a fresh window immediately if the latest completed turn saved fresh notes. Otherwise it requests a checkpoint first. The new window waits for your next prompt; it does not start a continuation turn. Abort, errors and failed writes retain the old context. Overflow recovery still uses Pi's normal compaction.
+Reminders arrive at 85% and 90% context use. With normal compaction off, `/compact` opens a Notes window. If there is no eligible save, it asks the agent to save a checkpoint first. Instructions after `/compact` guide that checkpoint. The new window waits for your next prompt. Overflow recovery still uses Pi's normal compaction.
+
+Set **Rollover tail** to **Conversation** to keep user messages, attachments and assistant replies since the last completed Notes save on the selected branch in this window. **Full** also keeps complete tool-call groups and reasoning. The carried conversation stays in its original order. It does not start another turn. With **Off** (the default), no tail is carried and only a save in the latest completed turn qualifies.
 
 Pi rejects `/compact` when there is too little history to prepare compaction, before extensions run. `new_context` follows the separate **New window requests** setting.
 
-Idle rollover is off by default. Choose 25m, 55m, 2h, 6h or 12h in `/notes`. Hour presets use a five-minute buffer, stored as 115, 355 or 715 minutes. Saved 5- and 15-minute settings remain valid. After the interval, the next input waits for rollover only if the latest completed turn saved fresh notes. Otherwise it proceeds in the current window without requesting a checkpoint. These intervals are user preferences, not provider cache-expiry guarantees. Held input retains its original text, attachments and SDK options. If normal compaction has nothing to summarise, input proceeds in the current window. A failed rollover keeps input pending. Submit another prompt to retry, or reload to cancel it.
+Idle rollover is off by default. Choose 25m, 55m, 2h, 6h or 12h in `/notes`. Hour presets leave a five-minute buffer. When the interval elapses, the next prompt waits for rollover. With a Conversation or Full tail, Notes uses the same save eligibility as `/compact` and requests a checkpoint if needed. With the tail off or normal compaction on, input proceeds in the current window if the latest completed turn did not save notes.
+
+Held input keeps its original text, attachments and SDK options. If normal compaction has nothing to summarise, input proceeds in the current window. After a failed checkpoint or rollover, submit another prompt to retry or reload to cancel the pending input.
 
 ## Management
 

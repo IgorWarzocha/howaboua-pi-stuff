@@ -187,6 +187,14 @@ function noteEvidence(
 			),
 		);
 	const messages = buildSessionProjection(run).messages;
+	return { messages, receipts, outcomes: noteOutcomes(run, windowId, runId) };
+}
+
+function noteOutcomes(
+	run: readonly SessionEntry[],
+	windowId: string | undefined,
+	runId?: string,
+) {
 	const outcomes = run.flatMap((entry) => {
 		if (entry.type !== "custom" || entry.customType !== NESTED_NOTE_OUTCOME)
 			return [];
@@ -206,7 +214,49 @@ function noteEvidence(
 	// Starts remain failed proof until their matching completion replaces them.
 	const latest = new Map<string, NestedNoteOutcome>();
 	for (const outcome of outcomes) latest.set(outcome.callId, outcome);
-	return { messages, receipts, outcomes: [...latest.values()] };
+	return [...latest.values()];
+}
+
+/** Identify the latest successfully saved tool group, without projecting session history. */
+export function lastSavedGroup(
+	run: readonly SessionEntry[],
+	windowId: string,
+	runId: string,
+): SessionEntry | undefined {
+	const allResults = run.flatMap((entry) =>
+		entry.type === "message" && entry.message.role === "toolResult"
+			? [entry.message]
+			: [],
+	);
+	const outcomes = noteOutcomes(run, windowId, runId);
+	let receipts: NoteReceipt[] = [];
+	let results: ToolResultMessage[] = [];
+	for (let i = run.length - 1; i >= 0; i--) {
+		const entry = run[i]!;
+		if (entry.type === "custom" && entry.customType === NOTE_RECEIPT) {
+			const receipt = noteReceipt(entry.data);
+			if (
+				receipt &&
+				receipt.origin !== "routed" &&
+				receipt.windowId === windowId &&
+				receipt.runId === runId
+			)
+				receipts.push(receipt);
+		}
+		if (entry.type !== "message") continue;
+		if (entry.message.role === "toolResult") {
+			results.push(entry.message);
+			continue;
+		}
+		if (entry.message.role !== "assistant") continue;
+		const calls = entry.message.content.filter(
+			(part) => part.type === "toolCall",
+		);
+		if (completedWrites(calls, results, receipts, outcomes, allResults))
+			return entry;
+		receipts = [];
+		results = [];
+	}
 }
 
 function completedWrites(

@@ -31,6 +31,7 @@ export async function createNotesRuntime(pi: ExtensionAPI, store: NotesStore) {
 	const checkpoints = new WindowCheckpoints((entries) =>
 		lifecycle.windows.projectBranch(entries),
 	);
+	lifecycle.commitWindow = (ctx) => checkpoints.restore(ctx);
 	let refreshNested = () => {};
 	let refreshTools = () => {};
 	const activation = createNotesActivation(
