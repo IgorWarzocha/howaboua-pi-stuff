@@ -132,7 +132,7 @@ export function createNotesSettingsControls(
 				id: "idle",
 				label: "Idle rollover",
 				description:
-					"Roll over before the next input once this interval elapses. The rollover tail setting governs checkpoint requests.",
+					"After this long without activity, your next message can start a fresh context window instead of resending the full conversation when the model’s cache may be cold.",
 				currentValue: idleValue(settings.idleMinutes),
 				values: IDLE_MINUTES.map(idleValue),
 			},
