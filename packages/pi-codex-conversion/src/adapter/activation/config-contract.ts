@@ -112,7 +112,6 @@ export const LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS: readonly LunaCacheKeepaliveMi
 
 export interface CodexConversionConfig {
 	executionMode: ExecutionMode;
-	voiceFeaturesOnly: boolean;
 	prompt: {
 		heavySystemPromptOverwrite: HeavySystemPromptOverwrite;
 		currentTimeReminderMinutes: 0 | 30 | 60;
@@ -186,7 +185,6 @@ export interface CodexConversionConfig {
 
 export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	executionMode: "normal",
-	voiceFeaturesOnly: false,
 	prompt: { heavySystemPromptOverwrite: false, currentTimeReminderMinutes: 0 },
 	scope: { allProviders: "off", additionalProviders: [] },
 	tools: {

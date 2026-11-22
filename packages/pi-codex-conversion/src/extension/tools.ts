@@ -88,11 +88,10 @@ export function registerCodexTools(
 			...renderOptions(config),
 		});
 	};
-	if (!runtime.state.config.voiceFeaturesOnly)
-		registerCore(runtime.state.config);
+	registerCore(runtime.state.config);
 	return {
 		applyConfig(config) {
-			if (!config.voiceFeaturesOnly) registerCore(config);
+			registerCore(config);
 			runtime.sessions.setBaseEnv(runtime.execEnv(config));
 		},
 		shutdown() {

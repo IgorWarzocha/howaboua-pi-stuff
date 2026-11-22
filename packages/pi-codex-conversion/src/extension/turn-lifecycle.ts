@@ -96,7 +96,7 @@ export function createCodexTurnLifecycle(
 		beforeAgentStart: async (event, ctx) => {
 			session.activate(ctx);
 			state.codexTurnState.beginTurn();
-			if (!state.config.voiceFeaturesOnly) await reserve.beforeTurn(ctx);
+			await reserve.beforeTurn(ctx);
 			runtime.autoReasoning.begin(ctx);
 			const plan = syncAdapter(pi, ctx, state);
 			if (plan.kind !== "ts") state.notebookStatusMessageId = undefined;
@@ -135,13 +135,12 @@ export function createCodexTurnLifecycle(
 			runtime.finishTurn();
 			flushCodexReasoningUpdates(pi, ctx);
 			runtime.autoReasoning.settle(ctx);
-			const quotaExhausted =
-				!state.config.voiceFeaturesOnly && (await reserve.settled(ctx));
+			const quotaExhausted = await reserve.settled(ctx);
 			session.flushToolRefresh(ctx);
 			state.codexTurnState.reset();
 			runtime.voice.settleTurn();
 			runtime.lanVoice.agentSettled();
-			if (!state.config.voiceFeaturesOnly) void ui.refreshUsageStatus(ctx);
+			void ui.refreshUsageStatus(ctx);
 			if (!quotaExhausted) runtime.armCacheKeepalive(ctx);
 		},
 		contextWithSystem: async (event, ctx) => {

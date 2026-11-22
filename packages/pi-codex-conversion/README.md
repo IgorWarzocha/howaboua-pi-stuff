@@ -50,7 +50,7 @@ Choose an execution mode under `/codex` → **General**:
 
 Code starts fresh for each cell. VM Code keeps `let`, `const`, `function` and `class` bindings for the conversation, without notebook controls or a saved heap. TS Notebook retains state between cells and provides notebook management controls. See [execution modes](#code-mode-and-custom-tools) below.
 
-Execution mode is separate from provider scope. Apply the adapter to **Codex and configured** providers or **all providers**. **Extra tools only** adds selected patch and image tools without replacing the normal setup. **Voice only** keeps voice and dictation without changing the model's tools or requests.
+Execution mode is separate from provider scope. Apply the adapter to **Codex and configured** providers or **all providers**. **Extra tools only** adds selected patch and image tools without replacing the normal setup. For voice and dictation without the Codex adapter, install [GipPity Control](../pi-gippity-control) instead.
 
 The Codex toolset reads files through the shell and edits with `apply_patch`, rather than Pi's separate text read, edit and write tools.
 

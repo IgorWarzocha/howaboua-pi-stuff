@@ -42,7 +42,6 @@ import { renderCodexStatus } from "../ui/status.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 
 export interface CodexUiController {
-	clearBackgroundWidget(): void;
 	invalidateBackgroundWidget(): void;
 	renderBackgroundWidget(): void;
 	invalidateUsageStatus(): void;
@@ -85,10 +84,7 @@ export function registerCodexUi(
 		if (generation !== backgroundWidgetGeneration) return;
 		const ctx = runtime.backgroundWidget.ctx;
 		if (!ctx) return;
-		if (
-			runtime.state.config.voiceFeaturesOnly ||
-			!runtime.state.config.ui.backgroundShellWidget
-		) {
+		if (!runtime.state.config.ui.backgroundShellWidget) {
 			clearBackgroundWidget();
 			return;
 		}
@@ -105,9 +101,7 @@ export function registerCodexUi(
 		runtime.backgroundWidget,
 		runtime.sessions,
 		backgroundShellShortcuts,
-		() =>
-			!runtime.state.config.voiceFeaturesOnly &&
-			runtime.state.config.ui.backgroundShellWidget,
+		() => runtime.state.config.ui.backgroundShellWidget,
 	);
 	const renderNotice = createNoticeRenderer();
 	pi.registerMessageRenderer(
@@ -221,7 +215,6 @@ export function registerCodexUi(
 	runtime.sessions.onSessionChange((reason) => {
 		if (
 			!runtime.backgroundWidget.ctx ||
-			runtime.state.config.voiceFeaturesOnly ||
 			!runtime.state.config.ui.backgroundShellWidget
 		)
 			return;
@@ -243,11 +236,7 @@ export function registerCodexUi(
 	};
 	const refreshUsageStatus = async (ctx: ExtensionContext) => {
 		const generation = ++usageGeneration;
-		if (
-			!ctx.hasUI ||
-			runtime.state.config.voiceFeaturesOnly ||
-			!runtime.state.config.ui.statusLine
-		) {
+		if (!ctx.hasUI || !runtime.state.config.ui.statusLine) {
 			runtime.state.usageStatus = undefined;
 			return;
 		}
@@ -258,7 +247,6 @@ export function registerCodexUi(
 		const plan = resolveCodexRuntimePlanForState(ctx, runtime.state);
 		if (
 			!ctx.hasUI ||
-			runtime.state.config.voiceFeaturesOnly ||
 			!runtime.state.config.ui.statusLine ||
 			!isAdapterRuntime(plan)
 		)
@@ -268,22 +256,17 @@ export function registerCodexUi(
 	};
 
 	return {
-		clearBackgroundWidget,
 		invalidateBackgroundWidget,
 		renderBackgroundWidget,
 		invalidateUsageStatus,
 		refreshUsageStatus,
 		applyConfig(config, ctx, previousConfig) {
-			if (config.voiceFeaturesOnly || !config.ui.statusLine) {
+			if (!config.ui.statusLine) {
 				invalidateUsageStatus();
-			} else if (
-				previousConfig.voiceFeaturesOnly ||
-				!previousConfig.ui.statusLine
-			) {
+			} else if (!previousConfig.ui.statusLine) {
 				void refreshUsageStatus(ctx);
 			}
-			if (config.voiceFeaturesOnly || !config.ui.backgroundShellWidget)
-				clearBackgroundWidget();
+			if (!config.ui.backgroundShellWidget) clearBackgroundWidget();
 			else renderBackgroundWidget();
 		},
 	};

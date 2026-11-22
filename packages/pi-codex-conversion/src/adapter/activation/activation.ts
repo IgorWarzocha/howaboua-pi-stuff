@@ -77,7 +77,7 @@ function enableExtraTools(
 	if (ctx.hasUI)
 		ctx.ui.setStatus(
 			STATUS_KEY,
-			!state.config.voiceFeaturesOnly && state.config.ui.statusLine
+			state.config.ui.statusLine
 				? buildExtraToolsOnlyStatusText(plan.toolNames, ctx.ui.theme)
 				: undefined,
 		);

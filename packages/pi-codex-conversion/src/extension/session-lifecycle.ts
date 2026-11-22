@@ -89,13 +89,6 @@ export function createCodexSessionLifecycle(
 			state.executionMode = state.config.executionMode;
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 			state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
-			if (state.config.voiceFeaturesOnly) {
-				clearApplyPatchRenderState();
-				ui.clearBackgroundWidget();
-				syncAdapter(pi, ctx, state);
-				await runtime.configureDiagnostics(ctx);
-				return;
-			}
 			sessions.setBaseEnv(runtime.execEnv());
 			tracker.clear();
 			clearApplyPatchRenderState();
@@ -115,12 +108,6 @@ export function createCodexSessionLifecycle(
 			state.cwd = ctx.cwd;
 			state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
-			if (state.config.voiceFeaturesOnly) {
-				ui.clearBackgroundWidget();
-				syncAdapter(pi, ctx, state);
-				await runtime.configureDiagnostics(ctx);
-				return;
-			}
 			syncAdapter(pi, ctx, state);
 			// Keep existing window state, but leave initial creation to the first prepared turn.
 			await runtime.configureDiagnostics(ctx);

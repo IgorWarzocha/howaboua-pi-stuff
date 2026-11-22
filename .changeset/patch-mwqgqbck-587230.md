@@ -2,6 +2,7 @@
 "@howaboua/pi-codex-conversion": major
 ---
 
+- Removed the Voice only setting. Existing configurations now follow Provider scope. Use GipPity Control instead of Pi Codex Conversion for voice without the Codex adapter.
 - Removed Deno Notebook. The old mode setting selects TS Notebook without importing Deno state or activating its saved profile. [Recover or remove old notebook files](https://github.com/IgorWarzocha/howaboua-pi-stuff/blob/main/docs/deno-to-ts-notebook.md) with the repository's copy-paste prompts.
 - Replaced QuickJS Code with VM Code. Existing settings select VM Code, which keeps JavaScript bindings for the conversation and runs one cell at a time. Select Code for fresh cells.
 - VM Code works in standalone Pi on Linux, macOS and Windows. Bun runs in a separate process with a hard cgroup memory limit on Linux and a memory watchdog on macOS and Windows.

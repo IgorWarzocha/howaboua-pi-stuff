@@ -62,10 +62,6 @@ export function normalizeCodexConversionConfig(
 		DEFAULT_CODEX_CONVERSION_CONFIG.executionMode;
 	return {
 		executionMode,
-		voiceFeaturesOnly: normalizeBoolean(
-			value["voiceFeaturesOnly"],
-			DEFAULT_CODEX_CONVERSION_CONFIG.voiceFeaturesOnly,
-		),
 		prompt: {
 			currentTimeReminderMinutes:
 				prompt["currentTimeReminderMinutes"] === 30 ||

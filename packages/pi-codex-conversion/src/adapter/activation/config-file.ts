@@ -100,6 +100,7 @@ export function writeCodexConversionConfig(
 			: withoutProjectOnlyDocument(document);
 		clearAbsentOwnedOptionals(document, normalized, folderScope);
 		for (const key of LEGACY_OWNED_CONFIG_KEYS) delete document[key];
+		delete document["voiceFeaturesOnly"];
 		const compaction = document["compaction"];
 		if (isRecord(compaction))
 			for (const key of [

@@ -174,7 +174,6 @@ export function hasCodexTransportConfigChanged(
 	next: CodexConversionConfig,
 ): boolean {
 	return (
-		next.voiceFeaturesOnly !== previous.voiceFeaturesOnly ||
 		next.executionMode !== previous.executionMode ||
 		next.prompt.heavySystemPromptOverwrite !==
 			previous.prompt.heavySystemPromptOverwrite ||
@@ -216,7 +215,6 @@ export function resolveCodexRuntimePlan(
 	const extras =
 		hasExtras(config) &&
 		(config.scope.allProviders === "extras" ||
-			(config.voiceFeaturesOnly && config.scope.allProviders === "on") ||
 			(config.scope.allProviders === "off" &&
 				(isConfigured || isCodexLikeModel(ctx.model))));
 	if (extras) {
@@ -228,14 +226,6 @@ export function resolveCodexRuntimePlan(
 			transport: "responses",
 		};
 	}
-	if (config.voiceFeaturesOnly)
-		return {
-			...base,
-			kind: "inactive",
-			toolNames: [],
-			prompt: undefined,
-			transport: undefined,
-		};
 
 	const active =
 		config.scope.allProviders === "on" ||

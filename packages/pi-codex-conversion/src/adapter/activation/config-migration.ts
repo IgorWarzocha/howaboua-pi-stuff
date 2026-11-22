@@ -22,6 +22,7 @@ export function migrateCodexConversionConfigIfNeeded(
 ): { migrated: boolean; config: unknown } {
 	if (!isObject(value)) return { migrated: false, config: value };
 	if (
+		"voiceFeaturesOnly" in value ||
 		normalizeExecutionMode(value["executionMode"]) ||
 		isObject(value["scope"]) ||
 		isObject(value["tools"]) ||
@@ -37,7 +38,11 @@ export function migrateCodexConversionConfigIfNeeded(
 		const compaction = previous
 			? migrateCompactionOptions(previous, inheritedCompaction)
 			: undefined;
-		const current = compaction !== previous ? { ...value, compaction } : value;
+		const { voiceFeaturesOnly: _voiceFeaturesOnly, ...withoutVoiceOnly } =
+			value;
+		const document = "voiceFeaturesOnly" in value ? withoutVoiceOnly : value;
+		const current =
+			compaction !== previous ? { ...document, compaction } : document;
 		const beta = isObject(value["beta"]) ? value["beta"] : undefined;
 		if (beta) {
 			const { beta: _beta, ...withoutBeta } = current;
