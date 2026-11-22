@@ -1,5 +1,9 @@
 # @howaboua/pi-unicode-charts
 
+## 0.1.6
+
+- Chart instructions always use the compact format. Pi Codex Conversion is no longer needed to select it.
+
 ## 0.1.5
 
 - Shortened chart-format guidance in both prompt modes.

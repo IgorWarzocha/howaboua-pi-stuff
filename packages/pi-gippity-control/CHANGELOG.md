@@ -1,5 +1,10 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.34
+
+- GipPity settings explain how browser access, dropped-call recovery and voice context refresh work.
+- Bundled voice helpers use updated Rust dependencies.
+
 ## 0.0.33
 
 - Added GPT Live 1.1 voice with an OpenAI API key. Codex login remains the default.

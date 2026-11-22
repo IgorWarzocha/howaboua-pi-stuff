@@ -1,5 +1,10 @@
 # @howaboua/pi-better-skills-tool
 
+## 0.0.15
+
+- Skills lists trusted repository `.agents/skills` under Session alongside `.pi/skills`, without duplicates. Global `~/.agents/skills` are excluded.
+- Skills always uses compact discovery and reading guidance, including in standalone installs.
+
 ## 0.0.14
 
 - Fixed Skills discovery failing on an empty object in Code and Notebook.

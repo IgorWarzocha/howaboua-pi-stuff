@@ -1,5 +1,9 @@
 # @howaboua/pi-grok-realtime
 
+## 0.0.8
+
+- Grok settings explain how the access selection matches Pi’s active xAI credential, and when voice context summaries and follow-ups are used.
+
 ## 0.0.7
 
 - Streamlined voice instructions for delegating work, handling pauses and ending calls.

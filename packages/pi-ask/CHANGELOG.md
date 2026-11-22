@@ -1,5 +1,9 @@
 # @howaboua/pi-ask
 
+## 0.0.22
+
+- Ask always uses compact question and handoff help, including in standalone installs.
+
 ## 0.0.21
 
 - Shorter review and planning prompts clarify when to ask, wait for a handoff or stop.

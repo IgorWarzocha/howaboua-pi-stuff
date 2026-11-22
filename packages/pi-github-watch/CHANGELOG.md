@@ -1,5 +1,9 @@
 # @howaboua/pi-github-watch
 
+## 0.0.9
+
+- GitHub Watch always uses compact watch help, including in standalone installs.
+
 ## 0.0.8
 
 - Known Codex, Cursor Bugbot and CodeRabbit quota notices appear in the UI without waking the agent.
