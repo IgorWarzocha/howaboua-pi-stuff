@@ -34,6 +34,16 @@ export function normalizeToolDetailsMode(
 		: undefined;
 }
 
+export function resolveLegacyToolDetails(
+	compact: unknown,
+	details: unknown,
+): ToolDetailsMode {
+	if (compact === "minimal") return "minimal";
+	if (details === true && compact !== "on" && compact !== true)
+		return "preview";
+	return "compact";
+}
+
 export function normalizeCompactionMethod(
 	value: unknown,
 ): CompactionMethod | undefined {

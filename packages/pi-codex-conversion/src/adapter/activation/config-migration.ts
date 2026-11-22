@@ -7,7 +7,10 @@ import {
 	type CodexConversionConfig,
 } from "./config.ts";
 import { normalizeExecutionMode } from "./execution-mode.ts";
-import { normalizeToolDetailsMode } from "./config-normalizers.ts";
+import {
+	normalizeToolDetailsMode,
+	resolveLegacyToolDetails,
+} from "./config-normalizers.ts";
 import { normalizeFastMode } from "./fast-mode.ts";
 
 export type CompactionMigrationInheritance =
@@ -174,28 +177,31 @@ function migrateToolDetails(
 	if (!("compactTools" in ui || "codeModeDetails" in ui)) return ui;
 	// Translate the old axes only after resolving each scope's explicit overrides.
 	const inheritedMode = normalizeToolDetailsMode(inherited?.["toolDetails"]);
-	const inheritedCompact =
-		inheritedMode === "compact" ? "on" : (inheritedMode ?? "off");
+	const inheritedLegacyCompact = inherited?.["compactTools"];
+	const inheritedLegacyDetails = inherited?.["codeModeDetails"];
+	const useLegacy =
+		!inheritedMode ||
+		((inheritedLegacyCompact !== undefined ||
+			inheritedLegacyDetails !== undefined) &&
+			resolveLegacyToolDetails(
+				inheritedLegacyCompact,
+				inheritedLegacyDetails,
+			) === inheritedMode);
 	const {
-		compactTools = inheritedMode
-			? inheritedCompact
-			: inherited?.["compactTools"],
-		codeModeDetails = inheritedMode
-			? inheritedMode === "preview"
-			: inherited?.["codeModeDetails"],
+		compactTools = useLegacy
+			? inheritedLegacyCompact
+			: inheritedMode === "minimal"
+				? "minimal"
+				: "off",
+		codeModeDetails = useLegacy
+			? inheritedLegacyDetails
+			: inheritedMode === "preview",
 		...rest
 	} = ui;
 	if (normalizeToolDetailsMode(rest["toolDetails"])) return rest;
 	return {
 		...rest,
-		toolDetails:
-			compactTools === "minimal"
-				? "minimal"
-				: codeModeDetails === true &&
-					  compactTools !== "on" &&
-					  compactTools !== true
-					? "preview"
-					: "compact",
+		toolDetails: resolveLegacyToolDetails(compactTools, codeModeDetails),
 	};
 }
 

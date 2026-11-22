@@ -11,6 +11,7 @@ import {
 	withoutDisabledProjectCacheKeepalive,
 } from "./config-document.ts";
 import { migrateCodexConversionConfigIfNeeded } from "./config-migration.ts";
+import { resolveLegacyToolDetails } from "./config-normalizers.ts";
 import {
 	DEFAULT_CODEX_CONVERSION_CONFIG,
 	normalizeCodexConversionConfig,
@@ -109,7 +110,14 @@ export function writeCodexConversionConfig(
 			delete tools["viewImageOnly"];
 		}
 		const ui = document["ui"];
-		if (isRecord(ui)) {
+		// Unmigrated project files can still inherit these global axes. An
+		// unrelated settings write must not discard them.
+		if (
+			isRecord(ui) &&
+			(folderScope ||
+				resolveLegacyToolDetails(ui["compactTools"], ui["codeModeDetails"]) !==
+					ui["toolDetails"])
+		) {
 			delete ui["compactTools"];
 			delete ui["codeModeDetails"];
 		}
