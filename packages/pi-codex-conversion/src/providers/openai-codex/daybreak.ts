@@ -84,7 +84,6 @@ export async function resolveDaybreakAccess(
 	options: OpenAICodexStreamOptions,
 	enabled: boolean,
 	modelId = model.id,
-	originator = "pi",
 ): Promise<AccessPrograms | undefined> {
 	if (options.signal?.aborted) throw new Error("Request was aborted");
 	const token = options.apiKey;
@@ -96,8 +95,6 @@ export async function resolveDaybreakAccess(
 		extractAccountId(token),
 		token,
 		undefined,
-		false,
-		originator,
 	);
 	headers.set("accept", "application/json");
 	headers.delete("content-type");

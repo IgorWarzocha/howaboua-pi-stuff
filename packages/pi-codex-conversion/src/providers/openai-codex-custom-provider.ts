@@ -9,7 +9,6 @@ import {
 import {
 	extractAccountId,
 	buildWebSocketHeaders,
-	PI_CODEX_CONVERSION_ORIGINATOR,
 	resolveCodexWebSocketUrl,
 } from "./openai-codex/headers.ts";
 import { noThrowCodexDiagnosticsSink } from "./openai-codex/diagnostic-failure.ts";
@@ -116,7 +115,6 @@ export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
 	options: OpenAICodexStreamOptions,
 	responsesLite: boolean,
 	deps: {
-		getConfig?: () => CodexProviderRuntimeConfig | undefined;
 		turnState?: CodexTurnState | undefined;
 		getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
 		preserveContinuation?: boolean | undefined;
@@ -127,7 +125,6 @@ export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
 			| undefined;
 	},
 ): Promise<CodexPrewarmResult | undefined> {
-	const runtimeConfig = deps.getConfig?.();
 	const transport = getEffectiveCodexTransport(
 		options.transport,
 		options.sessionId,
@@ -144,12 +141,7 @@ export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
 		);
 	await deps.validateRequest?.(body, responsesLite);
 	const accountId = extractAccountId(options.apiKey);
-	const originator =
-		runtimeConfig?.openai.harnessIdentifierHeader === "codex"
-			? "codex_cli_rs"
-			: runtimeConfig?.openai.harnessIdentifierHeader
-				? PI_CODEX_CONVERSION_ORIGINATOR
-				: "pi";
+
 	const requestHeaders = hasRemoteCompactionV2Input(body.input)
 		? withRemoteCompactionV2Feature(options.headers)
 		: options.headers;
@@ -159,7 +151,6 @@ export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
 		accountId,
 		options.apiKey,
 		options.sessionId,
-		originator,
 		body,
 	);
 	const turnState = deps.preserveContinuation ? undefined : deps.turnState;

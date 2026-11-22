@@ -148,8 +148,6 @@ export function migrateCodexConversionConfigIfNeeded(
 			proxyResponsesLite:
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai.proxyResponsesLite,
 			cacheDiagnostics: DEFAULT_CODEX_CONVERSION_CONFIG.openai.cacheDiagnostics,
-			harnessIdentifierHeader:
-				DEFAULT_CODEX_CONVERSION_CONFIG.openai["harnessIdentifierHeader"],
 		},
 	};
 	return {

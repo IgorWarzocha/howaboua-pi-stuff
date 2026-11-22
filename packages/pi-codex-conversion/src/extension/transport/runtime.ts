@@ -24,10 +24,7 @@ import {
 	prewarmPreparedOpenAICodexWebSocket,
 } from "../../providers/openai-codex-custom-provider.ts";
 import { resetOpenAICodexWebSocketSessions } from "../../providers/openai-codex/websocket.ts";
-import {
-	extractAccountId,
-	PI_CODEX_CONVERSION_ORIGINATOR,
-} from "../../providers/openai-codex/headers.ts";
+import { extractAccountId } from "../../providers/openai-codex/headers.ts";
 import type {
 	CodexUsageRecorder,
 	OpenAICodexStreamOptions,
@@ -200,18 +197,12 @@ export function createCodexExtensionTransport(
 					config,
 					executionMode,
 				});
-				const originator =
-					config.openai.harnessIdentifierHeader === "codex"
-						? "codex_cli_rs"
-						: config.openai.harnessIdentifierHeader
-							? PI_CODEX_CONVERSION_ORIGINATOR
-							: "pi";
+
 				options.accessPrograms = await resolveDaybreakAccess(
 					requestModel,
 					options,
 					config.openai.daybreak,
 					preparedRequest.body.model,
-					originator,
 				);
 				const deps = {
 					validateRequest: (body: ResponsesBody, responsesLite: boolean) =>
@@ -223,16 +214,6 @@ export function createCodexExtensionTransport(
 							options,
 							responsesLite,
 						),
-					getConfig: () => ({
-						executionMode,
-						openai: config.openai,
-						compaction: config.compaction,
-					}),
-					useResponsesLite: (currentModel: Model<Api>) =>
-						resolveCodexRuntimePlanForState(
-							{ model: currentModel },
-							{ ...state, config, executionMode },
-						).transport === "responses-lite",
 					turnState: state.codexTurnState,
 					getDiagnostics: () => diagnostics.sink(),
 					preserveContinuation: true,
@@ -428,11 +409,6 @@ export function createCodexExtensionTransport(
 								options,
 								lite,
 							),
-						getConfig: () => ({
-							executionMode: state.executionMode,
-							openai: state.config.openai,
-							compaction: state.config.compaction,
-						}),
 						turnState: state.codexTurnState,
 						getDiagnostics: () => diagnostics.sink(),
 						prewarmDiagnostics: { kind: "ordinary", requestSource: "captured" },

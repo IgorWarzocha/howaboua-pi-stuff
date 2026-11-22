@@ -9,6 +9,7 @@
 - VM Code works in standalone Pi on Linux, macOS and Windows. Bun runs in a separate process with a hard cgroup memory limit on Linux and a memory watchdog on macOS and Windows.
 - Codex falls back to HTTP for the session when a request exceeds the advertised WebSocket limit or the server closes with code 1009 before sending text.
 - Codex reports an incomplete response without replaying it when a WebSocket size rejection follows visible output.
+- Removed the Harness identifier header setting. Codex requests now always send `codex_cli_rs` as their originator.
 - Codex settings clarify what prompt overwrite, cache keepalive and voice refresh change, and which tool naming changes are display-only.
 - Codex prompt guidance now directs agents to work through recoverable blockers, continue independent work and act on clear requests rather than offering to act.
 - Code and Notebook group each tool's usage and rules. Tools with on-demand usage show the same no-argument discovery call.

@@ -182,7 +182,6 @@ export async function describeImageContentForTextModel(
 		provider.token,
 		undefined,
 		true,
-		"pi",
 		{ model: IMAGE_DESCRIPTION_MODEL },
 	);
 	const response = await fetch(resolveCodexResponsesUrl(provider.baseUrl), {

@@ -108,6 +108,8 @@ export function writeCodexConversionConfig(
 			delete tools["applyPatchOnly"];
 			delete tools["viewImageOnly"];
 		}
+		const openai = document["openai"];
+		if (isRecord(openai)) delete openai["harnessIdentifierHeader"];
 		const compaction = document["compaction"];
 		if (isRecord(compaction))
 			for (const key of [

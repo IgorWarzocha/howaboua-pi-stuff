@@ -155,8 +155,6 @@ export function hasCodexTransportConfigChanged(
 			(family) => next.openai.fast[family] !== previous.openai.fast[family],
 		) ||
 		next.openai.daybreak !== previous.openai.daybreak ||
-		next.openai.harnessIdentifierHeader !==
-			previous.openai.harnessIdentifierHeader ||
 		nativeCompactionConfigured(next.compaction) !==
 			nativeCompactionConfigured(previous.compaction)
 	);

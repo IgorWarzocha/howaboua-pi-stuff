@@ -140,29 +140,6 @@ export function buildOpenAISettings(
 		),
 		setting(
 			{
-				id: "harnessIdentifierHeader",
-				description:
-					"Identify the client on Codex requests. Off sends Pi’s usual identifier.",
-				label: "Harness identifier header",
-				currentValue:
-					config.openai.harnessIdentifierHeader === "codex"
-						? "Codex"
-						: config.openai.harnessIdentifierHeader
-							? "pi-codex-conversion <3"
-							: "off",
-				values: ["off", "pi-codex-conversion <3", "Codex"],
-			},
-			(value, current) => ({
-				...current,
-				openai: {
-					...current.openai,
-					harnessIdentifierHeader:
-						value === "Codex" ? "codex" : value !== "off",
-				},
-			}),
-		),
-		setting(
-			{
 				id: "cacheDiagnostics",
 				description:
 					"Show compact cache status, with optional request, transport and timing logs.",

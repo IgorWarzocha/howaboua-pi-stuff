@@ -10,8 +10,6 @@ export { headersToRecord } from "./header-record.ts";
 
 type ProviderHeaders = Record<string, string | null>;
 
-export const PI_CODEX_CONVERSION_ORIGINATOR = "pi-codex-conversion";
-
 export function extractAccountId(token: string): string {
 	try {
 		const parts = token.split(".");
@@ -92,7 +90,6 @@ function buildBaseCodexHeaders(
 	additionalHeaders: ProviderHeaders | undefined,
 	accountId: string,
 	token: string,
-	originator: string,
 	routingRequest?: Pick<ResponsesBody, "model" | "service_tier">,
 ): Headers {
 	const headers = new Headers(modelHeaders);
@@ -106,7 +103,7 @@ function buildBaseCodexHeaders(
 
 	headers.set("Authorization", `Bearer ${token}`);
 	headers.set("chatgpt-account-id", accountId);
-	headers.set("originator", originator);
+	headers.set("originator", "codex_cli_rs");
 	const os = osInfo.current;
 	headers.set(
 		"User-Agent",
@@ -131,7 +128,6 @@ export function buildSSEHeaders(
 	token: string,
 	sessionId: string | undefined,
 	responsesLite = false,
-	originator = "pi",
 	routingRequest?: Pick<ResponsesBody, "model" | "service_tier">,
 ): Headers {
 	const headers = buildBaseCodexHeaders(
@@ -139,7 +135,6 @@ export function buildSSEHeaders(
 		additionalHeaders,
 		accountId,
 		token,
-		originator,
 		routingRequest,
 	);
 	headers.set("OpenAI-Beta", "responses=experimental");
@@ -163,7 +158,6 @@ export function buildWebSocketHeaders(
 	accountId: string,
 	token: string,
 	requestId: string,
-	originator = "pi",
 	routingRequest?: Pick<ResponsesBody, "model" | "service_tier">,
 ): Headers {
 	const headers = buildBaseCodexHeaders(
@@ -171,7 +165,6 @@ export function buildWebSocketHeaders(
 		additionalHeaders,
 		accountId,
 		token,
-		originator,
 		routingRequest,
 	);
 	headers.delete("accept");
