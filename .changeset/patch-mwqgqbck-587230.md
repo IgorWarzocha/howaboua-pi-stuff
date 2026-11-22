@@ -21,6 +21,7 @@
 - `ALL_TOOLS` lists every public tool available to the cell, including tools already advertised in the prompt. Look up one entry for its full contract.
 - TS Notebook and VM Code show how to keep one-off variables local to a cell and how to retry a redeclaration error.
 - TS Notebook uses tsrs 7.1.0-beta.tsrs4, including fixes for package and type resolution.
+- Removed the standing ripgrep preference from shell guidance.
 - Bundled Codex tools and voice helpers use updated Rust dependencies.
 - Codex sends harness and tool guidance before `AGENTS.md` instructions and the working directory.
 - Background shell completion notices collapse to one line. Expand a notice to see its output.

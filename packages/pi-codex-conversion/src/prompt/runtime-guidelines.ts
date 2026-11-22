@@ -18,8 +18,7 @@ export const GENERAL_GUIDELINES = [
 	"State supported conclusions directly; caveats ONLY if they change answer/next action",
 ] as const;
 
-const SHELL_GUIDELINE =
-	"Shell→exec_command; prefer rg/rg --files; largeoutput→sourcefilter";
+const SHELL_GUIDELINE = "Shell→exec_command; largeoutput→sourcefilter";
 const TTY_GUIDELINE = "tty=true ONLY for input/persistent processes";
 const EDIT_GUIDELINE =
 	"Text edits/creates/deletes/moves→apply_patch; oversized→split";

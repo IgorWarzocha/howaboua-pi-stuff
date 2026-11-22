@@ -246,7 +246,7 @@ function createNestedTools(
 			{
 				yieldTimeMs: LONG_RUNNING_TOOL_OUTER_YIELD_MS,
 				promptGuidelines: [
-					"Prefer rg and rg --files; filter large output at the source",
+					"Filter large output at the source",
 					"Use tty=true for input and persistent processes",
 					"Returns { output: string, session_id?: number, exit_code?: number }",
 				],
