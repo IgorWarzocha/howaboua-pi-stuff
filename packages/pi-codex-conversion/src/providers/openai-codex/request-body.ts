@@ -9,6 +9,7 @@ import {
 	type Model,
 	type TranscriptContext,
 } from "@earendil-works/pi-ai";
+import { orderProjectContextLast } from "../../prompt/project-context-order.ts";
 import { createGrammarToolInputProperties } from "../constrained-sampling.ts";
 import {
 	CODEX_TOOL_CALL_PROVIDERS,
@@ -51,7 +52,19 @@ export function resolveCodexTranscript<TApi extends Api>(
 	const compat = model.compat as
 		| { supportsMidConvoSystemMessages?: boolean | undefined }
 		| undefined;
-	return resolveTranscript(context, compat?.supportsMidConvoSystemMessages);
+	const resolved = resolveTranscript(
+		context,
+		compat?.supportsMidConvoSystemMessages,
+	);
+	if (resolved === context) return context;
+	const head = getInitialSystemMessage(resolved.messages);
+	// A newly added section can land after workspace context when Pi folds updates.
+	// Only reorder the folded copy of a PCC prompt, never a plain or opaque prompt.
+	if (!head?.sections?.["runtime_guidelines"]) return resolved;
+	return {
+		...resolved,
+		messages: [orderProjectContextLast(head), ...resolved.messages.slice(1)],
+	};
 }
 
 export function buildRequestBody<TApi extends Api>(

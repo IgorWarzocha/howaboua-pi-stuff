@@ -17,6 +17,7 @@ import {
 	resolvePromptSkills,
 } from "../prompt/build-system-prompt.ts";
 import { projectCodeModeMcpSections } from "../prompt/mcp-server-section.ts";
+import { orderProjectContextLast } from "../prompt/project-context-order.ts";
 import {
 	CODE_MODE_TOOL_NAMES,
 	NOTEBOOK_MODE_TOOL_NAMES,
@@ -206,6 +207,9 @@ export function createCodexTurnLifecycle(
 			// before the next provider request, rather than waiting for agent settlement.
 			flushCodexReasoningUpdates(pi, ctx);
 			messages = runtime.projectContextMessages(ctx, messages);
+			const head = messages[0];
+			if (head?.role === "system" && isAdapterRuntime(plan))
+				messages[0] = orderProjectContextLast(head);
 			return {
 				messages: state.developerMessages.prepare(
 					messages,
