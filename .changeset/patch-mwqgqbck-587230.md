@@ -14,6 +14,7 @@
 - Folded shell rows show nonzero exit codes, including in grouped exploration and background terminal results. A plain search with no matches is shown separately from errors.
 - Pi Codex upgrades older global and trusted project settings files once, preserving unrelated fields and project overrides. Current settings files are not rewritten at startup.
 - Codex settings clarify what prompt overwrite, cache keepalive and voice refresh change, and which tool naming changes are display-only.
+- Heavy system prompt overwrite is now Off or On. On uses the former GPT mode. Pi Codex tool guidance stays compact even when the overwrite is off.
 - Codex prompt guidance now directs agents to work through recoverable blockers, continue independent work and act on clear requests rather than offering to act.
 - Code and Notebook group each tool's usage and rules. Tools with on-demand usage show the same no-argument discovery call.
 - Codex sends harness and tool guidance before `AGENTS.md` instructions and the working directory.

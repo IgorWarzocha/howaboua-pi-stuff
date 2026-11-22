@@ -424,7 +424,7 @@ Fresh-child sharing opt-in controls new children. It does not detach an already-
 
 ## PCC GPT prompt mode
 
-PCC GPT prompt mode selects compact wording for PCC and participating extensions. Users choose **GPT (experimental)** under **Heavy system prompt overwrite** in `/codex`, or set `prompt.heavySystemPromptOverwrite` to `"gpt"`. It builds on Heavy's scaffold handling without changing tool arguments or execution. The mode is active only while PCC's adapter is active, not simply because the selected model is a GPT model.
+Toolkit extensions ship one set of compact instructions. The prompt mode API remains available for extensions that still switch between two sets of wording. It signals active when PCC's adapter is active and **Heavy system prompt overwrite** is on in `/codex`. It does not depend on the model name or change tool arguments or execution.
 
 Import `registerGptPromptMode` from `@howaboua/pi-codex-conversion/prompt-mode`. Its synchronous callback receives `(active: boolean, context: ExtensionContext | undefined)` and returns current owned tool metadata or nothing. The exported `PromptModeToolMetadata` type contains `name`, optional `promptSnippet` and optional `promptGuidelines`.
 

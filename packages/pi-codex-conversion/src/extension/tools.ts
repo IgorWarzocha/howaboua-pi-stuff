@@ -15,7 +15,6 @@ import { registerExecCommandTool } from "../tools/exec/command-tool.ts";
 import { registerWriteStdinTool } from "../tools/exec/write-stdin-tool.ts";
 import { registerViewImageTool } from "../tools/view-image/tool.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
-import { registerGptPromptMode } from "../prompt-mode.ts";
 
 export interface CodexToolRegistration {
 	applyConfig(config: CodexConversionConfig): void;
@@ -42,18 +41,6 @@ export function registerCodexTools(
 ): CodexToolRegistration {
 	registerApplyPatchResultEvent(pi);
 	pi.registerTool(runtime.autoReasoning.tool);
-	const reasoning = runtime.autoReasoning.tool;
-	const normalReasoningDescription = reasoning.description;
-	registerGptPromptMode(pi, (active) => {
-		const description = active
-			? "Routine→low; quick survey→medium; cross-system cause→high; interacting causes→xhigh. Change by work phase, not per call. Next request; user setting is the floor"
-			: normalReasoningDescription;
-		if (reasoning.description !== description) {
-			reasoning.description = description;
-			pi.registerTool(reasoning);
-		}
-		return [reasoning];
-	});
 	const allowsProvider = (model: Model<Api> | undefined) =>
 		isExplicitlyConfiguredToolProvider(model, runtime.state.config);
 	const unregisterProviderPolicy = registerCodexToolProviderPolicy(

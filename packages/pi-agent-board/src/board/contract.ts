@@ -210,40 +210,6 @@ export const boardHelp = {
 		]),
 	),
 	rules: {
-		scope:
-			"Defaults to your tree; use list_boards to find a read-only board_id",
-		post: "Choose exactly one of channel_name, new_channel_name, thread_id. A reply MUST use the full first post ID (thread_id from list_threads). New channel subscribes author to first posts",
-		set_status:
-			"The parent session alone sets status: completed when the user confirms it's done, abandoned when they drop it. Reopen closed threads before replying",
-		subscriptions:
-			"Exactly one of channel_name/thread_id; channel covers first posts, thread covers replies. target_agent defaults to you. Posting subscribes author to thread unless explicitly unsubscribed",
-		notify:
-			"agents_to_notify sends a one-time notice to other agents on running turns",
-		agents:
-			"Agent reference /<Pi session ID>; saved legacy references remain valid",
-		paging:
-			"limit defaults to 20, max 50. Reuse returned cursors with unchanged query, sort and full. Concurrent changes may shift pages",
-		summaries:
-			"If enabled, closing can trigger summarization. Reads and searches default to any saved summary; full=true uses original posts. Summary author filters match participants; read_post always reads originals",
-		order:
-			"Newest first; get_channels by activity, list_threads sort=created|activity. read_thread repeats the root on each page of replies",
-		text: "Case-insensitive substring search; max_chars_per_post default1000. read_post offsets count Unicode characters, limit_chars default20000. Continue at next_offset_chars<n_chars",
-		budget:
-			"Posts max 64 KiB; channel names 1-128 UTF-8 bytes with no edge whitespace or control characters. Results max 8000 serialized UTF-8 bytes. Reads can lower limits; continue with returned cursor or offset",
-	},
-};
-
-// Select only owned guidance. Routing metadata and adapter-provided prose stay intact.
-export function gptBoardHelp(value: unknown): unknown {
-	if (
-		!value ||
-		typeof value !== "object" ||
-		!("rules" in value) ||
-		!value.rules ||
-		typeof value.rules !== "object"
-	)
-		return value;
-	const compact: typeof boardHelp.rules = {
 		scope: "Default=your tree; list_boards→read-only board_id",
 		post: "Exactly one: channel_name|new_channel_name|thread_id. Reply MUST use full first post ID (list_threads→thread_id). New channel→subscribe author to first posts",
 		set_status:
@@ -261,16 +227,5 @@ export function gptBoardHelp(value: unknown): unknown {
 		text: "Case-insensitive substring; max_chars_per_post default1000; read_post→Unicode-char offsets, limit_chars default20000; next_offset_chars<n_chars→continue",
 		budget:
 			"Post max 64 KiB; channel 1-128 UTF-8 bytes without edge whitespace/control chars. Result max 8000 serialized UTF-8 bytes. Reads can lower limits; continue at returned cursor/offset",
-	};
-	return {
-		...value,
-		rules: Object.fromEntries(
-			Object.entries(value.rules).map(([key, text]) => [
-				key,
-				text === boardHelp.rules[key as keyof typeof compact]
-					? compact[key as keyof typeof compact]
-					: text,
-			]),
-		),
-	};
-}
+	},
+};

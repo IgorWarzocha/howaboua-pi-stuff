@@ -11,7 +11,6 @@ const MAX_OUTPUT_IMAGE_CHARS = 16 * 1024 * 1024;
 export function toCodeModeToolResult(
 	response: RuntimeResponse,
 	maxTokens?: number,
-	gpt = false,
 ) {
 	const scriptError =
 		response.kind === "result"
@@ -38,7 +37,7 @@ export function toCodeModeToolResult(
 			type: "text" as const,
 			text: formatRunningExecSessionGuidance(sessionId),
 		})),
-		...truncateTextContent(output, outputTokens * 4, gpt),
+		...truncateTextContent(output, outputTokens * 4),
 	];
 	const empty = !content.some(
 		(item) => item.type !== "text" || item.text.length > 0,
@@ -151,11 +150,9 @@ function toPiContent(item: RuntimeContentItem):
 function truncateTextContent<T extends { type: string; text?: string }>(
 	content: T[],
 	maxChars: number,
-	gpt: boolean,
 ): T[] {
-	const notice = gpt
-		? "[Output truncated; later results may be missing. Narrow reads; missing help→own cell. NEVER repeat side effects for output]"
-		: "[Output truncated; later results may be omitted. Narrow reads or fetch missing help separately. Do not rerun side effects for output.]";
+	const notice =
+		"[Output truncated; later results may be missing. Narrow reads; missing help→own cell. NEVER repeat side effects for output]";
 	let remaining = maxChars;
 	let truncated = false;
 	const output: T[] = [];

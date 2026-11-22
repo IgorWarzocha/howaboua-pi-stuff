@@ -223,7 +223,6 @@ export function createNotesFeature(
 	});
 	return {
 		enabled: () => runtime?.lifecycle.active ?? false,
-		gptPromptMode: () => runtime?.lifecycle.gptPromptMode() ?? false,
 		async openSettings(ctx) {
 			return open(ctx);
 		},

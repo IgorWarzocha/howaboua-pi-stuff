@@ -70,7 +70,6 @@ export async function createNotesRuntime(pi: ExtensionAPI, store: NotesStore) {
 	refreshNested = await registerNotesToolIntegrations(
 		pi,
 		lifecycle,
-		activation,
 		toolRegistration,
 	);
 	for (const tool of tools) pi.registerTool(tool);

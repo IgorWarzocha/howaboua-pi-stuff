@@ -17,14 +17,12 @@ export async function createBoardEngine(
 		(ctx) => runtime.population(ctx),
 		availability,
 		() => runtime.adapter?.briefing,
-		() => runtime.gptPromptMode,
 	);
 	const catchup = new BoardCatchup(
 		pi,
 		awareness,
 		(ctx, request) => runtime.toOwner(ctx, request),
 		availability,
-		() => runtime.gptPromptMode,
 	);
 	const turns = new BoardTurns(
 		pi,

@@ -85,7 +85,6 @@ export async function createBoardFeature(
 	});
 	return {
 		enabled: (ctx) => board.enabled(ctx),
-		gptPromptMode: () => board.gptPromptMode,
 		openSettings: open,
 	};
 }

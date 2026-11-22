@@ -6,13 +6,7 @@ import type {
 import type { Schema } from "@earendil-works/pi-schema";
 import type { NotesActivation } from "./activation.js";
 import type { NotesLifecycle } from "./lifecycle.js";
-import {
-	GPT_NEW_CONTEXT_DESCRIPTION,
-	HISTORY_USAGE,
-	NEW_CONTEXT_DESCRIPTION,
-	NOTES_SCHEMA,
-	NOTES_USAGE,
-} from "./tool-contracts.js";
+import { HISTORY_USAGE, NOTES_SCHEMA, NOTES_USAGE } from "./tool-contracts.js";
 import type { createTools } from "./tools.js";
 import { projectTreeCheckpointBranch } from "./tree-checkpoint.js";
 import { projectTreeHandoffBranch } from "./tree-handoff-read.js";
@@ -21,39 +15,9 @@ import type { WindowCheckpoints } from "./window-checkpoint.js";
 export async function registerNotesToolIntegrations(
 	pi: ExtensionAPI,
 	lifecycle: NotesLifecycle,
-	activation: NotesActivation,
 	registration: ReturnType<typeof createTools>,
 ) {
 	const { tools, requestContext } = registration;
-	try {
-		const { registerGptPromptMode } =
-			await import("@howaboua/pi-codex-conversion/prompt-mode");
-		const registration = registerGptPromptMode(pi, (active, ctx) => {
-			if (ctx) activation.refreshActivation(ctx);
-			const tool = tools.find((tool) => tool.name === "new_context");
-			const description = active
-				? GPT_NEW_CONTEXT_DESCRIPTION
-				: NEW_CONTEXT_DESCRIPTION;
-			if (tool && tool.description !== description) {
-				tool.description = description;
-				pi.registerTool(tool);
-			}
-			return lifecycle.active ? tools : [];
-		});
-		lifecycle.gptPromptMode = () => registration.active;
-	} catch (error) {
-		if (
-			!(error instanceof Error) ||
-			!("code" in error) ||
-			![
-				"ERR_MODULE_NOT_FOUND",
-				"MODULE_NOT_FOUND",
-				"ERR_PACKAGE_PATH_NOT_EXPORTED",
-			].includes(String(error.code)) ||
-			!error.message.includes("@howaboua/pi-codex-conversion")
-		)
-			throw error;
-	}
 	let refreshNested = () => {};
 	const noteProperties = NOTES_SCHEMA["properties"] as Record<string, Schema>;
 	try {

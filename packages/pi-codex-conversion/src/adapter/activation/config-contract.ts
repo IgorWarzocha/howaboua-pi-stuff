@@ -56,7 +56,6 @@ export function normalizeOpenAIRealtimeVoice(
 import type { ExecutionMode } from "./execution-mode.ts";
 
 export type CodexVerbosity = "low" | "medium" | "high";
-export type HeavySystemPromptOverwrite = boolean | "gpt";
 export const FAST_MODE_FAMILIES = ["astra", "sol", "terra", "luna"] as const;
 export type FastModeFamily = (typeof FAST_MODE_FAMILIES)[number];
 export type FastModeConfig = Record<
@@ -113,7 +112,7 @@ export const LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS: readonly LunaCacheKeepaliveMi
 export interface CodexConversionConfig {
 	executionMode: ExecutionMode;
 	prompt: {
-		heavySystemPromptOverwrite: HeavySystemPromptOverwrite;
+		heavySystemPromptOverwrite: boolean;
 		currentTimeReminderMinutes: 0 | 30 | 60;
 	};
 	scope: { allProviders: AllProvidersMode; additionalProviders: string[] };

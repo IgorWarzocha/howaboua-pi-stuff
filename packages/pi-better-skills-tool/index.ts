@@ -33,39 +33,10 @@ export default async function skillsExtension(pi: ExtensionAPI): Promise<void> {
 			);
 		}
 	});
-	let gpt = false;
 	const tool = createSkillsTool({
 		getLoadedSkills: () => loadedSkills,
-		isGpt: () => gpt,
 	});
-	const ordinaryGuidelines = tool.promptGuidelines;
 	pi.registerTool(tool);
-	try {
-		const { registerGptPromptMode } =
-			await import("@howaboua/pi-codex-conversion/prompt-mode");
-		registerGptPromptMode(pi, (active) => {
-			gpt = active;
-			if (active)
-				tool.promptGuidelines = [
-					"skills: List once/session start; before work read always-applicable+task-relevant skills",
-				];
-			else if (ordinaryGuidelines) tool.promptGuidelines = ordinaryGuidelines;
-			else delete tool.promptGuidelines;
-			return [tool];
-		});
-	} catch (error) {
-		if (
-			!(error instanceof Error) ||
-			!("code" in error) ||
-			![
-				"ERR_MODULE_NOT_FOUND",
-				"MODULE_NOT_FOUND",
-				"ERR_PACKAGE_PATH_NOT_EXPORTED",
-			].includes(String(error.code)) ||
-			!error.message.includes(CODE_MODE_PACKAGE)
-		)
-			throw error;
-	}
 
 	const registration = await registerSkillsInCodeMode(pi, tool);
 	pi.on("session_shutdown", () => {

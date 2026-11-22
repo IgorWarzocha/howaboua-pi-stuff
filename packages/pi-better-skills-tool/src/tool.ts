@@ -14,7 +14,6 @@ const checkParameters = compile(SkillsParameters).check;
 type SkillsParameters = Static<typeof SkillsParameters>;
 
 export interface SkillsToolOptions {
-	isGpt?(): boolean;
 	globalRoot?: string;
 	getLoadedSkills?(): readonly LoadedSkill[];
 }
@@ -41,7 +40,7 @@ export function createSkillsTool(options: SkillsToolOptions = {}) {
 		label: "Skills",
 		description: "Load skill instructions and references",
 		promptGuidelines: [
-			"skills: List once at session start; read always-applicable and task-relevant skills before work",
+			"skills: List once/session start; before work read always-applicable+task-relevant skills",
 		],
 		parameters: SkillsParameters,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -54,7 +53,6 @@ export function createSkillsTool(options: SkillsToolOptions = {}) {
 				options.globalRoot ?? defaultSkillsDir(),
 				defaultSessionSkillsDir(ctx.cwd),
 				options.getLoadedSkills?.() ?? [],
-				options.isGpt?.() ?? false,
 			);
 			return {
 				content: [{ type: "text", text: output }],

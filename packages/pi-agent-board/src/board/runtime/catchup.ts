@@ -18,7 +18,6 @@ export class BoardCatchup {
 		ctx: ExtensionContext,
 		error?: unknown,
 	) => void;
-	private readonly gpt: () => boolean;
 	constructor(
 		pi: ExtensionAPI,
 		awareness: BoardAwareness,
@@ -27,13 +26,11 @@ export class BoardCatchup {
 			request: BoardEnvelope,
 		) => Promise<unknown>,
 		availability: (ctx: ExtensionContext, error?: unknown) => void,
-		gpt: () => boolean,
 	) {
 		this.pi = pi;
 		this.awareness = awareness;
 		this.request = request;
 		this.availability = availability;
-		this.gpt = gpt;
 	}
 	async read(
 		ctx: ExtensionContext,
@@ -70,7 +67,7 @@ export class BoardCatchup {
 				.some((tool) => ["exec", "code", "notebook"].includes(tool));
 			return {
 				content: result.length
-					? `\n\n${this.gpt() ? "Unread board updates→read task-relevant threads:" : "Unread board updates available; read if relevant to the current task:"} ${[
+					? `\n\nUnread board updates→read task-relevant threads: ${[
 							...new Set(result.map((post) => post.thread_id)),
 						]
 							.map((thread_id) => {

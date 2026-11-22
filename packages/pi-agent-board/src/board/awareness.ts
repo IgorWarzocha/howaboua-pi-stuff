@@ -27,19 +27,16 @@ export class BoardAwareness {
 		ctx: ExtensionContext,
 		error?: unknown,
 	) => void;
-	private readonly gpt: () => boolean;
 	private readonly privateBriefing: () => BoardAdapter["briefing"];
 	constructor(
 		pi: ExtensionAPI,
 		read: (ctx: ExtensionContext) => Promise<unknown>,
 		availability: (ctx: ExtensionContext, error?: unknown) => void,
 		privateBriefing: () => BoardAdapter["briefing"],
-		gpt: () => boolean = () => false,
 	) {
 		this.pi = pi;
 		this.read = read;
 		this.availability = availability;
-		this.gpt = gpt;
 		this.privateBriefing = privateBriefing;
 	}
 
@@ -158,7 +155,7 @@ export class BoardAwareness {
 			const privateBriefing = this.privateBriefing();
 			return privateBriefing
 				? privateBriefing(Boolean(own.upstream), population)
-				: boardBriefing(Boolean(own.upstream), population, this.gpt());
+				: boardBriefing(Boolean(own.upstream), population);
 		});
 	}
 }

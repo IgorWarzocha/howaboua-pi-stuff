@@ -18,14 +18,6 @@ export interface WindowDetails {
 	tail?: RolloverTail;
 }
 const GUIDANCE = `<context_window_guidance>
-Use short checkpoints with relative paths. Reuse notes without duplicating state. Record only the current goal, task-specific constraints or exceptions, decisions, status, next action and evidence/history links. Omit harness instructions, tool usage and skill-read bookkeeping.
-
-Before replying, save only changes you'll need after rollover unless explicit reminders or earlier handoffs require a save. If a no-action report needs recording, add only its run/report ID and "no owned action". Keep current state first. Replace superseded status; append only if prior state remains accurate. Retrieve older decisions and evidence through history.
-
-Save relevant notes before handoff. On recovery, read relevant notes, necessary links and a few relevant user messages via history, then resume the current task. Avoid unchanged rereads except required skills after rollover. Follow current instructions; neither past messages nor checkpoints renew permission to act.
-</context_window_guidance>`;
-
-const GPT_GUIDANCE = `<context_window_guidance>
 Short checkpoints, relative paths. Reuse notes; avoid duplicate state. Keep only current goal, task constraints/exceptions, decisions/status, next action, evidence/history links. Omit harness/tool instructions and skill-read state.
 
 Before reply→save only changes needed after rollover unless explicit reminders/earlier handoffs require saving. No-action report + save needed→run/report ID + "no owned action" only. Current first; replace superseded status; append only if prior state stays accurate. History→older decisions/evidence.
@@ -207,7 +199,6 @@ export function windowMessage(
 	hint: string,
 	trim: boolean,
 	kind: "window" | "identity" = "window",
-	gpt = false,
 	role?: string,
 	tail?: RolloverTail,
 ): CustomMessageEntryDraft {
@@ -217,7 +208,7 @@ export function windowMessage(
 	return {
 		type: "custom_message",
 		customType: WINDOW_MESSAGE,
-		content: `${gpt ? GPT_GUIDANCE : GUIDANCE}\n\n<context_window>\n${lines.join("\n")}\n</context_window>`,
+		content: `${GUIDANCE}\n\n<context_window>\n${lines.join("\n")}\n</context_window>`,
 		display: true,
 		details: {
 			protocol: 1,

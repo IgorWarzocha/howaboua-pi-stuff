@@ -5,5 +5,5 @@
 - Tool-specific runtime guidance uses Code's captured nested catalogue, not outer `exec`/`wait` availability or a live inventory read.
 - Provider code may serialize or capture final instructions but must not author prompt text. Later Pi extensions may still mutate the prompt; inspect the final provider payload when exact sent instructions matter.
 - Keep construction deterministic and cache-stable.
-- GPT mode inherits Heavy's scaffold removal. Compact only paired owned guidance; preserve foreign contributions and opaque overrides. Off/on text must stay unchanged.
+- PCC guidance is always compact. Heavy overwrite changes Pi's stock scaffold only. Preserve foreign contributions and opaque overrides.
 - Assume GPT knows durable Codex concepts; emit only Pi/local/failure deltas. On new models delete first, restore only real-use regressions; ignore synthetic evals.

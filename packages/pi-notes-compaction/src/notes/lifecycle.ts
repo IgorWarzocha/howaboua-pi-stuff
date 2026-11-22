@@ -47,7 +47,6 @@ import {
 // Public event coordinator owns window identity and orders settlement before admissions.
 export class NotesLifecycle {
 	readonly windows = new Windows();
-	gptPromptMode = () => false;
 	active = false;
 	normalCompaction = false;
 	newWindowRequests: NewWindowRequests = "unrestricted";
@@ -144,7 +143,6 @@ export class NotesLifecycle {
 				noteHints(this.store, ctx, this.agent(ctx)),
 				false,
 				inherited ? "identity" : "window",
-				this.gptPromptMode(),
 			);
 		} else if (
 			latest.type === "custom_message" &&
@@ -157,7 +155,6 @@ export class NotesLifecycle {
 				noteHints(this.store, ctx, this.agent(ctx)),
 				false,
 				"identity",
-				this.gptPromptMode(),
 			);
 		}
 	}
@@ -286,7 +283,6 @@ export class NotesLifecycle {
 			hint,
 			trim,
 			"window",
-			this.gptPromptMode(),
 			handoff?.id ?? selectedWindowRole(ctx.sessionManager.getBranch()),
 			tail,
 		);

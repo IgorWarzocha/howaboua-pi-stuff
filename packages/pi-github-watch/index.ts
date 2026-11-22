@@ -34,9 +34,6 @@ const MINUTE = 60000;
 const AUTOMATIC_UPDATES =
 	"Updates arrive automatically; no polling or gh run watch needed";
 const HELP =
-	"Set action to watch, status, or cancel. For watch, thread accepts an issue/PR or Actions run URL, owner/repo#123, or a number for the current repo's GitHub origin. status lists watches. cancel uses the same thread reference; omit it to cancel all offline. Checks run every minute (first PR check after 7 minutes). Conversation comments and standalone reviews report changes except the authenticated gh account's. PRs also report head changes and existing or updated unresolved threads. PR closure/merge and latest-attempt run completion report status and end the watch, immediately if already terminal. Fetch comment bodies and logs separately. Watches end on session switch, reload or shutdown. Failed checks pause; watch again to resume";
-
-const GPT_HELP =
 	"action: watch, status, cancel. watch thread: issue/PR or Actions run URL, owner/repo#123, number for current repo's GitHub origin. status→list; cancel same thread or omit→cancel all offline. Checks every minute; PR first after 7min. Conversation/standalone review changes except authenticated gh account's; PR head changes and existing/updated unresolved threads. PR closed/merged or latest run attempt complete→report+stop; already terminal→report immediately. Fetch bodies/logs separately. Session switch/reload/shutdown→end watches. Check failure→pause; watch again→resume";
 
 function runResult(
@@ -52,11 +49,6 @@ function runResult(
 }
 
 export default async function (pi: ExtensionAPI) {
-	let promptMode:
-		| {
-				readonly active: boolean;
-		  }
-		| undefined;
 	const watches = new Map<string, Watch>();
 	let generation = 0;
 	const clear = () => {
@@ -171,8 +163,7 @@ export default async function (pi: ExtensionAPI) {
 				details: {},
 			});
 			const action = args.action ?? "help";
-			if (action === "help")
-				return result(promptMode?.active ? GPT_HELP : HELP);
+			if (action === "help") return result(HELP);
 			if (action === "status") {
 				if (!watches.size) return result("No active watches.");
 				const current = [...watches.values()];
@@ -259,23 +250,6 @@ export default async function (pi: ExtensionAPI) {
 		},
 	});
 	pi.registerTool(tool);
-	try {
-		const module = "@howaboua/pi-codex-conversion/prompt-mode";
-		const { registerGptPromptMode } = await import(module);
-		promptMode = registerGptPromptMode(pi, () => [tool]);
-	} catch (error) {
-		if (
-			!(error instanceof Error) ||
-			!("code" in error) ||
-			![
-				"ERR_MODULE_NOT_FOUND",
-				"MODULE_NOT_FOUND",
-				"ERR_PACKAGE_PATH_NOT_EXPORTED",
-			].includes(String(error.code)) ||
-			!error.message.includes("@howaboua/pi-codex-conversion")
-		)
-			throw error;
-	}
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
 			await import("@howaboua/pi-codex-conversion/code-mode");

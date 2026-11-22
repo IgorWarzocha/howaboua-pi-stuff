@@ -60,22 +60,16 @@ export function buildAdapterSettings(
 			{
 				id: "heavySystemPromptOverwrite",
 				description:
-					"On replaces Pi’s default instructions with shorter ones. GPT also compresses the adapter’s instructions. Savings vary; other extensions’ instructions are kept.",
+					"Replace Pi’s default instructions with compact guidance. Keeps instructions from other extensions.",
 				label: "Heavy system prompt overwrite",
-				currentValue:
-					config.prompt.heavySystemPromptOverwrite === "gpt"
-						? "GPT (experimental)"
-						: config.prompt.heavySystemPromptOverwrite
-							? "on (40% smaller)"
-							: "off",
-				values: ["off", "on (40% smaller)", "GPT (experimental)"],
+				currentValue: config.prompt.heavySystemPromptOverwrite ? "on" : "off",
+				values: ["off", "on"],
 			},
 			(value, current) => ({
 				...current,
 				prompt: {
 					...current.prompt,
-					heavySystemPromptOverwrite:
-						value === "GPT (experimental)" ? "gpt" : value !== "off",
+					heavySystemPromptOverwrite: value === "on",
 				},
 			}),
 		),

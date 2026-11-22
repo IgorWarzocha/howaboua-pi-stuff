@@ -5,7 +5,6 @@ import type {
 	opt as schemaOpt,
 	str as schemaStr,
 } from "@earendil-works/pi-schema";
-import { browserHelp } from "./browser/help.js";
 import { isRecordValue } from "./browser/parse-operation.js";
 import { parseBrowserRequest } from "./browser/request.js";
 import type { BrowserRuntime } from "./browser/runtime.js";
@@ -42,7 +41,6 @@ export function createBrowserTool(
 		str: typeof schemaStr;
 	},
 	runtime: BrowserRuntime,
-	isGpt = () => false,
 ) {
 	const parameters = obj(
 		{
@@ -64,7 +62,7 @@ export function createBrowserTool(
 			ctx,
 		) {
 			const request = parseBrowserRequest(input.command);
-			let result = await runtime.execute(request, {
+			const result = await runtime.execute(request, {
 				ownerId: ctx.sessionManager.getSessionId(),
 				signal: signal ?? new AbortController().signal,
 				onOperation(operation, index, total) {
@@ -87,8 +85,6 @@ export function createBrowserTool(
 					});
 				},
 			});
-			if (isGpt() && "help" in request)
-				result = browserHelp(runtime.hosts, true);
 			return {
 				content: [{ type: "text", text: JSON.stringify(result) }],
 				details: result,

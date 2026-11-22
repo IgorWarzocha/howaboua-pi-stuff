@@ -198,7 +198,14 @@ export function assertWritableConfig(document: Record<string, unknown>): void {
 export function stampConfigDocument(
 	document: Record<string, unknown>,
 ): Record<string, unknown> {
-	const current = { ...document, settingsVersion: SETTINGS_VERSION };
+	const prompt = document["prompt"];
+	const current = {
+		...document,
+		...(isRecord(prompt) && prompt["heavySystemPromptOverwrite"] === "gpt"
+			? { prompt: { ...prompt, heavySystemPromptOverwrite: true } }
+			: {}),
+		settingsVersion: SETTINGS_VERSION,
+	};
 	assertConfigDocument(current);
 	return current;
 }

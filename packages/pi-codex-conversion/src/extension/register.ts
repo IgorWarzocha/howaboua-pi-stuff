@@ -32,11 +32,10 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	const promptMode = registerGptPromptModeBroker(
 		pi,
 		(ctx) =>
-			runtime.state.config.prompt.heavySystemPromptOverwrite === "gpt" &&
+			runtime.state.config.prompt.heavySystemPromptOverwrite &&
 			isAdapterRuntime(resolveCodexRuntimePlanForState(ctx, runtime.state)),
 	);
-	// Pi clones prompt options before hooks. Refresh owned metadata before Code
-	// captures tools, and before the later conversion turn hook builds its prompt.
+	// Refresh legacy opt-in metadata before Code captures tools or PCC builds its prompt.
 	pi.on("before_agent_start", (event, ctx) =>
 		promptMode.prepare(ctx, event.systemPromptOptions),
 	);

@@ -15,8 +15,6 @@ const MAX_OUTPUT_BYTES = 48 * 1024;
 // Leave room for an exact continuation command inside the output budget.
 const MAX_COMMAND_BYTES = 4 * 1024;
 const READ_HELP =
-	"Reference-only selectors skip the first skill's body. For both: read skill; read other/references/topic";
-const GPT_READ_HELP =
 	"Reference-only selectors skip first skill body. Both: read skill; read other/references/topic";
 
 type SkillRequest =
@@ -181,7 +179,6 @@ export function runSkills(
 		? defaultSessionSkillsDir()
 		: undefined,
 	loadedSkills: readonly LoadedSkill[] = [],
-	gpt = false,
 ) {
 	const request = parseRequest(input);
 	const skills = discoverVisibleSkills(globalRoot, sessionRoot, loadedSkills);
@@ -206,8 +203,8 @@ export function runSkills(
 		} else {
 			result.output +=
 				command.action === "help"
-					? `${gpt ? "" : "Commands: "}list [category...] | read <skill> [skill-or-reference...] | help\nJS: tools.skills("read <skill>")\nSeparate full commands with semicolons. ${gpt ? GPT_READ_HELP : READ_HELP}\n\n${formatSkillList(skills)}`
-					: `${gpt ? GPT_READ_HELP : READ_HELP}\n\n${formatSkillList(skills, command.categories)}`;
+					? `list [category...] | read <skill> [skill-or-reference...] | help\nJS: tools.skills("read <skill>")\nSeparate full commands with semicolons. ${READ_HELP}\n\n${formatSkillList(skills)}`
+					: `${READ_HELP}\n\n${formatSkillList(skills, command.categories)}`;
 		}
 	}
 	return boundedOutput(result, request);

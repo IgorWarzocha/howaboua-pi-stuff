@@ -1,5 +1,6 @@
 import type {
 	ExtensionAPI,
+	ExtensionContext,
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import {
@@ -17,9 +18,6 @@ import {
 } from "./host-protocol.js";
 import {
 	EXEC_DESCRIPTION,
-	GPT_EXEC_DESCRIPTION,
-	GPT_ISOLATED_EXEC_GUIDANCE,
-	GPT_VM_EXEC_DESCRIPTION,
 	ISOLATED_EXEC_GUIDANCE,
 	VM_EXEC_DESCRIPTION,
 	WAIT_DESCRIPTION,
@@ -39,7 +37,6 @@ import { registerCodeModePreflightBroker } from "./nested-tool-preflight.js";
 import { continueExecSessionFromMistakenWait } from "./wait-session-recovery.js";
 import { registerNotebookTool } from "./notebook-tool.ts";
 import { PiToolCallScope } from "./pi-tool-call-scope.ts";
-import { registerGptPromptMode } from "../../prompt-mode.ts";
 
 const DEFAULT_WAIT_MS = 10_000;
 const MIN_ADAPTIVE_WAIT_MS = 5_000;
@@ -75,45 +72,35 @@ const WAIT_PARAMETERS = obj(
 export function registerPublicCodeModeTools(
 	pi: ExtensionAPI,
 	runtime: SharedCodeModeRuntime,
-): void {
+) {
 	const tracker = createCodeModeRenderTracker();
 	const waitAttempts = new Map<string, number>();
 	const renderResult = createResultRenderer(runtime, tracker);
 	const broker = registerCodeModePreflightBroker(pi);
 	const hooks = { preflight: broker.run, completion: broker.complete };
-	let gpt = false;
-	const isGpt = () => gpt;
-	const exec = createExecTool(runtime, tracker, renderResult, hooks, isGpt);
+	const exec = createExecTool(runtime, tracker, renderResult, hooks);
 	const wait = createWaitTool(
 		runtime,
 		tracker,
 		renderResult,
 		waitAttempts,
 		hooks,
-		isGpt,
 	);
 	pi.registerTool(exec);
 	pi.registerTool(wait);
+	registerNotebookTool(pi, runtime);
 	let currentExec = exec;
-	registerGptPromptMode(pi, (active, context) => {
-		gpt = active;
-		const kind =
-			context === undefined ? "code" : runtime.executionKind(context);
+	return (context: ExtensionContext, toolSnippets: Record<string, string>) => {
+		const kind = runtime.executionKind(context);
 		const vm = kind === "vm";
 		const notebook = kind === "ts";
 		const language = notebook ? "TypeScript" : "JavaScript";
 		const description = vm
-			? active
-				? GPT_VM_EXEC_DESCRIPTION
-				: VM_EXEC_DESCRIPTION
-			: (active ? GPT_EXEC_DESCRIPTION : EXEC_DESCRIPTION).replace(
-					"JavaScript",
-					language,
-				) +
-				(notebook
-					? `\n${active ? GPT_ISOLATED_EXEC_GUIDANCE : ISOLATED_EXEC_GUIDANCE}`
-					: "");
+			? VM_EXEC_DESCRIPTION
+			: EXEC_DESCRIPTION.replace("JavaScript", language) +
+				(notebook ? `\n${ISOLATED_EXEC_GUIDANCE}` : "");
 		const executionMode = notebook ? "parallel" : "sequential";
+		const promptSnippet = `Run ${language} cells`;
 		if (
 			currentExec.description !== description ||
 			currentExec.executionMode !== executionMode
@@ -124,13 +111,13 @@ export function registerPublicCodeModeTools(
 				...exec,
 				description,
 				executionMode,
-				promptSnippet: `Run ${language} cells`,
+				promptSnippet,
 			};
 			pi.registerTool(currentExec);
 		}
-		return [currentExec];
-	});
-	registerNotebookTool(pi, runtime);
+		// Pi has already cloned prompt options for this kickoff.
+		toolSnippets["exec"] = promptSnippet;
+	};
 }
 
 function createExecTool(
@@ -138,7 +125,6 @@ function createExecTool(
 	tracker: RenderTracker,
 	renderResult: ReturnType<typeof createResultRenderer>,
 	hooks: Pick<ToolExecutionContext, "preflight" | "completion">,
-	isGpt: () => boolean,
 ): ToolDefinition<typeof EXEC_PARAMETERS> {
 	return {
 		name: "exec",
@@ -200,7 +186,7 @@ function createExecTool(
 					);
 				const visible = runtime.deliverOpaqueResponse(response, id, guard);
 				tracker.finish(id, visible.kind === "yielded" ? "yielded" : "done");
-				return toCodeModeToolResult(visible, undefined, isGpt());
+				return toCodeModeToolResult(visible);
 			} catch (error) {
 				tracker.finish(id);
 				throw error;
@@ -230,7 +216,6 @@ function createWaitTool(
 	renderResult: ReturnType<typeof createResultRenderer>,
 	waitAttempts: Map<string, number>,
 	hooks: Pick<ToolExecutionContext, "preflight" | "completion">,
-	isGpt: () => boolean,
 ): ToolDefinition<typeof WAIT_PARAMETERS> {
 	const constrainedSampling = getExperimentalToolSampling("wait");
 	return {
@@ -258,7 +243,7 @@ function createWaitTool(
 				if (completed) {
 					waitAttempts.delete(params.cell_id);
 					tracker.finish(id, "done");
-					return toCodeModeToolResult(completed, params.max_tokens, isGpt());
+					return toCodeModeToolResult(completed, params.max_tokens);
 				}
 				const client = await runtime.getClient(ctx);
 				const guard = runtime
@@ -318,7 +303,7 @@ function createWaitTool(
 					waitAttempts.set(params.cell_id, attempt + 1);
 				else waitAttempts.delete(params.cell_id);
 				tracker.finish(id, response.kind === "yielded" ? "yielded" : "done");
-				return toCodeModeToolResult(response, params.max_tokens, isGpt());
+				return toCodeModeToolResult(response, params.max_tokens);
 			} catch (error) {
 				waitAttempts.delete(params.cell_id);
 				tracker.finish(id);

@@ -27,7 +27,7 @@ export function createWebSearchTool(
 			? {}
 			: { promptSnippet: "Explicit args" }),
 		promptGuidelines: [
-			"web_run: Reuse returned ref_ids for navigation. Cite only Markdown links to result URLs",
+			"web_run: navigation→returned ref_ids; cite only Markdown links to result URLs",
 		],
 		parameters: WEB_SEARCH_PARAMETERS,
 		prepareArguments: (args) =>

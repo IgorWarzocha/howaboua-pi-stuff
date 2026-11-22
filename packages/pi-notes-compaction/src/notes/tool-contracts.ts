@@ -37,8 +37,6 @@ export const NOTES_DESCRIPTION = "Virtual filesystem task checkpoints";
 export const NOTES_ROUTING_GUIDELINE =
 	"notes: Access virtual note paths only through notes. MUST NOT store project files or deliverables";
 export const NEW_CONTEXT_DESCRIPTION =
-	"Start a fresh context window. MUST successfully write or append your own notes immediately before calling";
-export const GPT_NEW_CONTEXT_DESCRIPTION =
 	"Fresh context. MUST write/append own notes successfully just before calling";
 const STRING = opt(str());
 const INTEGER = opt(int({ minimum: 1 }));
@@ -249,7 +247,6 @@ export function result(payload: unknown): AgentToolResult<unknown> {
 export function queryHelp(
 	namespace: LookupQuery["namespace"],
 	input: unknown,
-	gpt = false,
 ): AgentToolResult<unknown> | undefined {
 	const params = input === undefined ? {} : input;
 	if (!params || typeof params !== "object" || Array.isArray(params))
@@ -283,26 +280,18 @@ export function queryHelp(
 			),
 			...(namespace === "notes"
 				? {
-						writes: gpt
-							? "write=replace; append=add"
-							: "write replaces; append adds",
-						paths: gpt
-							? "Own list/search→omit path; relative=own notes; absolute MUST use /<session ID>/notes[/path]"
-							: "Omit path to list or search your notes. Relative paths refer to your notes; absolute paths MUST use /<session ID>/notes with an optional path suffix",
-						ranges: gpt
-							? "start_line/stop_line=1-based inclusive; negative=from end; 0/null/omitted=first/last; out-of-range→clamp; reversed→empty"
-							: "start_line/stop_line inclusive, 1-based; negative from end; 0/null/omitted uses first/last line; out-of-range clamps; reversed returns empty content",
-						defaults: gpt
-							? "list limit=20; search limit/max_matches_per_file=20; limits clamp 1..100; list/search name ascending; recent_file_first→created_at descending"
-							: "list limit 20; search limit/max_matches_per_file 20; limits clamp 1..100; list/search name ascending; recent_file_first sorts created_at descending",
+						writes: "write=replace; append=add",
+						paths:
+							"Own list/search→omit path; relative=own notes; absolute MUST use /<session ID>/notes[/path]",
+						ranges:
+							"start_line/stop_line=1-based inclusive; negative=from end; 0/null/omitted=first/last; out-of-range→clamp; reversed→empty",
+						defaults:
+							"list limit=20; search limit/max_matches_per_file=20; limits clamp 1..100; list/search name ascending; recent_file_first→created_at descending",
 					}
 				: {
-						usage: gpt
-							? "query→search default; past chat→search rather than browse; reuse returned IDs unchanged"
-							: "With query, action defaults to search. Search past chat rather than browsing it. Reuse returned IDs unchanged",
-						search: gpt
-							? "recent_first=true→newest first"
-							: "recent_first=true uses newest first",
+						usage:
+							"query→search default; past chat→search rather than browse; reuse returned IDs unchanged",
+						search: "recent_first=true→newest first",
 					}),
 		});
 	}

@@ -1,12 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-export function renderTaskBoundaryReminder(
-	remainingPercent: number,
-	gpt = false,
-): string {
-	if (gpt)
-		return `<context_window_reminder>\nSuggested budget reached; ${remainingPercent}% left. Task sequence→finish current task→save notes→new_context before next; otherwise continue here.\n</context_window_reminder>`;
-	return `<context_window_reminder>\nSuggested context budget reached; ${remainingPercent}% remains. For task sequences, finish current task, save notes and call new_context before next task. Otherwise continue here.\n</context_window_reminder>`;
+export function renderTaskBoundaryReminder(remainingPercent: number): string {
+	return `<context_window_reminder>\nSuggested budget reached; ${remainingPercent}% left. Task sequence→finish current task→save notes→new_context before next; otherwise continue here.\n</context_window_reminder>`;
 }
 
 export const TASK_BOUNDARY_PRESETS = [

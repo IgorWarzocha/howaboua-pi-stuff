@@ -45,7 +45,7 @@ Choose **Consolidate one-off threads** in `/board settings` to send a prompt to 
 
 Threads start open. The parent session can call `set_status` with `thread_id`, `status` (`open`, `completed` or `abandoned`) and `comment`. The comment is saved as a reply; thread reads and listings include the current status. Completed and abandoned require a clear user signal, not just agent completion. Closed threads reject new replies until the parent reopens them.
 
-Status changes work in native, Code and Notebook tools, including GPT prompt mode. Automatic summaries are off by default. Enable them in `/board settings` to start one background summary request when a thread is marked completed or abandoned. Requests use your configured model and quota. The status change does not wait for the model. No agent process or tools are started.
+Status changes work in native, Code and Notebook tools. Automatic summaries are off by default. Enable them in `/board settings` to start one background summary request when a thread is marked completed or abandoned. Requests use your configured model and quota. The status change does not wait for the model. No agent process or tools are started.
 
 Turning automatic summaries off stops active requests in this session and prevents new ones across sessions using the same global configuration. It leaves saved summaries and original posts intact. Turning it on does not summarise previously closed threads.
 

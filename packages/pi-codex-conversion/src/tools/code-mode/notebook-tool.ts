@@ -1,4 +1,4 @@
-import { notebookHelpForPromptMode } from "./notebook-help.ts";
+import { NOTEBOOK_HELP } from "./notebook-help.ts";
 import type {
 	ExtensionAPI,
 	ToolDefinition,
@@ -14,10 +14,6 @@ import {
 	union,
 	type Static,
 } from "@earendil-works/pi-schema";
-import {
-	registerGptPromptMode,
-	type GptPromptModeRegistration,
-} from "../../prompt-mode.ts";
 import { getExperimentalToolSampling } from "../tool-sampling.ts";
 import type { SharedCodeModeRuntime } from "./shared-runtime.ts";
 import { notebookRenderers } from "./notebook-rendering.ts";
@@ -86,17 +82,6 @@ const notebookDiscovery = compile(NOTEBOOK_DISCOVERY_PARAMETERS);
 
 const NOTEBOOK_DESCRIPTION = "Manage persistent notebook state";
 
-const notebookPromptModes = new WeakMap<
-	SharedCodeModeRuntime,
-	GptPromptModeRegistration
->();
-
-function notebookHelp(runtime: SharedCodeModeRuntime): string {
-	return notebookHelpForPromptMode(
-		notebookPromptModes.get(runtime)?.active === true,
-	);
-}
-
 type NotebookToolParameters = {
 	action: string;
 	query?: string | undefined;
@@ -110,10 +95,6 @@ export function registerNotebookTool(
 	pi: ExtensionAPI,
 	runtime: SharedCodeModeRuntime,
 ): void {
-	notebookPromptModes.set(
-		runtime,
-		registerGptPromptMode(pi, () => undefined),
-	);
 	const constrainedSampling = getExperimentalToolSampling("notebook");
 	pi.registerTool({
 		name: "notebook",
@@ -157,7 +138,7 @@ export function registerNotebookTool(
 				throw new Error("Notebook controls require TS mode");
 			if (params.input === undefined || params.input === "help")
 				return {
-					content: [{ type: "text", text: notebookHelp(runtime) }],
+					content: [{ type: "text", text: NOTEBOOK_HELP }],
 					details: { action: "help" },
 				};
 			let action: unknown;
@@ -171,7 +152,7 @@ export function registerNotebookTool(
 			}
 			if (notebookDiscovery.check(action))
 				return {
-					content: [{ type: "text", text: notebookHelp(runtime) }],
+					content: [{ type: "text", text: NOTEBOOK_HELP }],
 					details: { action: "help" },
 				};
 			const result = await runtime.controlNotebook(
@@ -207,7 +188,7 @@ export function createNotebookControlProxy(
 		async invoke(input, context, signal) {
 			if (input === undefined || notebookDiscovery.check(input))
 				return {
-					message: notebookHelp(runtime),
+					message: NOTEBOOK_HELP,
 					details: { action: "help" },
 				};
 			const request = parseNotebookRequest(input);

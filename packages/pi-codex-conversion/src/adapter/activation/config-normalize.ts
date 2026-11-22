@@ -70,9 +70,7 @@ export function normalizeCodexConversionConfig(
 					: 0,
 			heavySystemPromptOverwrite:
 				prompt["heavySystemPromptOverwrite"] === "gpt" ||
-				typeof prompt["heavySystemPromptOverwrite"] === "boolean"
-					? prompt["heavySystemPromptOverwrite"]
-					: DEFAULT_CODEX_CONVERSION_CONFIG.prompt.heavySystemPromptOverwrite,
+				prompt["heavySystemPromptOverwrite"] === true,
 		},
 		scope: {
 			allProviders:

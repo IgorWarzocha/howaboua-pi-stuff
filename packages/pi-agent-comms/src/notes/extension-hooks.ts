@@ -131,7 +131,6 @@ export async function registerNotesHooks(
 				? lifecycle.taskBoundaryReminder
 				: 0,
 			!lifecycle.fresh(ctx, lifecycle.runId),
-			lifecycle.gptPromptMode(),
 		);
 		return reminder || checkpoint
 			? {

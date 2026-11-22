@@ -78,7 +78,7 @@ export function createAutoReasoning(
 			defaultActive: false,
 			label: "Change Reasoning",
 			description:
-				"Use low for routine work, medium for a quick survey, high to trace a cause across systems, and xhigh when causes may interact. Change when the next phase needs a different level, not per tool call. Applies next request, never below the user's setting.",
+				"Routine→low; quick survey→medium; cross-system cause→high; interacting causes→xhigh. Change by work phase, not per call. Next request; user setting is the floor",
 			parameters: PARAMETERS,
 			...auxiliaryToolRenderers(
 				"Reasoning adjustment failed",

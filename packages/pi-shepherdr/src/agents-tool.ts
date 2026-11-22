@@ -41,7 +41,6 @@ export function createAgentsTool(
 	board: AgentBoard,
 	pi: ExtensionAPI,
 	commands: ReturnType<typeof createPeerCommands>,
-	gpt: () => boolean = () => false,
 ) {
 	const resumer = new WorkerResumer(pi, fleet);
 	return defineTool({
@@ -58,7 +57,7 @@ export function createAgentsTool(
 			const executionSignal = signal ?? new AbortController().signal;
 			const update = onUpdate ?? (() => undefined);
 			if (params.action === "help" && !params.commands) {
-				return toolResult(await agentsHelp(board.enabled(ctx), gpt()));
+				return toolResult(await agentsHelp(board.enabled(ctx)));
 			}
 			if (params.commands && params.target === undefined)
 				return toolResult({ commands: commands.available() });

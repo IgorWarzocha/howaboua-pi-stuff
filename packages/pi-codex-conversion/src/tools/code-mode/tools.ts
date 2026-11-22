@@ -148,8 +148,11 @@ async function getOrCreateRuntime(
 	state[REGISTRATION_KEY] = processState;
 	if (!processState.boundApis.has(pi)) {
 		processState.boundApis.add(pi);
-		registerCodeModeEvents(pi, processState.runtime);
-		registerPublicCodeModeTools(pi, processState.runtime);
+		const preparePublicTools = registerPublicCodeModeTools(
+			pi,
+			processState.runtime,
+		);
+		registerCodeModeEvents(pi, processState.runtime, preparePublicTools);
 	}
 	return processState.runtime;
 }
