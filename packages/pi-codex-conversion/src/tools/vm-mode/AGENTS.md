@@ -1,4 +1,4 @@
-- One `node:vm` context per conversation, inside one Node worker. No project heap, lock, snapshot, disk image or VM shared across conversations.
+- One `node:vm` context per conversation, inside one worker. No project heap, lock, snapshot, disk image or VM shared across conversations.
 - Create guest-visible objects, functions and binding accessors in the guest realm. Keep the host callback private to the prelude closure; return only primitives across it, including errors, then construct guest errors. A host function or error exposes the worker's `Function` constructor despite disabled guest string generation.
 - Cells without top-level `await` run unchanged. Awaited cells run as one module in that context: `let`, `const` and `class` are instantiated for the whole cell, including across `await`, and a function closes over those bindings. Publish each declarator when its initializer finishes, before the next declarator runs, so a later rejection keeps the earlier value. A throw before initialization does not publish the name. Do not turn `const` into `let`. Do not imitate the dead zone with a throwing global getter. Do not split awaited cells into separate evaluators.
 - Reject lexical redeclarations and same-cell declaration conflicts before any effect. Predeclare `var` so a bare redeclaration does not reset it. `var` inside an awaited branch stays the outer binding. Block `let` and `const` stay in the block.
@@ -6,5 +6,5 @@
 - Do not use Node REPL. Its evaluator always calls the host module loader, so `import("node:fs")` succeeds there. Do not pass `importModuleDynamically`.
 - Bind tools as `tools.<name>` through `CodeModeDelegateRuntime`. No bare globals, `$`, `edit`, `searchTools` or `describeTool`.
 - A script error keeps the context. Stall, abort, memory limit, terminate and conversation change terminate the worker. The next exec creates a new context. Say that bindings were dropped.
-- `worker.terminate()` is the hard stop. Do not enable Bun and do not rely on a cooperative interrupt.
-- The heap cap is `VM_HEAP_CAP_MIB`, not Notebook's 4096 MiB default. `store` values use the caps in `limits.ts`.
+- Hard stop: terminate the worker on Node, kill the capped process on Bun. Bun ignores worker `resourceLimits`. Start its separate process in a systemd scope and verify the cgroup memory and swap limits before loading the evaluator. Keep IPC on a thread that can exit if Pi dies while the evaluator stalls. Never fall back to an uncapped worker.
+- The Node heap and Bun process budgets are in `limits.ts`, not Notebook's 4096 MiB default. `store` values use their own caps.

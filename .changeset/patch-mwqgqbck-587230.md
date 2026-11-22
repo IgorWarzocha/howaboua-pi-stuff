@@ -4,6 +4,7 @@
 
 - Removed Deno Notebook. The old mode setting selects TS Notebook without importing Deno state or activating its saved profile. [Recover or remove old notebook files](https://github.com/IgorWarzocha/howaboua-pi-stuff/blob/main/docs/deno-to-ts-notebook.md) with the repository's copy-paste prompts.
 - Replaced QuickJS Code with VM Code. Existing settings select VM Code, which keeps JavaScript bindings for the conversation and runs one cell at a time. Select Code for fresh cells.
+- VM Code works in standalone Pi on Linux with a systemd user session and cgroup v2. Bun runs in a separate memory-capped process, and hitting the limit drops the conversation bindings.
 - Codex falls back to HTTP for the session when a request exceeds the advertised WebSocket limit or the server closes with code 1009 before sending text.
 - Codex reports an incomplete response without replaying it when a WebSocket size rejection follows visible output.
 - Codex settings clarify what prompt overwrite, cache keepalive and voice refresh change, and which tool naming changes are display-only.

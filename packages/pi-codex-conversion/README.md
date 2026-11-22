@@ -171,7 +171,9 @@ Concurrent isolated cells start from the last checkpoint and save separate candi
 
 Select **VM Code** to compose tools in JavaScript while keeping `let`, `const`, `function` and `class` bindings across `exec` calls in the conversation. `exec` and `wait` stay the same, and tools stay `tools.name`.
 
-Run Pi under Node.js. If you use Pi's standalone Bun build, select **Code** instead. VM Code runs one cell at a time in a conversation-local context. The worker heap is capped at 256 MiB. `store` and `load` keep conversation-local JSON without writing to disk.
+VM Code runs one cell at a time in a conversation-local context. `store` and `load` keep conversation-local JSON without writing to disk.
+
+Under Node.js, the worker's JavaScript heap is capped at 256 MiB. On Linux, VM Code also runs under Bun 1.4.4 or later, including standalone Pi, with a working systemd user session and cgroup v2 memory limits. The separate Bun process is capped at 320 MiB with no swap. If the limit cannot be applied, use Pi under Node.js or select **Code**.
 
 Top-level `await` works, and `const`, `var` and function hoisting stay the same as a cell without `await`. The environment has no Node APIs, imports, direct network access or timers. The agent uses tools for host operations.
 

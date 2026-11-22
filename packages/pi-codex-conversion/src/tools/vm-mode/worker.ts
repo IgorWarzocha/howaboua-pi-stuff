@@ -1,14 +1,9 @@
-import { parentPort, workerData } from "node:worker_threads";
+import { parentPort } from "node:worker_threads";
 import { createContext, runInContext, Script, SourceTextModule } from "node:vm";
 import { contentOutputFactorySource } from "../code-mode/content-output.ts";
 import { planVmCell, type VmBindings } from "./await-cell.ts";
 import { VM_PRELUDE } from "./prelude.ts";
-import type {
-	VmCommand,
-	VmMessage,
-	VmOutcome,
-	VmWorkerData,
-} from "./protocol.ts";
+import type { VmCommand, VmMessage, VmOutcome } from "./protocol.ts";
 
 interface VmControl {
 	configure(tools: string, store: string): void;
@@ -17,8 +12,6 @@ interface VmControl {
 	fail(message: string): void;
 }
 
-const data: VmWorkerData = workerData;
-void data;
 const context = createContext(Object.create(null), {
 	codeGeneration: { strings: false, wasm: false },
 	microtaskMode: "afterEvaluate",
