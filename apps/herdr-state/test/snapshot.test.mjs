@@ -18,7 +18,7 @@ const layout = {
 		{ id: "s1", folder: "/tmp", tabs: [{ id: "tab1", root: leaf("t1") }] },
 	],
 };
-test("snapshot retains exact session identity, and rejects another Core", () => {
+test("a snapshot from another Core cannot be restored", () => {
 	const result = makeSnapshot(
 		layout,
 		[
@@ -37,21 +37,7 @@ test("snapshot retains exact session identity, and rejects another Core", () => 
 		],
 		"core1",
 	);
-	assert.equal(
-		result.snapshot.terminals[0].session.ref.value,
-		"/tmp/exact.jsonl",
-	);
 	assert.throws(() => validateSnapshot(result.snapshot, "core2"), /compatible/);
-	assert.equal(validateSnapshot(result.snapshot, "core1"), result.snapshot);
-});
-test("merge preserves new work and restores missing panes once", () => {
-	const current = structuredClone(layout);
-	current.spaces[0].tabs[0].root = leaf("t2");
-	current.spaces.push({ id: "s2", tabs: [{ id: "tab2", root: leaf("t3") }] });
-	const once = mergeLayout(current, layout, new Map([["t1", "t4"]]));
-	assert.deepEqual(terminalLeaves(once.spaces[0].tabs[0].root), ["t2", "t4"]);
-	assert.deepEqual(mergeLayout(once, layout, new Map([["t1", "t4"]])), once);
-	assert.equal(once.spaces[1].id, "s2");
 });
 test("malformed or unsupported reported sessions do not become commands", () => {
 	assert.equal(

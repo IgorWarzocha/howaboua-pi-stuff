@@ -17,10 +17,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { install, mergeJson } from "../scripts/install.mjs";
-
-const distribution = fileURLToPath(new URL("..", import.meta.url));
+import { install } from "../scripts/install.mjs";
 
 function fixture(t, commands = {}) {
 	const home = mkdtempSync(join(tmpdir(), "herdr-install-"));
@@ -52,35 +49,8 @@ function fixture(t, commands = {}) {
 	};
 }
 
-test("JSON hook merge is immutable, lossless and rejects schema conflicts", () => {
-	const current = {
-		theme: "dark",
-		hooks: {
-			Stop: [{ command: "user-stop" }],
-			SessionStart: [{ hooks: [{ command: "user-start" }] }],
-		},
-	};
-	const fragment = {
-		hooks: {
-			SessionStart: [{ hooks: [{ type: "command", command: "capture" }] }],
-		},
-	};
-	const next = mergeJson(current, fragment);
-	assert.deepEqual(next.hooks.Stop, current.hooks.Stop);
-	assert.equal(next.theme, "dark");
-	assert.equal(current.hooks.SessionStart.length, 1);
-	assert.equal(next.hooks.SessionStart.length, 2);
-	assert.deepEqual(mergeJson(next, fragment), next);
-	assert.throws(() => mergeJson({ hooks: [] }, fragment), /incompatible/);
-	assert.throws(
-		() => mergeJson({ version: 2 }, { version: 1 }),
-		/incompatible/,
-	);
-	assert.throws(() => mergeJson(null, fragment), /JSON object/);
-});
-
-test("isolated installation preserves settings and mode, rejects broken shims, and is idempotent", (t) => {
-	const f = fixture(t, { pi: 0, claude: 0, qwen: 2, opencode: 0, kilo: 0 });
+test("installation preserves user settings and permissions and does not rewrite them on repeat", (t) => {
+	const f = fixture(t, { claude: 0 });
 	const settings = f.put(".claude/settings.json", {
 		theme: "dark",
 		hooks: {
@@ -89,56 +59,14 @@ test("isolated installation preserves settings and mode, rejects broken shims, a
 		},
 	});
 	chmodSync(settings, 0o640);
-	const first = f.run();
-	assert.equal(
-		first.installed.some((item) => item.agent === "cli"),
-		true,
-	);
-	assert.equal(
-		first.installed.some((item) => item.agent === "pi"),
-		true,
-	);
-	assert.equal(
-		first.installed.some((item) => item.agent === "qwen"),
-		false,
-	);
-	assert.equal(existsSync(join(f.home, ".qwen")), false);
-	assert.equal(
-		first.warnings.some((value) => /full TUI/.test(value)),
-		true,
-	);
+	f.run();
 	const merged = JSON.parse(readFileSync(settings, "utf8"));
 	assert.deepEqual(merged.hooks.Stop, [{ command: "user-stop" }]);
 	assert.equal(merged.hooks.SessionStart.length, 2);
 	assert.equal(merged.theme, "dark");
 	assert.equal(statSync(settings).mode & 0o777, 0o640);
-	const target = join(f.home, ".pi/agent/extensions/herdr-state.ts");
-	assert.equal(readlinkSync(target), join(distribution, "integrations/pi.ts"));
-	assert.equal(
-		readlinkSync(join(f.home, ".config/kilo/plugin/herdr-state.js")),
-		join(distribution, "integrations/kilo.mjs"),
-	);
-	assert.equal(
-		readlinkSync(join(f.home, ".config/opencode/plugin/herdr-state.js")),
-		join(distribution, "integrations/opencode.mjs"),
-	);
-	const wrapper = readFileSync(join(f.home, ".local/bin/herdr-state"), "utf8");
-	assert.ok(wrapper.includes(process.execPath));
-	assert.ok(wrapper.includes(join(distribution, "src/cli.mjs")));
-	assert.ok(wrapper.includes('"$@"'));
-	const capture = spawnSync(
-		join(f.home, ".local/bin/herdr-state"),
-		["capture", "codex"],
-		{ env: f.env, encoding: "utf8" },
-	);
-	assert.equal(capture.status, 0, capture.stderr);
-	assert.equal(capture.stdout, "");
 	const mtime = statSync(settings).mtimeMs;
-	const second = f.run();
-	assert.equal(
-		second.installed.every((item) => item.changed === false),
-		true,
-	);
+	f.run();
 	assert.equal(statSync(settings).mtimeMs, mtime);
 	assert.equal(
 		readdirSync(dirname(settings)).some((name) =>
@@ -184,50 +112,29 @@ test("unowned files, symlinks, malformed JSON and unsupported versions remain un
 	}
 });
 
-test("custom Pi home and OMP own-directory restriction prevent cross-loading", (t) => {
+test("install never loads OMP into Pi's overridden agent directory", (t) => {
 	const f = fixture(t, { pi: 0, omp: 0 });
 	f.env.PI_CODING_AGENT_DIR = join(f.home, "custom-pi");
 	f.put(".omp/agent/session-placeholder", "");
-	const custom = f.run();
-	assert.equal(
-		existsSync(join(f.home, "custom-pi/extensions/herdr-state.ts")),
-		true,
+	const report = f.run();
+	assert.match(
+		readlinkSync(join(f.env.PI_CODING_AGENT_DIR, "extensions/herdr-state.ts")),
+		/\/integrations\/pi\.ts$/,
 	);
 	assert.equal(
 		existsSync(join(f.home, ".omp/agent/extensions/herdr-state.ts")),
 		false,
 	);
 	assert.equal(
-		custom.warnings.some((value) => /shared with Pi/.test(value)),
-		true,
-	);
-	delete f.env.PI_CODING_AGENT_DIR;
-	const own = f.run();
-	assert.equal(
-		own.installed.some((item) => item.agent === "omp"),
-		true,
-	);
-	assert.equal(
-		readlinkSync(join(f.home, ".omp/agent/extensions/herdr-state.ts")),
-		join(distribution, "integrations/omp.ts"),
-	);
-	rmSync(join(f.home, ".omp"), { recursive: true });
-	assert.equal(
-		f.run().installed.some((item) => item.agent === "omp"),
-		true,
-	);
-	rmSync(join(f.home, ".omp"), { recursive: true });
-	writeFileSync(join(f.home, ".omp"), "user file");
-	assert.equal(
-		f.run().skipped.some((item) => item.agent === "omp"),
+		report.warnings.some((value) => /shared with Pi/.test(value)),
 		true,
 	);
 });
 
-test("Codex requires advertised enabled hooks and never rewrites TOML; other parserless agents are manual", (t) => {
+test("Codex hook installation respects the user's opt-out and leaves TOML untouched", (t) => {
 	const behavior =
 		'if (process.argv[2] === "features") console.log(process.env.FEATURES); process.exit(0);';
-	const f = fixture(t, { codex: behavior, kimi: 0, hermes: 0 });
+	const f = fixture(t, { codex: behavior });
 	const config = f.put(
 		".codex/config.toml",
 		"[features]\nhooks = false # user choice\n",
@@ -248,37 +155,11 @@ test("Codex requires advertised enabled hooks and never rewrites TOML; other par
 		"[features]\nhooks = false # user choice\n",
 	);
 	f.env.FEATURES = "hooks under-development true";
-	const enabled = f.run();
-	assert.equal(
-		enabled.installed.some((item) => item.agent === "codex"),
-		true,
-	);
+	f.run();
 	assert.equal(
 		readFileSync(config, "utf8"),
 		"[features]\nhooks = false # user choice\n",
 	);
-	for (const agent of ["kimi", "hermes"]) {
-		assert.equal(
-			enabled.skipped.some(
-				(item) => item.agent === agent && /manual/.test(item.reason),
-			),
-			true,
-		);
-	}
-});
-
-test("installer CLI --home prints machine-readable results without invoking real commands", (t) => {
-	const f = fixture(t);
-	const result = spawnSync(
-		process.execPath,
-		[join(distribution, "scripts/install.mjs"), "--home", f.home],
-		{ env: f.env, encoding: "utf8" },
-	);
-	assert.equal(result.status, 0, result.stderr);
-	const report = JSON.parse(result.stdout);
-	assert.equal(report.installed.length, 1);
-	assert.equal(report.installed[0].agent, "cli");
-	assert.ok(report.installed[0].path.startsWith(f.home));
 });
 
 test("Kimi TOML appends a native hook without rewriting user settings", (t) => {

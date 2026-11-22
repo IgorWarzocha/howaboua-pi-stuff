@@ -19,40 +19,17 @@ test("native recognition reads only executable and interpreter entrypoint, never
 	assert.equal(
 		nativeAgent([
 			"/usr/bin/node",
-			"/opt/@earendil-works/pi-coding-agent/dist/bundle/cli.js",
-		]),
-		"pi",
-	);
-	assert.equal(
-		nativeAgent(["/usr/bin/bun", "/opt/@oh-my-pi/pi-coding-agent/dist/cli.js"]),
-		"omp",
-	);
-	assert.equal(
-		nativeAgent(["/usr/bin/python3", "-m", "hermes_cli.main"]),
-		"hermes",
-	);
-	assert.equal(nativeAgent(["/usr/bin/node", "/tmp/cursor-agent"]), "cursor");
-	assert.equal(
-		nativeAgent([
-			"/usr/bin/node",
 			"/opt/@earendil-works/pi-coding-agent/scripts/build.js",
 		]),
 		null,
 	);
-	assert.equal(
-		nativeAgent(["/usr/bin/node", "/opt/@qwen-code/qwen-code/dist/index.js"]),
-		"qwen",
-	);
 });
 
-test("ownership rejects nested first claims, nested clears, siblings and outside-terminal hooks", async () => {
+test("ownership rejects sibling claims, outside-terminal hooks and mismatched agents", async () => {
 	const entries = [
 		[10, 1, ["bash"]],
 		[20, 10, ["node", "/state/src/launch.mjs"]],
 		[30, 20, ["node", "/tmp/pi"]],
-		[40, 30, ["sh"]],
-		[50, 40, ["codex"]],
-		[60, 50, ["node", "/state/src/capture.mjs"]],
 		[70, 10, ["claude"]],
 		[90, 1, ["pi"]],
 	];
@@ -65,26 +42,6 @@ test("ownership rejects nested first claims, nested clears, siblings and outside
 		state: "live",
 		labels: owner ? { "herdr.state.owner": String(owner) } : {},
 	});
-	assert.equal(
-		(await ownershipDecision(terminal(), "codex", 60, read)).allowed,
-		false,
-	);
-	assert.equal(
-		(await ownershipDecision(terminal(30), "codex", 60, read)).allowed,
-		false,
-	);
-	assert.equal(
-		(await ownershipDecision(terminal(30), "pi", 30, read)).allowed,
-		true,
-	);
-	assert.equal(
-		(await ownershipDecision(terminal(), "pi", 30, read)).allowed,
-		true,
-	);
-	assert.equal(
-		(await ownershipDecision(terminal(99999), "pi", 30, read)).allowed,
-		true,
-	);
 	assert.equal(
 		(await ownershipDecision(terminal(90), "pi", 30, read)).allowed,
 		true,

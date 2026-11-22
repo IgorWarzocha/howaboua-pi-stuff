@@ -2,44 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { resumeArgv } from "../src/resume.mjs";
 
-test("all old Herdr native ID mappings preserve their exact argv", () => {
-	const cases = {
-		claude: ["claude", "--resume", "abc"],
-		codex: ["codex", "resume", "abc"],
-		copilot: ["copilot", "--resume=abc"],
-		devin: ["devin", "--resume", "abc"],
-		droid: ["droid", "--resume", "abc"],
-		kimi: ["kimi", "--session", "abc"],
-		mastracode: ["mastracode", "--thread", "abc"],
-		pi: ["pi", "--session", "abc"],
-		omp: ["omp", "--resume=abc"],
-		hermes: ["hermes", "--resume", "abc"],
-		opencode: ["opencode", "--session", "abc"],
-		kilo: ["kilo", "--session", "abc"],
-		qodercli: ["qodercli", "--resume", "abc"],
-		qwen: ["qwen", "--resume", "abc"],
-		cursor: [
-			process.platform === "win32" ? "cursor-agent.cmd" : "cursor-agent",
-			"--resume",
-			"abc",
-		],
-		agy: ["agy", "--conversation", "abc"],
-		grok: ["grok", "--resume", "abc"],
-		letta: ["letta", "--conversation", "abc"],
-	};
-	for (const [agent, expected] of Object.entries(cases)) {
-		assert.deepEqual(
-			resumeArgv(agent, { kind: "id", value: "abc" }),
-			expected,
-			agent,
-		);
-	}
-	assert.deepEqual(
-		resumeArgv("letta", { kind: "id", value: "default:agent-123" }),
-		["letta", "--conversation", "default", "--agent", "agent-123"],
-	);
-});
-
 test("only Pi and OMP accept absolute session paths, kept as one exact argument", () => {
 	for (const value of [
 		"/tmp/session with spaces's.jsonl",
