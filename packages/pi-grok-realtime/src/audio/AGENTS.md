@@ -2,4 +2,5 @@
 - Feed echo processing from actual local speaker writes, not received network PCM. Preserve fixed-size DSP framing and mute epochs across IPC.
 - `--check` is device-free; starting the helper without it opens live capture/playout and requires explicit authorization for testing.
 - Device discovery and capture/playback must use the same CPAL backend and IDs. Keep Sonora processing on every platform; never substitute raw capture as a fallback.
+- Follow the Sonora upgrade constraint in `../../../pi-codex-conversion/AGENTS.md`.
 - DSP frame size is not a transport or queue ceiling. Keep audio queues dynamically allocated, constrain only PCM integrity and platform/wire representation, and wait for drain acknowledgements rather than elapsed-time guesses.
