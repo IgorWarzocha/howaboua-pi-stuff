@@ -1,7 +1,4 @@
-- ask is the sole human-input, review and handoff surface.
-- Wait/steer share one panel. Only wait reports blocked. Steer answers use developer role on active Codex Responses, user steering elsewhere.
-- Keep features under ask/. Coordinator owns queued delivery, pending owns restoration.
-- Preserve blank Other/rephrase: ask the agent to rephrase or follow up.
-- Use named response state, not parallel arrays.
-- Before TUI changes, read current Pi docs/examples. tui.ts composes lifecycle, tui-render.ts draws, tui-input.ts handles keys.
-- Restoration/shutdown invalidates old panel completions and remote replies. Publish generic pending state before blocked signals; persist steering asks as closed only after delivery. Ask owns reply validation and panel completion, never the carrier.
+- `ask` alone: human input, review, handoff. Shared wait/steer panel, blocked only for wait. Steer answers: active Codex Responses developer role, else user steering.
+- `ask/` features. Coordinator queues delivery, pending restores. Named state, no parallel arrays. Blank Other/rephrase requests rephrase/follow-up.
+- TUI edits: current Pi docs/examples first. `tui.ts` lifecycle, `tui-render.ts` drawing, `tui-input.ts` keys.
+- Restore/shutdown invalidate old completions/remote replies. Generic pending before blocked. Persist steer closed after delivery. Ask owns reply validation/panel completion, not carrier.

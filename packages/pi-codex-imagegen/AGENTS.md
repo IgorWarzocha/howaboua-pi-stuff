@@ -1,4 +1,4 @@
-- Compare generation/edit contracts with `~/Frameworks/codex/codex-rs/ext/image-generation/`, `codex-api/src/endpoint/images.rs` and `codex-api/src/images.rs` (last two relative to `codex-rs/`). `UPSTREAM_SYNC.md` pins the reference and reviewed deltas. Inspect changes since that pin when touching the adapter; do not restore inert Rust snapshots. Pi-facing auth, artifacts, rendering and Code Mode projection remain TypeScript.
-- Local edit targets accept validated PNG, JPEG, GIF, or WebP bytes. Recent targets come only from Pi's active compaction-aware context.
-- Native Pi and nested Code wrappers own result-content images. Keep custom result renderers text-only; never mutate model-visible results to fix display.
-- Keep `src/codex-runtime` byte-identical in pi-codex-web-run and pi-codex-imagegen. Update both copies together. Do not publish a shared runtime package.
+- Adapter changes: compare generation/edit against `UPSTREAM_SYNC.md` pin. `~/Frameworks/codex/codex-rs/ext/image-generation/` and `codex-rs/` paths `codex-api/src/endpoint/images.rs`, `codex-api/src/images.rs`. No Rust snapshots. Pi auth, artefacts, rendering and Code Mode projection stay TypeScript.
+- Local edit targets: validated PNG/JPEG/GIF/WebP bytes. Recent targets: active compaction-aware context only.
+- Native Pi/nested Code wrappers own result images. Custom renderers text-only, no model-result edits.
+- Update `src/codex-runtime` together in pi-codex-web-run and pi-codex-imagegen. Byte-identical, no shared package.

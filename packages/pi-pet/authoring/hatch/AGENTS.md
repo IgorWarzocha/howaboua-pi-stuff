@@ -1,7 +1,5 @@
-- `HATCH-GUIDE.md` owns orchestration; references own visual judgment and scripts own deterministic image work.
-- Keep visual generation capability-neutral. A missing native generator routes to an explicit external or browser-assisted handoff.
-- Preserve `LICENSE.txt`; imported Python files derive from the Apache-2.0 Hatch Pet workflow and must retain modification notices.
-- Python tooling is authoring-only and isolated by this subtree's locked uv project; it is not an application runtime dependency.
-- Never stage a pet package until deterministic checks and independent visual review pass.
-- Final assembly must reuse registered row 9 pixels and its digest-bound scale; never renormalize an approved row or repair clipped cells by shrinking. Resynthesize instead.
-- Mirrored running-left output stays staged with source provenance until reviewed; derivation is not approval.
+- `HATCH-GUIDE.md` orchestrates. References own visual judgement, scripts deterministic image work.
+- Generation capability-neutral. No native generator → explicit external or browser-assisted handoff.
+- Locked uv project: Python authoring only, no app runtime dependency. Retain `LICENSE.txt` and modification notices on Apache-2.0 Hatch Pet imports.
+- Stage pet package only after deterministic checks and independent visual review pass. Mirrored running-left stays staged with source provenance pending review.
+- Final assembly: reuse registered row 9 pixels and digest-bound scale. No renormalising approved rows. Resynthesise clipped cells, never shrink.

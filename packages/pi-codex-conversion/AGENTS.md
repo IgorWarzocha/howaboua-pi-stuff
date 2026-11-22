@@ -1,37 +1,27 @@
-- Port model-native Codex prompts, tools, transport and context into Pi. Add features only for model fit, quota efficiency or Pi integration. Native request semantics are the compatibility baseline; document necessary Pi adaptations. Noisy cache results alone do not justify divergence.
-- Preserve cache/continuation across prompt, tool, request, replay and transport changes.
-- Own GPT harness integration, not universal compatibility, UI, enterprise or a Pi fork. Route uncommon needs to overrides, extensions or forks.
-- After a retryable connection failure, allow up to three fresh WebSocket retries within five minutes, then request-local SSE with a separate five-minute window. Preserve the healthy initial attempt. Fall back immediately and session-wide on 426, an advertised send-limit rejection or close 1009 before any text frame. Never replay a size-closed attempt after emitting output.
-- Retry server_is_overloaded and slow_down across WebSocket/SSE within one three-minute budget. Honour HTTP/streamed retry delays using monotonic deadlines. Fail if advice exceeds the budget, including across fallback.
-- Before npm/publish/release/merge work, compare src/providers/openai-codex-custom-provider.ts with Pi's stock openai-codex-responses provider: requests, transport/headers, reasoning/tier, retries, termination and touched behaviour.
-- Notes/history and window policy belong to Agent Comms.
-- Nested adapters preserve declared structuredContent after protected-output checks. Protected results remain opaque receipts, never JavaScript data.
-- Keep prompt guidance short and argv-shaped.
-- Keep README sections foldable and user-facing. Integration contracts belong in `../../docs/extension-apis.md`, not duplicated API examples or developer setup in README.
-- Native runners execute bundled helpers directly. Rebuild locally and use the checkout, never patch installed npm files. Web/image tools belong to their TypeScript packages.
-- Keep src/voice/rust/** and scripts/build-voice-helper.mjs byte-identical with pi-gippity-control. Change and changeset both together.
-- Watch native GitHub builds with `github_watch` when its help supports Actions run URLs. Otherwise use `gh run watch <id> --exit-status` near their expected 10–15 minutes. No polling loops, background shells or temporary log redirection.
-- tools.customRustBinariesDir is the filename-based bundled-helper override, not a Code host override. Bundled-helper startup incompatibility errors point there, not through loader noise.
-- Vendored apply-patch engine, path-uri and absolute-path track one Codex source commit. Keep product changes in standalone_executable.rs and pi-apply-patch-fs; preserve local dependency-API adaptations recorded in src/tools/rust/VENDORED.md when syncing.
-- Reject review-driven drift from stock Pi unless backend-verified or intentional.
-- Provider names/endpoints do not define backend identity. Renamed/proxied openai-codex-responses retains Codex transport, Fast Mode and account isolation.
-- Proxies are deliberate policy/monitoring/routing seams. Environment proxies preserve ChatGPT contracts. Explicit openai-responses passthrough supports only its backend's capabilities. Never reject by provider name or assume proxy means non-ChatGPT.
-- Native compaction supports OpenAI Codex and configured OpenAI/Codex passthrough only. V2 needs raw Responses output items, not arbitrary registered streams.
-- Reuse `src/developer-messages.ts` for instruction delivery: `trySendCodexDeveloperCustomMessage` preserves caller rendering; false means nothing was sent, so fall back to `pi.sendMessage`. Delivery failures throw, not fall back.
-- `src/adapter/developer-messages.ts` promotes authenticated custom-message carriers to Responses developer items in place. Preserve chronology and keep UI/history identity separate from provider role; never route these through Pi system-prompt updates.
-- After TypeScript topology changes, run root bun run knip.
+- Model-native Codex prompts/tools/transport/context in Pi. Features: model fit, quota efficiency or Pi integration only. Native semantics, cache, continuation intact; document adaptations. Cache noise alone never justifies drift. Review-driven drift from stock Pi needs backend proof or intent. GPT harness only; no universal compatibility, enterprise, UI or Pi fork. Uncommon needs: overrides/extensions/forks.
+- Keep healthy initial WebSocket attempt. Retryable connection failure → ≤3 fresh WS retries/5 min → request-local SSE/separate 5 min. 426, advertised send-limit rejection or pre-text 1009 → immediate session-wide SSE. No size-close replay after output.
+- `server_is_overloaded` and `slow_down`: one three-minute WS/SSE budget. Honour HTTP/streamed advice on monotonic deadlines. Beyond budget → fail, even across fallback.
+- Before npm/publish/release/merge, compare `src/providers/openai-codex-custom-provider.ts` to Pi stock `openai-codex-responses`: request, transport, headers, reasoning, tier, retries, termination, touched behaviour.
+- Identity by backend, not name/endpoint. Renamed/proxied `openai-codex-responses` keeps Codex transport, Fast Mode, account isolation. Proxies: policy/monitoring/routing. Env proxies keep ChatGPT contracts; explicit `openai-responses` passthrough limited to backend capabilities.
+- Native compaction only for OpenAI Codex or configured OpenAI/Codex passthrough. V2 requires raw Responses output items, not arbitrary streams. Agent Comms owns Notes/history/window.
+- Nested adapters preserve declared `structuredContent` after protected-output checks. Protected results: opaque receipts, never JS data.
+- Prompt: short, argv-shaped. README: foldable, user-facing, no duplicate APIs/developer setup. Contracts: `../../docs/extension-apis.md`.
+- Run bundled helpers directly. Rebuild checkout, don't patch npm install. Web/image: TS packages. `tools.customRustBinariesDir`: filename-based helper override, not Code host. Incompatibility errors point there, no loader noise.
+- `src/voice/rust/**` and `scripts/build-voice-helper.mjs`: byte-identical with `pi-gippity-control`; change and changeset together.
+- Native builds: `github_watch` if help supports Actions URLs, else `gh run watch <id> --exit-status` near 10–15 min. No polling loops, background shells or temp logs.
+- Instructions → `src/developer-messages.ts`. `trySendCodexDeveloperCustomMessage` preserves rendering; false = unsent → `pi.sendMessage`. Delivery errors throw.
+- `src/adapter/developer-messages.ts`: authenticated carriers → in-place Responses developer items. Preserve chronology and UI/history identity independent of provider role. No system-prompt updates.
+- TS topology changes → root `bun run knip`.
 
 ## Upstream routes
 
-The local Codex reference is `~/Frameworks/codex`. Before changing an upstream-derived area, compare its recorded pin with that checkout's HEAD and inspect the relevant path history. A checkout is a reference, not an automatic upgrade target. Keep intentional Pi adaptations and update provenance only for code actually adopted.
+Before upstream-derived edits: pin vs `~/Frameworks/codex` HEAD + path history. Reference only, no automatic upgrade. Keep Pi adaptations; provenance for adopted code only. Paths relative to `~/Frameworks/codex/codex-rs/`:
 
-Paths below are relative to `~/Frameworks/codex/codex-rs/`:
-
-- Code host: `code-mode-host/src/`, `code-mode-runtime/src/`, `code-mode-protocol/src/`. Download the official executable pinned in `src/tools/code-mode/host-assets.ts`; do not restore vendored source or a local build route.
-- Patch engine and path utilities: `apply-patch/src/`, `utils/absolute-path/src/`, `utils/path-uri/src/`. Local pin: `src/tools/rust/UPSTREAM.apply-patch`. The sync script preserves Pi's `standalone_executable.rs` and `pi-apply-patch-fs` adapter.
-- Image and cache utilities: `utils/image/src/`, `utils/cache/src/`. Both local copies derive from the revision in `src/tools/rust/crates/codex-utils-image/UPSTREAM`. `src/tools/view-image/rust/main.rs` is Pi's wrapper, not an upstream standalone executable.
-- PTY: `utils/pty/src/`, pinned by `src/tools/rust/crates/codex-utils-pty/UPSTREAM`. Shell execution is an adaptation of `exec-server/src/local_process.rs`, tracked separately in `src/tools/exec/rust/UPSTREAM`, not a copied exec server.
-- Voice DSP: `voice-host/src/device_buffers.rs` and `voice-host/src/processing.rs` map to `src/voice/rust/src/codex_audio/{buffers,processing}.rs`. Pin and adaptation boundary: `src/voice/rust/VENDORED.md`. Its `vendor/` contains licence notices, not dependency source.
-- Keep Sonora at 0.2.0. [0.3 changes the calling thread's floating-point mode during DSP](https://github.com/dignifiedquire/sonora/releases/tag/sonora-v0.3.0), which upstream documents as undefined behaviour in Rust. Recheck 0.4 or an earlier fix. Upgrade only if the change is removed or can be disabled, then verify capture and render before shipping.
-- Transport and compaction are TypeScript adaptations, not exact copies: compare `core/src/client.rs`, `core/src/client_common.rs`, `core/src/compact_remote_v2*.rs`, `codex-api/src/endpoint/responses*`, `codex-api/src/sse/responses*`, `responses-api-proxy/` and `models-manager/models.json`. `UPSTREAM_SYNC.md` records reviewed deltas; also compare Pi's stock provider.
-- `vendor/js-tiktoken/` and `vendor/tree-sitter-bash/` come from the npm tarballs pinned in their own `UPSTREAM` files, not this Codex checkout. Retain the selected encoding/WASM payloads rather than adding unused encodings or native install hooks.
+- Code host: `code-mode-host/src/`, `code-mode-runtime/src/`, `code-mode-protocol/src/`. Official executable pinned in `src/tools/code-mode/host-assets.ts`; no vendored source/local build.
+- `apply-patch/src/`, `utils/absolute-path/src/`, `utils/path-uri/src/`: one pin, `src/tools/rust/UPSTREAM.apply-patch`. Product changes in sync-preserved `standalone_executable.rs` and `pi-apply-patch-fs`. Keep API adaptations in `src/tools/rust/VENDORED.md`.
+- `utils/image/src/` and `utils/cache/src/`: shared pin `src/tools/rust/crates/codex-utils-image/UPSTREAM`. `src/tools/view-image/rust/main.rs`: Pi wrapper.
+- `utils/pty/src/`: `src/tools/rust/crates/codex-utils-pty/UPSTREAM`. Shell adapts `exec-server/src/local_process.rs`, pin `src/tools/exec/rust/UPSTREAM`; not a copied server.
+- `voice-host/src/device_buffers.rs` and `voice-host/src/processing.rs` → `src/voice/rust/src/codex_audio/{buffers,processing}.rs`. Pin/adaptations: `src/voice/rust/VENDORED.md`. Its `vendor/`: licences only.
+- Sonora 0.2.0 pinned. [0.3 changes calling thread floating-point mode during DSP](https://github.com/dignifiedquire/sonora/releases/tag/sonora-v0.3.0): Rust UB. Check 0.4 or earlier fix. Upgrade only if removed or disableable; verify capture/render.
+- TS transport/compaction adaptations: compare Pi stock provider and `core/src/client.rs`, `core/src/client_common.rs`, `core/src/compact_remote_v2*.rs`, `codex-api/src/endpoint/responses*`, `codex-api/src/sse/responses*`, `responses-api-proxy/`, `models-manager/models.json`. Reviewed deltas: `UPSTREAM_SYNC.md`.
+- `vendor/js-tiktoken/` and `vendor/tree-sitter-bash/`: npm tarballs pinned in own `UPSTREAM` files. Selected encodings/WASM only; no native install hooks.

@@ -1,6 +1,4 @@
-- Treat instructions as workspace-owned Markdown artifacts, one policy or pulse per file. Never move their bodies into Core documents or private database rows.
-- Keep activity, cursors, controls and receipts in per-workspace SQLite tables, not serialized files or database JSON blobs. Change markers are notifications, not a second state store.
-- Preserve pulse-local AGENTS.md, journals, artifacts and unrelated frontmatter. Missing jobs in an editor snapshot are not deletion requests.
-- File edits are live. Isolate malformed definitions, watch only owned paths and verify file revisions at admission. An interrupted send is uncertain, never permission to replay it.
-- Validate with disposable Core sessions and inert PTYs. Never install, enable policies or send prompts in the live setup as a test.
-- Match Voice and State: a quiet sidebar row, 28px icon actions, a rail popup and a dismissible settings dialog. User-facing concepts are check-ins and automations; keep storage and runtime vocabulary in Details.
+- Workspace Markdown owns instructions, one policy/pulse per file. No bodies in Core documents or DB rows. Activity, cursors, controls, receipts: workspace SQLite tables, no serialised files or JSON blobs. Change markers only notify.
+- Live edits: watch owned paths, isolate malformed definitions, verify revisions at admission. Missing editor jobs aren't deletions. Preserve pulse-local AGENTS.md, journals, artefacts and unrelated frontmatter. Interrupted sends uncertain, never replay.
+- Validate with disposable Core sessions and inert PTYs. No live install, policy activation or prompt sends.
+- Match Voice and State: quiet sidebar row, 28px icon actions, rail popup, dismissible settings. User terms: check-ins and automations. Runtime/storage terms only in Details.

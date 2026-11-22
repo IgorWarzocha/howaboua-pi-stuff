@@ -1,1 +1,1 @@
-- Resolve and execute bundled helpers directly by absolute path. Never inject helper directories into `PATH` or restore command wrappers.
+- Bundled helpers: absolute paths, direct execution. No PATH injection or command wrappers.

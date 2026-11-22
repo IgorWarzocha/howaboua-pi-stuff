@@ -1,2 +1,1 @@
-- Keep product setup in `README.md`; use this subtree for architecture, security, and evidence detail.
-- Distinguish verified behavior from inference; GipPity owns remote protocol documentation.
+- Setup in `README.md`. Architecture, security and evidence here. Separate verification from inference. Remote protocol docs belong to GipPity.

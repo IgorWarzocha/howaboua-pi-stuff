@@ -1,11 +1,8 @@
-- Add folded notices to both activity/policy.ts opt-ins and rendering/notices.ts projection. Keep unknown content recoverable. Never infer success from unfamiliar envelopes.
-- Preserve current and persisted peer sender envelopes; pending extension messages retain their full reply payload and warning status. Notebook and TS startup failures both warn.
-- Compact off-mode PCC notices only for known persisted shapes; unfamiliar data remains recoverable without PCC installed.
-- Summary wording/density belongs in activity/current-stage.ts, headings in activity/group.ts. Distinguish running, completed, failed and blocked. Nested evidence may replace executor labels, never invent activity.
-- Fit current width, preserve renderer state and both expansion levels. Empty children cannot remove native parent spacers.
-- Standalone watch and pre-run notices stay at their native positions, outside later work groups. Saved custom messages do not identify how delivery started or continued a run.
-- Progress invalidates only the anchor heading; Pi's tool invalidation rebuilds the native row. Preserve detached heading and tool caches on full invalidation.
-- Timeline changes cover live index.ts handlers, restore and compaction pruning. Only agent_settled completes runs. Repeated starts/queued input preserve duration and open state.
-- Anchors select rows, never move them. Assistant rows precede streamed text/tools. Retire only earlier rows after visible text arrives. Final answers may have no successor activity row, so settlement must retain disclosure at a surviving position.
-- Restore only the active branch. Never fabricate archived tool rows for rollover continuity.
-- activity/timeline.ts owns live timing/anchors; message-identity.ts owns occurrence-to-entry/replay identity. replay.ts walks history through the same timeline/group transitions, never parallel state.
+- Fold via `activity/policy.ts` opt-in and `rendering/notices.ts` projection. Off-mode PCC compacts known persisted shapes only. Unknown envelopes recoverable without PCC, never imply success.
+- Keep live/persisted peer sender envelopes, full pending extension replies and warning status. Notebook/TS startup failures warn.
+- `activity/current-stage.ts`: summary copy/density. `activity/group.ts`: headings. Distinguish running/completed/failed/blocked. Nested evidence replaces labels, never invents work.
+- Fit width. Keep renderer state, both expansion levels, native parent spacers even with empty children. Progress invalidates anchor heading only. Pi tool invalidation rebuilds native row. Full invalidation keeps detached heading/tool caches.
+- Standalone watch/pre-run notices stay in place outside later groups. Saved custom messages don't establish start/continuation.
+- Timeline: live `index.ts`, restore, compaction pruning. Only `agent_settled` completes. Keep duration/open state across repeated starts/queued input.
+- Anchors select rows without moving. Assistant row before streamed text/tools. Retire earlier rows only after visible text. Settlement needs surviving disclosure even without successor.
+- Active branch only. No fabricated archived tool rows. `activity/timeline.ts`: live timing/anchors. `message-identity.ts`: occurrence/entry/replay identity. `replay.ts` reuses timeline/group transitions, no parallel state.

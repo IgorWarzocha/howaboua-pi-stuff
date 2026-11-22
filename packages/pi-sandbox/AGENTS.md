@@ -1,6 +1,6 @@
-- Publish as a standalone package. Keep it outside aggregates: installation requires host virtualisation tools and explicit environment provisioning.
-- Build the controller before using a source checkout. Plain Node cannot strip TypeScript inside npm's node_modules; keep the daemon launch on packaged dist/daemon.js, not src/daemon.ts.
-- Prefer per-environment YAML for resource, network, setup and service customization. Host YAML seeds new disks; existing instances own their guest `.sandbox.yaml`. Changing defaults does not migrate saved instances.
-- Keep the agent entry point `sandbox` help-backed and deferred in Code/Notebook. Change action validation and on-demand help together in `src/contracts.ts`; `/sandbox` is a user terminal handoff, not an agent tool.
-- Use supported Gondolin APIs, not patches to its transport. Document backend limits rather than hiding them behind retries.
-- Once lifecycle contracts are established, use focused static checks. VM probes are disposable, not routine gates; source edits do not authorize starting or modifying a user's environments.
+- Standalone, outside aggregates: host virtualisation and explicit provisioning required.
+- Build controller before checkout use. Launch packaged `dist/daemon.js`, not `src/daemon.ts`: Node can't strip TS in `node_modules`.
+- Prefer per-environment YAML for resources/network/setup/services. Host YAML seeds new disks. Existing guests own `.sandbox.yaml`, no default migration.
+- `sandbox`: help-backed, deferred in Code/Notebook. Update validation/help together in `src/contracts.ts`. `/sandbox` user terminal only.
+- Supported Gondolin APIs, no transport patches. Document backend limits, no masking retries.
+- Established lifecycle: focused static checks, disposable VM probes only as needed. Edits don't authorise starting/changing user environments.

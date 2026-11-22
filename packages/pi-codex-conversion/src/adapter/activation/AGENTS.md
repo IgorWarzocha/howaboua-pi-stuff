@@ -1,8 +1,4 @@
-- runtime-plan.ts alone decides activation, tool surface, prompt, transport and compaction. Consumers execute its plan, never rebuild predicates.
-- Variants: inactive, normal, code, ts, vm. Never auto-select TS Notebook. Ignore legacy mode: path. Never restore PATH injection or shell interception.
-- Execution mode follows adapter scope, independently of transport. Responses Lite eligibility never gates modes.
-- Startup upgrades existing stale global and trusted project settings once. Keep project writes sparse, validate before atomic replacement, and leave current, unreadable and newer files untouched.
-- Preserve Notes-owned continuity fields and legacy global display axes needed by older project files. Don't reinterpret Deno profiles as TS profiles.
-- Explicit writes preserve unknown fields while updating owned config.
-- Compaction method selects Pi, OpenAI V2 or both. Context-window policy and Notes belong to other extensions.
-- config.ts is the facade. Keep contracts/defaults, readers and normalizers in their named config-* owners.
+- `runtime-plan.ts` alone plans activation/tools/prompt/transport/compaction. Execute, never recalculate. Variants: inactive, normal, code, ts, vm. Ignore legacy `mode: path`; no auto TS Notebook, PATH injection or shell interception.
+- Execution mode follows adapter scope, independent of transport and Responses Lite. Compaction: Pi, OpenAI V2 or both.
+- Startup upgrades stale global/trusted project settings once. Sparse project writes; validate then atomic replace. Skip current/unreadable/newer files. Keep Notes continuity and old project files' global display axes. No Deno→TS profiles. Explicit writes preserve unknowns.
+- `config.ts` façade; contracts/defaults/readers/normalisers in named `config-*` owners.

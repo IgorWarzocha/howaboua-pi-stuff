@@ -1,21 +1,17 @@
-Merges to `main` feed Changesets versioning and npm publishing.
+Toolkit friction: propose fix; tiny low-risk→owning source, never installed tooling. Report validation. Release/install caveats only requested/actionable.
 
-We use this toolkit. If tools fail or cause friction, propose concrete fixes. Apply tiny, low-risk fixes without derailing the task. Edit owning source, never installed tooling. Report validation. Omit routine release and installation disclaimers unless asked or they change the next action.
+Released Pi APIs, no patches/forks. Standalone extensions, optional runtime integrations. Released `@earendil-works/pi-schema` builders/validators, not TypeBox. No personal names/paths, host assumptions, private workflows.
 
-Every package must work against released upstream Pi. Use supported extension APIs, never an upstream patch or fork. Every extension must install and run standalone. Discover optional integrations at runtime, never require them for core functionality.
-Use released `@earendil-works/pi-schema` builders and validators, not TypeBox. Skills and extensions must work for any user. Do not ship personal names, local paths, machine assumptions or private workflows.
-Check dependency currency before substantial merges. Pin direct npm and Cargo registry dependencies exactly. Keep npm peer ranges for supported host compatibility.
-Resolve packages against immediate `packages/` subdirectories. Search the unique name fragment first, then follow direct references.
+Unique package fragment→immediate `packages/` subdir→refs. Substantial merge: check dependency currency. Exact direct npm/Cargo registry pins; ranged npm peers.
 
-Run sandbox or live TUI reviews only when explicitly requested. Delegate to `sandbox-reviewer`, never run them in the parent. Programmatic probes need no sandbox and cannot substitute for consecutive real Pi turns through Herdr. For release acceptance, use the candidate's bundled native helpers without overrides.
+Sandbox/live TUI ONLY on explicit request→`sandbox-reviewer`, consecutive real Pi turns via Herdr. Probes need no sandbox and aren't TUI review. Release acceptance: candidate bundled native helpers, no overrides.
 
-Keep informational timestamps at minute precision without changing stored clocks or finer precision needed by behaviour or external contracts.
-Delete permanent tests by default. Retain only consequential failure coverage that static checks and disposable probes cannot adequately provide. Add permanent tests only when explicitly requested.
-Record fragile ownership and ordering in the nearest AGENTS.md, not a regression suite. Keep runtime validation in its owning code.
-Establish actual exposure in supported workflows. A synthetic reproducer or possible interleaving alone is not enough. Weigh consequence against fix complexity. Optional capabilities are not defects. Cull scope before adding recovery or compatibility machinery.
+Display times: minutes; keep stored/required precision. Permanent tests: delete unless consequential gap beyond static checks/probes; add ONLY on request. Fragile ownership/order→nearest AGENTS.md; runtime checks→owner.
 
-Work on `dev` in the existing checkout by default. If the preceding `dev` → `main` PR merged, align after verifying all previous dev work was published. Preserve dirty files and unpublished commits. Never merge `main` into `dev`.
-Ship unpublished dev work through one source PR unless explicitly split or deferred. Keep provisional edits local while direction is open. Batch settled follow-ups into validated pushes at natural checkpoints. Read new review comments before and after pushing, including bots. Fix concrete in-scope findings. Pushing does not authorise merging.
-Amend only tiny, immediate, behaviour-preserving corrections to the latest unpublished commit. Use new commits for changed behaviour, revised approaches and later fixes.
-Only Igor's explicit instruction authorises a major bump. Breaking changes or a general release request do not.
-Keep exactly one changeset per changed extension when published behaviour or payload changes. Describe net user-facing differences, with breaking changes and migrations first. Use `.changesets-pending` for explicit deferrals. Ordinary docs, tests and dependency-only changes need none. CI owns aggregate versions and changesets.
+Defects need supported exposure, not synthetic repro/interleaving alone. Consequence vs complexity. Optional ≠ defect. Cull before recovery/compat.
+
+`dev` in place. Prior dev PR merged→verify publication→align dev with main, never merge main in. Preserve dirty/unpublished work. One source PR unless explicit split/deferral. Provisional edits local; batch validated pushes. Human/bot comments pre/post push→fix concrete in-scope findings. Push ≠ merge.
+
+Amend latest unpublished commit ONLY tiny immediate behaviour-preserving fix; behaviour/approach changes or later fixes→new commit.
+
+`main` merge→Changesets→npm. Major ONLY on Igor's explicit instruction, including breaks/release. One changeset per extension with published behaviour/payload delta. Net user outcomes, breaks/migrations first. Explicit deferral→`.changesets-pending`. None for ordinary docs/tests/dependency-only. CI owns aggregates.
