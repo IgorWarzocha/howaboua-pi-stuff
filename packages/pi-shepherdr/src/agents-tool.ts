@@ -50,7 +50,9 @@ export function createAgentsTool(
 		promptGuidelines: [
 			"agents: MUST use for supported local and remote agent operations. Report blockers instead of bypassing via hc or shell",
 			...(process.env["HC_TERMINAL_ID"] && process.env["HC_TERMINAL_SOCKET"]
-				? ["agents: Herdr≈tmux. Terminals→hc --skill; window→herdr-app --skill"]
+				? [
+						"agents: Herdr active (like tmux). Terminals→hc --skill; window→herdr-app --skill",
+					]
 				: []),
 		],
 		parameters: AgentsParameters,
