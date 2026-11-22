@@ -71,7 +71,6 @@ export async function registerNotesToolIntegrations(
 							...adaptToolForCodeMode(tool, {
 								discovery: "help",
 								usage: tool.name === "notes" ? NOTES_USAGE : HISTORY_USAGE,
-								deferLoading: tool.name !== "notes",
 								opaqueResult: tool.name === "notes",
 								...(tool.name === "history"
 									? { resultValue: historyResultValue }

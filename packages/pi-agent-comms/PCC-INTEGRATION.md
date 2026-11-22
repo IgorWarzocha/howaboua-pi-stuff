@@ -4,7 +4,7 @@
 
 Notes owns its four tools, local storage, family sharing, checkpoint policy and context windows. PCC is optional. Without Notes, PCC provides ordinary Pi and native provider compaction without notes tools.
 
-Notes uses the same guidance with or without PCC. Code and Notebook promote Notes' compact discovery entry and routing guidance through PCC's public `code-mode` export. History remains deferred. Notes' on-demand help describes its result fields. `new_context` is a sequential model-only tool and is not advertised in nested discovery. Freshness uses persisted Notes receipts and completed tool outcomes, including nested-call evidence through exec and wait.
+Code and Notebook advertise Notes and History through PCC's public `code-mode` export. Their arguments stay in on-demand help. `new_context` is a sequential model-only tool and is not advertised in nested discovery. Freshness uses persisted Notes receipts and completed tool outcomes, including nested-call evidence through exec and wait.
 
 Notes declares Pi's `outputSchema` and returns its canonical payload as `structuredContent`. Pi's built-in codemode, Code and Notebook receive the same object without parsing display text. Native model-facing text remains unchanged. Shared reads preserve structured paths and availability warnings.
 
