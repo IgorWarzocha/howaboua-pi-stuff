@@ -12,6 +12,7 @@
 - Removed the Harness identifier header setting. Codex requests now always send `codex_cli_rs` as their originator.
 - Replaced Compact tool output and Code / Notebook details with one Tool details setting: Minimal, Compact or Preview. Expanding a tool reveals its available source, output and diffs in every mode.
 - Folded shell rows show nonzero exit codes, including in grouped exploration and background terminal results. A plain search with no matches is shown separately from errors.
+- Pi Codex upgrades older global and trusted project settings files once, preserving unrelated fields and project overrides. Current settings files are not rewritten at startup.
 - Codex settings clarify what prompt overwrite, cache keepalive and voice refresh change, and which tool naming changes are display-only.
 - Codex prompt guidance now directs agents to work through recoverable blockers, continue independent work and act on clear requests rather than offering to act.
 - Code and Notebook group each tool's usage and rules. Tools with on-demand usage show the same no-argument discovery call.

@@ -85,6 +85,7 @@ export function createCodexSessionLifecycle(
 			state.config = readEffectiveCodexConversionConfig({
 				cwd: ctx.cwd,
 				projectTrusted: ctx.isProjectTrusted(),
+				upgradeSettings: true,
 			});
 			state.executionMode = state.config.executionMode;
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);

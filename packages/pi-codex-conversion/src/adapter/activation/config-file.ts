@@ -1,8 +1,13 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
+import { isDeepStrictEqual } from "node:util";
 import {
-	LEGACY_OWNED_CONFIG_KEYS,
+	assertConfigDocument,
+	assertWritableConfig,
 	isRecord,
 	mergeConfigDocument,
+	needsConfigUpgrade,
+	removeLegacyBetaFields,
+	stampConfigDocument,
 	clearAbsentOwnedOptionals,
 	writeConfigDocumentAtomic,
 	withoutProjectOnlyConfig,
@@ -10,8 +15,12 @@ import {
 	withoutGlobalOnlyDocument,
 	withoutDisabledProjectCacheKeepalive,
 } from "./config-document.ts";
-import { migrateCodexConversionConfigIfNeeded } from "./config-migration.ts";
-import { resolveLegacyToolDetails } from "./config-normalizers.ts";
+import { migrateCodexConversionConfig } from "./config-migration.ts";
+import {
+	normalizeAllProvidersMode,
+	resolveLegacyToolDetails,
+} from "./config-normalizers.ts";
+import { normalizeExecutionMode } from "./execution-mode.ts";
 import {
 	DEFAULT_CODEX_CONVERSION_CONFIG,
 	normalizeCodexConversionConfig,
@@ -54,12 +63,14 @@ export function readCodexConversionConfig(
 
 export function normalizeGlobalConfigDocument(
 	parsed: unknown,
+	upgradePath?: string,
 ): CodexConversionConfig {
 	if (parsed === undefined)
 		return structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
-	const migration = migrateCodexConversionConfigIfNeeded(parsed);
+	const current = migrateCodexConversionConfig(parsed);
+	if (upgradePath) persistConfigUpgrade(upgradePath, parsed, current, false);
 	const config = withoutProjectOnlyConfig(
-		normalizeCodexConversionConfig(migration.config),
+		normalizeCodexConversionConfig(current),
 	);
 	const voice =
 		isRecord(parsed) && isRecord(parsed["voice"]) ? parsed["voice"] : undefined;
@@ -83,16 +94,17 @@ export function writeCodexConversionConfig(
 				)
 			: withoutProjectOnlyDocument(normalizedConfig);
 		let document = normalized;
+		let existing: unknown;
 		if (existsSync(configPath)) {
 			try {
-				const existing = JSON.parse(
-					readFileSync(configPath, "utf-8"),
-				) as unknown;
-				if (isRecord(existing))
-					document = mergeConfigDocument(existing, normalized);
+				existing = JSON.parse(readFileSync(configPath, "utf-8"));
 			} catch {
-				// A valid explicit settings write replaces an unreadable document.
+				// An explicit settings save may replace an unreadable document.
 			}
+		}
+		if (isRecord(existing)) {
+			assertWritableConfig(existing);
+			document = mergeConfigDocument(existing, normalized);
 		}
 		document = folderScope
 			? withoutDisabledProjectCacheKeepalive(
@@ -100,45 +112,10 @@ export function writeCodexConversionConfig(
 				)
 			: withoutProjectOnlyDocument(document);
 		clearAbsentOwnedOptionals(document, normalized, folderScope);
-		for (const key of LEGACY_OWNED_CONFIG_KEYS) delete document[key];
-		delete document["voiceFeaturesOnly"];
-		delete document["applyPatchOnly"];
-		delete document["viewImageOnly"];
-		const tools = document["tools"];
-		if (isRecord(tools)) {
-			delete tools["applyPatchOnly"];
-			delete tools["viewImageOnly"];
-		}
-		const ui = document["ui"];
-		// Unmigrated project files can still inherit these global axes. An
-		// unrelated settings write must not discard them.
-		if (
-			isRecord(ui) &&
-			(folderScope ||
-				resolveLegacyToolDetails(ui["compactTools"], ui["codeModeDetails"]) !==
-					ui["toolDetails"])
-		) {
-			delete ui["compactTools"];
-			delete ui["codeModeDetails"];
-		}
-		const openai = document["openai"];
-		if (isRecord(openai)) delete openai["harnessIdentifierHeader"];
-		const compaction = document["compaction"];
-		if (isRecord(compaction))
-			for (const key of [
-				"contextManagement",
-				"hybridCompaction",
-				"responsesCompaction",
-				"portableSummary",
-			])
-				delete compaction[key];
-		const notebook = document["notebook"];
-		if (isRecord(notebook)) {
-			if (!config.notebook.profile) delete notebook["profile"];
-			delete notebook["journals"];
-			delete notebook["checkpointCleanup"];
-		}
-		writeConfigDocumentAtomic(configPath, document);
+		if (!config.notebook.profile && isRecord(document["notebook"]))
+			delete document["notebook"]["profile"];
+		cleanRetiredFields(document, folderScope);
+		writeConfigDocumentAtomic(configPath, stampConfigDocument(document));
 		return { ok: true };
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -146,6 +123,90 @@ export function writeCodexConversionConfig(
 			`[pi-codex-conversion] Failed to write ${configPath}: ${message}`,
 		);
 		return { ok: false, error: message };
+	}
+}
+
+function cleanRetiredFields(
+	document: Record<string, unknown>,
+	folderScope: boolean,
+): void {
+	removeLegacyBetaFields(document);
+	delete document["voiceFeaturesOnly"];
+	delete document["applyPatchOnly"];
+	delete document["viewImageOnly"];
+	const tools = document["tools"];
+	if (isRecord(tools)) {
+		delete tools["applyPatchOnly"];
+		delete tools["viewImageOnly"];
+	}
+	const ui = document["ui"];
+	// Unmigrated project files can still inherit these global axes. An
+	// unrelated settings write must not discard them.
+	if (
+		isRecord(ui) &&
+		(folderScope ||
+			resolveLegacyToolDetails(ui["compactTools"], ui["codeModeDetails"]) !==
+				ui["toolDetails"])
+	) {
+		delete ui["compactTools"];
+		delete ui["codeModeDetails"];
+	}
+	const openai = document["openai"];
+	if (isRecord(openai)) delete openai["harnessIdentifierHeader"];
+	const compaction = document["compaction"];
+	if (isRecord(compaction))
+		for (const key of ["responsesCompaction", "portableSummary"])
+			delete compaction[key];
+	const notebook = document["notebook"];
+	if (isRecord(notebook)) {
+		delete notebook["journals"];
+		delete notebook["checkpointCleanup"];
+	}
+}
+
+export function persistConfigUpgrade(
+	path: string,
+	original: unknown,
+	migrated: unknown,
+	folderScope: boolean,
+): void {
+	if (
+		!isRecord(original) ||
+		!needsConfigUpgrade(original) ||
+		!isRecord(migrated)
+	)
+		return;
+	try {
+		// Validate what came from disk before translation or pruning can hide mistakes.
+		assertConfigDocument(original);
+		// Do not replace symlinks, or overwrite changes made since the read.
+		if (
+			!lstatSync(path).isFile() ||
+			!isDeepStrictEqual(JSON.parse(readFileSync(path, "utf8")), original)
+		)
+			return;
+		const document = structuredClone(migrated);
+		if (document["executionMode"] !== "notebook") {
+			const mode = normalizeExecutionMode(document["executionMode"]);
+			if (mode) document["executionMode"] = mode;
+		}
+		const scope = document["scope"];
+		if (isRecord(scope)) {
+			const mode = normalizeAllProvidersMode(scope["allProviders"]);
+			if (mode) scope["allProviders"] = mode;
+		}
+		// Older project files can still inherit the pre-preset global axes.
+		const oldUi = original["ui"];
+		const ui = document["ui"];
+		if (!folderScope && isRecord(oldUi) && isRecord(ui))
+			for (const key of ["compactTools", "codeModeDetails"])
+				if (key in oldUi) ui[key] = oldUi[key];
+		cleanRetiredFields(document, folderScope);
+		writeConfigDocumentAtomic(path, stampConfigDocument(document));
+	} catch (error) {
+		console.warn(
+			`[pi-codex-conversion] Could not upgrade settings at ${path}: ${error instanceof Error ? error.message : String(error)}`,
+		);
 	}
 }
 

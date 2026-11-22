@@ -8,10 +8,14 @@ import {
 } from "./config.ts";
 import { normalizeExecutionMode } from "./execution-mode.ts";
 import {
+	isRecord,
+	needsConfigUpgrade,
+	removeLegacyBetaFields,
+} from "./config-document.ts";
+import {
 	normalizeToolDetailsMode,
 	resolveLegacyToolDetails,
 } from "./config-normalizers.ts";
-import { normalizeFastMode } from "./fast-mode.ts";
 
 export type CompactionMigrationInheritance =
 	CodexConversionConfig["compaction"] & {
@@ -20,12 +24,27 @@ export type CompactionMigrationInheritance =
 		continuity?: unknown;
 	};
 
-export function migrateCodexConversionConfigIfNeeded(
+const FLAT_KEYS = [
+	"useOnAllModels",
+	"useAdapterProviders",
+	"adapterProviders",
+	"statusLine",
+	"backgroundShellWidget",
+	"backgroundShellToggleShortcut",
+	"backgroundShellPrevShortcut",
+	"backgroundShellNextShortcut",
+	"backgroundShellCloseShortcut",
+	"responsesCompaction",
+	"fast",
+	"verbosity",
+] as const;
+
+export function migrateCodexConversionConfig(
 	value: unknown,
 	inheritedCompaction: CompactionMigrationInheritance = DEFAULT_CODEX_CONVERSION_CONFIG.compaction,
 	inheritedUi?: Record<string, unknown>,
-): { migrated: boolean; config: unknown } {
-	if (!isObject(value)) return { migrated: false, config: value };
+): unknown {
+	if (!isRecord(value) || !needsConfigUpgrade(value)) return value;
 	if (
 		"voiceFeaturesOnly" in value ||
 		normalizeExecutionMode(value["executionMode"]) ||
@@ -58,116 +77,66 @@ export function migrateCodexConversionConfigIfNeeded(
 				: document;
 		const beta = isObject(value["beta"]) ? value["beta"] : undefined;
 		if (beta) {
-			const { beta: _beta, ...withoutBeta } = current;
 			const openai = isObject(value["openai"]) ? value["openai"] : {};
-			return {
-				migrated: true,
-				config: {
-					...withoutBeta,
-					executionMode:
-						(value["executionMode"] === "notebook"
-							? "notebook"
-							: normalizeExecutionMode(value["executionMode"])) ??
-						(beta["codeMode"] === true ? "code" : "normal"),
-					openai: {
-						...openai,
-						proxyResponsesLite:
-							typeof openai["proxyResponsesLite"] === "boolean"
-								? openai["proxyResponsesLite"]
-								: beta["responsesLite"] === true,
-					},
-					compaction: {
-						...compaction,
-						v2UserMessageRetention:
-							normalizeV2UserMessageRetention(
-								compaction?.["v2UserMessageRetention"],
-							) ??
-							normalizeV2UserMessageRetention(beta["v2UserMessageRetention"]) ??
-							DEFAULT_CODEX_CONVERSION_CONFIG.compaction.v2UserMessageRetention,
-					},
-				},
+			const mode =
+				value["executionMode"] === "notebook"
+					? "notebook"
+					: normalizeExecutionMode(value["executionMode"]);
+			const retention = normalizeV2UserMessageRetention(
+				beta["v2UserMessageRetention"],
+			);
+			const migrated = {
+				...current,
+				...(mode
+					? { executionMode: mode }
+					: typeof beta["codeMode"] === "boolean"
+						? { executionMode: beta["codeMode"] ? "code" : "normal" }
+						: {}),
+				...(typeof openai["proxyResponsesLite"] !== "boolean" &&
+				typeof beta["responsesLite"] === "boolean"
+					? { openai: { ...openai, proxyResponsesLite: beta["responsesLite"] } }
+					: {}),
+				...(retention && compaction?.["v2UserMessageRetention"] === undefined
+					? { compaction: { ...compaction, v2UserMessageRetention: retention } }
+					: {}),
 			};
+			removeLegacyBetaFields(migrated);
+			return migrated;
 		}
-		return { migrated: current !== value, config: current };
+		return current;
 	}
-	const config: CodexConversionConfig = {
-		...structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG),
-		scope: {
-			allProviders:
-				value["useOnAllModels"] === true
-					? "on"
-					: value["useOnAllModels"] === false
-						? "off"
-						: DEFAULT_CODEX_CONVERSION_CONFIG.scope["allProviders"],
-			additionalProviders:
-				value["useAdapterProviders"] === true
-					? normalizeProviderList(value["adapterProviders"])
-					: [],
-		},
-		tools: {
-			autoReasoning: DEFAULT_CODEX_CONVERSION_CONFIG.tools.autoReasoning,
-			customRustBinariesDir:
-				DEFAULT_CODEX_CONVERSION_CONFIG.tools["customRustBinariesDir"],
-			viewImageFallback:
-				DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageFallback"],
-		},
-		ui: {
-			statusLine:
-				typeof value["statusLine"] === "boolean"
-					? value["statusLine"]
-					: DEFAULT_CODEX_CONVERSION_CONFIG.ui["statusLine"],
-			toolRenaming: DEFAULT_CODEX_CONVERSION_CONFIG.ui["toolRenaming"],
-			toolDetails: DEFAULT_CODEX_CONVERSION_CONFIG.ui.toolDetails,
-			backgroundShellWidget:
-				typeof value["backgroundShellWidget"] === "boolean"
-					? value["backgroundShellWidget"]
-					: DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellWidget"],
-			backgroundShellToggleShortcut: stringValue(
-				value["backgroundShellToggleShortcut"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellToggleShortcut"],
-			),
-			backgroundShellPrevShortcut: stringValue(
-				value["backgroundShellPrevShortcut"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellPrevShortcut"],
-			),
-			backgroundShellNextShortcut: stringValue(
-				value["backgroundShellNextShortcut"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellNextShortcut"],
-			),
-			backgroundShellCloseShortcut: stringValue(
-				value["backgroundShellCloseShortcut"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellCloseShortcut"],
-			),
-		},
-		compaction: {
-			...DEFAULT_CODEX_CONVERSION_CONFIG.compaction,
-			method: value["responsesCompaction"] === true ? "v2" : "pi",
-		},
-		openai: {
-			fast: normalizeFastMode(value["fast"]),
-			daybreak: DEFAULT_CODEX_CONVERSION_CONFIG.openai.daybreak,
-			verbosity:
-				normalizeCodexVerbosity(value["verbosity"]) ??
-				DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],
-			lunaCacheKeepaliveMinutes:
-				DEFAULT_CODEX_CONVERSION_CONFIG.openai.lunaCacheKeepaliveMinutes,
-			lunaCacheKeepaliveIntervalMinutes:
-				DEFAULT_CODEX_CONVERSION_CONFIG.openai
-					.lunaCacheKeepaliveIntervalMinutes,
-			cacheKeepalive: DEFAULT_CODEX_CONVERSION_CONFIG.openai.cacheKeepalive,
-			cacheKeepaliveIntervalMinutes:
-				DEFAULT_CODEX_CONVERSION_CONFIG.openai.cacheKeepaliveIntervalMinutes,
-			proxyResponsesLite:
-				DEFAULT_CODEX_CONVERSION_CONFIG.openai.proxyResponsesLite,
-			cacheDiagnostics: DEFAULT_CODEX_CONVERSION_CONFIG.openai.cacheDiagnostics,
-		},
-	};
-	return {
-		migrated: true,
-		config: isObject(value["voice"])
-			? { ...config, voice: value["voice"] }
-			: config,
-	};
+	if (!FLAT_KEYS.some((key) => key in value)) return value;
+	const document = { ...value };
+	for (const key of FLAT_KEYS) delete document[key];
+	const scope: Record<string, unknown> = {};
+	if (typeof value["useOnAllModels"] === "boolean")
+		scope["allProviders"] = value["useOnAllModels"] ? "on" : "off";
+	if (typeof value["useAdapterProviders"] === "boolean")
+		scope["additionalProviders"] = value["useAdapterProviders"]
+			? normalizeProviderList(value["adapterProviders"])
+			: [];
+	const ui: Record<string, unknown> = {};
+	for (const key of ["statusLine", "backgroundShellWidget"])
+		if (typeof value[key] === "boolean") ui[key] = value[key];
+	for (const key of FLAT_KEYS)
+		if (
+			key.endsWith("Shortcut") &&
+			typeof value[key] === "string" &&
+			value[key].trim()
+		)
+			ui[key] = value[key].trim();
+	const openai: Record<string, unknown> = {};
+	if ("fast" in value) openai["fast"] = value["fast"];
+	const verbosity = normalizeCodexVerbosity(value["verbosity"]);
+	if (verbosity) openai["verbosity"] = verbosity;
+	if (Object.keys(scope).length) document["scope"] = scope;
+	if (Object.keys(ui).length) document["ui"] = ui;
+	if (Object.keys(openai).length) document["openai"] = openai;
+	if (typeof value["responsesCompaction"] === "boolean")
+		document["compaction"] = {
+			method: value["responsesCompaction"] ? "v2" : "pi",
+		};
+	return document;
 }
 
 function migrateToolDetails(
@@ -261,8 +230,4 @@ function migrateCompactionOptions(
 			: {}),
 		...rest,
 	};
-}
-
-function stringValue(value: unknown, fallback: string): string {
-	return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }

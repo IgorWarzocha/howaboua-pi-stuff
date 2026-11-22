@@ -84,6 +84,8 @@ The first setting chooses **Global** or **This project**. Global settings live i
 
 Switching back to Global removes the project's overrides. Run `/reload` after editing configuration files by hand.
 
+Pi Codex upgrades older settings files on session start, including project files in trusted folders. It leaves current files and unrelated fields alone.
+
 ### Tool details
 
 **Minimal** keeps nested tool results and patch summaries visible while hiding ordinary cell output behind an expand hint. **Compact**, the default, adds a short cell output preview. **Preview** also shows cell source and patch diff previews.
