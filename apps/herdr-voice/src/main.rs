@@ -41,7 +41,10 @@ enum Action {
     /// Release local audio and stop the selected Pi voice call.
     Disconnect,
     /// Set microphone mute while keeping the connection.
-    Mute { muted: bool },
+    Mute {
+        #[arg(action = clap::ArgAction::Set)]
+        muted: bool,
+    },
 }
 
 #[tokio::main]

@@ -50,9 +50,9 @@
   },
   "dependencies": {
     "@earendil-works/pi-schema": "1.6.0",
-    "better-sqlite3": "13.0.3",
-    "dompurify": "3.4.17",
-    "marked": "18.2.0",
+    "better-sqlite3": "13.2.0",
+    "dompurify": "3.5.0",
+    "marked": "18.2.1",
     "unicode-case-folding": "1.1.2"
   },
   "devDependencies": {

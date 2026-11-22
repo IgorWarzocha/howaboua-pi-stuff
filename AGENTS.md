@@ -4,6 +4,7 @@ We use this toolkit. If tools fail or cause friction, propose concrete fixes. Ap
 
 Every package must work against released upstream Pi. Use supported extension APIs, never an upstream patch or fork. Every extension must install and run standalone. Discover optional integrations at runtime, never require them for core functionality.
 Use released `@earendil-works/pi-schema` builders and validators, not TypeBox. Skills and extensions must work for any user. Do not ship personal names, local paths, machine assumptions or private workflows.
+Check dependency currency before substantial merges. Pin direct npm and Cargo registry dependencies exactly. Keep npm peer ranges for supported host compatibility.
 Resolve packages against immediate `packages/` subdirectories. Search the unique name fragment first, then follow direct references.
 
 Run sandbox or live TUI reviews only when explicitly requested. Delegate to `sandbox-reviewer`, never run them in the parent. Programmatic probes need no sandbox and cannot substitute for consecutive real Pi turns through Herdr. For release acceptance, use the candidate's bundled native helpers without overrides.

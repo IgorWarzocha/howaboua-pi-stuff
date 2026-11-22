@@ -14,11 +14,11 @@ tokio = { workspace = true, features = ["io-util", "macros", "process", "rt-mult
 pretty_assertions = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-filedescriptor = "0.8.3"
+filedescriptor = "=0.8.3"
 lazy_static = { workspace = true }
 log = { workspace = true }
-shared_library = "0.1.9"
-winapi = { version = "0.3.9", features = [
+shared_library = "=0.1.9"
+winapi = { version = "=0.3.9", features = [
     "handleapi",
     "jobapi2",
     "minwinbase",

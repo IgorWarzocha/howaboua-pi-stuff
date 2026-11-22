@@ -136,23 +136,23 @@
     "@earendil-works/pi-coding-agent": "1.6.0",
     "@earendil-works/pi-tui": "1.6.0",
     "@types/node": "26.6.6",
-    "@types/ws": "^8.18.2",
-    "tsrs": "0.25.0-ts7.1.0-beta",
-    "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "@types/ws": "8.18.2",
+    "tsrs": "7.1.0-beta.tsrs4",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2"
   },
   "dependencies": {
     "@earendil-works/pi-schema": "1.6.0",
-    "@howaboua/pi-browser": "^0.0.14",
-    "acorn": "8.15.0",
+    "@howaboua/pi-browser": "0.0.14",
+    "acorn": "8.19.0",
     "https-proxy-agent": "9.1.0",
-    "openai": "7.55.0",
+    "openai": "7.62.0",
     "proxy-from-env": "2.1.0",
-    "selfsigned": "^5.5.0",
-    "smol-toml": "^1.9.1",
-    "undici": "8.12.4",
-    "web-tree-sitter": "^0.27.2",
-    "ws": "^8.22.2"
+    "selfsigned": "5.5.0",
+    "smol-toml": "1.9.1",
+    "undici": "8.13.1",
+    "web-tree-sitter": "0.27.2",
+    "ws": "8.23.0"
   },
   "engines": {
     "node": ">=22.19.0"

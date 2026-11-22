@@ -2,6 +2,6 @@
   "type": "module",
   "private": true,
   "dependencies": {
-    "js-tiktoken": "^1.0.21"
+    "js-tiktoken": "1.0.21"
   }
 }

@@ -15,9 +15,9 @@ distribution uses the license named below.
 | `derive_more`, `derive_more-impl` | 2.1.1 | MIT | `derive_more/LICENSE-MIT` |
 | `num-integer`, `num-traits` | 0.1.47, 0.2.19 | MIT | `num/LICENSE-MIT` |
 | `opus` | 0.4.0 | MIT | `opus/LICENSE-MIT` |
-| `opusic-sys` | 0.7.6 | BSD-3-Clause | `opusic-sys/LICENSE-BSD-3-CLAUSE` |
+| `opusic-sys` | 0.7.7 | BSD-3-Clause | `opusic-sys/LICENSE-BSD-3-CLAUSE` |
 | bundled `libopus` | 1.6.1 | BSD-3-Clause | `opusic-sys/LICENSE-BSD-3-CLAUSE` |
-| `rubato` | 5.0.1 | MIT | `rubato/LICENSE-MIT` |
+| `rubato` | 5.1.0 | MIT | `rubato/LICENSE-MIT` |
 | `sonora`, `sonora-aec3`, `sonora-agc2`, `sonora-common-audio`, `sonora-fft`, `sonora-ns`, `sonora-simd` | 0.2.0 | BSD-3-Clause | `sonora/LICENSE-BSD-3-CLAUSE` |
 | `tracing`, `tracing-core`, `tracing-attributes` | 0.1.44, 0.1.36, 0.1.31 | MIT | `tracing/LICENSE-MIT` |
 | `unicode-xid` | 0.2.6 | MIT | `unicode-xid/LICENSE-MIT`, `unicode-xid/COPYRIGHT` |

@@ -45,9 +45,9 @@
     "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'"
   },
   "dependencies": {
-    "@howaboua/pi-browser": "^0.0.14",
-    "selfsigned": "^5.5.0",
-    "ws": "^8.22.2",
+    "@howaboua/pi-browser": "0.0.14",
+    "selfsigned": "5.5.0",
+    "ws": "8.23.0",
     "@earendil-works/pi-schema": "1.6.0"
   },
   "peerDependencies": {
@@ -59,9 +59,9 @@
     "@earendil-works/pi-coding-agent": "1.6.0",
     "@earendil-works/pi-ai": "1.6.0",
     "@earendil-works/pi-tui": "1.6.0",
-    "@types/node": "^26.6.6",
-    "@types/ws": "^8.18.2",
-    "typescript": "^7.0.2",
-    "oxfmt": "^0.78.0"
+    "@types/node": "26.6.6",
+    "@types/ws": "8.18.2",
+    "typescript": "7.0.2",
+    "oxfmt": "0.79.0"
   }
 }
