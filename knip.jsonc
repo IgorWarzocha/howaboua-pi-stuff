@@ -100,13 +100,11 @@
 				"src/codex-usage/analyse.ts",
 				"scripts/**/*.mjs",
 				"examples/custom-tools/**/*.mjs",
-				"tests/**/*.test.ts",
 			],
 			"project": [
 				"src/**/*.ts",
 				"scripts/**/*.mjs",
 				"examples/custom-tools/**/*.mjs",
-				"tests/**/*.ts",
 			],
 			"ignoreDependencies": ["proxy-from-env"],
 		},

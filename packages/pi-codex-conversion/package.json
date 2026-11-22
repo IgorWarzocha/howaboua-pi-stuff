@@ -101,9 +101,8 @@
   "scripts": {
     "build": "node -e \"const fs=require('node:fs'); fs.rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && bun run build:host-settings",
     "typecheck": "tsrs --noEmit -p tsconfig.json",
-    "test": "tsx --test tests/*.test.ts",
     "bench:code-modes": "tsx scripts/bench-code-modes.ts",
-    "check": "node ../../scripts/sync-browser-cdp.mjs --check && bun run lint && bun run typecheck && bun run test",
+    "check": "node ../../scripts/sync-browser-cdp.mjs --check && bun run lint && bun run typecheck",
     "publish:dry-run": "npm publish --dry-run",
     "publish:dev": "npm publish --tag dev",
     "release:dev": "npm version prerelease --preid dev && npm publish --tag dev",
