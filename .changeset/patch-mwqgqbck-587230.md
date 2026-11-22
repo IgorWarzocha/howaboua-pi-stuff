@@ -10,3 +10,4 @@
 - Code and Notebook group each tool's usage and rules. Tools with on-demand usage show the same no-argument discovery call.
 - Codex sends harness and tool guidance before `AGENTS.md` instructions and the working directory.
 - Background shell completion notices collapse to one line. Expand a notice to see its output.
+- Expanded Code cells show identical successful shell output once when the shell trace already displays it.
