@@ -1,5 +1,16 @@
 # @howaboua/pi-extensions
 
+## 0.0.110
+
+- Include bundled package updates:
+
+  - @howaboua/pi-ask: Ask always uses compact question and handoff help, including in standalone installs.
+  - @howaboua/pi-better-skills-tool: - Skills lists trusted repository `.agents/skills` under Session alongside `.pi/skills`, without duplicates. Global `~/.agents/skills` are excluded. - Skills always uses compact discovery and reading guidance, including in standalone installs.
+  - @howaboua/pi-gippity-control: - GipPity settings explain how browser access, dropped-call recovery and voice context refresh work. - Bundled voice helpers use updated Rust dependencies.
+  - @howaboua/pi-github-watch: GitHub Watch always uses compact watch help, including in standalone installs.
+  - @howaboua/pi-shepherdr: - Shared Notes and Board recovery messages direct users to Agent Comms. - Shepherdr settings distinguish delegation guidance from starting workers and explain what adding an SSH connection does. - Agent discovery shows and accepts the local Herdr Core name. For remote machines, use the label or ID from `list`, not the hostname. - Agent help uses compact wording and separates terminal commands from Herdr window controls.
+  - @howaboua/pi-unicode-charts: Chart instructions always use the compact format. Pi Codex Conversion is no longer needed to select it.
+
 ## 0.0.109
 
 **Bundle removals**
