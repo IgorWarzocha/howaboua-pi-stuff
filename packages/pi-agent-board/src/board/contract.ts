@@ -24,6 +24,7 @@ const BOARD_ACTIONS = [
 	"subscribe",
 	"unsubscribe",
 ] as const;
+const REPLY_ALIAS = { input: "reply", canonical: "post" } as const;
 const THREAD_STATUSES = ["open", "completed", "abandoned"] as const;
 export type ThreadStatus = (typeof THREAD_STATUSES)[number];
 export const BoardParameters = obj(
@@ -32,9 +33,14 @@ export const BoardParameters = obj(
 	},
 	{ open: true },
 );
-// Notebook checks the supplied action before Pi can normalise the alias.
+// Nested callers type-check the supplied action; Pi validates the canonical request.
 export const BoardNestedParameters = obj(
-	{ action: opt({ ...oneOf([...BOARD_ACTIONS, "reply"]), type: "string" }) },
+	{
+		action: opt({
+			...oneOf([...BOARD_ACTIONS, REPLY_ALIAS.input]),
+			type: "string",
+		}),
+	},
 	{ open: true },
 );
 const positive = opt(int({ minimum: 1, maximum: 0xffffffff }));
@@ -130,11 +136,11 @@ export function prepareBoardArguments(value: unknown): unknown {
 		value !== null &&
 		!Array.isArray(value) &&
 		"action" in value &&
-		value.action === "reply"
+		value.action === REPLY_ALIAS.input
 	) {
 		if (!("thread_id" in value) || value.thread_id === undefined)
 			throw new Error("thread_id is required for a reply");
-		return { ...value, action: "post" };
+		return { ...value, action: REPLY_ALIAS.canonical };
 	}
 	return value;
 }

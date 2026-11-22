@@ -14,7 +14,11 @@ import {
 } from "@earendil-works/pi-schema";
 import type { LookupQuery } from "./bridge.js";
 import { noteResult } from "./note-result.js";
-import { internalQueryArguments, normalizeQueryInput } from "./query-input.js";
+import {
+	internalQueryArguments,
+	normalizeQueryInput,
+	NOTES_NESTED_FIELD_ALIASES,
+} from "./query-input.js";
 
 const NOTES_ACTIONS = [
 	"help",
@@ -41,26 +45,35 @@ export const NEW_CONTEXT_DESCRIPTION =
 const STRING = opt(str());
 const INTEGER = opt(int({ minimum: 1 }));
 const LINE = opt(union([int(), nul()]));
-export const NOTES_SCHEMA = obj(
-	{
-		action: opt({ ...oneOf(NOTES_ACTIONS), type: "string" }),
-		path: opt(
-			union([str(), nul()], {
-				description: "Note path for read/write/append; prefix for list/search",
-			}),
-		),
-		text: STRING,
-		query: STRING,
-		start_line: LINE,
-		stop_line: LINE,
-		limit: INTEGER,
-		max_matches_per_file: INTEGER,
-		file_order: opt({ ...oneOf(["ascending", "descending"]), type: "string" }),
-		file_order_by: opt({
-			...oneOf(["name", "created_at", "updated_at"]),
-			type: "string",
+const NOTE_PROPERTIES = {
+	action: opt({ ...oneOf(NOTES_ACTIONS), type: "string" }),
+	path: opt(
+		union([str(), nul()], {
+			description: "Note path for read/write/append; prefix for list/search",
 		}),
-		recent_file_first: opt(bool()),
+	),
+	text: STRING,
+	query: STRING,
+	start_line: LINE,
+	stop_line: LINE,
+	limit: INTEGER,
+	max_matches_per_file: INTEGER,
+	file_order: opt({ ...oneOf(["ascending", "descending"]), type: "string" }),
+	file_order_by: opt({
+		...oneOf(["name", "created_at", "updated_at"]),
+		type: "string",
+	}),
+	recent_file_first: opt(bool()),
+};
+export const NOTES_SCHEMA = obj(NOTE_PROPERTIES, { open: false });
+export const NOTES_NESTED_SCHEMA = obj(
+	{
+		...NOTE_PROPERTIES,
+		...Object.fromEntries(
+			Object.entries(NOTES_NESTED_FIELD_ALIASES).map(
+				([name, { canonical }]) => [name, NOTE_PROPERTIES[canonical]],
+			),
+		),
 	},
 	{ open: false },
 );

@@ -10,6 +10,10 @@ const ACTIONS: Record<LookupQuery["namespace"], Record<string, string>> = {
 	},
 	history: { list_items: "list", read_item: "read", search_contents: "search" },
 };
+export const NOTES_NESTED_FIELD_ALIASES = {
+	content: { canonical: "text", actions: ["write", "append"] },
+	end_line: { canonical: "stop_line", actions: ["read"] },
+} as const;
 const HINTS = [
 	"limit",
 	"max_results",
@@ -69,11 +73,13 @@ export function normalizeQueryInput(
 	if (action !== undefined) params["action"] = action;
 	if (namespace === "notes") {
 		alias(params, "address", "path");
-		if (action === "read") alias(params, "end_line", "stop_line");
-		if (action === "write" || action === "append") {
-			alias(params, "content", "text");
+		for (const [from, { canonical, actions }] of Object.entries(
+			NOTES_NESTED_FIELD_ALIASES,
+		))
+			if (actions.some((allowed) => allowed === action))
+				alias(params, from, canonical);
+		if (action === "write" || action === "append")
 			alias(params, "body", "text");
-		}
 		if (action === "list" || action === "search") {
 			alias(params, "prefix", "path");
 			alias(params, "path_prefix", "path");

@@ -3,10 +3,13 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import type { Schema } from "@earendil-works/pi-schema";
 import type { NotesActivation } from "./activation.js";
 import type { NotesLifecycle } from "./lifecycle.js";
-import { HISTORY_USAGE, NOTES_SCHEMA, NOTES_USAGE } from "./tool-contracts.js";
+import {
+	HISTORY_USAGE,
+	NOTES_NESTED_SCHEMA,
+	NOTES_USAGE,
+} from "./tool-contracts.js";
 import type { createTools } from "./tools.js";
 import { projectTreeCheckpointBranch } from "./tree-checkpoint.js";
 import { projectTreeHandoffBranch } from "./tree-handoff-read.js";
@@ -19,7 +22,6 @@ export async function registerNotesToolIntegrations(
 ) {
 	const { tools, requestContext } = registration;
 	let refreshNested = () => {};
-	const noteProperties = NOTES_SCHEMA["properties"] as Record<string, Schema>;
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
 			await import("@howaboua/pi-codex-conversion/code-mode");
@@ -76,18 +78,9 @@ export async function registerNotesToolIntegrations(
 									? { resultValue: historyResultValue }
 									: {}),
 							}),
-							// Code checks inputs before Pi can normalise these aliases.
+							// Nested callers type-check before Pi prepares the input.
 							...(tool.name === "notes"
-								? {
-										inputSchema: {
-											...NOTES_SCHEMA,
-											properties: {
-												...noteProperties,
-												content: noteProperties["text"],
-												end_line: noteProperties["stop_line"],
-											},
-										},
-									}
+								? { inputSchema: NOTES_NESTED_SCHEMA }
 								: {}),
 						})),
 				];
