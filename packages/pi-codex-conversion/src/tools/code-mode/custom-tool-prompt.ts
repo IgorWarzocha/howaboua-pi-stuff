@@ -154,7 +154,7 @@ function renderStandingTool(tool: CodeModeToolDefinition): string[] {
 	const usage = translateCodeModeUsage(tool.usage, tool.name);
 	const call = usage.startsWith(`${binding}(`) ? usage : undefined;
 	const entry = help
-		? `- ${binding}: ${description ? `${description}; ` : ""}Usage: ${tool.kind === "freeform" ? (call?.slice(binding.length) ?? usage) : "{} lists actions and args"}`
+		? `- ${binding}: ${description ? `${description}; ` : ""}Usage: ()`
 		: call
 			? `- ${call}${description ? `; ${description}` : ""}`
 			: `- ${binding}: ${[description, `Usage: ${usage}`].filter(Boolean).join("; ")}`;
@@ -238,8 +238,8 @@ export function buildCodeModeToolsPrompt(
 				: 'For Markdown or multiline text, use ordinary quoted line arrays joined with "\\n". Template literals require escaping backticks and ${...} to keep them literal'
 			: undefined,
 		gpt
-			? "Unknown args→get Usage separately, read result before operation. Don't guess args or repeat discovery for known args"
-			: "When arguments are unknown, read the tool's usage in a separate call before composing the operation. Do not guess arguments or repeat discovery for known arguments",
+			? "Usage: ()→empty call lists args. Unknown args→read usage separately before operation. Don't guess or repeat discovery for known args"
+			: "Usage: () means call the tool with no arguments to see accepted arguments. Read usage in a separate call before composing an operation with unknown arguments. Do not guess or repeat discovery for known arguments",
 		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled, [
 			"exec_command",
 			"write_stdin",
