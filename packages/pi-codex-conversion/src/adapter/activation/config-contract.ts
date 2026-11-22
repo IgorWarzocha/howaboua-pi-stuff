@@ -64,7 +64,7 @@ export type FastModeConfig = Record<
 	boolean | "ultrafast"
 >;
 export type CacheDiagnosticsMode = "off" | "status" | "status-and-log";
-export type CompactToolsMode = "off" | "on" | "minimal";
+export type ToolDetailsMode = "minimal" | "compact" | "preview";
 export type LunaCacheKeepaliveMinutes = 0 | 5 | 10 | 15;
 export type LunaCacheKeepaliveIntervalMinutes = 2.5 | 4.5;
 export type CacheKeepaliveIntervalMinutes = 25 | 55;
@@ -125,8 +125,7 @@ export interface CodexConversionConfig {
 	ui: {
 		statusLine: boolean;
 		toolRenaming: boolean;
-		compactTools: CompactToolsMode;
-		codeModeDetails: boolean;
+		toolDetails: ToolDetailsMode;
 		backgroundShellWidget: boolean;
 		backgroundShellToggleShortcut: string;
 		backgroundShellPrevShortcut: string;
@@ -192,8 +191,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	ui: {
 		statusLine: true,
 		toolRenaming: true,
-		compactTools: "off",
-		codeModeDetails: false,
+		toolDetails: "compact",
 		backgroundShellWidget: true,
 		backgroundShellToggleShortcut: "alt+w",
 		backgroundShellPrevShortcut: "alt+q",

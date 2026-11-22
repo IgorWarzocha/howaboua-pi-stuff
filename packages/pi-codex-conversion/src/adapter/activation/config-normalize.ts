@@ -15,7 +15,7 @@ import {
 	normalizeCacheDiagnosticsMode,
 	normalizeCodexVerbosity,
 	normalizeCompactionMethod,
-	normalizeCompactToolsMode,
+	normalizeToolDetailsMode,
 	normalizeCustomRustBinariesDir,
 	normalizeDictationShortcutMode,
 	normalizeLunaCacheKeepaliveMinutes,
@@ -105,13 +105,9 @@ export function normalizeCodexConversionConfig(
 					DEFAULT_CODEX_CONVERSION_CONFIG.ui["toolRenaming"],
 				),
 			),
-			compactTools:
-				normalizeCompactToolsMode(ui["compactTools"]) ??
-				DEFAULT_CODEX_CONVERSION_CONFIG.ui.compactTools,
-			codeModeDetails: normalizeBoolean(
-				ui["codeModeDetails"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.ui["codeModeDetails"],
-			),
+			toolDetails:
+				normalizeToolDetailsMode(ui["toolDetails"]) ??
+				DEFAULT_CODEX_CONVERSION_CONFIG.ui.toolDetails,
 			backgroundShellWidget: normalizeBoolean(
 				ui["backgroundShellWidget"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellWidget"],

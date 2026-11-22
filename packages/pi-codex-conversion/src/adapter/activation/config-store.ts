@@ -122,6 +122,7 @@ export function readProjectCodexConversionDocument(
 	cwd: string,
 	projectTrusted: boolean,
 	inheritedCompaction?: CompactionMigrationInheritance,
+	inheritedUi?: Record<string, unknown>,
 ): Record<string, unknown> | undefined {
 	if (!projectTrusted) return undefined;
 	const path = getProjectCodexConversionConfigPath(cwd);
@@ -130,6 +131,7 @@ export function readProjectCodexConversionDocument(
 	const migration = migrateCodexConversionConfigIfNeeded(
 		parsed,
 		inheritedCompaction,
+		inheritedUi,
 	);
 	return isRecord(migration.config)
 		? withoutGlobalOnlyDocument(migration.config)
@@ -210,6 +212,7 @@ export function readLayeredCodexConversionConfig(
 		options.cwd,
 		options.projectTrusted,
 		{ ...global.compaction, ...legacyCompaction },
+		isRecord(document) && isRecord(document["ui"]) ? document["ui"] : undefined,
 	);
 	return project
 		? normalizeCodexConversionConfig(

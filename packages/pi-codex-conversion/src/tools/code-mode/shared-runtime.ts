@@ -1,3 +1,4 @@
+import type { ToolDetailsMode } from "../../adapter/activation/config-contract.ts";
 import { OpaqueResultState } from "./opaque-result-state.ts";
 import type {
 	ExtensionContext,
@@ -80,8 +81,7 @@ export interface CodeModeToolProvider {
 	documentationPath?: string | undefined;
 	isActive?(ctx: unknown): boolean;
 	providesRenderers?: boolean | undefined;
-	richRendering?(): boolean;
-	minimalOutput?(): boolean;
+	toolDetails?(): ToolDetailsMode;
 	executionKind?(ctx: unknown): CodeModeExecutionKind;
 	notebookOptions?(ctx: unknown): NotebookRuntimeOptions;
 	opaqueResultScope?(ctx: ExtensionContext): Promise<string>;
@@ -215,20 +215,10 @@ export class SharedCodeModeRuntime {
 		);
 	}
 
-	useRichRendering(): boolean {
-		return (
-			[...this.providers.values()]
-				.find((provider) => provider.richRendering)
-				?.richRendering?.() ?? true
-		);
-	}
-
-	useMinimalOutput(): boolean {
-		return (
-			[...this.providers.values()]
-				.find((provider) => provider.minimalOutput)
-				?.minimalOutput?.() ?? false
-		);
+	toolDetails(): ToolDetailsMode {
+		for (const provider of this.providers.values())
+			if (provider.toolDetails) return provider.toolDetails();
+		return "preview";
 	}
 
 	executionKind(ctx?: unknown): CodeModeExecutionKind {

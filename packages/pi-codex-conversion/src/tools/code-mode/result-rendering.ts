@@ -1,3 +1,4 @@
+import type { ToolDetailsMode } from "../../adapter/activation/config-contract.ts";
 import { type Component, Container } from "@earendil-works/pi-tui";
 import {
 	previewText,
@@ -41,8 +42,7 @@ export function renderTrackedCodeModeResult(
 	tracker: CodeModeRenderTracker,
 	renderStore: CodeModeNestedRenderStore,
 	tools: CodeModeToolDefinition[] = [],
-	richRendering = true,
-	minimalOutput = false,
+	mode: ToolDetailsMode = "preview",
 ): Component {
 	const component =
 		context?.lastComponent instanceof CodeModeResult
@@ -68,8 +68,7 @@ export function renderTrackedCodeModeResult(
 			context,
 			tools,
 			renderStore,
-			richRendering,
-			minimalOutput,
+			mode,
 			component.traces,
 		),
 	);
@@ -83,8 +82,7 @@ function renderCodeModeResult(
 	context: CodeModeRenderContext | undefined,
 	tools: CodeModeToolDefinition[],
 	renderStore: CodeModeNestedRenderStore,
-	richRendering: boolean,
-	minimalOutput: boolean,
+	mode: ToolDetailsMode,
 	traceStates: Map<string, NestedRenderState>,
 ): Component {
 	const details = asDetails(result.details);
@@ -115,19 +113,13 @@ function renderCodeModeResult(
 			typeof item.data === "string" &&
 			typeof item.mimeType === "string",
 	);
-	const showOutput =
-		richRendering ||
-		Boolean(details.scriptError && !scriptErrorRenderedByTrace) ||
-		details.notification === true ||
-		images.length > 0;
 	const hidePreview =
-		minimalOutput &&
+		mode === "minimal" &&
 		!options.expanded &&
 		!context?.isError &&
 		!details.scriptError &&
 		!details.notification;
 	const renderOutput = (visibleTraceText: ReadonlySet<string>) => {
-		if (!showOutput) return undefined;
 		const text = textBlocks
 			.filter((block) => !visibleTraceText.has(block))
 			.join("\n");

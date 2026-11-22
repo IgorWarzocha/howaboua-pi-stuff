@@ -69,9 +69,9 @@ Background shells survive context compaction and Notes rollover. The agent recei
 | --- | --- |
 | General | Settings scope, execution mode, providers, prompt overwrite, time reminders |
 | Context | Compaction method and retained user messages |
-| Tools | Auto reasoning, image descriptions, standalone tools |
+| Tools | Auto reasoning, image descriptions, Code and Notebook shell output |
 | OpenAI | Fast and Ultrafast modes, Daybreak, verbosity, transport, diagnostics, Responses Lite |
-| Display | Statusline, tool rendering, note save markers, background shells |
+| Display | Statusline, tool naming and details, background shells |
 | Voice | Realtime voice, remote access, summarisation, dictation, shortcuts, prompt paths |
 | Usage | Spend by model and reset window, Codex limits, reset credits |
 | About | GitHub, changelog, Discord, issues |
@@ -83,6 +83,12 @@ Open a tab directly with commands such as `/codex tools`, `/codex openai` or `/c
 The first setting chooses **Global** or **This project**. Global settings live in `~/.pi/agent/pi-codex-conversion.json`. Project settings create a snapshot at `.pi/pi-codex-conversion.json`, read only in trusted folders.
 
 Switching back to Global removes the project's overrides. Run `/reload` after editing configuration files by hand.
+
+### Tool details
+
+**Minimal** keeps nested tool results and patch summaries visible while hiding ordinary cell output behind an expand hint. **Compact**, the default, adds a short cell output preview. **Preview** also shows cell source and patch diff previews.
+
+Press **Ctrl+O** to expand tool output and see the available source, output and diffs in any mode. This changes the display, not what the model receives.
 
 ### Optional controls
 

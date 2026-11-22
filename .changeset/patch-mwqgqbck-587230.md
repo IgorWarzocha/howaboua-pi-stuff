@@ -10,6 +10,8 @@
 - Codex falls back to HTTP for the session when a request exceeds the advertised WebSocket limit or the server closes with code 1009 before sending text.
 - Codex reports an incomplete response without replaying it when a WebSocket size rejection follows visible output.
 - Removed the Harness identifier header setting. Codex requests now always send `codex_cli_rs` as their originator.
+- Replaced Compact tool output and Code / Notebook details with one Tool details setting: Minimal, Compact or Preview. Expanding a tool reveals its available source, output and diffs in every mode.
+- Folded shell rows show nonzero exit codes, including in grouped exploration and background terminal results. A plain search with no matches is shown separately from errors.
 - Codex settings clarify what prompt overwrite, cache keepalive and voice refresh change, and which tool naming changes are display-only.
 - Codex prompt guidance now directs agents to work through recoverable blockers, continue independent work and act on clear requests rather than offering to act.
 - Code and Notebook group each tool's usage and rules. Tools with on-demand usage show the same no-argument discovery call.

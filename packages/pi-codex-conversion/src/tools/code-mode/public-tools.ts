@@ -218,7 +218,7 @@ function createExecTool(
 				theme,
 				context,
 				tracker,
-				runtime.useRichRendering(),
+				runtime.toolDetails(),
 			)) as any,
 		renderResult: renderResult as any,
 	};
@@ -337,7 +337,7 @@ function createWaitTool(
 				theme,
 				context,
 				tracker,
-				runtime.useRichRendering(),
+				runtime.toolDetails(),
 			)) as any,
 		renderResult: renderResult as any,
 	};
@@ -374,7 +374,6 @@ function createResultRenderer(
 			tracker,
 			runtime.renderStore,
 			runtime.collectRenderTools(),
-			runtime.useRichRendering(),
-			runtime.useMinimalOutput(),
+			runtime.toolDetails(),
 		);
 }

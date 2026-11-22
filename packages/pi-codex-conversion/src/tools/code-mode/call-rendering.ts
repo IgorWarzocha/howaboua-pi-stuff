@@ -1,5 +1,6 @@
 import { highlightCode } from "@earendil-works/pi-coding-agent";
 import { Text, truncateToWidth } from "@earendil-works/pi-tui";
+import type { ToolDetailsMode } from "../../adapter/activation/config-contract.ts";
 import { expandHint } from "./render-content.js";
 import type { CodeModeRenderTracker } from "./render-tracker.js";
 import type { CodeModeRenderContext, CodeModeRenderTheme } from "./types.js";
@@ -31,11 +32,11 @@ export function renderExecCall(
 	theme: CodeModeRenderTheme,
 	context: CodeModeRenderContext | undefined,
 	tracker: CodeModeRenderTracker,
-	richRendering = true,
+	details: ToolDetailsMode = "preview",
 ): Text {
 	tracker.register(context?.toolCallId, context?.invalidate);
 	const code = typeof args.code === "string" ? args.code : "";
-	if (!richRendering) {
+	if (!context?.expanded && details === "minimal") {
 		if (!context?.executionStarted || !context.isPartial)
 			return new Text("", 0, 0);
 		const names = customToolNames(code);
@@ -64,7 +65,7 @@ export function renderExecCall(
 				? "Started"
 				: "Ran";
 	let text = `${theme.fg("dim", "•")} ${theme.bold(`${verb} code`)}`;
-	if (!context?.expanded && code.trim())
+	if (!context?.expanded && details === "preview" && code.trim())
 		text += `\n${previewCode(component.highlight(code.trim(), theme), theme, context)}`;
 	const names = customToolNames(code);
 	if (names.length > 0)
@@ -80,10 +81,10 @@ export function renderWaitCall(
 	theme: CodeModeRenderTheme,
 	context: CodeModeRenderContext | undefined,
 	tracker: CodeModeRenderTracker,
-	richRendering = true,
+	details: ToolDetailsMode = "preview",
 ): Text {
 	tracker.register(context?.toolCallId, context?.invalidate);
-	if (!richRendering) return new Text("", 0, 0);
+	if (!context?.expanded && details === "minimal") return new Text("", 0, 0);
 	const status = tracker.status(context?.toolCallId);
 	const pending =
 		context?.executionStarted === false && context.isPartial !== false;

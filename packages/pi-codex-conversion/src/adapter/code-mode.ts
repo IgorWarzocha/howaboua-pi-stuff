@@ -148,8 +148,7 @@ export async function registerCodexCodeMode(
 				: {}),
 		}),
 		providesRenderers: true,
-		richRendering: () => runtime.state.config.ui.codeModeDetails,
-		minimalOutput: () => runtime.state.config.ui.compactTools === "minimal",
+		toolDetails: () => runtime.state.config.ui.toolDetails,
 	});
 	return {
 		prepare: (ctx) => {
@@ -192,7 +191,8 @@ function createNestedTools(
 			createApplyPatchTool({
 				customRustBinariesDir: runtime.state.config.tools.customRustBinariesDir,
 				promptSnippet: false,
-				showDiffWhenCollapsed: runtime.state.config.ui.compactTools === "off",
+				showDiffWhenCollapsed:
+					runtime.state.config.ui.toolDetails === "preview",
 			}),
 			"tools.apply_patch(patch)",
 			{},

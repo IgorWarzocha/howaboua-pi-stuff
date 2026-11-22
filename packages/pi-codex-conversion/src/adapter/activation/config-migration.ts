@@ -7,6 +7,7 @@ import {
 	type CodexConversionConfig,
 } from "./config.ts";
 import { normalizeExecutionMode } from "./execution-mode.ts";
+import { normalizeToolDetailsMode } from "./config-normalizers.ts";
 import { normalizeFastMode } from "./fast-mode.ts";
 
 export type CompactionMigrationInheritance =
@@ -19,6 +20,7 @@ export type CompactionMigrationInheritance =
 export function migrateCodexConversionConfigIfNeeded(
 	value: unknown,
 	inheritedCompaction: CompactionMigrationInheritance = DEFAULT_CODEX_CONVERSION_CONFIG.compaction,
+	inheritedUi?: Record<string, unknown>,
 ): { migrated: boolean; config: unknown } {
 	if (!isObject(value)) return { migrated: false, config: value };
 	if (
@@ -41,8 +43,16 @@ export function migrateCodexConversionConfigIfNeeded(
 		const { voiceFeaturesOnly: _voiceFeaturesOnly, ...withoutVoiceOnly } =
 			value;
 		const document = "voiceFeaturesOnly" in value ? withoutVoiceOnly : value;
+		const ui = isObject(value["ui"]) ? value["ui"] : undefined;
+		const display = ui ? migrateToolDetails(ui, inheritedUi) : undefined;
 		const current =
-			compaction !== previous ? { ...document, compaction } : document;
+			compaction !== previous || display !== ui
+				? {
+						...document,
+						...(compaction !== previous ? { compaction } : {}),
+						...(display !== ui ? { ui: display } : {}),
+					}
+				: document;
 		const beta = isObject(value["beta"]) ? value["beta"] : undefined;
 		if (beta) {
 			const { beta: _beta, ...withoutBeta } = current;
@@ -104,8 +114,7 @@ export function migrateCodexConversionConfigIfNeeded(
 					? value["statusLine"]
 					: DEFAULT_CODEX_CONVERSION_CONFIG.ui["statusLine"],
 			toolRenaming: DEFAULT_CODEX_CONVERSION_CONFIG.ui["toolRenaming"],
-			compactTools: DEFAULT_CODEX_CONVERSION_CONFIG.ui["compactTools"],
-			codeModeDetails: DEFAULT_CODEX_CONVERSION_CONFIG.ui["codeModeDetails"],
+			toolDetails: DEFAULT_CODEX_CONVERSION_CONFIG.ui.toolDetails,
 			backgroundShellWidget:
 				typeof value["backgroundShellWidget"] === "boolean"
 					? value["backgroundShellWidget"]
@@ -155,6 +164,38 @@ export function migrateCodexConversionConfigIfNeeded(
 		config: isObject(value["voice"])
 			? { ...config, voice: value["voice"] }
 			: config,
+	};
+}
+
+function migrateToolDetails(
+	ui: Record<string, unknown>,
+	inherited?: Record<string, unknown>,
+): Record<string, unknown> {
+	if (!("compactTools" in ui || "codeModeDetails" in ui)) return ui;
+	// Translate the old axes only after resolving each scope's explicit overrides.
+	const inheritedMode = normalizeToolDetailsMode(inherited?.["toolDetails"]);
+	const inheritedCompact =
+		inheritedMode === "compact" ? "on" : (inheritedMode ?? "off");
+	const {
+		compactTools = inheritedMode
+			? inheritedCompact
+			: inherited?.["compactTools"],
+		codeModeDetails = inheritedMode
+			? inheritedMode === "preview"
+			: inherited?.["codeModeDetails"],
+		...rest
+	} = ui;
+	if (normalizeToolDetailsMode(rest["toolDetails"])) return rest;
+	return {
+		...rest,
+		toolDetails:
+			compactTools === "minimal"
+				? "minimal"
+				: codeModeDetails === true &&
+					  compactTools !== "on" &&
+					  compactTools !== true
+					? "preview"
+					: "compact",
 	};
 }
 
