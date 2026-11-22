@@ -26,7 +26,7 @@ const CONCURRENCY_GUIDELINE = "Independent calls→parallel when practical";
 
 const CODE_MODE_GUIDELINES = [
 	"Quoted text→alternate JS quotes; shell/patch/source→literal ${...}/backticks",
-	"Output→concise text()",
+	"Related calls→one JS cell; branch/loop on results; text()→outcome, blocker or decision needed",
 ];
 const NOTEBOOK_SHELL_GUIDELINE =
 	"Canonical artifacts→files; shell state across tools.exec_command→files/args";
