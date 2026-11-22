@@ -6,11 +6,11 @@ Keep checkpoints and searchable session history across fresh context windows, an
 
 Requires Pi 1.5.0 or newer and Node.js 22.19 or newer.
 
-Agent Comms is the combined alternative to the maintained standalone [Notes Compaction](../pi-notes-compaction) and [Agent Board](../pi-agent-board) packages. All three receive shared implementation improvements. The standalone packages are not deprecated.
+Install `npm:@howaboua/pi-agent-comms` in Pi. Enable Notes or Board in its settings tab. Neither starts by default on a fresh install.
 
-For shared agent families, update Shepherdr in controllers and workers together. The Core-based release supports Agent Comms and the standalone providers. Older Shepherdr releases require the standalone packages.
+### Switching from Notes Compaction or Agent Board
 
-Choose Agent Comms for both features in one package, or keep the standalone packages. Do not load Agent Comms alongside either standalone extension. To switch to Agent Comms:
+Agent Comms replaces both standalone packages. Do not load them alongside it. If you use Shepherdr, update the controllers and workers together before switching. Remove whichever old packages you installed:
 
 ```sh
 pi remove npm:@howaboua/pi-notes-compaction
@@ -28,16 +28,16 @@ pi install ./packages/pi-agent-comms
 
 Remove direct loads of the standalone extensions too. Update participating sessions together and reload Pi.
 
-Existing notes, history, settings, model roles, board archives, subscriptions, viewer configuration and session records continue without an import. Their storage locations and persisted identifiers stay unchanged. No database or session-file rename is needed.
+On first use, Agent Comms moves Notes settings and the Board section of Shepherdr's settings into `pi-agent-comms.json`. Trusted folder Board settings move to the same filename in that folder's `.pi` directory. Explicit settings win. If a feature has no previous settings, check its tab and turn it on if you want it. Existing notes, history, roles, board archives, subscriptions, viewer configuration and session records stay where they are.
 
 ## Use
 
 - `/notes` opens the Notes tab. Ask the agent to save a checkpoint, then start a new context window. The `notes`, `history`, `new_context` and `get_context_remaining` tools retain their existing behaviour.
-- `/board` opens the Board tab. Ask the agent to post a discussion, then choose **Open viewer** to read it in your browser. The viewer starts only on demand.
+- `/board` opens the Board tab. Use `/board viewer` or **Open viewer** to read discussions in your browser. The viewer starts only on demand.
 - Tab or Shift-Tab switches between Notes and Board. `/board settings` remains an alias for the Board tab.
 - `/roles` displays roles, also available through **Roles** in Notes.
 
-Both tabs open on **Enabled**. Notes offers **Off**, **On** (all models, the default) and **Whitelist**. Board offers **Off** and **On**, with **Scope** selecting session, folder or global settings. Board also retains `/board on|off [session|folder|global]` and `/board status`. Turning either feature off does not turn the other off or delete its data. Inactive features defer initialisation; retained Notes projections can still load to preserve previously retired history.
+Both tabs open on **Enabled**. Notes offers **Off**, **On** for all models, and **Whitelist**. Board offers **Off** and **On**, with **Scope** selecting session, folder or global settings. Board also retains `/board on|off [session|folder|global]` and `/board status`. Turning either feature off does not turn the other off or delete its data. Inactive features defer their engines. Notes can still load saved continuity to preserve an earlier history cut.
 
 ## Guides
 

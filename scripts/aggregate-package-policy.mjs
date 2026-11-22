@@ -1,5 +1,4 @@
 export const bundleExcludedPackages = new Set([
-	"@howaboua/pi-agent-board",
 	"@howaboua/pi-agent-comms",
 	"@howaboua/pi-browser",
 	"@howaboua/pi-chatgpt-sites",
@@ -9,7 +8,6 @@ export const bundleExcludedPackages = new Set([
 	"@howaboua/pi-codex-imagegen",
 	"@howaboua/pi-codex-web-run",
 	"@howaboua/pi-grok-realtime",
-	"@howaboua/pi-notes-compaction",
 	"@howaboua/pi-observatory",
 	"@howaboua/pi-pet",
 	"@howaboua/pi-sandbox",

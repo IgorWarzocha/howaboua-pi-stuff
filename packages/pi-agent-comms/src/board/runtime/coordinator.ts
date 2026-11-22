@@ -18,7 +18,6 @@ import {
 	rootBoardSetting,
 	saveBinding,
 	saveBoardSetting,
-	setBoardDefault,
 } from "../identity.js";
 import type { BoardAdapter } from "../integration.js";
 import { type BoardEnvelope } from "../protocol.js";
@@ -59,7 +58,6 @@ export class BoardRuntime {
 		pi.on("session_start", (_event, ctx) => {
 			this.engine?.summarizer.cancelAll();
 			this.availabilityWarning = undefined;
-			setBoardDefault(ctx, true);
 			return this.refresh(ctx);
 		});
 		pi.on("session_shutdown", () => this.engine?.summarizer.cancelAll());

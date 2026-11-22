@@ -32,28 +32,6 @@
         "web-tree-sitter": "^0.27.2",
       },
     },
-    "packages/pi-agent-board": {
-      "name": "@howaboua/pi-agent-board",
-      "version": "0.0.9",
-      "dependencies": {
-        "@earendil-works/pi-schema": "1.6.0",
-        "dompurify": "3.4.17",
-        "marked": "18.2.0",
-        "unicode-case-folding": "1.1.2",
-      },
-      "devDependencies": {
-        "@howaboua/pi-codex-conversion": "5.0.2",
-      },
-      "peerDependencies": {
-        "@earendil-works/pi-ai": ">=1.1.0",
-        "@earendil-works/pi-coding-agent": ">=1.5.0",
-        "@earendil-works/pi-tui": ">=1.1.0",
-        "@howaboua/pi-codex-conversion": ">=5.0.2",
-      },
-      "optionalPeers": [
-        "@howaboua/pi-codex-conversion",
-      ],
-    },
     "packages/pi-agent-comms": {
       "name": "@howaboua/pi-agent-comms",
       "version": "0.0.4",
@@ -412,28 +390,6 @@
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.0",
       },
-    },
-    "packages/pi-notes-compaction": {
-      "name": "@howaboua/pi-notes-compaction",
-      "version": "0.0.19",
-      "dependencies": {
-        "@earendil-works/pi-schema": "1.6.0",
-        "better-sqlite3": "13.0.3",
-      },
-      "devDependencies": {
-        "@howaboua/pi-codex-conversion": "5.0.2",
-        "@types/better-sqlite3": "9.6.0",
-      },
-      "peerDependencies": {
-        "@earendil-works/pi-agent-core": ">=1.0.4",
-        "@earendil-works/pi-ai": ">=1.0.4",
-        "@earendil-works/pi-coding-agent": ">=1.5.0",
-        "@earendil-works/pi-tui": ">=1.0.4",
-        "@howaboua/pi-codex-conversion": ">=5.0.2",
-      },
-      "optionalPeers": [
-        "@howaboua/pi-codex-conversion",
-      ],
     },
     "packages/pi-observatory": {
       "name": "@howaboua/pi-observatory",
@@ -843,8 +799,6 @@
 
     "@google/genai": ["@google/genai@2.32.0", "", { "dependencies": { "google-auth-library": "^10.3.0", "p-retry": "^4.6.2", "protobufjs": "^7.5.4", "ws": "^8.18.0" }, "peerDependencies": { "@modelcontextprotocol/sdk": "^1.25.2" }, "optionalPeers": ["@modelcontextprotocol/sdk"] }, "sha512-60c79uXpR0a47bmGqDxbXEBuQUalNmwo5mx5kqb91jIW4FoqpsLSt86DeVhRhtH5+s/16Wqxt3sXzFQn2U1OHQ=="],
 
-    "@howaboua/pi-agent-board": ["@howaboua/pi-agent-board@workspace:packages/pi-agent-board"],
-
     "@howaboua/pi-agent-comms": ["@howaboua/pi-agent-comms@workspace:packages/pi-agent-comms"],
 
     "@howaboua/pi-ask": ["@howaboua/pi-ask@workspace:packages/pi-ask"],
@@ -876,8 +830,6 @@
     "@howaboua/pi-gpt-switcher": ["@howaboua/pi-gpt-switcher@workspace:packages/pi-gpt-switcher"],
 
     "@howaboua/pi-grok-realtime": ["@howaboua/pi-grok-realtime@workspace:packages/pi-grok-realtime"],
-
-    "@howaboua/pi-notes-compaction": ["@howaboua/pi-notes-compaction@workspace:packages/pi-notes-compaction"],
 
     "@howaboua/pi-observatory": ["@howaboua/pi-observatory@workspace:packages/pi-observatory"],
 

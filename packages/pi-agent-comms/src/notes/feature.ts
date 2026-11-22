@@ -1,4 +1,4 @@
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
@@ -6,6 +6,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { CommsFeature } from "../guidance.js";
 import type { OpenSettings } from "../settings-navigation.js";
+import { commsSettingsPath } from "../settings-file.js";
 import type { NotesRuntime } from "./index.js";
 import {
 	admitSessionCleanup,
@@ -17,7 +18,7 @@ import {
 	loadNotesSettings,
 	modelIsActive,
 	type NotesSettings,
-	notesSettingsPath,
+	notesDataDir,
 	writeSettings,
 } from "./settings.js";
 import type { NotesSettingsOwner } from "./settings-command.js";
@@ -99,9 +100,7 @@ export function createNotesFeature(
 		(storage ??= (async () => {
 			const { NotesStore } = await import("./store.js");
 			if (closed) throw new Error("Session changed; reopen Notes settings");
-			return (store = new NotesStore(
-				join(dirname(notesSettingsPath()), "notes.sqlite"),
-			));
+			return (store = new NotesStore(join(notesDataDir(), "notes.sqlite")));
 		})());
 	const ensure = (ctx: ExtensionContext): Promise<NotesRuntime> => {
 		if (loading) return loading;
@@ -128,7 +127,7 @@ export function createNotesFeature(
 		},
 		async save(value, ctx) {
 			if (runtime) runtime.activation.save(value, ctx);
-			else writeSettings(notesSettingsPath(), value);
+			else writeSettings(value);
 			settings = value;
 			if (!runtime && modelIsActive(value, ctx.model)) await ensure(ctx);
 		},
@@ -142,7 +141,7 @@ export function createNotesFeature(
 		return createNotesSettings(
 			owner,
 			await ensureStore(),
-			notesSettingsPath(),
+			commsSettingsPath(),
 			Boolean(openSettings),
 		)(ctx, initial);
 	};
@@ -157,7 +156,7 @@ export function createNotesFeature(
 		if (file) {
 			try {
 				const error = previousCleanupFailure(
-					cleanupStatus(file, dirname(notesSettingsPath())),
+					cleanupStatus(file, notesDataDir()),
 					ctx.sessionManager.getSessionId(),
 				);
 				if (error) ctx.ui.notify(error, "warning");
@@ -170,7 +169,6 @@ export function createNotesFeature(
 		}
 		try {
 			settings = loadNotesSettings(ctx);
-			writeSettings(notesSettingsPath(), settings);
 			if (
 				modelIsActive(settings, ctx.model) ||
 				hasSavedContinuity(ctx) ||

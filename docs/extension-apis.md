@@ -37,7 +37,7 @@ flowchart LR
 
 ## Public entry points
 
-Agent Comms and the standalone Notes Compaction and Agent Board packages share maintained implementations. The standalone packages are not deprecated and retain their public import keys. Do not load Agent Comms alongside either standalone extension.
+Agent Comms replaces Notes Compaction and Agent Board. Update old imports to the matching Agent Comms subpath below. Discover the loaded Board owner through `discoverBoard`, rather than constructing a Board runtime. Do not load Agent Comms alongside either old extension.
 
 When switching to Agent Comms, update Shepherdr in controllers and workers together. Older Shepherdr releases require the standalone providers. Persisted event channels, owner strings and session records retain their existing names, including `pi-notes-compaction:*` and `shepherdr-board-*`.
 
@@ -51,11 +51,6 @@ When switching to Agent Comms, update Shepherdr in controllers and workers toget
 | `@howaboua/pi-agent-comms/context-sharing` | Family identity, binding and routed notes/history | [`context-sharing.ts`](../packages/pi-agent-comms/src/notes/context-sharing.ts) |
 | `@howaboua/pi-agent-comms/saved-session` | Node-only saved-session reader | [`saved-session.mjs`](../packages/pi-agent-comms/src/notes/saved-session.mjs) |
 | `@howaboua/pi-agent-comms/saved-session-index` | Saved-session index helpers | [`saved-session-index.mjs`](../packages/pi-agent-comms/src/notes/saved-session-index.mjs) |
-| `@howaboua/pi-agent-board/runtime` | Standalone Board discovery and the legacy `BoardRuntime` class export | [`runtime.ts`](../packages/pi-agent-board/runtime.ts) |
-| `@howaboua/pi-agent-board/integration` | Standalone Board adapter and persisted binding helpers | [`integration.ts`](../packages/pi-agent-board/src/board/integration.ts) |
-| `@howaboua/pi-notes-compaction/context-sharing` | Standalone Notes family identity and routed reads | [`context-sharing.ts`](../packages/pi-notes-compaction/src/notes/context-sharing.ts) |
-| `@howaboua/pi-notes-compaction/saved-session` | Standalone Node-only saved-session reader | [`saved-session.mjs`](../packages/pi-notes-compaction/src/notes/saved-session.mjs) |
-| `@howaboua/pi-notes-compaction/saved-session-index` | Standalone saved-session index helpers | [`saved-session-index.mjs`](../packages/pi-notes-compaction/src/notes/saved-session-index.mjs) |
 | `@howaboua/pi-codex-conversion/agent-relationship` | Native parent linkage and cache affinity | [`agent-relationship.ts`](../packages/pi-codex-conversion/src/agent-relationship.ts) |
 | `@howaboua/pi-codex-conversion/compaction` | Context projection and ordered provider-compaction preparation | [`compaction.ts`](../packages/pi-codex-conversion/src/compaction.ts) |
 | `@howaboua/pi-codex-conversion/code-mode` | Custom nested-tool registration | [`code-mode.ts`](../packages/pi-codex-conversion/src/code-mode.ts) |

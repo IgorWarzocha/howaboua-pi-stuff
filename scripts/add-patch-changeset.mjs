@@ -11,7 +11,6 @@ import { join, relative } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { spawnSync } from "node:child_process";
 import { changesetText, readPendingChangesets } from "./pending-changesets.mjs";
-import { includeCommsStandalones } from "./sync-agent-comms-standalones.mjs";
 
 const root = process.cwd();
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
@@ -76,10 +75,7 @@ const packageDirs = new Set(
 		.map((path) => /^packages\/([^/]+)\//.exec(path)?.[1])
 		.filter(Boolean),
 );
-const changedPackages = includeCommsStandalones(
-	packageDirs,
-	diff.stdout.split("\n"),
-)
+const changedPackages = [...packageDirs]
 	.map((dir) => {
 		const path = join(root, "packages", dir, "package.json");
 		return existsSync(path)

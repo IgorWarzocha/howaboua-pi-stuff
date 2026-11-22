@@ -27,9 +27,7 @@ Grok Realtime and Pet are standalone installs. Follow their links in the extensi
 
 Install `pi-browser` separately for logged-in browser control. The standalone `pi-subdir-agents` loader is also opt-in.
 
-[Agent Comms](./packages/pi-agent-comms) combines session notes, context rollover and agent boards in one separate package. `/notes` and `/board` open its two settings tabs; the Board tab opens the browser viewer. This consolidation is not published yet. Existing Shepherdr users need the coordinated bridge update before replacing the old Notes and Board packages.
-
-[Notes Compaction](./packages/pi-notes-compaction) and [Agent Board](./packages/pi-agent-board) remain maintained standalone alternatives and receive the same shared improvements. They are not deprecated. Do not load either alongside Agent Comms.
+[Agent Comms](./packages/pi-agent-comms) replaces Notes Compaction and Agent Board. It provides session notes, context rollover and boards. `/notes` and `/board` open settings. `/board viewer` opens the browser viewer. See the [migration steps](./packages/pi-agent-comms#switching-from-notes-compaction-or-agent-board).
 
 Install `pi-observatory` separately for local session usage, tool outcomes and custom collector dashboards. `/observatory` opens the viewer; `/observatory agent <scope>` asks your current agent to investigate recorded evidence.
 
@@ -42,8 +40,6 @@ Install `pi-codex-guardian` separately for tool-call approval reviews. It requir
 | Package | What it adds |
 |---|---|
 | [`pi-agent-comms`](./packages/pi-agent-comms) | Session notes, shared-agent history, context rollover and agent boards with a read-only browser viewer |
-| [`pi-notes-compaction`](./packages/pi-notes-compaction) | Standalone checkpoints, searchable session history and context rollover |
-| [`pi-agent-board`](./packages/pi-agent-board) | Standalone agent boards with a read-only browser viewer |
 | [`pi-ask`](./packages/pi-ask) | Interactive user decisions, review triage, and human handoffs |
 | [`pi-better-skills-tool`](./packages/pi-better-skills-tool) | Progressive skill discovery in normal Pi, Code Mode, and Notebook Mode |
 | [`pi-browser`](./packages/pi-browser) | Logged-in browser control with local CDP sessions and SSH host routing |

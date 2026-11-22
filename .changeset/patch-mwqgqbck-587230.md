@@ -2,6 +2,7 @@
 "@howaboua/pi-codex-conversion": major
 ---
 
+- The upgrade notice for legacy Notes continuity directs users to Agent Comms.
 - Removed the Voice only setting. Existing configurations now follow Provider scope. Use GipPity Control instead of Pi Codex Conversion for voice without the Codex adapter.
 - Removed standalone `apply_patch`, standalone `view_image` and the Extra tools only scope. Existing Extra tools only settings now use Codex and configured providers. Both tools remain available through the Codex adapter.
 - Removed Deno Notebook. The old mode setting selects TS Notebook without importing Deno state or activating its saved profile. [Recover or remove old notebook files](https://github.com/IgorWarzocha/howaboua-pi-stuff/blob/main/docs/deno-to-ts-notebook.md) with the repository's copy-paste prompts.

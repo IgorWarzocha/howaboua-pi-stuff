@@ -1,10 +1,16 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import {
 	CONFIG_DIR_NAME,
 	type ExtensionContext,
 	getAgentDir,
 } from "@earendil-works/pi-coding-agent";
+import {
+	commsSettingsPath,
+	isSettingsObject,
+	readSettingsFile,
+	writeSettingsFile,
+} from "../settings-file.js";
 
 // Hour presets store their effective duration, with five minutes of headroom.
 export const IDLE_MINUTES = [0, 25, 55, 115, 355, 715] as const;
@@ -32,8 +38,8 @@ export interface NotesSettings {
 	taskBoundaryReminder: number;
 }
 
-export function notesSettingsPath(): string {
-	return join(getAgentDir(), "notes-compaction", "settings.json");
+export function notesDataDir(): string {
+	return join(getAgentDir(), "notes-compaction");
 }
 
 function legacySettingsPaths(ctx: ExtensionContext): string[] {
@@ -46,7 +52,28 @@ function legacySettingsPaths(ctx: ExtensionContext): string[] {
 }
 
 export function loadNotesSettings(ctx: ExtensionContext): NotesSettings {
-	return readSettings(notesSettingsPath(), legacySettingsPaths(ctx));
+	const path = commsSettingsPath();
+	const current = readSettingsFile(path) ?? {};
+	const previousPath = join(notesDataDir(), "settings.json");
+	const previous = readSettingsFile(previousPath);
+	const paths = legacySettingsPaths(ctx);
+	if (current["notes"] !== undefined && previous === undefined)
+		return readSettings(path, current["notes"], paths);
+	const settings = readSettings(
+		current["notes"] === undefined ? previousPath : path,
+		current["notes"] === undefined ? previous : current["notes"],
+		paths,
+	);
+	writeSettingsFile(path, {
+		...current,
+		notes: {
+			...previous,
+			...(isSettingsObject(current["notes"]) ? current["notes"] : {}),
+			...settings,
+		},
+	});
+	if (previous !== undefined) rmSync(previousPath, { force: true });
+	return settings;
 }
 
 export function legacyNotesConfigured(ctx: ExtensionContext): boolean {
@@ -59,35 +86,27 @@ export function legacyNotesConfigured(ctx: ExtensionContext): boolean {
 
 function readSettings(
 	path: string,
+	settings: unknown,
 	legacyPaths: readonly string[] = [],
 ): NotesSettings {
 	let legacy: ReturnType<typeof readLegacyPreferences> | undefined;
 	const preferences = () => (legacy ??= readLegacyPreferences(legacyPaths));
-	let source: string;
-	try {
-		source = readFileSync(path, "utf8");
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-			const migrated = readLegacySettings(preferences());
-			return (
-				migrated ?? {
-					active: "all",
-					modelWhitelist: [...DEFAULT_MODEL_WHITELIST],
-					normalCompaction: false,
-					rankedHistorySearch: false,
-					noteSaveMarkers: preferences().noteSaveMarkers,
-					shareSubagentContext: false,
-					newWindowRequests: "unrestricted",
-					taskCompletionRollover: false,
-					idleMinutes: 0,
-					rolloverTail: "off",
-					taskBoundaryReminder: 0,
-				}
-			);
-		}
-		throw error;
-	}
-	const settings: unknown = JSON.parse(source);
+	if (settings === undefined)
+		return (
+			readLegacySettings(preferences()) ?? {
+				active: "off",
+				modelWhitelist: [...DEFAULT_MODEL_WHITELIST],
+				normalCompaction: false,
+				rankedHistorySearch: false,
+				noteSaveMarkers: preferences().noteSaveMarkers,
+				shareSubagentContext: false,
+				newWindowRequests: "unrestricted",
+				taskCompletionRollover: false,
+				idleMinutes: 0,
+				rolloverTail: "off",
+				taskBoundaryReminder: 0,
+			}
+		);
 	if (
 		!settings ||
 		typeof settings !== "object" ||
@@ -193,13 +212,13 @@ export function modelIsActive(
 	);
 }
 
-export function writeSettings(path: string, settings: NotesSettings): void {
-	mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-	const temporary = `${path}.${process.pid}.tmp`;
-	writeFileSync(temporary, `${JSON.stringify(settings, null, 2)}\n`, {
-		mode: 0o600,
-	});
-	renameSync(temporary, path);
+export function writeSettings(settings: NotesSettings): void {
+	const path = commsSettingsPath();
+	const document = readSettingsFile(path) ?? {};
+	const previous = document["notes"];
+	if (previous !== undefined && !isSettingsObject(previous))
+		throw new Error(`${path}: notes must be an object`);
+	writeSettingsFile(path, { ...document, notes: { ...previous, ...settings } });
 }
 
 /** Import only on first use. An existing Notes settings file always wins. */

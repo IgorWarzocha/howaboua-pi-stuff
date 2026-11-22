@@ -5,7 +5,7 @@ import type {
 import type { ContextSharingService } from "@howaboua/pi-agent-comms/context-sharing";
 
 export const NOTES_UNAVAILABLE =
-	"Shared Notes require active, compatible Notes Compaction or Agent Comms in both sessions. Enable or update it, then reload Pi. Other agent operations remain available.";
+	"Enable Notes in Agent Comms on both sessions, then reload Pi. Other agent operations remain available.";
 
 /** Notes' public v1 broker, shared with released Notes Compaction. */
 export function connectNotesContextSharing(

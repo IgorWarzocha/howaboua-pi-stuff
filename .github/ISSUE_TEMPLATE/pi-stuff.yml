@@ -32,7 +32,7 @@ body:
         - pi-gippity-control
         - pi-github-watch
         - pi-gpt-switcher
-        - pi-notes-compaction
+        - pi-agent-comms
         - pi-pet
         - pi-shepherdr
         - pi-subdir-agents

@@ -44,5 +44,5 @@ export function activeAgentsBriefing(
 	].join("\n");
 }
 export function boardMigrationWarning() {
-	return "Shared boards are unavailable. Load Agent Board or Agent Comms and reload Pi. Your saved boards are preserved; other agent operations remain available.";
+	return "Shared boards are unavailable. Enable Board in Agent Comms and reload Pi. Saved boards are preserved; other agent operations remain available.";
 }
