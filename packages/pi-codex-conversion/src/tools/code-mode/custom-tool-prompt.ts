@@ -107,18 +107,28 @@ function formatSchema(schema: unknown): string {
 	}
 }
 
+function hasUsageCall(tool: CodeModeToolDefinition): boolean {
+	return "discovery" in tool && tool.discovery === "help";
+}
+
 function renderStandingTool(tool: CodeModeToolDefinition): string[] {
 	const name = codeModeGlobalName(tool.name);
 	const binding = `tools.${name}`;
+	const help = hasUsageCall(tool);
 	const description = translateCodeModeToolReferences(
 		tool.description ?? "",
 		tool.name,
 	).trim();
-	const help = "discovery" in tool && tool.discovery === "help";
+	const capability =
+		help &&
+		name === "agents" &&
+		description.endsWith("; {} lists action fields")
+			? description.slice(0, -"; {} lists action fields".length)
+			: description;
 	const usage = translateCodeModeUsage(tool.usage, tool.name);
 	const call = usage.startsWith(`${binding}(`) ? usage : undefined;
 	const entry = help
-		? `- ${binding}: ${description ? `${description}; ` : ""}Usage: ()`
+		? `- ${binding}()${capability ? `: ${capability}` : ""}`
 		: call
 			? `- ${call}${description ? `; ${description}` : ""}`
 			: `- ${binding}: ${[description, `Usage: ${usage}`].filter(Boolean).join("; ")}`;
@@ -164,12 +174,14 @@ function buildUsageSection(
 export function buildCodeModeToolsPrompt(
 	tools: CodeModeToolDefinition[],
 	executionKind: CodeModeExecutionKind = "code",
+	heavy = false,
 ): string {
 	const bundled = tools.filter(
 		(tool) => !isConfiguredCustomTool(tool) && !tool.deferLoading,
 	);
 	const custom = tools.filter(isConfiguredCustomTool);
 	const promotedCustom = custom.filter((tool) => !tool.deferLoading);
+	const usageCalls = bundled.filter(hasUsageCall);
 	const sections = [
 		executionKind === "vm"
 			? "exec=one JS context for this conversation; let/const/function/class persist; NO Node/imports/fetch/timers; stall/cancel/memory limit/terminate drops bindings"
@@ -185,15 +197,24 @@ export function buildCodeModeToolsPrompt(
 		executionKind === "ts"
 			? 'Markdown/multiline text→ordinary quoted line arrays joined with "\\n"; template literals require escaping backticks and ${...}'
 			: undefined,
-		"Usage: ()→empty call lists args. Unknown args→read usage separately before operation. Don't guess or repeat discovery for known args",
-		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled, [
-			"exec_command",
-			"write_stdin",
-			"apply_patch",
-			"view_image",
-			"change_reasoning",
-			"get_context_remaining",
-		]),
+		buildUsageSection(
+			BUNDLED_TOOLS_HEADING,
+			bundled.filter((tool) => !hasUsageCall(tool)),
+			[
+				"exec_command",
+				"write_stdin",
+				"apply_patch",
+				"view_image",
+				"change_reasoning",
+				"get_context_remaining",
+			],
+		),
+		buildUsageSection(
+			heavy
+				? "Usage calls below. MUST NOT guess args. Unknown args→call for usage first, separately; known args→call directly"
+				: "These calls show usage. MUST NOT guess arguments. If you don't know the current arguments, call for usage separately before the operation. If you know them, call the operation directly.",
+			usageCalls,
+		),
 		buildUsageSection(CUSTOM_TOOLS_HEADING, promotedCustom),
 		// The catalogue is always available, even when its first or last tool is unlisted.
 		"Tool names→text(ALL_TOOLS.map(t=>t.name)); contract→text(ALL_TOOLS.find(t=>t.name==='NAME'))",
@@ -245,6 +266,7 @@ export function prepareCodeModeToolsPrompt(
 	documentationPath?: string,
 	isEnabled: () => boolean = () => true,
 	executionKind: CodeModeExecutionKind = "code",
+	heavy = false,
 ): string {
 	const sections = (options.sections ??= {});
 	// Share this turn's canonical snapshot, not the changing live catalogue.
@@ -257,7 +279,7 @@ export function prepareCodeModeToolsPrompt(
 			? `exec custom tools→read ${documentationPath}, NOT Pi docs`
 			: "",
 	);
-	const section = buildCodeModeToolsPrompt(tools, executionKind);
+	const section = buildCodeModeToolsPrompt(tools, executionKind, heavy);
 	if (options.forceSystemPrompt !== undefined) {
 		options.forceSystemPrompt = upsertCodeModeToolsSection(
 			options.forceSystemPrompt,

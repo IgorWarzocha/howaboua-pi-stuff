@@ -101,11 +101,12 @@ export function prepareGptPromptMode(
 	pi: ExtensionAPI,
 	context: ExtensionContext,
 	options?: PromptMetadataOptions,
-): void {
-	const request = { context, options, errors: [] as unknown[] };
+): boolean {
+	const request = { context, options, errors: [] as unknown[], active: false };
 	pi.events.emit(CAPTURE, request);
 	if (request.errors.length)
 		throw new AggregateError(request.errors, "Could not prepare tool guidance");
+	return request.active;
 }
 
 /** PCC composition-root API; all selection policy stays with its runtime plan. */
@@ -164,10 +165,12 @@ export function registerGptPromptModeBroker(
 			context: ExtensionContext;
 			options?: PromptMetadataOptions;
 			errors: unknown[];
+			active?: boolean;
 		};
 		if (!Array.isArray(request.errors)) return;
 		try {
 			prepare(request.context, request.options);
+			request.active = latest.active;
 		} catch (error) {
 			request.errors.push(error);
 		}
