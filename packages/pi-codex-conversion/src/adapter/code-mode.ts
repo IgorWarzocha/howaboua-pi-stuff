@@ -138,7 +138,7 @@ export async function registerCodexCodeMode(
 				ctx as ExtensionContext,
 				runtime.state,
 			).kind;
-			return kind === "ts" || kind === "js" || kind === "vm" ? kind : "code";
+			return kind === "ts" || kind === "vm" ? kind : "code";
 		},
 		notebookOptions: () => ({
 			maxHeapMiB: runtime.state.config.notebook.maxHeapMiB,

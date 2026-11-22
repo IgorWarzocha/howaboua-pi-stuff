@@ -135,9 +135,7 @@ export function createCodexSessionLifecycle(
 			// Internal rollover preserves the admission that requested it.
 			state.notebookStatusMessageId = undefined;
 			const stateful =
-				state.executionMode === "ts" ||
-				state.executionMode === "js" ||
-				state.executionMode === "vm";
+				state.executionMode === "ts" || state.executionMode === "vm";
 			if (stateful) appendNotebookTreeEpoch(pi);
 			await codeMode.shutdownHost();
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
@@ -148,7 +146,7 @@ export function createCodexSessionLifecycle(
 			prepareCodeModeHost(codeMode, ctx);
 			if (stateful) {
 				ctx.ui.notify(
-					`${state.executionMode === "vm" ? "VM Code bindings" : state.executionMode === "js" ? "QuickJS Code store" : "TS Notebook state"} reset after conversation-tree navigation`,
+					`${state.executionMode === "vm" ? "VM Code bindings" : "TS Notebook state"} reset after conversation-tree navigation`,
 					"info",
 				);
 			}

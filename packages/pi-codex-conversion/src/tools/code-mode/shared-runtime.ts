@@ -18,7 +18,7 @@ import type {
 	ToolExecutionContext,
 } from "./types.js";
 
-export type CodeModeExecutionKind = "code" | "ts" | "js" | "vm";
+export type CodeModeExecutionKind = "code" | "ts" | "vm";
 
 export interface OpaqueContextGuard {
 	lazy: boolean;
@@ -103,15 +103,10 @@ export class SharedCodeModeRuntime {
 	private runtimeClientTransition: Promise<void> = Promise.resolve();
 	private clientStartupAbort: AbortController | undefined;
 	private customPromptToolsSnapshot: CodeModeToolDefinition[] | undefined;
-	private readonly getPiPackageDir: () => string;
 	private readonly opaqueResults = new OpaqueResultState(
 		(ctx) => this.activeProviders(ctx),
 		(ctx) => this.opaqueOwner(ctx),
 	);
-
-	constructor(getPiPackageDir: () => string) {
-		this.getPiPackageDir = getPiPackageDir;
-	}
 
 	opaqueContextGuard(ctx: ExtensionContext): Promise<OpaqueContextGuard> {
 		return this.opaqueResults.opaqueContextGuard(ctx);
@@ -248,7 +243,6 @@ export class SharedCodeModeRuntime {
 		switch (kind) {
 			case "code":
 			case "ts":
-			case "js":
 			case "vm":
 				return kind;
 			default:
@@ -321,23 +315,15 @@ export class SharedCodeModeRuntime {
 					prepareToolInput: prepareCodeModeToolInput,
 				};
 				const pending =
-					kind === "js"
-						? import("../js-mode/client.ts").then(
-								({ JsCodeClient }) =>
-									new JsCodeClient(
-										{ ...clientOptions, piPackageDir: this.getPiPackageDir() },
-										this.renderStore,
-									),
+					kind === "vm"
+						? import("../vm-mode/client.ts").then(
+								({ VmCodeClient }) =>
+									new VmCodeClient(clientOptions, this.renderStore),
 							)
-						: kind === "vm"
-							? import("../vm-mode/client.ts").then(
-									({ VmCodeClient }) =>
-										new VmCodeClient(clientOptions, this.renderStore),
-								)
-							: import("../ts-mode/client.ts").then(
-									({ TsCodeModeClient }) =>
-										new TsCodeModeClient(clientOptions, this.renderStore),
-								);
+						: import("../ts-mode/client.ts").then(
+								({ TsCodeModeClient }) =>
+									new TsCodeModeClient(clientOptions, this.renderStore),
+							);
 				this.runtimeClientPromise = pending;
 				this.runtimeClientOptionsKey = key;
 				void pending.catch(() => {

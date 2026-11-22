@@ -41,18 +41,6 @@ content(value)→emit MCP text/images in order
 NO Node/imports/fetch/timers
 Stall/cancel/memory limit/terminate→bindings dropped; next exec fresh`;
 
-export const JS_EXEC_DESCRIPTION = `${JS_CELL_DESCRIPTION}
-Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
-Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
-content(value) emits MCP text/images in order
-No Node, imports, fetch, timers or TypeScript checking`;
-
-export const GPT_JS_EXEC_DESCRIPTION = `${GPT_JS_CELL_DESCRIPTION}
-Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
-Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
-content(value)→emit MCP text/images in order
-NO Node/imports/fetch/timers/TSchecking`;
-
 export const WAIT_DESCRIPTION = "Resume or terminate a yielded exec cell";
 
 const BUNDLED_TOOLS_HEADING = "Tools available in exec:";
@@ -212,17 +200,13 @@ export function buildCodeModeToolsPrompt(
 			? gpt
 				? "exec=one JS context for this conversation; let/const/function/class persist; NO Node/imports/fetch/timers; stall/cancel/memory limit/terminate drops bindings"
 				: "exec keeps one JavaScript context for this conversation. let, const, function and class persist. No Node, imports, fetch or timers. A stall, cancellation, memory limit or terminate drops those bindings"
-			: executionKind === "js"
+			: executionKind === "ts"
 				? gpt
-					? "exec=fresh QuickJS per call; max4 concurrent; store/load→conversation-local JSON, no disk persistence"
-					: "exec runs fresh QuickJS per call, with up to four concurrent cells. store/load retain conversation-local JSON, not disk state"
-				: executionKind === "ts"
-					? gpt
-						? "exec=persistent TS; imports/npm/Node/Web APIs; bindings/modules persist"
-						: "exec is a persistent TypeScript kernel with imports, npm, Node and Web APIs; live bindings and module instances persist across cells"
-					: gpt
-						? "exec=fresh restricted JS; NO console/imports/Node/browser APIs"
-						: "exec runs fresh restricted JavaScript; no console, imports, Node, or browser APIs",
+					? "exec=persistent TS; imports/npm/Node/Web APIs; bindings/modules persist"
+					: "exec is a persistent TypeScript kernel with imports, npm, Node and Web APIs; live bindings and module instances persist across cells"
+				: gpt
+					? "exec=fresh restricted JS; NO console/imports/Node/browser APIs"
+					: "exec runs fresh restricted JavaScript; no console, imports, Node, or browser APIs",
 		executionKind === "ts"
 			? gpt
 				? "Whole-cell strictcheck INCL toolargs; typeerror→NO execution"

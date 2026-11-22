@@ -87,10 +87,7 @@ function enableAdapter(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	state: AdapterState,
-	plan: Extract<
-		CodexRuntimePlan,
-		{ kind: "normal" | "code" | "ts" | "js" | "vm" }
-	>,
+	plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" | "ts" | "vm" }>,
 	extensionTools: ExtensionToolSnapshot,
 ): void {
 	const changed = hasRuntimePlanChanged(state, plan);
@@ -253,12 +250,7 @@ function applyRuntimeTools(
 	// Retain the native loadout in previousToolNames, but never run two code
 	// orchestrators or expose a second discovery path beside ALL_TOOLS.
 	let projected = toolNames;
-	if (
-		plan.kind === "code" ||
-		plan.kind === "ts" ||
-		plan.kind === "js" ||
-		plan.kind === "vm"
-	) {
+	if (plan.kind === "code" || plan.kind === "ts" || plan.kind === "vm") {
 		const nativeSearch = pi
 			.getAllTools()
 			.some(

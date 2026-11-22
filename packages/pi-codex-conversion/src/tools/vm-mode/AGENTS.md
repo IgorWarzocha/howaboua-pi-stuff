@@ -4,7 +4,7 @@
 - Reject lexical redeclarations and same-cell declaration conflicts before any effect. Predeclare `var` so a bare redeclaration does not reset it. `var` inside an awaited branch stays the outer binding. Block `let` and `const` stay in the block.
 - A failed cell cancels outstanding host tool calls, rejects their guest promises, and flushes callbacks before the next exec. Do not wait for those host calls. Callbacks must not emit into or call tools for the later cell.
 - Do not use Node REPL. Its evaluator always calls the host module loader, so `import("node:fs")` succeeds there. Do not pass `importModuleDynamically`.
-- Bind tools as `tools.<name>` through `CodeModeDelegateRuntime`, with the same names and arguments as QuickJS Code. No bare globals, `$`, `edit`, `searchTools` or `describeTool`.
+- Bind tools as `tools.<name>` through `CodeModeDelegateRuntime`. No bare globals, `$`, `edit`, `searchTools` or `describeTool`.
 - A script error keeps the context. Stall, abort, memory limit, terminate and conversation change terminate the worker. The next exec creates a new context. Say that bindings were dropped.
 - `worker.terminate()` is the hard stop. Do not enable Bun and do not rely on a cooperative interrupt.
 - The heap cap is `VM_HEAP_CAP_MIB`, not Notebook's 4096 MiB default. `store` values use the caps in `limits.ts`.

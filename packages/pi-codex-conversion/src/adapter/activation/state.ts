@@ -31,7 +31,6 @@ export interface AdapterState {
 		| "normal"
 		| "code"
 		| "ts"
-		| "js"
 		| "vm"
 		| undefined;
 	appliedRuntimeToolNames?: string[] | undefined;

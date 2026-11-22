@@ -134,11 +134,9 @@
     "@earendil-works/pi-agent-core": "1.6.0",
     "@earendil-works/pi-ai": "1.6.0",
     "@earendil-works/pi-coding-agent": "1.6.0",
-    "@earendil-works/pi-codemode": "1.6.0",
     "@earendil-works/pi-tui": "1.6.0",
     "@types/node": "26.6.6",
     "@types/ws": "^8.18.2",
-    "quickjs-wasi": "3.6.2",
     "tsrs": "0.25.0-ts7.1.0-beta",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"

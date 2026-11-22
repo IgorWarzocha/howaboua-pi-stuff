@@ -57,7 +57,7 @@ export class VmCodeClient implements CodeModeExecutionClient {
 	) {
 		if (process.versions["bun"])
 			throw new Error(
-				"VM Code requires a Node.js Pi host; start Pi with Node.js. Code and QuickJS Code remain available",
+				"VM Code requires Pi under Node.js. Start Pi under Node.js or select Code in /codex settings",
 			);
 		this.heapMiB = vmHeapMiB(options.maxHeapMiB);
 		this.delegate = new CodeModeDelegateRuntime(

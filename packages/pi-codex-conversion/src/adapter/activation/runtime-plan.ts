@@ -27,7 +27,7 @@ import {
 type RuntimeContext = Pick<ExtensionContext, "model">;
 
 interface RuntimePlanBase {
-	kind: "inactive" | "extras" | "normal" | "code" | "ts" | "js" | "vm";
+	kind: "inactive" | "extras" | "normal" | "code" | "ts" | "vm";
 	toolNames: string[];
 	ownedToolNames: string[];
 	configuredProvider: boolean;
@@ -70,12 +70,6 @@ export interface TsRuntimePlan extends RuntimePlanBase {
 	transport: "responses" | "responses-lite";
 }
 
-export interface JsRuntimePlan extends RuntimePlanBase {
-	kind: "js";
-	prompt: "js";
-	transport: "responses" | "responses-lite";
-}
-
 export interface VmRuntimePlan extends RuntimePlanBase {
 	kind: "vm";
 	prompt: "vm";
@@ -88,7 +82,6 @@ export type CodexRuntimePlan =
 	| NormalRuntimePlan
 	| CodeRuntimePlan
 	| TsRuntimePlan
-	| JsRuntimePlan
 	| VmRuntimePlan;
 
 const ALL_ADAPTER_TOOL_NAMES = [
@@ -265,7 +258,6 @@ export function resolveCodexRuntimePlan(
 	const requestedCodeMode =
 		configuredExecutionMode === "code" ||
 		configuredExecutionMode === "ts" ||
-		configuredExecutionMode === "js" ||
 		configuredExecutionMode === "vm"
 			? configuredExecutionMode
 			: undefined;
@@ -285,17 +277,15 @@ export function resolveCodexRuntimePlan(
 			};
 			return { ...statefulPlan, kind: "ts", prompt: "ts" };
 		}
-		const statelessPlan = {
+		const codePlan = {
 			...base,
 			toolNames: [...CODE_MODE_TOOL_NAMES],
 			transport,
 			nativeCompaction,
 		};
-		return requestedCodeMode === "js"
-			? { ...statelessPlan, kind: "js", prompt: "js" }
-			: requestedCodeMode === "vm"
-				? { ...statelessPlan, kind: "vm", prompt: "vm" }
-				: { ...statelessPlan, kind: "code", prompt: "code" };
+		return requestedCodeMode === "vm"
+			? { ...codePlan, kind: "vm", prompt: "vm" }
+			: { ...codePlan, kind: "code", prompt: "code" };
 	}
 	return {
 		...base,
@@ -337,30 +327,19 @@ export function resolveCodexRuntimePlanForState(
 
 export function isAdapterRuntime(
 	plan: CodexRuntimePlan,
-): plan is
-	| NormalRuntimePlan
-	| CodeRuntimePlan
-	| TsRuntimePlan
-	| JsRuntimePlan
-	| VmRuntimePlan {
+): plan is NormalRuntimePlan | CodeRuntimePlan | TsRuntimePlan | VmRuntimePlan {
 	return (
 		plan.kind === "normal" ||
 		plan.kind === "code" ||
 		plan.kind === "ts" ||
-		plan.kind === "js" ||
 		plan.kind === "vm"
 	);
 }
 
 export function isCodeModeRuntime(
 	plan: CodexRuntimePlan,
-): plan is CodeRuntimePlan | TsRuntimePlan | JsRuntimePlan | VmRuntimePlan {
-	return (
-		plan.kind === "code" ||
-		plan.kind === "ts" ||
-		plan.kind === "js" ||
-		plan.kind === "vm"
-	);
+): plan is CodeRuntimePlan | TsRuntimePlan | VmRuntimePlan {
+	return plan.kind === "code" || plan.kind === "ts" || plan.kind === "vm";
 }
 
 export const ALL_CODEX_ADAPTER_TOOL_NAMES = ALL_ADAPTER_TOOL_NAMES;

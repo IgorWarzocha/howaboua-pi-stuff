@@ -46,10 +46,9 @@ Choose an execution mode under `/codex` → **General**:
 | **Structured** | Calls tools directly through top-level JSON schemas. |
 | **Code** | Composes tools in one-shot JavaScript cells through `exec`, with `wait` for longer work. |
 | **TS Notebook** | Uses a persistent TypeScript notebook with strict checking before execution and Node APIs. |
-| **QuickJS Code** | Composes tools in fresh JavaScript environments, with up to four concurrent cells. |
 | **VM Code** | Composes tools in one JavaScript context kept for the conversation. |
 
-Code and QuickJS Code start fresh for each cell. VM Code keeps `let`, `const`, `function` and `class` bindings for the conversation, without notebook controls or a saved heap. TS Notebook retains state between cells and provides notebook management controls. See [execution modes](#code-mode-and-custom-tools) below.
+Code starts fresh for each cell. VM Code keeps `let`, `const`, `function` and `class` bindings for the conversation, without notebook controls or a saved heap. TS Notebook retains state between cells and provides notebook management controls. See [execution modes](#code-mode-and-custom-tools) below.
 
 Execution mode is separate from provider scope. Apply the adapter to **Codex and configured** providers or **all providers**. **Extra tools only** adds selected patch and image tools without replacing the normal setup. **Voice only** keeps voice and dictation without changing the model's tools or requests.
 
@@ -152,7 +151,7 @@ Pi's footer shows cache percentage. Enable **Codex diagnostics** under `/codex o
 <details>
 <summary><strong>Execution modes and custom tools</strong></summary>
 
-Code downloads its runtime on first use. TS Notebook reuses matching installed packages or downloads them with npm. QuickJS Code and VM Code need no separate runtime download. Cached runtimes work offline, and unselected modes do not download anything.
+Code downloads its runtime on first use. TS Notebook reuses matching installed packages or downloads them with npm. VM Code needs no separate runtime download. Cached runtimes work offline, and unselected modes do not download anything.
 
 In TS Notebook, ask your agent to inspect, save, load or clean up notebook state. The `notebook` tool provides its own action help. **Restart and cancellation do not undo file changes or other external tool effects.**
 
@@ -168,27 +167,23 @@ Variables, closures, class instances and module state survive between cells. Che
 
 Concurrent isolated cells start from the last checkpoint and save separate candidates. Loading one replaces the live notebook rather than automatically merging changes. Releasing bindings also rebuilds the kernel and clears live-only values.
 
-### QuickJS Code
-
-Select **QuickJS Code** to compose tools in JavaScript. Each call starts fresh, with up to four cells running concurrently. Variables and closures do not carry between calls. Use `store` and `load` for conversation-local JSON data that does not persist to disk.
-
-Use a package-manager installation of Pi under Node. QuickJS Code uses the QuickJS runtime that ships with Pi. The environment has no Node APIs, imports, direct network access, timers or TypeScript checking. The agent uses tools for host operations.
-
-QuickJS Code replaces JS Notebook. Existing `js` settings select QuickJS Code. Old notebook files are left untouched but are not loaded. There are no checkpoints, profiles, project-shared variables or `notebook` controls in this mode.
-
 ### VM Code
 
 Select **VM Code** to compose tools in JavaScript while keeping `let`, `const`, `function` and `class` bindings across `exec` calls in the conversation. `exec` and `wait` stay the same, and tools stay `tools.name`.
 
-Run Pi under Node. One context belongs to the conversation. There is no shared heap, project lock, checkpoint or disk image. The context is capped at 256 MiB. `store` and `load` keep conversation-local JSON, with the same size limits as QuickJS Code.
+Run Pi under Node.js. If you use Pi's standalone Bun build, select **Code** instead. VM Code runs one cell at a time in a conversation-local context. The worker heap is capped at 256 MiB. `store` and `load` keep conversation-local JSON without writing to disk.
 
 Top-level `await` works, and `const`, `var` and function hoisting stay the same as a cell without `await`. The environment has no Node APIs, imports, direct network access or timers. The agent uses tools for host operations.
 
+VM Code is not an isolation boundary for untrusted code.
+
 A script error keeps the bindings. A stall, cancellation, memory limit, `terminate` or conversation change drops them, and the next `exec` starts fresh.
+
+Existing QuickJS Code settings (`js`) select VM Code automatically. Use **Code** if you need fresh JavaScript for every cell. Old JS Notebook files are neither loaded nor deleted.
 
 ### Extension tools and MCP
 
-Installed Pi tools and enabled MCP servers are available inside Code, QuickJS Code, VM Code and TS Notebook. Configure MCP servers through Pi. Existing permissions, tool restrictions and disabled servers still apply.
+Installed Pi tools and enabled MCP servers are available inside Code, VM Code and TS Notebook. Configure MCP servers through Pi. Existing permissions, tool restrictions and disabled servers still apply.
 
 Use `content(result.content)` to emit mixed MCP text and images in their original order. The helper also accepts a single content block. Resource blocks remain JSON text; audio and encrypted text are not supported.
 

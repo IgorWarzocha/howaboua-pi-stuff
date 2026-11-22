@@ -19,10 +19,8 @@ import {
 	EXEC_DESCRIPTION,
 	GPT_EXEC_DESCRIPTION,
 	GPT_ISOLATED_EXEC_GUIDANCE,
-	GPT_JS_EXEC_DESCRIPTION,
 	GPT_VM_EXEC_DESCRIPTION,
 	ISOLATED_EXEC_GUIDANCE,
-	JS_EXEC_DESCRIPTION,
 	VM_EXEC_DESCRIPTION,
 	WAIT_DESCRIPTION,
 } from "./custom-tool-prompt.js";
@@ -102,25 +100,20 @@ export function registerPublicCodeModeTools(
 		const kind =
 			context === undefined ? "code" : runtime.executionKind(context);
 		const vm = kind === "vm";
-		const js = kind === "js";
 		const notebook = kind === "ts";
 		const language = notebook ? "TypeScript" : "JavaScript";
 		const description = vm
 			? active
 				? GPT_VM_EXEC_DESCRIPTION
 				: VM_EXEC_DESCRIPTION
-			: js
-				? active
-					? GPT_JS_EXEC_DESCRIPTION
-					: JS_EXEC_DESCRIPTION
-				: (active ? GPT_EXEC_DESCRIPTION : EXEC_DESCRIPTION).replace(
-						"JavaScript",
-						language,
-					) +
-					(notebook
-						? `\n${active ? GPT_ISOLATED_EXEC_GUIDANCE : ISOLATED_EXEC_GUIDANCE}`
-						: "");
-		const executionMode = notebook || js ? "parallel" : "sequential";
+			: (active ? GPT_EXEC_DESCRIPTION : EXEC_DESCRIPTION).replace(
+					"JavaScript",
+					language,
+				) +
+				(notebook
+					? `\n${active ? GPT_ISOLATED_EXEC_GUIDANCE : ISOLATED_EXEC_GUIDANCE}`
+					: "");
+		const executionMode = notebook ? "parallel" : "sequential";
 		if (
 			currentExec.description !== description ||
 			currentExec.executionMode !== executionMode

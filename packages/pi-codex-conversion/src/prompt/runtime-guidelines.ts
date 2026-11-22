@@ -170,10 +170,7 @@ function buildCodexGuidelines(
 		const adapterSurfaceActive =
 			active.has("exec") &&
 			active.has("wait") &&
-			(mode === "code" ||
-				mode === "js" ||
-				mode === "vm" ||
-				active.has("notebook"));
+			(mode === "code" || mode === "vm" || active.has("notebook"));
 		guidelines = adapterSurfaceActive
 			? (mode === "ts"
 					? TS_MODE_GUIDELINES
