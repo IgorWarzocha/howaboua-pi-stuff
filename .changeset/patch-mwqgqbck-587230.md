@@ -1,33 +1,21 @@
 ---
-"@howaboua/pi-codex-conversion": major
+"@howaboua/pi-codex-conversion": minor
 ---
 
-- The upgrade notice for legacy Notes continuity directs users to Agent Comms.
-- Removed the Voice only setting. Existing configurations now follow Provider scope. Use GipPity Control instead of Pi Codex Conversion for voice without the Codex adapter.
-- Removed standalone `apply_patch`, standalone `view_image` and the Extra tools only scope. Existing Extra tools only settings now use Codex and configured providers. Both tools remain available through the Codex adapter.
-- Removed Deno Notebook. The old mode setting selects TS Notebook without importing Deno state or activating its saved profile. [Recover or remove old notebook files](https://github.com/IgorWarzocha/howaboua-pi-stuff/blob/main/docs/deno-to-ts-notebook.md) with the repository's copy-paste prompts.
-- Replaced QuickJS Code with VM Code. Existing settings select VM Code, which keeps JavaScript bindings for the conversation and runs one cell at a time. Select Code for fresh cells.
-- VM Code works in standalone Pi on Linux, macOS and Windows. Bun runs in a separate process with a hard cgroup memory limit on Linux and a memory watchdog on macOS and Windows.
-- Codex falls back to HTTP for the session when a request exceeds the advertised WebSocket limit or the server closes with code 1009 before sending text.
-- Codex reports an incomplete response without replaying it when a WebSocket size rejection follows visible output.
-- Removed the Harness identifier header setting. Codex requests now always send `codex_cli_rs` as their originator.
-- Replaced Compact tool output and Code / Notebook details with one Tool details setting: Minimal, Compact or Preview. Expanding a tool reveals its available source, output and diffs in every mode.
-- Folded shell rows show nonzero exit codes, including in grouped exploration and background terminal results. A plain search with no matches is shown separately from errors.
-- Pi Codex upgrades older global and trusted project settings files once, preserving unrelated fields and project overrides. Current settings files are not rewritten at startup.
-- Codex settings clarify what prompt overwrite, cache keepalive and voice refresh change, and which tool naming changes are display-only.
-- Heavy system prompt overwrite is now Off or On. On uses the former GPT mode. Pi Codex tool guidance stays compact even when the overwrite is off.
-- Codex prompt guidance now directs agents to work through recoverable blockers, continue independent work and act on clear requests rather than offering to act.
-- Code and Notebook group each tool's usage and rules. Tools with on-demand usage show the same no-argument discovery call.
-- `ALL_TOOLS` lists every public tool available to the cell, including tools already advertised in the prompt. Look up one entry for its full contract.
-- TS Notebook and VM Code show how to keep one-off variables local to a cell and how to retry a redeclaration error.
-- TS Notebook uses tsrs 7.1.0-beta.tsrs4, including fixes for package and type resolution.
-- Removed the standing ripgrep preference from shell guidance.
-- Code and Notebook guidance shows how to compose related tool calls in one cell and report the outcome with `text()`.
-- VM Code states its runtime limits and binding reset rules once.
-- Code and Notebook print plain shell output by default. The Tools menu no longer shows this setting. Existing choices are preserved, and `notebook.plainCommandOutput` remains available in `pi-codex-conversion.json`.
-- Auto Reasoning recommends adjusting effort when the work phase changes. The tool reports the user's reasoning floor when called, not in standing guidance.
-- Code and Notebook group usage calls and show the exact call beside each tool.
-- Bundled Codex tools and voice helpers use updated Rust dependencies.
-- Codex sends harness and tool guidance before `AGENTS.md` instructions and the working directory.
-- Background shell completion notices collapse to one line. Expand a notice to see its output.
-- Expanded Code cells show identical successful shell output once when the shell trace already displays it.
+- Removed Voice only mode. Existing settings follow Provider scope. Use GipPity Control for voice without the Codex adapter.
+- Removed the Extra tools only scope and standalone `apply_patch` and `view_image` switches. Existing Extra tools only settings switch to Codex and configured providers. Both tools remain available through the adapter.
+- Removed Deno Notebook. Existing settings select TS Notebook without importing Deno state. [Recover or remove old notebook files](https://github.com/IgorWarzocha/howaboua-pi-stuff/blob/main/docs/deno-to-ts-notebook.md).
+- Replaced QuickJS Code with VM Code. Existing settings select VM Code, which keeps JavaScript bindings across cells. Select Code for fresh cells. VM Code runs on Linux, macOS and Windows. On Linux with Bun it requires a systemd user session and cgroup v2.
+- Removed the Harness identifier setting. Codex requests always use `codex_cli_rs` as the originator.
+- Replaced Compact tool output and Code / Notebook details with one Tool details setting: Minimal, Compact or Preview. Expand tool rows to see their available source, output and diffs.
+- Heavy system prompt overwrite is now Off or On. On uses the former GPT mode.
+- Older global and trusted project settings are migrated once without overwriting unrelated fields. Legacy Notes continuity notices now point to Agent Comms.
+- Codex switches to HTTP for the session when it detects a WebSocket size limit before text appears. If a size rejection follows visible text, Codex reports the incomplete response without replaying it.
+- Folded shell rows distinguish errors from searches with no matches. Background completion notices collapse to one line, and expanded cells show identical shell output only once.
+- Code and Notebook group exact usage calls. `ALL_TOOLS` lists every public tool available to the cell.
+- Code and Notebook guidance recommends composing related calls in one cell. VM Code and TS Notebook explain how to recover from redeclaring a binding.
+- TS Notebook resolves packages and type roots more reliably.
+- Code and Notebook print plain shell output by default. Existing choices are preserved. To opt out, set `notebook.plainCommandOutput` to `false` in `pi-codex-conversion.json`.
+- Auto Reasoning recommends adjusting effort when the work phase changes or a task turns out harder or easier than expected.
+- Codex puts tool instructions before workspace context and directs agents to act on clear requests and work through recoverable blockers.
+- Updated the bundled Codex tools and voice helpers.

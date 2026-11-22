@@ -328,7 +328,7 @@ function createNestedTools(
 				},
 				'tools.change_reasoning({ level: "low" | "medium" | "high" | "xhigh" | "max" })',
 				{},
-				{ promptGuidelines: [runtime.autoReasoning.tool.description] },
+				{ promptGuidelines: [runtime.autoReasoning.guidance()] },
 			),
 		);
 	}
