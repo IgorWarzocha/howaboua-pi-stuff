@@ -2,7 +2,7 @@
   "name": "@howaboua/pi-stuff-monorepo",
   "private": true,
   "type": "module",
-  "packageManager": "bun@1.4.2",
+  "packageManager": "bun@1.4.5",
   "workspaces": [
     "packages/*"
   ],
