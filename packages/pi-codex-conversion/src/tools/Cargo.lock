@@ -150,7 +150,6 @@ dependencies = [
  "async-trait",
  "base64",
  "codex-utils-pty",
- "pretty_assertions",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -758,8 +757,6 @@ dependencies = [
  "async-trait",
  "codex-utils-absolute-path",
  "codex-utils-path-uri",
- "tempfile",
- "tokio",
 ]
 
 [[package]]

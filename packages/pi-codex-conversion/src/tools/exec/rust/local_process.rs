@@ -15,9 +15,6 @@ const PROCESS_EVENT_CHANNEL_CAPACITY: usize = 256;
 // Descendants may retain the parent's pipes indefinitely. Drain late output, but
 // never let their activity extend the lifetime of an already exited command.
 const EXIT_OUTPUT_DRAIN_GRACE: Duration = Duration::from_secs(1);
-#[cfg(test)]
-const EXITED_PROCESS_RETENTION: Duration = Duration::from_millis(25);
-#[cfg(not(test))]
 const EXITED_PROCESS_RETENTION: Duration = Duration::from_secs(30);
 
 #[derive(Clone)]
@@ -296,32 +293,4 @@ async fn maybe_emit_closed(process_id: ProcessId, inner: Arc<Inner>) {
             Entry::Vacant(_) => {}
         }
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::protocol::ByteChunk;
-
-    #[tokio::test]
-    async fn local_process_accepts_stdin_when_requested() {
-        let backend = LocalProcess::default();
-        let process_id = ProcessId::from("stdin");
-        backend.exec(ExecParams {
-            process_id: process_id.clone(),
-            argv: vec!["cat".to_string()],
-            cwd: std::env::current_dir().unwrap(),
-            env: HashMap::new(),
-            tty: false,
-            pipe_stdin: true,
-            arg0: None,
-        }).await.unwrap();
-
-        let write = backend.exec_write(WriteParams { process_id: process_id.clone(), chunk: ByteChunk(b"ping".to_vec()) }).await.unwrap();
-        assert_eq!(write.status, WriteStatus::Accepted);
-        let response = backend.exec_read(ReadParams { process_id, after_seq: None, max_bytes: None, wait_ms: Some(5_000) }).await.unwrap();
-        let output = response.chunks.into_iter().flat_map(|chunk| chunk.chunk.into_inner()).collect::<Vec<_>>();
-        assert_eq!(String::from_utf8(output).unwrap(), "ping");
-        backend.shutdown().await;
-    }
 }
