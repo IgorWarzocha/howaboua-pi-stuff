@@ -57,7 +57,6 @@ export const WAIT_DESCRIPTION = "Resume or terminate a yielded exec cell";
 
 const BUNDLED_TOOLS_HEADING = "Tools available in exec:";
 const CUSTOM_TOOLS_HEADING = "Configured custom tools:";
-const TOOL_GUIDANCE_HEADING = "Tool guidance:";
 const DEFERRED_TOOLS_GUIDANCE =
 	"For additional tools and their contracts, run text(ALL_TOOLS) in exec";
 const CUSTOM_TOOLS_GUIDANCE =
@@ -144,19 +143,37 @@ function formatSchema(schema: unknown): string {
 	}
 }
 
-function translatedPromptLines(tool: CodeModeToolDefinition): string[] {
-	if (!("invoke" in tool) || tool.translatePromptMetadata !== true) return [];
-	// Usage owns the callable contract here; native descriptions and schemas do not.
-	return (tool.promptGuidelines ?? []).map(
-		(guideline) => `- ${translateCodeModeGuideline(guideline, tool.name)}`,
-	);
-}
-
-function buildGuidanceSection(tools: CodeModeToolDefinition[]): string {
-	const lines = tools
-		.filter((tool) => !tool.deferLoading)
-		.flatMap(translatedPromptLines);
-	return lines.length ? `${TOOL_GUIDANCE_HEADING}\n${lines.join("\n")}` : "";
+function renderStandingTool(tool: CodeModeToolDefinition): string[] {
+	const name = codeModeGlobalName(tool.name);
+	const binding = `tools.${name}`;
+	const description = translateCodeModeToolReferences(
+		tool.description ?? "",
+		tool.name,
+	).trim();
+	const help = "discovery" in tool && tool.discovery === "help";
+	const usage = translateCodeModeUsage(tool.usage, tool.name);
+	const call = usage.startsWith(`${binding}(`) ? usage : undefined;
+	const entry = help
+		? `- ${binding}: ${description ? `${description}; ` : ""}Usage: ${tool.kind === "freeform" ? (call?.slice(binding.length) ?? usage) : "{} lists actions and args"}`
+		: call
+			? `- ${call}${description ? `; ${description}` : ""}`
+			: `- ${binding}: ${[description, `Usage: ${usage}`].filter(Boolean).join("; ")}`;
+	if (!("invoke" in tool) || tool.translatePromptMetadata !== true)
+		return [entry];
+	const labels = [binding, name, tool.name, tool.topLevelName];
+	return [
+		entry,
+		...(tool.promptGuidelines ?? []).map((guideline) => {
+			const translated = translateCodeModeGuideline(guideline, tool.name);
+			const label = labels.find(
+				(label) => label && translated.startsWith(`${label}:`),
+			);
+			const rule = label
+				? translated.slice(label.length + 1).trimStart()
+				: translated;
+			return `- ${binding}: ${rule}`;
+		}),
+	];
 }
 
 function buildUsageSection(
@@ -176,13 +193,7 @@ function buildUsageSection(
 				left.name.localeCompare(right.name)
 			);
 		})
-		.map((tool) =>
-			"discovery" in tool &&
-			tool.discovery === "help" &&
-			tool.kind !== "freeform"
-				? `- tools.${codeModeGlobalName(tool.name)}: ${translateCodeModeToolReferences(tool.description ?? "", tool.name)}`
-				: `- ${translateCodeModeUsage(tool.usage, tool.name)}`,
-		)
+		.flatMap(renderStandingTool)
 		.join("\n")}`;
 }
 
@@ -227,8 +238,8 @@ export function buildCodeModeToolsPrompt(
 				: 'For Markdown or multiline text, use ordinary quoted line arrays joined with "\\n". Template literals require escaping backticks and ${...} to keep them literal'
 			: undefined,
 		gpt
-			? "No signature+unknown current args→separate help-only call (noargs; structured:{}), read result→compose operation. No guessing/bundling operation with help. Shown signature/known current args→reuse, no repeat help"
-			: "Tools without a shown call signature: if current arguments are unknown, make a separate help-only call with no arguments (structured: {}), read its result, then compose the operation. Do not guess arguments or bundle the operation with help. Reuse shown signatures or known current arguments without repeating help",
+			? "Unknown args→get Usage separately, read result before operation. Don't guess args or repeat discovery for known args"
+			: "When arguments are unknown, read the tool's usage in a separate call before composing the operation. Do not guess arguments or repeat discovery for known arguments",
 		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled, [
 			"exec_command",
 			"write_stdin",
@@ -238,7 +249,6 @@ export function buildCodeModeToolsPrompt(
 			"get_context_remaining",
 		]),
 		buildUsageSection(CUSTOM_TOOLS_HEADING, promotedCustom),
-		buildGuidanceSection(tools),
 		// The catalogue is always available, even when its first or last tool is unlisted.
 		gpt ? "More tools/contracts→text(ALL_TOOLS)" : DEFERRED_TOOLS_GUIDANCE,
 		custom.length > 0 ? CUSTOM_TOOLS_GUIDANCE : undefined,
