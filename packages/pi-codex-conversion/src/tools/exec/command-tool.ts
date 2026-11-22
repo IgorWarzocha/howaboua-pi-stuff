@@ -289,7 +289,7 @@ export function createExecCommandTool(
 	const tool: Parameters<ExtensionAPI["registerTool"]>[0] = {
 		name: "exec_command",
 		label: "exec_command",
-		description: "Run shell commands; may return session_id",
+		description: "Run shell commands",
 		...(options.promptSnippet === false
 			? {}
 			: { promptSnippet: "Run command" }),

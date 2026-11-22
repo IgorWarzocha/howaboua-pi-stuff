@@ -42,7 +42,6 @@ const TS_MODE_GUIDELINES = [
 const VM_MODE_GUIDELINES = [
 	"MAY reuse verified bindings",
 	...CODE_MODE_GUIDELINES,
-	"Stall/cancel/memory limit/terminate→bindings dropped; next exec fresh",
 ];
 
 const CODE_MODE_REPLACED_GUIDELINES = new Set([

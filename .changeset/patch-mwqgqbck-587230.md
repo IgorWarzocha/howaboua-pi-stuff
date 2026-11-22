@@ -23,6 +23,7 @@
 - TS Notebook uses tsrs 7.1.0-beta.tsrs4, including fixes for package and type resolution.
 - Removed the standing ripgrep preference from shell guidance.
 - Code and Notebook guidance shows how to compose related tool calls in one cell and report the outcome with `text()`.
+- VM Code states its runtime limits and binding reset rules once.
 - Bundled Codex tools and voice helpers use updated Rust dependencies.
 - Codex sends harness and tool guidance before `AGENTS.md` instructions and the working directory.
 - Background shell completion notices collapse to one line. Expand a notice to see its output.
