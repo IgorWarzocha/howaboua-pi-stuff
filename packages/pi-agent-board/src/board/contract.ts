@@ -32,6 +32,11 @@ export const BoardParameters = obj(
 	},
 	{ open: true },
 );
+// Notebook checks the supplied action before Pi can normalise the alias.
+export const BoardNestedParameters = obj(
+	{ action: opt({ ...oneOf([...BOARD_ACTIONS, "reply"]), type: "string" }) },
+	{ open: true },
+);
 const positive = opt(int({ minimum: 1, maximum: 0xffffffff }));
 const string = opt(str());
 const Request = obj(

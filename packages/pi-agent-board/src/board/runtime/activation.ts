@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { BoardNestedParameters } from "../contract.js";
 import { initializeDelivery, isMissingOptionalModule } from "../delivery.js";
 import { createBoardTool } from "../tool.js";
 import type { BoardRuntime } from "./coordinator.js";
@@ -13,11 +14,14 @@ export async function activateBoard(pi: ExtensionAPI, runtime: BoardRuntime) {
 		const registration = registerCodeModeExtensionTools(
 			pi,
 			() => [
-				adaptToolForCodeMode(tool, {
-					prepareInput: (input) =>
-						input === undefined || input === null ? {} : input,
-					discovery: "help",
-				}),
+				adaptToolForCodeMode(
+					{ ...tool, parameters: BoardNestedParameters },
+					{
+						prepareInput: (input) =>
+							input === undefined || input === null ? {} : input,
+						discovery: "help",
+					},
+				),
 			],
 			{ isActive: (ctx) => runtime.enabled(ctx) },
 		);

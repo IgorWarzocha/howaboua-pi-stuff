@@ -7,3 +7,4 @@
 - Settings clarify ranked history search, when pruning runs, how Notes rollovers differ from compaction, and what Board thread consolidation does.
 - Notes, History and Board always use compact help and handoff guidance, regardless of the Pi Codex prompt setting.
 - History is listed alongside Notes in Code and Notebook. Its arguments remain available on demand.
+- Fixed Board replies using the `reply` alias failing Notebook type checks.
