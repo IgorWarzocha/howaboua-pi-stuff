@@ -1,7 +1,7 @@
 ---
 name: codebase-hygiene
-description: "Must always apply when working on maintained code."
-last-changed: "2026-08-30"
+description: "Must apply when changing maintained code."
+last-changed: "2026-11-22"
 ---
 
 ## Load applicable rules
@@ -12,7 +12,7 @@ Loaded references are authoritative.
 - Test assessment, addition, deletion, and scoring: `references/testing.md`
 - Calls, dispatch, callbacks, continuations, imports, initialization, startup, and runtime cost: `references/execution-topology.md`
 - Dependencies, lockfiles, installers, scripts, CI actions, runtimes, compilers, and third-party tools: `references/dependency-safety.md`
-- Load every reference matching a repository language: `references/js-ts.md`, `references/python.md`, `references/go.md`, `references/rust.md`
+- Load language references for affected code and relevant cross-language contracts: `references/js-ts.md`, `references/python.md`, `references/go.md`, `references/rust.md`. Cover all repository languages for a repository-wide assessment.
 - React components, Hooks, rendering, state, and framework boundaries: `references/react.md`
 - For other languages, use repository evidence and current official ecosystem documentation.
 - Scores and caps: `references/scoring-rubric.md`. Score only when requested or already required.
@@ -23,7 +23,7 @@ Goal: leave a codebase that another agent can navigate efficiently, change coher
 
 Optimize for agents working through search, bounded reads, and coherent multi-file edits. Do not imitate one-file-at-a-time human editing.
 
-Read governing instructions, owning files, consumers, contracts, tests, active checks, runtime edges, and generated or framework-owned areas. Read every file you will change in full, continuing through tool chunks when needed. Search confirms callers and edges but does not replace understanding the owner.
+Apply governing instructions. Use the instructions already loaded by the harness and check for any missing instructions that cover the affected paths. Before adding behaviour, search for its existing owner and equivalent implementations. Read the complete owning function, component, or configuration section, plus the callers, contracts, state, and tests that determine the change. Do not edit from a search snippet. Read the full file for ownership or structural changes, cross-cutting state or initialisation, or when bounded reads leave ownership unclear.
 
 ## Shape ownership
 
@@ -68,7 +68,7 @@ Dependency topology:
 - Tests must reject credible failures in project-owned contracts, invariants, transitions, failure handling, and lifecycle. Do not reward volume, duplicate static checks, invent external providers, or retain feature-existence tests.
 - Preserve external behavior unless the user accepts a change. Internal types and layout may change when owned consumers migrate coherently. Public APIs, endpoints, serialized formats, persisted data, configuration, errors, and operational signals are contracts. Make migrations explicit.
 - Keep failures visible. Never pass checks through weaker strictness, broad ignores, unsafe casts, swallowed errors, skipped files, deleted useful tests, or silent fallback.
-- Treat dependency, runtime, compiler, package-manager, and policy upgrades as separate modernization. Investigate compatibility and migration risk before changing them.
+- Separate unrelated dependency, toolchain, and policy upgrades from feature work. Apply `references/dependency-safety.md` to required dependency changes as well as optional modernisation.
 - Comments explain invariants, ordering, effects, compatibility, and non-obvious ownership. Delete code narration and unenforceable claims. Add documentation only when it reduces future discovery.
 
 ## Finish

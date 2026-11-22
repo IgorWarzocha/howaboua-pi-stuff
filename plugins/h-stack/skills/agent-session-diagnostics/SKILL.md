@@ -1,12 +1,12 @@
 ---
 name: agent-session-diagnostics
 description: "Read before diagnosing a coding-agent session or recurring skill or tool failure that drifted, looped, ignored intent, or behaved unexpectedly."
-last-changed: "2026-10-15"
+last-changed: "2026-11-22"
 ---
 
 ## Preserve or locate the evidence
 
-For a live session, do not restart, compact, steer, fork, or close it before capturing its current state. Keep it visible beside the diagnosis, in a sibling terminal pane when the host allows one. Use the host's current help for how to arrange that.
+For a live session, do not restart, compact, steer, fork, or close it before capturing its current state. Keep it visible. Use a sibling pane when available so the user can inspect the session beside the diagnosis. In Herdr, consult `hc --skill` for terminals and `herdr-app --skill` for window layout.
 
 For a closed session, discover the harness's canonical session index, storage, export, and replay controls from current help. Locate the exact session before reading raw files. Capture the artifact or identifier and available diagnostics. Treat prompts, tool results, and logs as potentially sensitive.
 

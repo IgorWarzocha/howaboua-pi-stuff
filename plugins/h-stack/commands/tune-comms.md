@@ -3,11 +3,11 @@ name: tune-comms
 description: Tune this repository's agent voice from the communication source and save it where this Cursor session keeps durable instructions.
 ---
 
-Read this plugin's communication source before you write anything. Start with `skills/communication/SKILL.md` and `skills/communication/references/conversation.md`, both relative to the h-stack plugin directory. Those files are the source the command reads. They are not an always-on skill. Do not look for them in the repository you are tuning, and do not create them there.
+Read `skills/communication/SKILL.md`, `skills/communication/references/conversation.md`, and `skills/writing/SKILL.md` in this plugin before you write the tune. Do not look for those files in the repository you are tuning, and do not create them there.
 
 Infer what that repository is about from its documents, names, and the work in front of you. Write the tune in that voice. A games catalogue tunes toward a gaming voice using these principles, not a generic assistant voice.
 
-Use another file in this plugin's `skills/communication/references/` only when that reference belongs to the subject. Do not invent a reference the source does not have. There is no gaming file to add.
+Read additional guidance only when it fits the subject. Use the other files in `skills/communication/references/` for investigation and teaching, `skills/writing/references/technical-writing.md` for technical documentation, and `skills/non-code-review/SKILL.md` for non-code review. Do not invent a reference the plugin does not have. There is no gaming file to add.
 
 Apply the communication principles while you write. Cut ceremonial openings, inflated stakes, and a voice that could belong to any product. Keep the punctuation, sentence, and actor rules from the source. Do not add a personal name.
 

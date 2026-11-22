@@ -2,9 +2,9 @@ Treat manifests, lockfiles, CI actions, installers, build scripts, compiler plug
 
 Do not run new or untrusted dependency code merely to inspect a repository. Avoid first execution in environments carrying broad SSH keys, GitHub tokens, package-publishing credentials, cloud access, production secrets, or unrelated repository access.
 
-Dependency, runtime, compiler, package-manager, lockfile, CI-action, and lint-policy changes are explicit modernization work. Investigate relevant currency and compatibility, explain migration risk, and ask before changing them. Do not bulk-update or move everything to latest by default.
+Keep unrelated dependency, runtime, compiler, package-manager, lockfile, CI-action, and lint-policy upgrades separate. Investigate compatibility and migration risk before proposing that work. Choose dependencies needed for the requested change as implementation decisions, subject to repository policy. Explain material trade-offs without asking permission for routine plumbing. Do not bulk-update by default.
 
-For an accepted dependency change:
+For a dependency change:
 
 - confirm the exact package, action, publisher, repository, and intended version
 - inspect install, build, prepare, post-install, generation, plugin, native binary, and download behavior

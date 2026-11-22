@@ -1,8 +1,10 @@
 ---
 name: agent-tool-design
 description: "Read before creating, reviewing, or refining a tool exposed to an agent."
-last-changed: "2026-10-15"
+last-changed: "2026-10-05"
 ---
+
+For a Pi tool, also read `references/pi.md`.
 
 ## Start from what the agent knows
 
@@ -55,21 +57,10 @@ For help-backed tools, silently discard known presentation hints when the chosen
 
 - Treat every tool return, including errors, as a next-action contract. On success, return needed state and disclose a newly available action when it is useful, not generic workflow advice.
 - On failure, state the practical consequence, what remains available, and a valid next action. Distinguish no change from partial completion before suggesting a retry.
+- Signal failure through the host's error mechanism, not error-shaped success. Distinguish running, cancelled, truncated, empty, and completed work when the next action differs.
 - Keep implementation diagnostics out of model-facing text unless needed to act. Recovery must use the agent's available capabilities; leave account, authentication, and configuration decisions to the user instead of prescribing them as agent recovery.
 - Bound large output and make truncation visible. If omitted content may be needed, return a way to retrieve it.
 - Keep render-only detail out of the model-facing result.
-- Signal failure the way the host records a tool error. Error-shaped success content is not a failure when the host treats it as success.
-- For a partial mutation, mark the call failed and state what succeeded, what failed, and what must be reread before retrying.
-- Distinguish cancellation, truncation, empty output, running work, and completed work when the next action differs.
-- Put the path, identity, state, output, or continuation handle needed next in the model-visible result. Never hide recovery information in render-only state.
-
-## Match the host
-
-- Read current harness documentation and neighbouring tools before implementation. Do not tune a legacy surface as if it were current.
-- Migrate legacy markers before wording or token work. When that migration is outside scope, report the blocker rather than certifying the old contract.
-- Trace the call the model actually receives: name, description, parameters, inventory or guideline text, conditional exposure, argument preparation, execution, returned content, errors, truncation, and provider serialization.
-- Measure the emitted prompt and serialized schemas for each active mode. Source lines are not the payload.
-- If the host flattens guideline lines, name the tool in each line. Do not repeat schema facts in inventory text or guidelines.
 
 ## Validate
 

@@ -1,9 +1,10 @@
 ---
 name: project-reference-research
-description: "Read before investigating a project the user mentions."
-last-changed: "2026-08-22"
+description: "Read before researching a project as a reference for ideas, comparisons, or claim verification."
+last-changed: "2026-11-22"
 ---
 
-- Resolve the project's canonical upstream repository first. Verify remotes, not directory names, and ask when its identity or ownership is ambiguous.
-- `~/Work` holds the user's own working projects. Place or reuse those checkouts there exactly as they are. Do not pull, switch, reset, clean, stash, or otherwise disturb them unless the user separately asks.
-- `~/Frameworks` holds third-party repositories used only as disposable, read-only references. Verify the canonical upstream, clone if absent, and update to the latest upstream version before research. If local state blocks a clean update, discard it or recreate the checkout.
+- For installed-software diagnosis, inspect the installed version rather than substituting a fresh upstream checkout.
+- Resolve the canonical upstream first. Verify remotes, not directory names. Ask only if unresolved identity affects the research.
+- Preserve working checkouts. Use a known reference checkout or make a disposable clone in an appropriate workspace. Verify the revision against the claim: use the relevant tag or commit for a version-specific question and current upstream for current behaviour. If local changes interfere, inspect a clean revision separately rather than discarding them.
+- Read reference source without modifying it, installing dependencies, or building in the checkout.

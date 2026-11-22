@@ -57,6 +57,7 @@ For help-backed tools, silently discard known presentation hints when the chosen
 
 - Treat every tool return, including errors, as a next-action contract. On success, return needed state and disclose a newly available action when it is useful, not generic workflow advice.
 - On failure, state the practical consequence, what remains available, and a valid next action. Distinguish no change from partial completion before suggesting a retry.
+- Signal failure through the host's error mechanism, not error-shaped success. Distinguish running, cancelled, truncated, empty, and completed work when the next action differs.
 - Keep implementation diagnostics out of model-facing text unless needed to act. Recovery must use the agent's available capabilities; leave account, authentication, and configuration decisions to the user instead of prescribing them as agent recovery.
 - Bound large output and make truncation visible. If omitted content may be needed, return a way to retrieve it.
 - Keep render-only detail out of the model-facing result.

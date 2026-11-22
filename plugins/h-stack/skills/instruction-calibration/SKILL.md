@@ -1,7 +1,7 @@
 ---
 name: instruction-calibration
 description: "Read before empirically tuning a reusable skill or agent prompt."
-last-changed: "2026-10-15"
+last-changed: "2026-11-22"
 ---
 
 For reusable skill structure, also load an applicable skill-authoring skill.
@@ -9,14 +9,14 @@ For reusable skill structure, also load an applicable skill-authoring skill.
 ## Define the comparison
 
 - Start with a real request, observed failure, or durable correction. Name the consequential choice to change and what must stay unchanged.
-- Use the natural request, its closest decision boundary, and an unrelated non-use case. Do not put the desired solution into the task.
+- Use the natural request, its closest decision boundary, and an unrelated non-use case. Give test agents only the task and context they cannot retrieve themselves. Do not put the desired solution into the task.
 - Separate remembered knowledge from productive performance. A closed-book probe can expose stale assumptions, but the working baseline should have the docs and source normally available. Verify generated work against the active API and execute relevant checks. Plausible output is not correctness.
 
 ## Control the layers
 
 - Inspect current harness help. Start with few local instruction layers, record what remains, then restore docs access, repository context, and skills deliberately. These discovery runs are not isolated instruction comparisons when several variables change.
-- Disabling skill or extension discovery does not stop an agent from reading instruction files it can still open. Inspect actual reads and loaded prompt layers. Exclude contaminated baselines, or restrict instruction-file access equally in both arms.
-- Compare fresh sessions with identical model, reasoning, tools, cwd, task, and available files. Change only the candidate instruction. Keep follow-ups and reloads for exploration, not clean baseline evidence.
+- For Pi, `pi -nc -ns -ne` disables discovery, not an agent's ability to read instruction files. Inspect actual reads and loaded prompt layers. Exclude contaminated baselines or restrict instruction-file access equally in both arms.
+- Compare fresh sessions with identical model, reasoning, tools, cwd, task, and available files. Change only the candidate instruction. Use follow-ups and reloads to explore, then relaunch for comparison evidence. Test reuse separately when it is the behaviour under study.
 - Test the one-shot output before coaching. Do not credit corrections from a follow-up to the original instruction.
 - Finish with the normal worker environment to check skill selection and conflicting layers. Treat that as integration evidence, not an isolated comparison.
 
@@ -24,7 +24,7 @@ For reusable skill structure, also load an applicable skill-authoring skill.
 
 Use visible sibling sessions when available, preserving cwd and user focus. Consult current harness controls rather than embedding launch recipes. Keep only active comparisons open.
 
-For an interactive comparison, let each meaningful run finish and pause for the user to inspect it before changing the candidate. When the user delegates evaluation, run, judge, refine, and clean up autonomously. Report evidence at completion instead of requiring approval between probes. Human UX preference still needs the user's judgment.
+For an interactive comparison, let each meaningful run finish. Identify the session, probe prompt, and loaded instruction layers, then pause for the user to inspect it before changing the candidate. When the user delegates evaluation, run, judge, refine, and clean up autonomously. Report evidence at completion instead of requiring approval between probes. Human UX preference still needs the user's judgment.
 
 ## Tune and verify
 
