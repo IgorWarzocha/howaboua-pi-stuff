@@ -18,7 +18,7 @@ Requires Pi 1.5 or newer, Node.js 22.19 or newer and Herdr Core 0.1.18 or newer.
 
 Do not load Pi Codex's example `agents.toml` custom tool alongside Shepherdr; they own the same agent surface.
 
-Shepherdr installs and runs on its own. Pi Codex, shared Notes and boards are optional. Delegation, supervision, messages, focus and orchestration work without them. Shared Notes require Notes Compaction 0.0.15 or newer; boards require Agent Board 0.0.5 or newer. [Agent Comms](../pi-agent-comms) also provides both integrations when loaded. Enable each shared feature in every participating session.
+Shepherdr installs and runs on its own. Pi Codex, shared Notes and boards are optional. Delegation, supervision, messages, focus and orchestration work without them. For shared Notes or Board, install [Agent Comms](../pi-agent-comms) and enable that feature in every participating session.
 
 Workers start as background Core terminals by default. Use `placement: "new_workspace"` for a new app workspace, or `placement: "new_tab"` with a `workspace` ID advertised by a live terminal on the target Core. A connected Herdr app adopts these terminals. Pane placement is no longer supported. Focus requires a Herdr app window running on the target Core's machine and connected to that Core.
 
@@ -52,7 +52,7 @@ Under **Connections**, enter an SSH target or alias, a machine name and an optio
 
 **Status** refreshes the Core catalogue and retries failed connections or incomplete monitoring without dropping working connections. Removing a machine stops its watches without stopping its agents.
 
-Machines belong to the host running Pi, not the machine displaying its terminal. Omit `machine` for local agent calls. `list` and `find` search all machines unless filtered. The reserved selector `local` always means the host running Pi. Remote calls accept an exact current machine name or a stable Core ID returned by `list`. Duplicate names require an ID. Hostnames and old aliases are not inferred. Refresh **Status** after renaming a machine. Watches and saved routes retain its stable ID across name changes.
+Omit `machine` or use `local` for this host. Omit it from `list` and `find` to search all machines. Use the `id` or exact `label` from `list` to select a machine. If a label is ambiguous, use its ID. SSH targets and aliases are not selectors. Refresh **Status** after renaming a remote machine. Watches and saved routes retain its stable ID.
 
 Remote file watches, Notes, shared-context calls and peer messages use a private Core-owned helper, started lazily and kept alive over a flow-controlled terminal attachment. Shepherdr does not install SSH bridge files or poll through `machine.exec`. Voice focus uses a separate private helper so large Notes transfers do not block its channel. Monitoring uses each Core's own snapshot rather than treating a missing machine in an aggregate terminal list as closed agents.
 
@@ -197,13 +197,13 @@ If an attached owner closes, local note reads use its latest saved checkpoints w
 
 ## Message board
 
-Install Agent Board in every participating Pi session, then reload:
+Install Agent Comms in every participating Pi session, then reload and enable Board:
 
 ```sh
-pi install npm:@howaboua/pi-agent-board
+pi install npm:@howaboua/pi-agent-comms
 ```
 
-The loaded Board extension owns the `board` tool, `/board` settings and read-only browser viewer. Agent Comms can provide the same integration instead of Agent Board, retaining discussions, subscriptions and saved history. Do not load both Board providers together. Shepherdr has no fallback board or board controls under `/herdr`. If a saved session board setting is on but its provider is missing, Shepherdr displays a warning once per session. Saved settings and archives remain untouched. Pi Codex Conversion is optional.
+Agent Comms owns the `board` tool, settings and read-only browser viewer. Shepherdr has no fallback board or board controls under `/herdr`. If a saved session board setting is on but its provider is missing, Shepherdr displays a warning once per session. Saved settings and archives remain untouched. Pi Codex Conversion is optional.
 
 Shepherdr supplies family membership, attachments and remote routing. Children spawned while the board is enabled inherit its location and board ID even with another working directory. The spawn result's `agent` is their Pi session reference for subscriptions, notifications and shared notes. The `sharing` flags report which memberships are active. Independently started agents, existing `assign` targets and children spawned while it is off do not join automatically. Use explicit `attach` to join an existing agent. Board identity is independent of orchestration mode, shared notes and `share_context`.
 
@@ -213,11 +213,7 @@ Child board calls use the owning Pi sessions and Core connections, not a separat
 
 With compatible Pi Codex Conversion on both ends, Shepherdr marks fresh spawned workers before their first task with their immediate parent's native Pi session ID and `subagentKind: "collab_spawn"`. Workers also inherit the parent's effective cache routing identity, including nested and remote spawns. Each worker keeps its own native session, sockets and history. Cache routing works with shared notes disabled and does not grant notes access or copy the parent's transcript. Only matching prompt prefixes can benefit. Resume preserves the relationship; forks and profiles selecting existing sessions do not acquire it. Older PCC versions retain ordinary delegation and any supported parent linkage. The [extension API guide](../../docs/extension-apis.md#parent-and-worker-relationships) documents PCC's service contract for other orchestrators. Shepherdr owns transport, not a separate public relationship RPC API.
 
-Install Notes Compaction in every participating session and reload, or use Agent Comms' Notes feature. Do not load both Notes providers together. With Notes active on both ends, enable **Share subagent context** under `/notes` in the controller. It is off by default. Shared `spawn` gives each child a unique context identity before its first turn; the returned `agent` identifies its notes and history. Nested spawns stay in the same family. Turning sharing off affects new spawns only. Existing identity survives resume. `assign` and independently started agents remain unchanged.
-
-```sh
-pi install npm:@howaboua/pi-notes-compaction
-```
+Enable Agent Comms Notes in every participating session. Then enable **Share subagent context** under `/notes` in the controller. It is off by default. Shared `spawn` gives each child a unique context identity before its first turn; the returned `agent` identifies its notes and history. Nested spawns stay in the same family. Turning sharing off affects new spawns only. Existing identity survives resume. `assign` and independently started agents remain unchanged.
 
 Set `"share_context": false` in a profile to keep its new workers' notes and history independent even when controller sharing is enabled. Omission or `true` follows the controller setting, never turns sharing on itself. This separates context, not filesystem permissions or information included in the task.
 

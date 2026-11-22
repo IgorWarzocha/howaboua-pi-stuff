@@ -11,11 +11,7 @@ import {
 	type CodexRuntimePlan,
 } from "./runtime-plan.ts";
 import type { AdapterState } from "./state.ts";
-import {
-	DEFAULT_TOOL_NAMES,
-	STATUS_KEY,
-	buildExtraToolsOnlyStatusText,
-} from "./tool-set.ts";
+import { DEFAULT_TOOL_NAMES, STATUS_KEY } from "./tool-set.ts";
 
 export function syncAdapter(
 	pi: ExtensionAPI,
@@ -26,12 +22,10 @@ export function syncAdapter(
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
 	reconcileExternalToolLoadout(state, pi.getActiveTools());
 	const extensionTools =
-		state.enabled || plan.kind === "extras" || isAdapterRuntime(plan)
+		state.enabled || isAdapterRuntime(plan)
 			? getCodeModeExtensionToolSnapshot(pi, ctx, { refreshGates: true })
 			: { tools: [], allToolNames: [] };
-	if (plan.kind === "extras")
-		enableExtraTools(pi, ctx, state, plan, extensionTools);
-	else if (isAdapterRuntime(plan))
+	if (isAdapterRuntime(plan))
 		enableAdapter(pi, ctx, state, plan, extensionTools);
 	else disableAdapter(pi, ctx, state, plan, extensionTools);
 	return plan;
@@ -41,56 +35,11 @@ type ExtensionToolSnapshot = ReturnType<
 	typeof getCodeModeExtensionToolSnapshot
 >;
 
-function enableExtraTools(
-	pi: ExtensionAPI,
-	ctx: ExtensionContext,
-	state: AdapterState,
-	plan: CodexRuntimePlan,
-	extensionTools: ExtensionToolSnapshot,
-): void {
-	const changed = hasRuntimePlanChanged(state, plan);
-	const previousOwned =
-		state.adapterOwnedToolNames ?? ALL_CODEX_ADAPTER_TOOL_NAMES;
-	const owned = state.enabled
-		? mergeToolNames(previousOwned, plan.toolNames)
-		: plan.ownedToolNames;
-	if (!state.enabled)
-		state.previousToolNames = stripAdapterTools(pi.getActiveTools(), owned);
-	state.enabled = true;
-	const projectedTools = reconcileExtensionToolProjection(
-		state,
-		pi.getActiveTools(),
-		extensionTools,
-	);
-	const tools = changed
-		? mergeToolNames(
-				restoreTools(
-					state.previousToolNames ?? DEFAULT_TOOL_NAMES,
-					projectedTools,
-					owned,
-				),
-				plan.toolNames,
-			)
-		: projectedTools;
-	state.adapterOwnedToolNames = plan.toolNames;
-	applyRuntimeTools(pi, state, plan, tools);
-	if (ctx.hasUI)
-		ctx.ui.setStatus(
-			STATUS_KEY,
-			!state.config.voiceFeaturesOnly && state.config.ui.statusLine
-				? buildExtraToolsOnlyStatusText(plan.toolNames, ctx.ui.theme)
-				: undefined,
-		);
-}
-
 function enableAdapter(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	state: AdapterState,
-	plan: Extract<
-		CodexRuntimePlan,
-		{ kind: "normal" | "code" | "notebook" | "ts" | "js" | "vm" }
-	>,
+	plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" | "ts" | "vm" }>,
 	extensionTools: ExtensionToolSnapshot,
 ): void {
 	const changed = hasRuntimePlanChanged(state, plan);
@@ -253,13 +202,7 @@ function applyRuntimeTools(
 	// Retain the native loadout in previousToolNames, but never run two code
 	// orchestrators or expose a second discovery path beside ALL_TOOLS.
 	let projected = toolNames;
-	if (
-		plan.kind === "code" ||
-		plan.kind === "notebook" ||
-		plan.kind === "ts" ||
-		plan.kind === "js" ||
-		plan.kind === "vm"
-	) {
+	if (plan.kind === "code" || plan.kind === "ts" || plan.kind === "vm") {
 		const nativeSearch = pi
 			.getAllTools()
 			.some(

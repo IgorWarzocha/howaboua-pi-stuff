@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import {
 	formatCodeModeToolHelp,
-	isCodeModeToolDiscoverable,
+	isCodeModeToolListed,
 } from "../code-mode/custom-tool-prompt.ts";
 import { commandOutputFormatterSource } from "../code-mode/command-output.ts";
 import { codeModeGlobalName } from "../code-mode/tool-identity.ts";
@@ -195,7 +195,7 @@ export class TsSessionCompilation {
 			toolNames: Object.fromEntries(
 				tools.map((tool) => [codeModeGlobalName(tool.name), tool.name]),
 			),
-			toolMetadata: tools.filter(isCodeModeToolDiscoverable).map((tool) => ({
+			toolMetadata: tools.filter(isCodeModeToolListed).map((tool) => ({
 				name: codeModeGlobalName(tool.name),
 				description: formatCodeModeToolHelp(tool),
 			})),
@@ -226,7 +226,7 @@ export class TsSessionCompilation {
 	}
 	private compilerFailure(cause: unknown): Error {
 		return new Error(
-			"The TS compiler is unavailable. Try notebook restart; check that this platform supports TS and npm includes optional dependencies. Code and Deno Notebook remain available.",
+			"The TS compiler is unavailable. Check that this platform supports TS and npm includes optional dependencies, then call notebook restart. Code remains available.",
 			{ cause },
 		);
 	}

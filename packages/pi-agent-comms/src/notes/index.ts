@@ -25,25 +25,18 @@ export async function createNotesRuntime(pi: ExtensionAPI, store: NotesStore) {
 	registerWindowRenderer(pi);
 	registerCheckpointRenderer(pi);
 	const dir = join(getAgentDir(), "notes-compaction");
-	const settingsPath = join(dir, "settings.json");
 	const search = new HistorySearch(join(dir, "history-search.sqlite"));
 	const lifecycle = new NotesLifecycle(pi, store);
 	const checkpoints = new WindowCheckpoints((entries) =>
 		lifecycle.windows.projectBranch(entries),
 	);
+	lifecycle.commitWindow = (ctx) => checkpoints.restore(ctx);
 	let refreshNested = () => {};
 	let refreshTools = () => {};
-	const activation = createNotesActivation(
-		pi,
-		store,
-		search,
-		lifecycle,
-		settingsPath,
-		() => {
-			refreshTools();
-			refreshNested();
-		},
-	);
+	const activation = createNotesActivation(pi, store, search, lifecycle, () => {
+		refreshTools();
+		refreshNested();
+	});
 	const stopAdmission = pi.events.on(
 		"pi-notes-compaction:custom-turn-admission:v1",
 		(value) => {
@@ -69,7 +62,6 @@ export async function createNotesRuntime(pi: ExtensionAPI, store: NotesStore) {
 	refreshNested = await registerNotesToolIntegrations(
 		pi,
 		lifecycle,
-		activation,
 		toolRegistration,
 	);
 	for (const tool of tools) pi.registerTool(tool);

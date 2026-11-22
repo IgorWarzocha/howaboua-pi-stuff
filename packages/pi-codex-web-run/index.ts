@@ -26,43 +26,7 @@ export default async function webRunExtension(pi: ExtensionAPI): Promise<void> {
 	};
 	const tool = createWebSearchTool("web_run", options);
 	pi.registerTool(tool);
-	let gpt = false;
-	let registration: Awaited<ReturnType<typeof registerWebRunInCodeMode>>;
-	const ordinary = {
-		guidelines: tool.promptGuidelines,
-	};
-	try {
-		const { registerGptPromptMode } =
-			await import("@howaboua/pi-codex-conversion/prompt-mode");
-		registerGptPromptMode(pi, (active) => {
-			if (gpt !== active) {
-				gpt = active;
-				if (active)
-					tool.promptGuidelines = [
-						"web_run: navigation→returned ref_ids; cite only Markdown links to result URLs",
-					];
-				else if (ordinary.guidelines)
-					tool.promptGuidelines = ordinary.guidelines;
-				else delete tool.promptGuidelines;
-				pi.registerTool(tool);
-				registration?.refresh();
-			}
-			return [tool];
-		});
-	} catch (error) {
-		if (
-			!(error instanceof Error) ||
-			!("code" in error) ||
-			![
-				"ERR_MODULE_NOT_FOUND",
-				"MODULE_NOT_FOUND",
-				"ERR_PACKAGE_PATH_NOT_EXPORTED",
-			].includes(String(error.code)) ||
-			!error.message.includes(CODE_MODE_PACKAGE)
-		)
-			throw error;
-	}
-	registration = await registerWebRunInCodeMode(pi, tool, () => gpt);
+	const registration = await registerWebRunInCodeMode(pi, tool);
 	registerCodexWebRunService(pi, options);
 	pi.on("session_shutdown", () => registration?.unregister());
 }
@@ -70,18 +34,14 @@ export default async function webRunExtension(pi: ExtensionAPI): Promise<void> {
 async function registerWebRunInCodeMode(
 	pi: ExtensionAPI,
 	tool: ReturnType<typeof createWebSearchTool>,
-	gpt: () => boolean,
 ) {
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
-			await import(CODE_MODE_MODULE);
+			await import("@howaboua/pi-codex-conversion/code-mode");
 		return registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
 				usage:
-					'tools.web__run({search_query?:[{q:string,recency?:number,domains?:string[]}],image_query?:[{q:string}],open?:[{ref_id:string,lineno?:number}],click?:[{ref_id:string,id:number}],find?:[{ref_id:string,pattern:string}],response_length?:"short"|"medium"|"long",settings?:{search_context_size?:"low"|"medium"|"high"}}) // ' +
-					(gpt()
-						? "navigation→returned ref_ids (open: URLs too); cite only Markdown result links"
-						: "Navigate by returned ref_id (open also accepts URLs). Cite only Markdown links to result URLs"),
+					'tools.web__run({search_query?:[{q:string,recency?:number,domains?:string[]}],image_query?:[{q:string}],open?:[{ref_id:string,lineno?:number}],click?:[{ref_id:string,id:number}],find?:[{ref_id:string,pattern:string}],response_length?:"short"|"medium"|"long",settings?:{search_context_size?:"low"|"medium"|"high"}}) // navigation→returned ref_ids (open: URLs too); cite only Markdown result links',
 				promptMetadata: false,
 				toolName: { namespace: "web", name: "run" },
 				resultValue: webRunCodeModeResult,

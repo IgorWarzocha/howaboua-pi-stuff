@@ -12,46 +12,7 @@ import {
 	executeCodexWebSearch,
 	supportsExecutableWebSearch,
 } from "./execute.js";
-import { renderToolCell } from "./render.js";
-
-function firstString(value: unknown, key: string): string | undefined {
-	if (!value || typeof value !== "object") return undefined;
-	const field = (value as Record<string, unknown>)[key];
-	return typeof field === "string" && field.trim() ? field.trim() : undefined;
-}
-
-function webSearchCallDetail(params: unknown): string | undefined {
-	if (!params || typeof params !== "object") return undefined;
-	const search =
-		"search_query" in params && Array.isArray(params["search_query"])
-			? params["search_query"][0]
-			: undefined;
-	const image =
-		"image_query" in params && Array.isArray(params["image_query"])
-			? params["image_query"][0]
-			: undefined;
-	const open =
-		"open" in params && Array.isArray(params["open"])
-			? params["open"][0]
-			: undefined;
-	const click =
-		"click" in params && Array.isArray(params["click"])
-			? params["click"][0]
-			: undefined;
-	const find =
-		"find" in params && Array.isArray(params["find"])
-			? params["find"][0]
-			: undefined;
-	const query = firstString(search, "q") ?? firstString(image, "q");
-	if (query) return query;
-	const opened =
-		firstString(open, "url") ??
-		firstString(open, "ref_id") ??
-		firstString(click, "ref_id");
-	if (opened) return opened;
-	const pattern = firstString(find, "pattern");
-	return pattern ? "'" + pattern + "'" : undefined;
-}
+import { renderWebSearchCall } from "./render.js";
 
 export function createWebSearchTool(
 	name: string = WEB_SEARCH_TOOL_NAME,
@@ -66,7 +27,7 @@ export function createWebSearchTool(
 			? {}
 			: { promptSnippet: "Explicit args" }),
 		promptGuidelines: [
-			"web_run: Reuse returned ref_ids for navigation. Cite only Markdown links to result URLs",
+			"web_run: navigation→returned ref_ids; cite only Markdown links to result URLs",
 		],
 		parameters: WEB_SEARCH_PARAMETERS,
 		prepareArguments: (args) =>
@@ -94,13 +55,7 @@ export function createWebSearchTool(
 		...(toolOptions.customRendering === false
 			? {}
 			: {
-					renderCall(args, theme) {
-						return renderToolCell(
-							"Searched the web",
-							webSearchCallDetail(args),
-							theme,
-						);
-					},
+					renderCall: renderWebSearchCall,
 					renderResult(result, { expanded }, theme) {
 						if (!expanded) return new Container();
 						const textBlock = result.content.find(

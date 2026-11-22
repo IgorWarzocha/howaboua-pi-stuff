@@ -1,9 +1,6 @@
-- Own call setup, realtime wire parsing, turn tracking, and delegation handoff framing here. Codex turn-events.ts and public OpenAI public-turns.ts own separate protocols; never translate public calls into Codex wire events.
-- `turn.done` closes backend output; never wait for it before appending final speakable context.
-- Stream Pi progress through session speakable context so successive updates extend live speech; the final reply or unsent final tail belongs to its delegation.
-- Keep Pi session mutation and custom-card queueing outside this subtree; emit typed turns and callbacks.
-- VAD and conversational interruption belong here. Never copy them into manual dictation.
-- `playback.ts` owns spoken-interruption generations; typed input never changes speaker suppression. Quiet turns accept audio before captions.
-- Keep speech and Pi concurrent with request-scoped waits only; never block independent talk on tools, agent, compaction, prewarm, or settlement.
-- End intent comes from public end_call or the Codex task sidecar, never task settlement. Arm answer-before-end at Pi's delegated custom message_start, not submission: queued steering can outlive the preceding answer. Close only on its successful final result; replacement or failed completion keeps the call open. Graceful audio close preserves accepted preparation and delivery; explicit Stop cancels them.
-- Codex closing output may finish before its sidecar. Reuse that observed final; do not request another goodbye. Peer quiet is a playback heuristic, not a speaker-drain acknowledgement.
+- Own call setup, wire parsing, turn tracking and handoff framing. Codex `turn-events.ts` and public `public-turns.ts` separate, no wire translation. Emit typed turns/callbacks, no Pi mutation or card queue.
+- `turn.done` closes output; don't wait to append final speakable context. Pi progress via session speakable context extends speech; final reply/unsent tail stays with delegation.
+- VAD/interruption here, not manual dictation. `playback.ts` owns spoken-interruption generations; typed input never changes speaker suppression. Quiet turns accept audio before captions.
+- Request-local waits only. Tools, agent, compaction, prewarm and settlement never block independent speech.
+- End intent from public `end_call` or Codex task sidecar, never settlement. Arm answer-before-end at delegated custom `message_start`, not submission (queued steering can outlive prior answer). Close only on its successful final result. Replacement/failure keeps call. Graceful audio close preserves accepted prep/delivery; explicit Stop cancels.
+- Codex output finishes before sidecar → reuse observed final, no second goodbye. Peer quiet heuristic ≠ speaker-drain acknowledgement.

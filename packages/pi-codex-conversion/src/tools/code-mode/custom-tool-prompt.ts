@@ -8,58 +8,24 @@ import {
 } from "./tool-identity.ts";
 
 const JS_CELL_DESCRIPTION =
-	"Run JavaScript to process data or call tools; source only, no JSON or fences";
-const GPT_JS_CELL_DESCRIPTION =
 	"JavaScript computation/tool calls; source ONLY, NO JSON/fences";
 
 export const EXEC_DESCRIPTION = `${JS_CELL_DESCRIPTION}
-Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
-Bare values are discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; content(value) emits MCP text/images in order; text(value) prints serialized output; notify(value) emits; both return undefined; yield_control() yields`;
-
-export const GPT_EXEC_DESCRIPTION = `${GPT_JS_CELL_DESCRIPTION}
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
 Bare values discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; content(value)→emit MCP text/images in order; text(value)→print serialized output; notify(value)→emit; both→undefined; yield_control()→yield`;
 
 export const ISOLATED_EXEC_GUIDANCE =
-	'For independent work while another cell runs, add "isolated":true to // @exec. Starts from last saved state; leaves shared variables unchanged';
-export const GPT_ISOLATED_EXEC_GUIDANCE =
 	'Concurrent isolated: // @exec: {"isolated":true}; last checkpoint; shared vars unchanged';
 
 export const VM_EXEC_DESCRIPTION = `${JS_CELL_DESCRIPTION}
-Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
-Put one-off const and let declarations inside { ... }. Top-level bindings persist
-Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, console, ALL_TOOLS
-content(value) emits MCP text/images in order
-No Node, imports, fetch or timers
-A stall, cancellation, memory limit or terminate drops conversation bindings`;
-
-export const GPT_VM_EXEC_DESCRIPTION = `${GPT_JS_CELL_DESCRIPTION}
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
-One-off const/let→{ ... }; top-level→persists
 Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, console, ALL_TOOLS
-content(value)→emit MCP text/images in order
-NO Node/imports/fetch/timers
-Stall/cancel/memory limit/terminate→bindings dropped; next exec fresh`;
-
-export const JS_EXEC_DESCRIPTION = `${JS_CELL_DESCRIPTION}
-Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
-Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
-content(value) emits MCP text/images in order
-No Node, imports, fetch, timers or TypeScript checking`;
-
-export const GPT_JS_EXEC_DESCRIPTION = `${GPT_JS_CELL_DESCRIPTION}
-Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
-Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
-content(value)→emit MCP text/images in order
-NO Node/imports/fetch/timers/TSchecking`;
+content(value)→emit MCP text/images in order`;
 
 export const WAIT_DESCRIPTION = "Resume or terminate a yielded exec cell";
 
 const BUNDLED_TOOLS_HEADING = "Tools available in exec:";
 const CUSTOM_TOOLS_HEADING = "Configured custom tools:";
-const TOOL_GUIDANCE_HEADING = "Tool guidance:";
-const DEFERRED_TOOLS_GUIDANCE =
-	"For additional tools and their contracts, run text(ALL_TOOLS) in exec";
 const CUSTOM_TOOLS_GUIDANCE =
 	"Prefer custom tools for command-backed capabilities";
 export const CODE_MODE_TOOLS_SECTION = "exec_tools";
@@ -96,14 +62,11 @@ function isConfiguredCustomTool(
 	return "command" in tool;
 }
 
-export function isCodeModeToolDiscoverable(
-	tool: CodeModeToolDefinition,
-): boolean {
-	return (
-		isConfiguredCustomTool(tool) ||
-		(tool.deferLoading &&
-			"invoke" in tool &&
-			tool.discoverWhenDeferred === true)
+export function isCodeModeToolListed(tool: CodeModeToolDefinition): boolean {
+	return !(
+		"invoke" in tool &&
+		tool.deferLoading &&
+		tool.discoverWhenDeferred === false
 	);
 }
 
@@ -144,19 +107,47 @@ function formatSchema(schema: unknown): string {
 	}
 }
 
-function translatedPromptLines(tool: CodeModeToolDefinition): string[] {
-	if (!("invoke" in tool) || tool.translatePromptMetadata !== true) return [];
-	// Usage owns the callable contract here; native descriptions and schemas do not.
-	return (tool.promptGuidelines ?? []).map(
-		(guideline) => `- ${translateCodeModeGuideline(guideline, tool.name)}`,
-	);
+function hasUsageCall(tool: CodeModeToolDefinition): boolean {
+	return "discovery" in tool && tool.discovery === "help";
 }
 
-function buildGuidanceSection(tools: CodeModeToolDefinition[]): string {
-	const lines = tools
-		.filter((tool) => !tool.deferLoading)
-		.flatMap(translatedPromptLines);
-	return lines.length ? `${TOOL_GUIDANCE_HEADING}\n${lines.join("\n")}` : "";
+function renderStandingTool(tool: CodeModeToolDefinition): string[] {
+	const name = codeModeGlobalName(tool.name);
+	const binding = `tools.${name}`;
+	const help = hasUsageCall(tool);
+	const description = translateCodeModeToolReferences(
+		tool.description ?? "",
+		tool.name,
+	).trim();
+	const capability =
+		help &&
+		name === "agents" &&
+		description.endsWith("; {} lists action fields")
+			? description.slice(0, -"; {} lists action fields".length)
+			: description;
+	const usage = translateCodeModeUsage(tool.usage, tool.name);
+	const call = usage.startsWith(`${binding}(`) ? usage : undefined;
+	const entry = help
+		? `- ${binding}()${capability ? `: ${capability}` : ""}`
+		: call
+			? `- ${call}${description ? `; ${description}` : ""}`
+			: `- ${binding}: ${[description, `Usage: ${usage}`].filter(Boolean).join("; ")}`;
+	if (!("invoke" in tool) || tool.translatePromptMetadata !== true)
+		return [entry];
+	const labels = [binding, name, tool.name, tool.topLevelName];
+	return [
+		entry,
+		...(tool.promptGuidelines ?? []).map((guideline) => {
+			const translated = translateCodeModeGuideline(guideline, tool.name);
+			const label = labels.find(
+				(label) => label && translated.startsWith(`${label}:`),
+			);
+			const rule = label
+				? translated.slice(label.length + 1).trimStart()
+				: translated;
+			return `- ${binding}: ${rule}`;
+		}),
+	];
 }
 
 function buildUsageSection(
@@ -176,71 +167,57 @@ function buildUsageSection(
 				left.name.localeCompare(right.name)
 			);
 		})
-		.map((tool) =>
-			"discovery" in tool &&
-			tool.discovery === "help" &&
-			tool.kind !== "freeform"
-				? `- tools.${codeModeGlobalName(tool.name)}: ${translateCodeModeToolReferences(tool.description ?? "", tool.name)}`
-				: `- ${translateCodeModeUsage(tool.usage, tool.name)}`,
-		)
+		.flatMap(renderStandingTool)
 		.join("\n")}`;
 }
 
 export function buildCodeModeToolsPrompt(
 	tools: CodeModeToolDefinition[],
 	executionKind: CodeModeExecutionKind = "code",
-	gpt = false,
+	heavy = false,
 ): string {
 	const bundled = tools.filter(
 		(tool) => !isConfiguredCustomTool(tool) && !tool.deferLoading,
 	);
 	const custom = tools.filter(isConfiguredCustomTool);
 	const promotedCustom = custom.filter((tool) => !tool.deferLoading);
+	const usageCalls = bundled.filter(hasUsageCall);
 	const sections = [
 		executionKind === "vm"
-			? gpt
-				? "exec=one JS context for this conversation; let/const/function/class persist; NO Node/imports/fetch/timers; stall/cancel/memory limit/terminate drops bindings"
-				: "exec keeps one JavaScript context for this conversation. let, const, function and class persist. No Node, imports, fetch or timers. A stall, cancellation, memory limit or terminate drops those bindings"
-			: executionKind === "js"
-				? gpt
-					? "exec=fresh QuickJS per call; max4 concurrent; store/load→conversation-local JSON, no disk persistence"
-					: "exec runs fresh QuickJS per call, with up to four concurrent cells. store/load retain conversation-local JSON, not disk state"
-				: executionKind === "ts"
-					? gpt
-						? "exec=persistent TS; imports/npm/Node/Web APIs; bindings/modules persist"
-						: "exec is a persistent TypeScript kernel with imports, npm, Node and Web APIs; live bindings and module instances persist across cells"
-					: executionKind === "notebook"
-						? gpt
-							? "exec=persistent Deno/TS; console/imports/npm/Deno/Web APIs; small programs across cells; globals can predate agent/session"
-							: "exec is a persistent Deno/TypeScript notebook with console, imports, npm, Deno, and Web APIs; globals may come from earlier agents and sessions. Build small programs on retained state across cells"
-						: gpt
-							? "exec=fresh restricted JS; NO console/imports/Node/browser APIs"
-							: "exec runs fresh restricted JavaScript; no console, imports, Node, or browser APIs",
-		executionKind === "ts"
-			? gpt
-				? "Whole-cell strictcheck INCL toolargs; typeerror→NO execution"
-				: "Strict typechecking covers the whole cell, including tool arguments. Any type error prevents cell execution"
+			? "exec=one JS context for this conversation; let/const/function/class persist; NO Node/imports/fetch/timers; stall/cancel/memory limit/terminate drops bindings"
+			: executionKind === "ts"
+				? "exec=persistent TS; imports/npm/Node/Web APIs; bindings/modules persist"
+				: "exec=fresh restricted JS; NO console/imports/Node/browser APIs",
+		executionKind !== "code"
+			? "One-off const/let→{ ... }; top-level ONLY for reuse across cells"
 			: undefined,
 		executionKind === "ts"
-			? gpt
-				? 'Markdown/multiline text→ordinary quoted line arrays joined with "\\n"; template literals require escaping backticks and ${...}'
-				: 'For Markdown or multiline text, use ordinary quoted line arrays joined with "\\n". Template literals require escaping backticks and ${...} to keep them literal'
+			? "Whole-cell strictcheck INCL toolargs; typeerror→NO execution"
 			: undefined,
-		gpt
-			? "No signature+unknown current args→separate help-only call (noargs; structured:{}), read result→compose operation. No guessing/bundling operation with help. Shown signature/known current args→reuse, no repeat help"
-			: "Tools without a shown call signature: if current arguments are unknown, make a separate help-only call with no arguments (structured: {}), read its result, then compose the operation. Do not guess arguments or bundle the operation with help. Reuse shown signatures or known current arguments without repeating help",
-		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled, [
-			"exec_command",
-			"write_stdin",
-			"apply_patch",
-			"view_image",
-			"change_reasoning",
-			"get_context_remaining",
-		]),
+		executionKind === "ts"
+			? 'Markdown/multiline text→ordinary quoted line arrays joined with "\\n"; template literals require escaping backticks and ${...}'
+			: undefined,
+		buildUsageSection(
+			BUNDLED_TOOLS_HEADING,
+			bundled.filter((tool) => !hasUsageCall(tool)),
+			[
+				"exec_command",
+				"write_stdin",
+				"apply_patch",
+				"view_image",
+				"change_reasoning",
+				"get_context_remaining",
+			],
+		),
+		buildUsageSection(
+			heavy
+				? "Usage calls below. MUST NOT guess args. Unknown args→call for usage first, separately; known args→call directly"
+				: "These calls show usage. MUST NOT guess arguments. If you don't know the current arguments, call for usage separately before the operation. If you know them, call the operation directly.",
+			usageCalls,
+		),
 		buildUsageSection(CUSTOM_TOOLS_HEADING, promotedCustom),
-		buildGuidanceSection(tools),
 		// The catalogue is always available, even when its first or last tool is unlisted.
-		gpt ? "More tools/contracts→text(ALL_TOOLS)" : DEFERRED_TOOLS_GUIDANCE,
+		"Tool names→text(ALL_TOOLS.map(t=>t.name)); contract→text(ALL_TOOLS.find(t=>t.name==='NAME'))",
 		custom.length > 0 ? CUSTOM_TOOLS_GUIDANCE : undefined,
 	].filter(Boolean);
 	return sections.join("\n");
@@ -289,7 +266,7 @@ export function prepareCodeModeToolsPrompt(
 	documentationPath?: string,
 	isEnabled: () => boolean = () => true,
 	executionKind: CodeModeExecutionKind = "code",
-	gpt = false,
+	heavy = false,
 ): string {
 	const sections = (options.sections ??= {});
 	// Share this turn's canonical snapshot, not the changing live catalogue.
@@ -299,12 +276,10 @@ export function prepareCodeModeToolsPrompt(
 	);
 	customizationGuidance.set(options, () =>
 		documentationPath && isEnabled()
-			? gpt
-				? `exec custom tools→read ${documentationPath}, NOT Pi docs`
-				: `Custom tools to run in exec: read ${documentationPath} instead of Pi docs`
+			? `exec custom tools→read ${documentationPath}, NOT Pi docs`
 			: "",
 	);
-	const section = buildCodeModeToolsPrompt(tools, executionKind, gpt);
+	const section = buildCodeModeToolsPrompt(tools, executionKind, heavy);
 	if (options.forceSystemPrompt !== undefined) {
 		options.forceSystemPrompt = upsertCodeModeToolsSection(
 			options.forceSystemPrompt,

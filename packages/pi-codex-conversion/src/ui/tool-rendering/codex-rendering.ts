@@ -2,7 +2,11 @@ import {
 	summarizeShellCommand,
 	type ShellAction,
 } from "../../shell/summary.ts";
-import type { ExecCommandStatus } from "../../tools/exec/command-state.ts";
+import type {
+	ExecCommandStatus,
+	ExecExplorationCall,
+	ExecOutcome,
+} from "../../tools/exec/command-state.ts";
 
 export interface RenderTheme {
 	fg(role: string, text: string): string;
@@ -14,30 +18,38 @@ export function renderExecCommandCall(
 	state: ExecCommandStatus,
 	theme: RenderTheme,
 	expanded = false,
+	outcome?: ExecOutcome,
 ): string {
 	const summary = summarizeShellCommand(command);
 	return summary.maskAsExplored
 		? renderExplorationText(
-				[summary.actions],
+				[{ actions: summary.actions, command, outcome }],
 				state,
 				theme,
-				expanded ? [command] : undefined,
+				expanded,
 			)
-		: renderCommandText(command, state, theme, expanded);
+		: renderCommandText(command, state, theme, expanded, outcome);
 }
 
 export function renderGroupedExecCommandCall(
-	actionGroups: ShellAction[][],
+	calls: ExecExplorationCall[],
 	state: ExecCommandStatus,
 	theme: RenderTheme,
 	expanded = false,
-	commands: string[] = [],
 ): string {
-	return renderExplorationText(
-		actionGroups,
-		state,
-		theme,
-		expanded ? commands : undefined,
+	return renderExplorationText(calls, state, theme, expanded);
+}
+
+export function renderExecOutcome(
+	outcome: ExecOutcome,
+	theme: Pick<RenderTheme, "fg">,
+	compound = false,
+): string {
+	if (outcome.kind === "no-matches")
+		return theme.fg("muted", "No matches (exit 1)");
+	return theme.fg(
+		"error",
+		`Exit ${outcome.exitCode}${compound ? " (command)" : ""}`,
 	);
 }
 
@@ -65,22 +77,22 @@ export function renderWriteStdinCall(
 }
 
 function renderExplorationText(
-	actionGroups: ShellAction[][],
+	calls: ExecExplorationCall[],
 	state: ExecCommandStatus,
 	theme: RenderTheme,
-	commands?: string[],
+	expanded: boolean,
 ): string {
 	const header = state === "running" ? "Exploring" : "Explored";
 	let text = `${theme.fg("dim", "•")} ${theme.bold(header)}`;
 
-	for (const [index, line] of coalesceReadGroups(actionGroups)
-		.map(formatActionLine)
-		.entries()) {
+	for (const [index, line] of formatExplorationLines(calls).entries()) {
 		const prefix = index === 0 ? "  └ " : "    ";
 		text += `\n${theme.fg("dim", prefix)}${theme.fg("accent", line.title)} ${theme.fg("muted", line.body)}`;
+		if (line.outcome)
+			text += `${theme.fg("dim", " · ")}${renderExecOutcome(line.outcome, theme, line.compound)}`;
 	}
 
-	for (const command of commands ?? []) {
+	for (const { command } of expanded ? calls : []) {
 		for (const line of formatCommandLines(
 			command,
 			Number.POSITIVE_INFINITY,
@@ -98,9 +110,12 @@ function renderCommandText(
 	state: ExecCommandStatus,
 	theme: RenderTheme,
 	expanded: boolean,
+	outcome?: ExecOutcome,
 ): string {
 	const verb = state === "running" ? "Running" : "Ran";
 	let text = `${theme.fg("dim", "•")} ${theme.bold(verb)}`;
+	if (outcome)
+		text += `${theme.fg("dim", " · ")}${renderExecOutcome(outcome, theme)}`;
 	const maxLines = expanded ? Number.POSITIVE_INFINITY : 5;
 	const maxLength = expanded ? Number.POSITIVE_INFINITY : 100;
 	for (const [index, line] of formatCommandLines(
@@ -155,10 +170,14 @@ function formatCommandPreview(command: string | undefined): string | undefined {
 	return shortenCommand(singleLine, 80);
 }
 
-function formatActionLine(action: ShellAction): {
+interface ExplorationLine {
 	title: string;
 	body: string;
-} {
+	outcome?: ExecOutcome | undefined;
+	compound?: boolean | undefined;
+}
+
+function formatActionLine(action: ShellAction): ExplorationLine {
 	if (action.kind === "read") {
 		return { title: "Read", body: formatReadLabel(action) };
 	}
@@ -193,64 +212,49 @@ function skillNameFromSkillPath(path: string): string | undefined {
 	return skillDir && skillDir !== ".system" ? skillDir : undefined;
 }
 
-function coalesceReadGroups(actionGroups: ShellAction[][]): ShellAction[] {
-	const flattened: ShellAction[] = [];
+function formatExplorationLines(
+	calls: ExecExplorationCall[],
+): ExplorationLine[] {
+	const lines: ExplorationLine[] = [];
+	const reads = new Map<string, string>();
+	const flushReads = () => {
+		if (!reads.size) return;
+		const duplicateLabels = new Set<string>();
+		const seenLabels = new Set<string>();
+		for (const label of reads.values()) {
+			if (seenLabels.has(label)) duplicateLabels.add(label);
+			seenLabels.add(label);
+		}
+		const labels = Array.from(reads, ([path, label]) =>
+			duplicateLabels.has(label) ? path : label,
+		);
+		lines.push({ title: "Read", body: labels.join(", ") });
+		reads.clear();
+	};
 
-	for (let index = 0; index < actionGroups.length; index += 1) {
-		const actions = actionGroups[index]!;
-		if (actions.every((action) => action.kind === "read")) {
-			const reads: Extract<ShellAction, { kind: "read" }>[] = [];
-			const seenPaths = new Set<string>();
-			let lastRead: Extract<ShellAction, { kind: "read" }> | undefined;
-
-			for (
-				let readIndex = index;
-				readIndex < actionGroups.length;
-				readIndex += 1
-			) {
-				const readActions = actionGroups[readIndex]!;
-				if (!readActions.every((action) => action.kind === "read")) {
-					break;
-				}
-
-				for (const action of readActions) {
-					if (action.kind !== "read") continue;
-					lastRead = action;
-					if (seenPaths.has(action.path)) continue;
-					seenPaths.add(action.path);
-					reads.push(action);
-				}
-
-				index = readIndex;
-			}
-
-			if (lastRead) {
-				const duplicateLabels = new Set<string>();
-				const seenLabels = new Set<string>();
-				for (const read of reads) {
-					const label = formatReadLabel(read);
-					if (seenLabels.has(label)) {
-						duplicateLabels.add(label);
-						continue;
-					}
-					seenLabels.add(label);
-				}
-				const labels = reads.map((read) => {
-					const label = formatReadLabel(read);
-					return duplicateLabels.has(label) ? read.path : label;
-				});
-				flattened.push({
-					kind: "read",
-					command: labels.join(" && "),
-					name: labels.join(", "),
-					path: "",
-				});
+	for (const { actions, command, outcome } of calls) {
+		if (!outcome && actions.every((action) => action.kind === "read")) {
+			for (const action of actions) {
+				if (!reads.has(action.path))
+					reads.set(action.path, formatReadLabel(action));
 			}
 			continue;
 		}
-
-		flattened.push(...actions);
+		flushReads();
+		const callLines = actions.map(formatActionLine);
+		const last = callLines.at(-1);
+		if (last && outcome) {
+			last.outcome = outcome;
+			last.compound = callLines.length > 1;
+		} else if (outcome) {
+			callLines.push({
+				title: "Run",
+				body: formatCommandPreview(command) ?? command,
+				outcome,
+			});
+		}
+		lines.push(...callLines);
 	}
-
-	return flattened;
+	flushReads();
+	return lines;
 }

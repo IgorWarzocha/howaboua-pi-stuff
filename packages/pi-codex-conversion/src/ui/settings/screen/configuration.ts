@@ -14,10 +14,7 @@ import type { ExecutionMode } from "../../../adapter/activation/execution-mode.t
 import type { CodexSettingsScreenOptions } from "../screen.ts";
 import { openCodexConfigInExternalEditor } from "../config-editor.ts";
 import { buildConfigSettings, type ConfigSetting } from "../config-items.ts";
-import {
-	ChoiceSettingSubmenu,
-	TextSettingSubmenu,
-} from "../config-items-shared.ts";
+import { TextSettingSubmenu } from "../config-items-shared.ts";
 import type { SettingsTab } from "../tabs.ts";
 import { nativeDevicePicker } from "../native-device-picker.ts";
 import { contextWindowPicker } from "../context-window-picker.ts";
@@ -35,7 +32,6 @@ export function createSettingsConfiguration(
 	let settingsList: SettingsList;
 	let devicePickerOpen = false;
 	let contextWindowPickerOpen = false;
-	let retentionPickerOpen = false;
 	let apiProviderPickerOpen = false;
 
 	const runEditConfig = async () => {
@@ -84,17 +80,10 @@ export function createSettingsConfiguration(
 							item: {
 								id: "executionMode",
 								description:
-									"Structured: standard JSON schemas. Code: JavaScript. QuickJS Code: independent JavaScript sandboxes. VM Code: JavaScript bindings kept for this conversation. Notebook: persistent Deno shell with checkpoints. TS: persistent TypeScript with concurrent cells.",
+									"Structured: standard JSON schemas. Code: fresh JavaScript cells. VM Code: JavaScript bindings kept for this conversation. TS Notebook: persistent TypeScript with checkpoints and concurrent cells.",
 								label: "Execution mode",
 								currentValue: formatExecutionMode(draft.executionMode),
-								values: [
-									"Structured",
-									"Code",
-									"QuickJS Code",
-									"VM Code",
-									"Notebook (recommended)",
-									"TS",
-								],
+								values: ["Structured", "Code", "VM Code", "TS Notebook"],
 							},
 							update: (value: string, current: CodexConversionConfig) => ({
 								...current,
@@ -158,29 +147,7 @@ export function createSettingsConfiguration(
 							},
 						},
 					};
-				if (
-					definition.action !== "global-notebook-journals" &&
-					definition.action !== "global-notebook-checkpoint-cleanup"
-				)
-					return definition;
-				return {
-					...definition,
-					item: {
-						...definition.item,
-						submenu: (value, back) => {
-							retentionPickerOpen = true;
-							return new ChoiceSettingSubmenu(
-								definition.item,
-								value,
-								(selected) => {
-									retentionPickerOpen = false;
-									back(selected);
-								},
-								theme,
-							);
-						},
-					},
-				};
+				return definition;
 			}),
 			...(activeTab === "context"
 				? [
@@ -273,34 +240,6 @@ export function createSettingsConfiguration(
 					} else {
 						list.updateValue(id, definition.item.currentValue);
 					}
-					tui.requestRender();
-					return;
-				}
-				if (definition?.action === "global-notebook-journals") {
-					const nextDraft = options.onGlobalNotebookJournals(
-						value === "Off & remove" ? "off" : value === "On" ? "on" : "week",
-					);
-					if (nextDraft) {
-						draft = nextDraft;
-						for (const { item } of buildSettings())
-							list.updateValue(item.id, item.currentValue);
-					} else list.updateValue(id, definition.item.currentValue);
-					tui.requestRender();
-					return;
-				}
-				if (definition?.action === "global-notebook-checkpoint-cleanup") {
-					const nextDraft = options.onGlobalNotebookCheckpointCleanup(
-						value === "1 month"
-							? "month"
-							: value === "1 week"
-								? "week"
-								: "never",
-					);
-					if (nextDraft) {
-						draft = nextDraft;
-						for (const { item } of buildSettings())
-							list.updateValue(item.id, item.currentValue);
-					} else list.updateValue(id, definition.item.currentValue);
 					tui.requestRender();
 					return;
 				}
@@ -403,15 +342,9 @@ export function createSettingsConfiguration(
 		get contextWindowPickerOpen() {
 			return contextWindowPickerOpen;
 		},
-		get retentionPickerOpen() {
-			return retentionPickerOpen;
-		},
 		get pickerOpen() {
 			return (
-				devicePickerOpen ||
-				contextWindowPickerOpen ||
-				retentionPickerOpen ||
-				apiProviderPickerOpen
+				devicePickerOpen || contextWindowPickerOpen || apiProviderPickerOpen
 			);
 		},
 		activateTab(tab: SettingsTab) {
@@ -427,18 +360,14 @@ export type SettingsConfiguration = ReturnType<
 
 function formatExecutionMode(mode: ExecutionMode): string {
 	if (mode === "vm") return "VM Code";
-	if (mode === "js") return "QuickJS Code";
-	if (mode === "ts") return "TS";
+	if (mode === "ts") return "TS Notebook";
 	if (mode === "code") return "Code";
-	if (mode === "notebook") return "Notebook (recommended)";
 	return "Structured";
 }
 
 function parseExecutionMode(value: string): ExecutionMode {
 	if (value === "VM Code") return "vm";
-	if (value === "QuickJS Code") return "js";
-	if (value === "TS") return "ts";
+	if (value === "TS Notebook") return "ts";
 	if (value === "Code") return "code";
-	if (value === "Notebook (recommended)") return "notebook";
 	return "normal";
 }

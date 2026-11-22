@@ -1,11 +1,8 @@
-- This is an independent Pi extension; never import adapter or tool code from pi-codex-conversion.
-- `src/voice/rust/**` and `scripts/build-voice-helper.mjs` must stay byte-identical with `pi-codex-conversion`; change and changeset both packages together.
-- DSP adaptations map to `~/Frameworks/codex/codex-rs/voice-host/src/{device_buffers,processing}.rs`. Before changing them, compare against the pin in `src/voice/rust/VENDORED.md`; preserve the local CPAL/WebRTC/IPC boundary. `rust/vendor/` holds attribution, not dependency source.
-- `src/register.ts` owns Pi lifecycle wiring. Voice modes own audio; LAN owns browser/session transport; config owns persisted user settings.
-- Codex Live and public OpenAI Realtime share the credential-free WebRTC helper, not wire protocols. Dictation is a separate manually bounded transcription path.
-- Codex delegations can be partial. Keep captured user speech unless its complete trimmed text matches the delegation input; never guess missing words or clip novel context.
-- Keep the native helper credential-free and its stdout protocol-only. Preserve bounded external data and idempotent cleanup.
-- LAN control is intentionally unauthenticated and session-owned. Keep server startup lazy.
-- Unauthenticated does not mean cross-origin: enforce the same HTTPS Origin/Host boundary on HTTP control and audio upgrades while allowing originless native clients.
-- LAN owns one HTTPS origin: bundled or explicitly configured main UI, namespaced extension miniapps, fixed browser client/discovery endpoints, Pi/context RPC, events, and audio. Never make custom UIs launch a server or reimplement transport state.
-- `/gippity create` may inspect discovery/client GET resources but must leave live RPC, drafts, audio, and session-operation testing to the user because the server targets its own Pi session.
+- No adapter/tool imports from pi-codex-conversion. Byte-identical `src/voice/rust/**` and `scripts/build-voice-helper.mjs`: update and changeset both packages together.
+- DSP: compare `~/Frameworks/codex/codex-rs/voice-host/src/{device_buffers,processing}.rs` at `src/voice/rust/VENDORED.md` pin. Keep local CPAL/WebRTC/IPC boundary. `rust/vendor/` attribution only. Sonora upgrades: `../pi-codex-conversion/AGENTS.md`.
+- `src/register.ts`: Pi lifecycle. Modes own audio, LAN browser/session transport, config persisted settings.
+- Codex Live/public OpenAI Realtime share credential-free WebRTC helper, not wire protocols. Separate manually bounded dictation. Helper stdout protocol-only, external data bounded, cleanup idempotent.
+- Preserve captured speech unless full trimmed text equals Codex delegation input. Never fill gaps or clip novel context.
+- Lazy, session-owned, unauthenticated LAN. Same HTTPS Origin/Host enforcement for HTTP and audio upgrades. Allow originless native clients.
+- Single LAN HTTPS origin: bundled or explicitly configured main UI, namespaced extension miniapps, fixed client/discovery endpoints, Pi/context RPC, events, audio. Custom UIs never start servers or recreate transport state.
+- `/gippity create`: discovery/client GET only. Live RPC, drafts, audio and session operations target current Pi, user testing only.

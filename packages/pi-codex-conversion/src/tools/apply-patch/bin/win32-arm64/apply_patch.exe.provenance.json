@@ -3,10 +3,10 @@
   "source": {
     "repository": "openai/codex",
     "revision": "83086188ae0614bd882818ff1aa23f3194962012",
-    "inputsSha256": "ee9c9cd8f2e4de01626f32e6c5592ed3c02c307c1b23307c91cbce08b299b295"
+    "inputsSha256": "11962e16fcdb4f52c80aaa656c8e83e2d04f5689ef0809e2eb352b9fd668d154"
   },
   "binary": {
-    "sha256": "d5d87343005aa3858c0901b7c1d4d123f265386982561af84c1eb3cfc609c363"
+    "sha256": "308559e584033f3a4ebcfbefdd370b2edf92dc48aad999449e17ace3716f83f2"
   },
   "build": {
     "target": "aarch64-pc-windows-msvc",

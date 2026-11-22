@@ -22,9 +22,7 @@
     "packages/pi-codex-conversion/src/voice/bin/",
     "packages/pi-gippity-control/src/voice/bin/",
     "packages/pi-grok-realtime/src/audio/bin/",
-    "packages/pi-agent-comms/src/board/viewer/web/",
-    "packages/pi-agent-board/src/board/viewer/web/",
-    "packages/pi-notes-compaction/src/board/viewer/web/"
+    "packages/pi-agent-comms/src/board/viewer/web/"
   ],
   "overrides": [
     {

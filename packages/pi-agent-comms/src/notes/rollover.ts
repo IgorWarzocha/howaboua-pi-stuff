@@ -7,6 +7,7 @@ import type {
 import { prepareCompactionProjection } from "./compaction-projection.js";
 import type { NotesLifecycle } from "./lifecycle.js";
 import type { ModelRoleHandoff } from "./model-roles.js";
+import type { RolloverTail } from "./rollover-tail.js";
 import type { NewWindowRequests } from "./settings.js";
 
 type Rollover = {
@@ -31,32 +32,33 @@ export class RolloverRequests {
 		| undefined;
 	private readonly host: Pick<
 		NotesLifecycle,
-		"active" | "windows" | "normalCompaction" | "newWindowRequests" | "fresh"
+		"active" | "windows" | "normalCompaction" | "newWindowRequests"
 	>;
 	private readonly openWindow: (
 		ctx: ExtensionContext,
 		triggerTurn: boolean,
 		trim: boolean,
 		handoff?: ModelRoleHandoff,
+		tail?: RolloverTail,
 	) => Promise<void>;
 	private readonly sendMessage: (
 		message: Omit<CustomMessageEntryDraft, "type">,
 		options: { triggerTurn: boolean },
 	) => void;
-	private readonly startCheckpoint: (
+	private readonly rollNotes: (
 		ctx: ExtensionContext,
 		instructions?: string,
-	) => void;
+	) => Promise<void>;
 	constructor(
 		host: RolloverRequests["host"],
 		openWindow: RolloverRequests["openWindow"],
 		sendMessage: RolloverRequests["sendMessage"],
-		startCheckpoint: RolloverRequests["startCheckpoint"],
+		rollNotes: RolloverRequests["rollNotes"],
 	) {
 		this.host = host;
 		this.openWindow = openWindow;
 		this.sendMessage = sendMessage;
-		this.startCheckpoint = startCheckpoint;
+		this.rollNotes = rollNotes;
 	}
 	get pending(): boolean {
 		return Boolean(this.rollover);
@@ -117,10 +119,11 @@ export class RolloverRequests {
 		policy: NewWindowRequests | undefined = triggerTurn
 			? this.host.newWindowRequests
 			: undefined,
+		tail?: RolloverTail,
 	): Promise<void> {
 		const checkOnly = !this.host.normalCompaction && policy === "pi-limits";
 		if (!this.host.normalCompaction && !checkOnly) {
-			await this.openWindow(ctx, triggerTurn, true, handoff);
+			await this.openWindow(ctx, triggerTurn, true, handoff, tail);
 			return;
 		}
 		const pending: Rollover = {
@@ -246,8 +249,6 @@ export class RolloverRequests {
 			pending.sessionId !== ctx.sessionManager.getSessionId()
 		)
 			return;
-		if (!pending.instructions?.trim() && this.host.fresh(ctx))
-			await this.roll(ctx, false);
-		else this.startCheckpoint(ctx, pending.instructions);
+		await this.rollNotes(ctx, pending.instructions);
 	}
 }

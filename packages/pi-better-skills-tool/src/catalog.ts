@@ -1,22 +1,17 @@
 import { Buffer } from "node:buffer";
 import {
 	type CatalogSkill,
-	defaultSessionSkillsDir,
-	defaultSkillsDir,
 	discoverVisibleSkills,
-	type LoadedSkill,
+	type SkillDiscoveryOptions,
 } from "./discovery.js";
 import { readSkillPackage, type SkillReadOutput } from "./skill-package.js";
 
 export type { LoadedSkill } from "./discovery.js";
-export { defaultSessionSkillsDir, defaultSkillsDir } from "./discovery.js";
 
 const MAX_OUTPUT_BYTES = 48 * 1024;
 // Leave room for an exact continuation command inside the output budget.
 const MAX_COMMAND_BYTES = 4 * 1024;
 const READ_HELP =
-	"Reference-only selectors skip the first skill's body. For both: read skill; read other/references/topic";
-const GPT_READ_HELP =
 	"Reference-only selectors skip first skill body. Both: read skill; read other/references/topic";
 
 type SkillRequest =
@@ -174,17 +169,9 @@ function boundedOutput(result: SkillReadOutput, request: SkillsRequest) {
 	return page(bytes.subarray(offset, end).toString("utf8") + footer(end), end);
 }
 
-export function runSkills(
-	input: unknown,
-	globalRoot = defaultSkillsDir(),
-	sessionRoot: string | undefined = globalRoot === defaultSkillsDir()
-		? defaultSessionSkillsDir()
-		: undefined,
-	loadedSkills: readonly LoadedSkill[] = [],
-	gpt = false,
-) {
+export function runSkills(input: unknown, options?: SkillDiscoveryOptions) {
 	const request = parseRequest(input);
-	const skills = discoverVisibleSkills(globalRoot, sessionRoot, loadedSkills);
+	const skills = discoverVisibleSkills(options);
 	const result: SkillReadOutput = { output: "", reads: [] };
 	for (const [index, command] of request.commands.entries()) {
 		if (index) result.output += "\n\n";
@@ -206,8 +193,8 @@ export function runSkills(
 		} else {
 			result.output +=
 				command.action === "help"
-					? `${gpt ? "" : "Commands: "}list [category...] | read <skill> [skill-or-reference...] | help\nJS: tools.skills("read <skill>")\nSeparate full commands with semicolons. ${gpt ? GPT_READ_HELP : READ_HELP}\n\n${formatSkillList(skills)}`
-					: `${gpt ? GPT_READ_HELP : READ_HELP}\n\n${formatSkillList(skills, command.categories)}`;
+					? `list [category...] | read <skill> [skill-or-reference...] | help\nJS: tools.skills("read <skill>")\nSeparate full commands with semicolons. ${READ_HELP}\n\n${formatSkillList(skills)}`
+					: `${READ_HELP}\n\n${formatSkillList(skills, command.categories)}`;
 		}
 	}
 	return boundedOutput(result, request);

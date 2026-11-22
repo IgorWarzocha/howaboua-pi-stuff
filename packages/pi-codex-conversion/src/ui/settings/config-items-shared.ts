@@ -1,12 +1,8 @@
-import {
-	getSelectListTheme,
-	type Theme,
-} from "@earendil-works/pi-coding-agent";
+import type { Theme } from "@earendil-works/pi-coding-agent";
 import {
 	Container,
 	type Focusable,
 	Input,
-	SelectList,
 	type SettingItem,
 	Spacer,
 	Text,
@@ -23,47 +19,10 @@ export interface ConfigSetting {
 		| undefined;
 	action?:
 		| "edit-config"
-		| "global-notebook-journals"
-		| "global-notebook-checkpoint-cleanup"
 		| "global-luna-cache-keepalive"
 		| "global-luna-cache-keepalive-interval"
 		| "project-cache-keepalive"
 		| undefined;
-}
-
-export class ChoiceSettingSubmenu extends Container {
-	private readonly choices: SelectList;
-
-	constructor(
-		item: ConfigSetting["item"],
-		currentValue: string,
-		done: (value?: string) => void,
-		theme: Theme,
-	) {
-		super();
-		const values = item.values ?? [];
-		this.choices = new SelectList(
-			values.map((value) => ({ value, label: value })),
-			values.length,
-			getSelectListTheme(),
-		);
-		this.choices.setSelectedIndex(Math.max(0, values.indexOf(currentValue)));
-		this.choices.onSelect = ({ value }) => done(value);
-		this.choices.onCancel = () => done();
-		this.addChild(new Text(theme.bold(theme.fg("accent", item.label)), 0, 0));
-		this.addChild(new Spacer(1));
-		this.addChild(this.choices);
-		this.addChild(new Spacer(1));
-		this.addChild(new Text(theme.fg("dim", item.description), 0, 0));
-		this.addChild(new Spacer(1));
-		this.addChild(
-			new Text(theme.fg("dim", "Enter to apply · Esc to cancel"), 0, 0),
-		);
-	}
-
-	handleInput(data: string): void {
-		this.choices.handleInput(data);
-	}
 }
 
 export class TextSettingSubmenu extends Container implements Focusable {

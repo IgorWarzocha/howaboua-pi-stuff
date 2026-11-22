@@ -11,7 +11,7 @@ Definitions are top-level `*.toml` files in either location:
 
 Only the active session working directory is checked; parent directories are not searched. Project-local definitions are ignored unless Pi trusts the project. A project-local definition replaces a global definition with the same tool name. Each filename becomes a JavaScript method on `tools`, so use a JavaScript-compatible identifier.
 
-Definitions remain live for execution. Promoted usage stays fixed in the standing instructions until a session or model reset. Added or renamed tools remain deferred until that reset. Contract changes and removals are announced before the next model request without rebuilding standing instructions, including after compaction. `ALL_TOOLS` contains complete callable contracts; later updates supersede earlier usage.
+Definitions remain live for execution. Promoted usage stays fixed in the standing instructions until a session or model reset. Added or renamed tools remain deferred until that reset. Contract changes and removals are announced before the next model request without rebuilding standing instructions, including after compaction. Later updates supersede earlier usage.
 
 ```toml
 usage = 'tools.port_info(port_number)'
@@ -41,7 +41,7 @@ Unknown fields and invalid definitions disable only that named tool. The tool re
 
 ## Deferred tools
 
-Deferred tools remain callable but add no per-tool provider schema or standing usage. Read, find or filter the synchronous `ALL_TOOLS` array for full help, including usage, schema and output metadata.
+Deferred tools remain callable but add no per-tool provider schema or standing usage. The synchronous `ALL_TOOLS` array includes public tools available to the cell, whether or not they appear in the standing prompt. Print `ALL_TOOLS.map(t => t.name)` for names, or find an entry by name for its full contract, including usage, schema and output metadata.
 
 Set `defer_loading = false` only for stable, frequently used tools. Promotion adds only `usage` to the system prompt; full help remains local.
 

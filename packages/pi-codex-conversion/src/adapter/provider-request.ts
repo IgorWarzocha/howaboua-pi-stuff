@@ -26,7 +26,6 @@ function prepareCodexProviderRequest(
 	ctx: ExtensionContext,
 	state: AdapterState,
 ) {
-	if (state.config.voiceFeaturesOnly) return undefined;
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
 	if (
 		!isAdapterRuntime(plan) ||
@@ -48,7 +47,6 @@ export function supportsCodexDeveloperMessages(
 	ctx: Pick<ExtensionContext, "model">,
 	state: AdapterState,
 ): boolean {
-	if (state.config.voiceFeaturesOnly) return false;
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
 	return isAdapterRuntime(plan) && isResponsesContext(ctx);
 }
@@ -67,7 +65,6 @@ export function rewriteCodexProviderHeaders(
 	ctx: ExtensionContext,
 	state: AdapterState,
 ): void {
-	if (state.config.voiceFeaturesOnly) return;
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
 	if (plan.transport === "responses-lite") {
 		headers[RESPONSES_LITE_HEADER] = "true";

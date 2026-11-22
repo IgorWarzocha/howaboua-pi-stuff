@@ -1,7 +1,7 @@
 import { codeModeGlobalName } from "./tool-identity.ts";
 import type { CodeModeToolDefinition } from "./types.js";
 
-// Inject the same formatter into V8 and Deno without changing returned objects.
+// Share formatting across runtimes without changing returned objects.
 export const commandOutputFormatterSource = `(value, plain) => {
   const metadata = Object.fromEntries(Object.entries(value).filter(([key]) =>
     key !== "output" && key !== "chunk_id" && key !== "wall_time_seconds"

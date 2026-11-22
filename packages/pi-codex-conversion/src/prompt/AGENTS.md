@@ -1,9 +1,5 @@
-- Core construction belongs to `build-system-prompt.ts`; `mcp-server-section.ts` owns request-only native discovery guidance adaptation after full preparation. Preserve namespace names and opaque summary suffixes.
-- Call path: `extension/events.ts` `before_agent_start` → `extension/turn-lifecycle.ts` → `prepareCodexSystemPrompt()`. Mutate Pi's structured options; return no full prompt unless preserving an earlier opaque `forceSystemPrompt` chain.
-- Code Mode owns its dynamic tool and active-runtime section under `tools/code-mode/`; it runs before this builder.
-- Section getters observe later `before_agent_start` edits only. Live deferred-tool availability belongs in appended toolkit updates, not reconstructed prompts or provider patches.
-- Tool-specific runtime guidance uses Code's captured nested catalogue, not outer `exec`/`wait` availability or a live inventory read.
-- Provider code may serialize or capture final instructions but must not author prompt text. Later Pi extensions may still mutate the prompt; inspect the final provider payload when exact sent instructions matter.
-- Keep construction deterministic and cache-stable.
-- GPT mode inherits Heavy's scaffold removal. Compact only paired owned guidance; preserve foreign contributions and opaque overrides. Off/on text must stay unchanged.
-- Assume GPT knows durable Codex concepts; emit only Pi/local/failure deltas. On new models delete first, restore only real-use regressions; ignore synthetic evals.
+`tools/code-mode/` captures nested tools/runtime first. `extension/events.ts` `before_agent_start`→`extension/turn-lifecycle.ts`→`prepareCodexSystemPrompt()`. `build-system-prompt.ts`: deterministic/cache-stable, mutate structured options; full prompt only for opaque `forceSystemPrompt` chain.
+
+Getters see later start-hook edits only. Tool guidance→captured nested catalogue, never outer `exec`/`wait` or live inventory. Live availability→toolkit append, no rebuild/provider patch. After full prep, `mcp-server-section.ts` adapts request-only discovery, preserves namespaces/opaque summary suffixes. Provider serialises/captures only; final payload proves text.
+
+Heavy overwrite: stock Pi scaffold only. Keep foreign contributions/opaque overrides. Assume Codex knowledge; Pi/local/failure deltas only. New model: delete first, restore only on real-use regression.

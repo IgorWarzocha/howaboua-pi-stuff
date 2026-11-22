@@ -53,9 +53,7 @@ export async function registerCodexCodeMode(
 		);
 		if (!isCodeModeRuntime(plan)) return false;
 		const requiredTools =
-			plan.kind === "notebook" || plan.kind === "ts"
-				? NOTEBOOK_MODE_TOOL_NAMES
-				: CODE_MODE_TOOL_NAMES;
+			plan.kind === "ts" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
 		const activeTools = pi.getActiveTools();
 		return requiredTools.every((name) => activeTools.includes(name));
 	};
@@ -71,9 +69,7 @@ export async function registerCodexCodeMode(
 			);
 			if (!isCodeModeRuntime(plan)) return undefined;
 			const required =
-				plan.kind === "notebook" || plan.kind === "ts"
-					? NOTEBOOK_MODE_TOOL_NAMES
-					: CODE_MODE_TOOL_NAMES;
+				plan.kind === "ts" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
 			if (
 				!required.every((name) =>
 					loadout.declared.some((tool) => tool.name === name),
@@ -142,12 +138,7 @@ export async function registerCodexCodeMode(
 				ctx as ExtensionContext,
 				runtime.state,
 			).kind;
-			return kind === "notebook" ||
-				kind === "ts" ||
-				kind === "js" ||
-				kind === "vm"
-				? kind
-				: "code";
+			return kind === "ts" || kind === "vm" ? kind : "code";
 		},
 		notebookOptions: () => ({
 			maxHeapMiB: runtime.state.config.notebook.maxHeapMiB,
@@ -157,8 +148,7 @@ export async function registerCodexCodeMode(
 				: {}),
 		}),
 		providesRenderers: true,
-		richRendering: () => runtime.state.config.ui.codeModeDetails,
-		minimalOutput: () => runtime.state.config.ui.compactTools === "minimal",
+		toolDetails: () => runtime.state.config.ui.toolDetails,
 	});
 	return {
 		prepare: (ctx) => {
@@ -201,12 +191,20 @@ function createNestedTools(
 			createApplyPatchTool({
 				customRustBinariesDir: runtime.state.config.tools.customRustBinariesDir,
 				promptSnippet: false,
-				showDiffWhenCollapsed: runtime.state.config.ui.compactTools === "off",
+				showDiffWhenCollapsed:
+					runtime.state.config.ui.toolDetails === "preview",
 			}),
-			"tools.apply_patch(patch) // *** Begin Patch / *** End Patch; actions: *** Add File: path | *** Update File: path | *** Delete File: path; *** Move to: path MUST immediately follow its Update File header and still needs a nonempty @@ hunk (use one unchanged context line for a pure move); Update hunks MUST follow file order; copy exact context; @@ text is context, not a line range; reread a file before patching if it changed since your last read",
+			"tools.apply_patch(patch)",
 			{},
 			{
 				kind: "freeform",
+				promptGuidelines: [
+					"Wrap in *** Begin Patch / *** End Patch. Actions: *** Add File: path | *** Update File: path | *** Delete File: path",
+					"*** Move to: path follows its Update File header immediately; include a nonempty @@ hunk (one unchanged context line for a pure move)",
+					"Update hunks follow file order. Copy exact context; @@ text is context, not a line range. Reread changed files before patching",
+					"One patch per file; split oversized patches serially. Batch independent files with Promise.allSettled",
+					"Use for targeted edits. Reserve shell/Python for formatting and bulk rewrites",
+				],
 				prepareInput(input) {
 					if (typeof input !== "string")
 						throw new Error("apply_patch expects a patch string");
@@ -231,7 +229,7 @@ function createNestedTools(
 		),
 		toNestedTool(
 			createExecCommandTool(runtime.tracker, runtime.sessions, options),
-			"tools.exec_command({ cmd: string, workdir?: string, shell?: string, tty?: boolean, yield_time_ms?: number, max_output_tokens?: number, login?: boolean }) // returns { output: string, session_id?: number, exit_code?: number }",
+			"tools.exec_command({ cmd: string, workdir?: string, shell?: string, tty?: boolean, yield_time_ms?: number, max_output_tokens?: number, login?: boolean })",
 			{
 				start(id, input) {
 					const cmd =
@@ -247,6 +245,11 @@ function createNestedTools(
 			},
 			{
 				yieldTimeMs: LONG_RUNNING_TOOL_OUTER_YIELD_MS,
+				promptGuidelines: [
+					"Filter large output at the source",
+					"Use tty=true for input and persistent processes",
+					"Returns { output: string, session_id?: number, exit_code?: number }",
+				],
 				...textOutput,
 				resultValue(result) {
 					const details = result.details;
@@ -274,9 +277,15 @@ function createNestedTools(
 		),
 		toNestedTool(
 			createWriteStdinTool(runtime.sessions, options),
-			"tools.write_stdin({ session_id: number, chars?: string, yield_time_ms?: number, max_output_tokens?: number }) // non-empty chars only when the original exec_command used tty=true",
+			"tools.write_stdin({ session_id: number, chars?: string, yield_time_ms?: number, max_output_tokens?: number })",
 			{},
-			{ yieldTimeMs: LONG_RUNNING_TOOL_OUTER_YIELD_MS, ...textOutput },
+			{
+				yieldTimeMs: LONG_RUNNING_TOOL_OUTER_YIELD_MS,
+				promptGuidelines: [
+					"Nonempty chars require tty=true on the original tools.exec_command call",
+				],
+				...textOutput,
+			},
 		),
 	];
 	if (
@@ -295,10 +304,15 @@ function createNestedTools(
 					customRendering: runtime.state.config.ui.toolRenaming,
 				}),
 				imageCapable
-					? 'tools.view_image({ path: string, detail?: "original" }) // pass result to image()'
+					? 'tools.view_image({ path: string, detail?: "original" })'
 					: "tools.view_image({ path: string })",
 				{},
-				{ ...(imageCapable ? { resultValue: codeModeImageResult } : {}) },
+				imageCapable
+					? {
+							promptGuidelines: ["Pass the result to image()"],
+							resultValue: codeModeImageResult,
+						}
+					: {},
 			),
 		);
 	}
@@ -308,8 +322,13 @@ function createNestedTools(
 	) {
 		tools.push(
 			toNestedTool(
-				runtime.autoReasoning.tool,
-				`tools.change_reasoning({ level: "low" | "medium" | "high" | "xhigh" | "max" }) // ${runtime.autoReasoning.tool.description}`,
+				{
+					...runtime.autoReasoning.tool,
+					description: "Change reasoning effort",
+				},
+				'tools.change_reasoning({ level: "low" | "medium" | "high" | "xhigh" | "max" })',
+				{},
+				{ promptGuidelines: [runtime.autoReasoning.guidance()] },
 			),
 		);
 	}

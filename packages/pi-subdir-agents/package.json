@@ -51,8 +51,8 @@
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "1.6.0",
     "@howaboua/pi-codex-conversion": "5.0.2",
-    "typescript": "^7.0.2",
-    "oxfmt": "^0.78.0"
+    "typescript": "7.0.2",
+    "oxfmt": "0.79.0"
   },
   "scripts": {
     "lint": "bun run format:check && oxlint --type-aware",

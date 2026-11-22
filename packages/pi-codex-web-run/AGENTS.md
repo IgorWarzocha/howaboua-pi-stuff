@@ -1,2 +1,3 @@
-- Compare alpha/search contracts with `~/Frameworks/codex/codex-rs/ext/web-search/`, `codex-api/src/endpoint/search.rs` and `codex-api/src/search.rs` (last two relative to `codex-rs/`). `UPSTREAM_SYNC.md` pins the reference and reviewed deltas. Inspect changes since that pin when touching the adapter; do not restore inert Rust snapshots. Pi-facing auth, proxying, rendering and Code Mode projection remain TypeScript.
-- Preserve explicit search/navigation arguments and reusable result refs without adding conversation-history disclosure.
+- Adapter changes: compare alpha/search against `UPSTREAM_SYNC.md` pin. `~/Frameworks/codex/codex-rs/ext/web-search/` and `codex-rs/` paths `codex-api/src/endpoint/search.rs`, `codex-api/src/search.rs`. No Rust snapshots. Pi auth, proxying, rendering and Code Mode projection stay TypeScript.
+- Preserve explicit search/navigation args and reusable refs. No conversation-history disclosure.
+- Update `src/codex-runtime` together in pi-codex-web-run and pi-codex-imagegen. Byte-identical, no shared package.

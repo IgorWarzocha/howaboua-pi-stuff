@@ -32,11 +32,10 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	const promptMode = registerGptPromptModeBroker(
 		pi,
 		(ctx) =>
-			runtime.state.config.prompt.heavySystemPromptOverwrite === "gpt" &&
+			runtime.state.config.prompt.heavySystemPromptOverwrite &&
 			isAdapterRuntime(resolveCodexRuntimePlanForState(ctx, runtime.state)),
 	);
-	// Pi clones prompt options before hooks. Refresh owned metadata before Code
-	// captures tools, and before the later conversion turn hook builds its prompt.
+	// Refresh legacy opt-in metadata before Code captures tools or PCC builds its prompt.
 	pi.on("before_agent_start", (event, ctx) =>
 		promptMode.prepare(ctx, event.systemPromptOptions),
 	);
@@ -85,7 +84,6 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 					config.executionMode !== previousConfig.executionMode;
 				if (
 					executionModeChanged ||
-					config.voiceFeaturesOnly !== previousConfig.voiceFeaturesOnly ||
 					config.notebook.maxHeapMiB !== previousConfig.notebook.maxHeapMiB ||
 					config.notebook.profile !== previousConfig.notebook.profile
 				)
@@ -119,14 +117,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				if (hasCodexTransportConfigChanged(previousConfig, config)) {
 					runtime.resetTransport(ctx.sessionManager.getSessionId());
 				}
-				if (config.voiceFeaturesOnly && !previousConfig.voiceFeaturesOnly) {
-					void codeMode.shutdownHost().catch((error: unknown) => {
-						ctx.ui.notify(
-							`Could not stop Code Mode host: ${error instanceof Error ? error.message : String(error)}`,
-							"warning",
-						);
-					});
-				} else if (executionModeChanged) {
+				if (executionModeChanged) {
 					void codeMode
 						.shutdownHost()
 						.then(() => prepareCodeModeHost(codeMode, ctx))
@@ -145,10 +136,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			voice: runtime.voice,
 			lanVoice: runtime.lanVoice,
 			getConfig: () => runtime.state.config,
-			priority: () =>
-				runtime.state.enabled || runtime.state.config.voiceFeaturesOnly
-					? 20
-					: 5,
+			priority: () => (runtime.state.enabled ? 20 : 5),
 		});
 		const stopProtectedOutput = registerProtectedOutputHost(pi, (ctx) => {
 			const plan = resolveCodexRuntimePlanForState(ctx, runtime.state);

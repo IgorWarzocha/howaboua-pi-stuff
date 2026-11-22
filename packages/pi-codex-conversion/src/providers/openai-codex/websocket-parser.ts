@@ -3,8 +3,9 @@ import { DEFAULT_WEBSOCKET_CLOSE_TIMEOUT_MS } from "./constants.ts";
 import {
 	extractWebSocketCloseError,
 	extractWebSocketError,
-	isWebSocketMessageTooBigError,
+	isWebSocketSizeClose,
 } from "./websocket-connection.ts";
+import { WebSocketMessageTooBigError } from "./websocket-size.ts";
 import { extractCodexTurnStateFromWebSocketEvent } from "./turn-state.ts";
 
 export async function decodeWebSocketData(
@@ -40,6 +41,7 @@ export async function* parseWebSocket(
 	let failed: Error | null = null;
 	let closeError: Error | null = null;
 	let sawCompletion = false;
+	let receivedTextFrame = false;
 	let idleTimedOut = false;
 	let pendingMessages = 0;
 	let messageChain = Promise.resolve();
@@ -54,14 +56,14 @@ export async function* parseWebSocket(
 	};
 
 	const onMessage = (event: unknown) => {
+		if (!event || typeof event !== "object" || !("data" in event)) return;
+		const { data } = event;
+		if (typeof data === "string") receivedTextFrame = true;
 		pendingMessages++;
 		wake();
 		messageChain = messageChain
 			.then(async () => {
-				if (!event || typeof event !== "object" || !("data" in event)) return;
-				const text = await decodeWebSocketData(
-					(event as { data?: unknown | undefined }).data,
-				);
+				const text = await decodeWebSocketData(data);
 				if (!text) return;
 				let parsed: StreamEventShape;
 				try {
@@ -113,9 +115,11 @@ export async function* parseWebSocket(
 		}
 		if (!closeError) {
 			const error = extractWebSocketCloseError(event);
-			if (isWebSocketMessageTooBigError(error)) {
+			if (isWebSocketSizeClose(error)) {
 				failed = null;
-				closeError = error;
+				closeError = receivedTextFrame
+					? error
+					: new WebSocketMessageTooBigError(error.message, { cause: error });
 			} else if (socketError) {
 				failed = socketError;
 			} else {

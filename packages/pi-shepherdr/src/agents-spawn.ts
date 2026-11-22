@@ -164,7 +164,7 @@ export async function spawnAgent(
 			boardShared = await boardBinding?.accept(started.agent);
 			if (boardThreadId !== undefined && !boardShared?.agentName)
 				throw new Error(
-					"Worker cannot read the requested Board thread: the target needs Agent Board or Agent Comms. Load it and reload Pi before retrying",
+					"Worker cannot read the requested thread. Enable Board in Agent Comms on the target, then reload Pi",
 				);
 			shared = await sharing?.accept(started.agent);
 			attributedMessage.context += `\n${await sharedContext.peerReplyContext(ctx, runtime, started.agent, signal)}`;

@@ -27,15 +27,7 @@ import {
 type RuntimeContext = Pick<ExtensionContext, "model">;
 
 interface RuntimePlanBase {
-	kind:
-		| "inactive"
-		| "extras"
-		| "normal"
-		| "code"
-		| "notebook"
-		| "ts"
-		| "js"
-		| "vm";
+	kind: "inactive" | "normal" | "code" | "ts" | "vm";
 	toolNames: string[];
 	ownedToolNames: string[];
 	configuredProvider: boolean;
@@ -54,12 +46,6 @@ export interface InactiveRuntimePlan extends RuntimePlanBase {
 	transport: undefined;
 }
 
-export interface ExtrasRuntimePlan extends RuntimePlanBase {
-	kind: "extras";
-	prompt: undefined;
-	transport: "responses";
-}
-
 export interface NormalRuntimePlan extends RuntimePlanBase {
 	kind: "normal";
 	prompt: "normal";
@@ -72,21 +58,9 @@ export interface CodeRuntimePlan extends RuntimePlanBase {
 	transport: "responses" | "responses-lite";
 }
 
-export interface NotebookRuntimePlan extends RuntimePlanBase {
-	kind: "notebook";
-	prompt: "notebook";
-	transport: "responses" | "responses-lite";
-}
-
 export interface TsRuntimePlan extends RuntimePlanBase {
 	kind: "ts";
 	prompt: "ts";
-	transport: "responses" | "responses-lite";
-}
-
-export interface JsRuntimePlan extends RuntimePlanBase {
-	kind: "js";
-	prompt: "js";
 	transport: "responses" | "responses-lite";
 }
 
@@ -98,12 +72,9 @@ export interface VmRuntimePlan extends RuntimePlanBase {
 
 export type CodexRuntimePlan =
 	| InactiveRuntimePlan
-	| ExtrasRuntimePlan
 	| NormalRuntimePlan
 	| CodeRuntimePlan
-	| NotebookRuntimePlan
 	| TsRuntimePlan
-	| JsRuntimePlan
 	| VmRuntimePlan;
 
 const ALL_ADAPTER_TOOL_NAMES = [
@@ -155,25 +126,6 @@ function usesResponsesLite(
 		: proxySupportsResponsesLite(ctx, config);
 }
 
-function hasExtras(config: CodexConversionConfig): boolean {
-	const tools = config.tools;
-	return tools.applyPatchOnly || tools.viewImageOnly;
-}
-
-function extraToolNames(
-	ctx: RuntimeContext,
-	config: CodexConversionConfig,
-): string[] {
-	const names: string[] = [];
-	if (config.tools.applyPatchOnly) names.push(APPLY_PATCH_TOOL_NAME);
-	if (
-		config.tools.viewImageOnly &&
-		(supportsViewImageInputs(ctx.model) || config.tools.viewImageFallback)
-	)
-		names.push(VIEW_IMAGE_TOOL_NAME);
-	return names;
-}
-
 function normalToolNames(
 	ctx: RuntimeContext,
 	config: CodexConversionConfig,
@@ -196,7 +148,6 @@ export function hasCodexTransportConfigChanged(
 	next: CodexConversionConfig,
 ): boolean {
 	return (
-		next.voiceFeaturesOnly !== previous.voiceFeaturesOnly ||
 		next.executionMode !== previous.executionMode ||
 		next.prompt.heavySystemPromptOverwrite !==
 			previous.prompt.heavySystemPromptOverwrite ||
@@ -204,8 +155,6 @@ export function hasCodexTransportConfigChanged(
 			(family) => next.openai.fast[family] !== previous.openai.fast[family],
 		) ||
 		next.openai.daybreak !== previous.openai.daybreak ||
-		next.openai.harnessIdentifierHeader !==
-			previous.openai.harnessIdentifierHeader ||
 		nativeCompactionConfigured(next.compaction) !==
 			nativeCompactionConfigured(previous.compaction)
 	);
@@ -235,30 +184,6 @@ export function resolveCodexRuntimePlan(
 		nativeReplay: false,
 		autoReasoning: false,
 	};
-	const extras =
-		hasExtras(config) &&
-		(config.scope.allProviders === "extras" ||
-			(config.voiceFeaturesOnly && config.scope.allProviders === "on") ||
-			(config.scope.allProviders === "off" &&
-				(isConfigured || isCodexLikeModel(ctx.model))));
-	if (extras) {
-		return {
-			...base,
-			kind: "extras",
-			toolNames: extraToolNames(ctx, config),
-			prompt: undefined,
-			transport: "responses",
-		};
-	}
-	if (config.voiceFeaturesOnly)
-		return {
-			...base,
-			kind: "inactive",
-			toolNames: [],
-			prompt: undefined,
-			transport: undefined,
-		};
-
 	const active =
 		config.scope.allProviders === "on" ||
 		isConfigured ||
@@ -279,9 +204,7 @@ export function resolveCodexRuntimePlan(
 	const configuredExecutionMode = executionMode ?? config.executionMode;
 	const requestedCodeMode =
 		configuredExecutionMode === "code" ||
-		configuredExecutionMode === "notebook" ||
 		configuredExecutionMode === "ts" ||
-		configuredExecutionMode === "js" ||
 		configuredExecutionMode === "vm"
 			? configuredExecutionMode
 			: undefined;
@@ -292,28 +215,24 @@ export function resolveCodexRuntimePlan(
 		)
 			? "responses-lite"
 			: "responses";
-		if (requestedCodeMode === "notebook" || requestedCodeMode === "ts") {
+		if (requestedCodeMode === "ts") {
 			const statefulPlan = {
 				...base,
 				toolNames: [...NOTEBOOK_MODE_TOOL_NAMES],
 				transport,
 				nativeCompaction,
 			};
-			return requestedCodeMode === "ts"
-				? { ...statefulPlan, kind: "ts", prompt: "ts" }
-				: { ...statefulPlan, kind: "notebook", prompt: "notebook" };
+			return { ...statefulPlan, kind: "ts", prompt: "ts" };
 		}
-		const statelessPlan = {
+		const codePlan = {
 			...base,
 			toolNames: [...CODE_MODE_TOOL_NAMES],
 			transport,
 			nativeCompaction,
 		};
-		return requestedCodeMode === "js"
-			? { ...statelessPlan, kind: "js", prompt: "js" }
-			: requestedCodeMode === "vm"
-				? { ...statelessPlan, kind: "vm", prompt: "vm" }
-				: { ...statelessPlan, kind: "code", prompt: "code" };
+		return requestedCodeMode === "vm"
+			? { ...codePlan, kind: "vm", prompt: "vm" }
+			: { ...codePlan, kind: "code", prompt: "code" };
 	}
 	return {
 		...base,
@@ -355,38 +274,19 @@ export function resolveCodexRuntimePlanForState(
 
 export function isAdapterRuntime(
 	plan: CodexRuntimePlan,
-): plan is
-	| NormalRuntimePlan
-	| CodeRuntimePlan
-	| NotebookRuntimePlan
-	| TsRuntimePlan
-	| JsRuntimePlan
-	| VmRuntimePlan {
+): plan is NormalRuntimePlan | CodeRuntimePlan | TsRuntimePlan | VmRuntimePlan {
 	return (
 		plan.kind === "normal" ||
 		plan.kind === "code" ||
-		plan.kind === "notebook" ||
 		plan.kind === "ts" ||
-		plan.kind === "js" ||
 		plan.kind === "vm"
 	);
 }
 
 export function isCodeModeRuntime(
 	plan: CodexRuntimePlan,
-): plan is
-	| CodeRuntimePlan
-	| NotebookRuntimePlan
-	| TsRuntimePlan
-	| JsRuntimePlan
-	| VmRuntimePlan {
-	return (
-		plan.kind === "code" ||
-		plan.kind === "notebook" ||
-		plan.kind === "ts" ||
-		plan.kind === "js" ||
-		plan.kind === "vm"
-	);
+): plan is CodeRuntimePlan | TsRuntimePlan | VmRuntimePlan {
+	return plan.kind === "code" || plan.kind === "ts" || plan.kind === "vm";
 }
 
 export const ALL_CODEX_ADAPTER_TOOL_NAMES = ALL_ADAPTER_TOOL_NAMES;

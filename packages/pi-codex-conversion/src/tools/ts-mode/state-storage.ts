@@ -9,7 +9,7 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import { deserialize, serialize } from "node:v8";
-import { acquireDirectoryLock } from "../notebook-mode/directory-lock.ts";
+import { acquireDirectoryLock } from "../code-mode/directory-lock.ts";
 import {
 	compactState,
 	emptyState,
@@ -66,7 +66,7 @@ export class TsStateStorage {
 		const state = await this.readPath(this.path(this.profilesDirectory, name));
 		if (!state)
 			throw new Error(
-				`No saved TS profile ${name}; save a TS profile first. Deno Notebook profiles are separate.`,
+				`No saved TS profile ${name}; save a profile first or use notebook list.`,
 			);
 		return state;
 	}
@@ -119,7 +119,6 @@ export class TsStateStorage {
 			join(this.projectDirectory, ".write-lock"),
 			{ waitMs: 5000, staleMs: 30000, pollMs: 25 },
 		);
-		if (!lock) throw new Error("TS project pins are busy; retry checkpoint");
 		try {
 			const current =
 				(await this.readPath(this.path(this.projectDirectory, "committed"))) ??
@@ -166,7 +165,6 @@ export class TsStateStorage {
 			staleMs: 30000,
 			pollMs: 25,
 		});
-		if (!lock) throw new Error("TS state storage is busy; retry saving");
 		try {
 			await this.atomicWrite(directory, name, state);
 		} finally {

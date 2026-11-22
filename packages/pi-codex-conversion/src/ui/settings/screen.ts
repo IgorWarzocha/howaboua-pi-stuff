@@ -23,12 +23,6 @@ export interface CodexSettingsScreenOptions extends UsageTabOptions {
 	waitForIdle: () => Promise<void>;
 	initialConfig: CodexConversionConfig;
 	onChange: (nextConfig: CodexConversionConfig) => boolean;
-	onGlobalNotebookJournals: (
-		retention: CodexConversionConfig["notebook"]["journals"],
-	) => CodexConversionConfig | undefined;
-	onGlobalNotebookCheckpointCleanup: (
-		retention: CodexConversionConfig["notebook"]["checkpointCleanup"],
-	) => CodexConversionConfig | undefined;
 	onGlobalLunaCacheKeepalive: (
 		minutes: LunaCacheKeepaliveMinutes,
 		interval: LunaCacheKeepaliveIntervalMinutes,

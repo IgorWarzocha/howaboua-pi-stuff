@@ -25,16 +25,7 @@ export interface AdapterState {
 	/** Managed names whose provider gates passed at the last projection refresh. */
 	activeCodeModeExtensionToolNames?: string[] | undefined;
 	/** Last adapter policy and output, used to distinguish external loadout edits. */
-	appliedRuntimeKind?:
-		| "inactive"
-		| "extras"
-		| "normal"
-		| "code"
-		| "notebook"
-		| "ts"
-		| "js"
-		| "vm"
-		| undefined;
+	appliedRuntimeKind?: "inactive" | "normal" | "code" | "ts" | "vm" | undefined;
 	appliedRuntimeToolNames?: string[] | undefined;
 	appliedActiveToolNames?: string[] | undefined;
 	previousToolNames?: string[] | undefined;

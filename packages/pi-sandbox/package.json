@@ -56,9 +56,9 @@
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "1.6.0",
     "@howaboua/pi-codex-conversion": "5.0.2",
-    "@types/node": "^26.6.6",
-    "typescript": "^7.0.2",
-    "oxfmt": "^0.78.0"
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2",
+    "oxfmt": "0.79.0"
   },
   "scripts": {
     "build": "bun build src/daemon.ts --target=node --packages=external --outdir=dist",

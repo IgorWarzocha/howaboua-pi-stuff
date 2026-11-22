@@ -29,6 +29,7 @@ import { resolveCanonicalCompactionPromptInput } from "../../providers/openai-co
 import { prepareResponsesLiteConversationInput } from "../../providers/openai-codex/responses-lite.ts";
 import { codexReasoningUpdates } from "../reasoning-updates.ts";
 import { projectCodexDeveloperHistory } from "../developer-history.ts";
+import { orderProjectContextLast } from "../../prompt/project-context-order.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
@@ -153,14 +154,17 @@ export function buildCompactionTranscript(
 		prepared.transport === transport
 	) {
 		return normalizeContext({
-			messages: [structuredClone(prepared.systemMessage)],
+			messages: [
+				orderProjectContextLast(structuredClone(prepared.systemMessage)),
+			],
 		});
 	}
 
 	const current = getCurrentSystemMessage(
 		projectCodexDeveloperHistory(branchEntries),
 	);
-	if (current) return normalizeContext({ messages: [current] });
+	if (current)
+		return normalizeContext({ messages: [orderProjectContextLast(current)] });
 	const tools = getActiveToolsInActiveOrder(pi, codeMode);
 	return normalizeContext({
 		systemPrompt: ctx.getSystemPrompt(),

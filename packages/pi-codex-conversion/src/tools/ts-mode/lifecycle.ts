@@ -3,7 +3,7 @@ import type {
 	NotebookControlRequest,
 	NotebookControlResult,
 } from "../code-mode/types.ts";
-import { globMatcher } from "../notebook-mode/glob.ts";
+import { globMatcher } from "./glob.ts";
 import {
 	bindingDependencies,
 	compactState,

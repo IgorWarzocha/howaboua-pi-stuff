@@ -1,3 +1,2 @@
-- `src/chart.ts` is the pure parser and Unicode layout engine; keep it independent of Pi.
-- `src/index.ts` owns the Markdown transformer and model-facing chart guidance.
-- Keep this package raster-free: charts render to width-bounded Unicode and ANSI-free text.
+- `src/chart.ts`: pure Pi-independent parser/layout. `src/index.ts`: Markdown transformer and model guidance.
+- Width-bounded Unicode, ANSI-free text, no raster.

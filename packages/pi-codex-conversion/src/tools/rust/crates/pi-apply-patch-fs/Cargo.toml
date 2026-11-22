@@ -9,9 +9,5 @@ async-trait = { workspace = true }
 codex-utils-absolute-path = { workspace = true }
 codex-utils-path-uri = { workspace = true }
 
-[dev-dependencies]
-tempfile = { workspace = true }
-tokio = { workspace = true }
-
 [lib]
 path = "lib.rs"

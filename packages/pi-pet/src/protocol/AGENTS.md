@@ -1,2 +1,1 @@
-- Owns normalized pet/catalog and reaction-state contracts; derive runtime types and validators together here.
-- Reject malformed external data explicitly—do not add coercive or silent fallbacks.
+- Derive normalised pet catalog and reaction-state runtime types with validators. Reject malformed external data explicitly, without coercion or silent fallback.

@@ -38,6 +38,4 @@ export type VmMessage =
 	| { run: number; kind: "done"; outcome: VmOutcome }
 	| { kind: "sample"; memory: VmMemory };
 
-export interface VmWorkerData {
-	heapMiB: number;
-}
+export type VmProcessMessage = VmMessage | { kind: "ready" };

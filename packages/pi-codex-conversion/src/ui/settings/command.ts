@@ -152,7 +152,6 @@ export function registerCodexCommand(
 			);
 			return false;
 		}
-		if (writeResult.warning) ctx.ui.notify(writeResult.warning, "warning");
 		applyEffectiveConfig(ctx);
 		return true;
 	}
@@ -255,28 +254,6 @@ export function registerCodexCommand(
 			initialConfig: readSelectedConfig(),
 			initialTab: tab,
 			onChange: (config) => saveAndApply(ctx, configScope, config),
-			onGlobalNotebookJournals: (journals) => {
-				const global = readCodexConversionConfig();
-				if (
-					!saveAndApply(ctx, "global", {
-						...global,
-						notebook: { ...global.notebook, journals },
-					})
-				)
-					return undefined;
-				return readSelectedConfig();
-			},
-			onGlobalNotebookCheckpointCleanup: (checkpointCleanup) => {
-				const global = readCodexConversionConfig();
-				if (
-					!saveAndApply(ctx, "global", {
-						...global,
-						notebook: { ...global.notebook, checkpointCleanup },
-					})
-				)
-					return undefined;
-				return readSelectedConfig();
-			},
 			onGlobalLunaCacheKeepalive: (minutes, interval) => {
 				const result = setGlobalCodexLunaCacheKeepalive(
 					minutes,
@@ -290,7 +267,6 @@ export function registerCodexCommand(
 					);
 					return undefined;
 				}
-				if (result.warning) ctx.ui.notify(result.warning, "warning");
 				applyEffectiveConfig(ctx);
 				return readSelectedConfig();
 			},
@@ -455,12 +431,6 @@ async function setLanVoiceServerEnabled(
 	}
 }
 
-function formatAllProvidersMode(
-	value: CodexConversionConfig["scope"]["allProviders"],
-): string {
-	return value === "extras" ? "only extras" : value;
-}
-
 function formatCodexSettings(config: CodexConversionConfig): string {
 	const fast = [
 		`all models ${allModelsFastModeState(config.openai.fast)}`,
@@ -470,11 +440,8 @@ function formatCodexSettings(config: CodexConversionConfig): string {
 		),
 	].join(", ");
 	const accessProgram = config.openai.daybreak ? "on" : "off";
-	const promptOverwrite =
-		config.prompt.heavySystemPromptOverwrite === "gpt"
-			? "GPT"
-			: config.prompt.heavySystemPromptOverwrite
-				? "on"
-				: "off";
-	return `Codex settings: extension ${config.voiceFeaturesOnly ? "voice only" : "adapter and voice"}, execution ${config.executionMode}, providers ${formatAllProvidersMode(config.scope.allProviders)}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${promptOverwrite}, harness identifier ${config.openai.harnessIdentifierHeader ? "on" : "off"}, Proxy Responses Lite ${config.openai.proxyResponsesLite ? "on" : "off"}, compaction method ${COMPACTION_METHOD_LABELS[config.compaction.method]}, preserved user messages (V2 only) ${config.compaction.v2UserMessageRetention}k, Luna cache keepalive ${config.openai.lunaCacheKeepaliveMinutes === 0 ? "off" : `${config.openai.lunaCacheKeepaliveMinutes} mins duration, ${config.openai.lunaCacheKeepaliveIntervalMinutes} mins request interval`}, Astra/Sol/Terra cache keepalive ${config.openai.cacheKeepalive ? `${config.openai.cacheKeepaliveIntervalMinutes} mins request interval` : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, Daybreak ${accessProgram}, Fast Mode ${fast}, verbosity ${config.openai.verbosity}`;
+	const promptOverwrite = config.prompt.heavySystemPromptOverwrite
+		? "on"
+		: "off";
+	return `Codex settings: execution ${config.executionMode}, providers ${config.scope.allProviders === "on" ? "all providers" : "Codex and configured"}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${promptOverwrite}, Proxy Responses Lite ${config.openai.proxyResponsesLite ? "on" : "off"}, compaction method ${COMPACTION_METHOD_LABELS[config.compaction.method]}, preserved user messages (V2 only) ${config.compaction.v2UserMessageRetention}k, Luna cache keepalive ${config.openai.lunaCacheKeepaliveMinutes === 0 ? "off" : `${config.openai.lunaCacheKeepaliveMinutes} mins duration, ${config.openai.lunaCacheKeepaliveIntervalMinutes} mins request interval`}, Astra/Sol/Terra cache keepalive ${config.openai.cacheKeepalive ? `${config.openai.cacheKeepaliveIntervalMinutes} mins request interval` : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, Daybreak ${accessProgram}, Fast Mode ${fast}, verbosity ${config.openai.verbosity}`;
 }

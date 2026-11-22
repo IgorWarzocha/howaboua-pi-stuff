@@ -6,11 +6,47 @@ import {
 
 export type ExecCommandStatus = "running" | "done";
 
+export type ExecOutcome =
+	| { kind: "no-matches"; exitCode: 1 }
+	| { kind: "nonzero"; exitCode: number };
+
+export interface ExecExplorationCall {
+	actions: ShellAction[];
+	command: string;
+	outcome?: ExecOutcome | undefined;
+}
+
 export interface ExecCommandRenderInfo {
 	hidden: boolean;
 	status: ExecCommandStatus;
-	actionGroups?: ShellAction[][] | undefined;
-	commands?: string[] | undefined;
+	outcome?: ExecOutcome | undefined;
+	exploration?: ExecExplorationCall[] | undefined;
+}
+
+// Exit 1 is only a no-match candidate for a bare search, not a compound
+// command or an arbitrary command the display summary happens to call Search.
+const BARE_SEARCH =
+	/^(?:rg|grep|git[ \t]+grep)(?:[ \t]+(?:[\w./:@%+=,-]+|'[^'\r\n]*'|"[^"$\\`!\r\n]*"))+[ \t]*$/;
+
+export function getExecOutcome(
+	command: string,
+	result: {
+		output: string;
+		exit_code?: number | undefined;
+		truncated?: true | undefined;
+	},
+): ExecOutcome | undefined {
+	const exitCode = result.exit_code;
+	if (typeof exitCode !== "number" || exitCode === 0) return undefined;
+	if (
+		exitCode === 1 &&
+		result.output === "" &&
+		!result.truncated &&
+		BARE_SEARCH.test(command.trim()) &&
+		summarizeShellCommand(command).actions[0]?.kind === "search"
+	)
+		return { kind: "no-matches", exitCode };
+	return { kind: "nonzero", exitCode };
 }
 
 interface ExecEntry {
@@ -18,6 +54,7 @@ interface ExecEntry {
 	command: string;
 	summary: CommandSummary;
 	status: ExecCommandStatus;
+	outcome?: ExecOutcome | undefined;
 	hidden: boolean;
 	groupId?: number | undefined;
 	invalidate?: () => void | undefined;
@@ -41,6 +78,7 @@ export interface ExecCommandTracker {
 	): void;
 	recordStart(toolCallId: string, command: string): void;
 	recordPersistentSession(toolCallId: string, sessionId: number): void;
+	recordOutcome(toolCallId: string, outcome: ExecOutcome | undefined): void;
 	recordEnd(toolCallId: string): void;
 	recordSessionFinished(sessionId: number): void;
 	resetExplorationGroup(): void;
@@ -125,9 +163,7 @@ export function createExecCommandTracker(): ExecCommandTracker {
 				return {
 					hidden: false,
 					status: entry.status,
-					actionGroups: entry.summary.maskAsExplored
-						? [entry.summary.actions]
-						: undefined,
+					outcome: entry.outcome,
 				};
 			}
 
@@ -139,8 +175,12 @@ export function createExecCommandTracker(): ExecCommandTracker {
 				status: entries.some((groupEntry) => groupEntry.status === "running")
 					? "running"
 					: "done",
-				actionGroups: entries.map((groupEntry) => groupEntry.summary.actions),
-				commands: entries.map((groupEntry) => groupEntry.command),
+				outcome: entry.outcome,
+				exploration: entries.map((groupEntry) => ({
+					actions: groupEntry.summary.actions,
+					command: groupEntry.command,
+					outcome: groupEntry.outcome,
+				})),
 			};
 		},
 		registerRenderContext(toolCallId, invalidate) {
@@ -215,6 +255,10 @@ export function createExecCommandTracker(): ExecCommandTracker {
 			const group = getGroupForEntry(entry);
 			invalidateToolCall(group?.visibleEntryId ?? toolCallId);
 			commandByToolCallId.delete(toolCallId);
+		},
+		recordOutcome(toolCallId, outcome) {
+			const entry = entriesByToolCallId.get(toolCallId);
+			if (entry) entry.outcome = outcome;
 		},
 		recordSessionFinished(sessionId) {
 			const toolCallId = toolCallIdBySessionId.get(sessionId);

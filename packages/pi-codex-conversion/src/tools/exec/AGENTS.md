@@ -1,7 +1,5 @@
-- Bridge output chunks are arbitrary bytes; decode incrementally per process stream and flush only after bridge closure.
-- `bridge-client.ts` owns helper framing; `bridge-session.ts` owns per-process startup, decoding, polling, exit, and termination; `session-manager.ts` owns IDs, retention, wait policy, snapshots, and public operations.
-- TTY output stays raw and bounded in session state; display boundaries strip controls and collapse CR/backspace without terminal-grid emulation.
-- Keep wait policy host-side and model wording generic: non-TTY output extends the inactivity wait, silence yields a session, and empty polls use bounded waits with backoff.
-- Finalized sessions outlive the native helper's exited-process retention. Serve retained output without polling or writing expired native handles.
-- Completed replay retention is separate from immediate delivery; never apply its bound to the exit-observing call.
-- Bounded completion notices must not drain truncated unread output. Ctrl-C input is not proof that an interactive shell exited.
+- `bridge-client.ts`: framing. `bridge-session.ts`: per-process startup, decode, poll, exit, terminate. `session-manager.ts`: IDs, retention, wait policy, snapshots, public operations.
+- Decode arbitrary bytes incrementally per process stream; flush after bridge closes. Raw bounded TTY. Display strips controls/collapses CR and backspace, no grid.
+- Wait policy host-side, model wording generic. Non-TTY output extends inactivity wait; silence yields session. Empty polls: bounded waits with backoff.
+- Finalised sessions outlive helper retention. Serve stored output without polling/writing expired handles; replay bound doesn't limit exit-observing delivery.
+- Bounded completion notices don't drain truncated unread output. Ctrl-C isn't shell exit.

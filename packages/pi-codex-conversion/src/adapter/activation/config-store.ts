@@ -1,5 +1,6 @@
 import { CODEX_CONVERSION_CONFIG_BASENAME } from "./config-file.ts";
 import {
+	assertWritableConfig,
 	OWNED_CONFIG_KEYS,
 	LEGACY_OWNED_CONFIG_KEYS,
 	isRecord,
@@ -11,7 +12,7 @@ import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
-	migrateCodexConversionConfigIfNeeded,
+	migrateCodexConversionConfig,
 	type CompactionMigrationInheritance,
 } from "./config-migration.ts";
 import {
@@ -26,6 +27,7 @@ import { normalizeFastMode } from "./fast-mode.ts";
 import {
 	readConfigDocument,
 	normalizeGlobalConfigDocument,
+	persistConfigUpgrade,
 	readCodexConversionConfig as readFileConfig,
 	writeCodexConversionConfig as writeFileConfig,
 } from "./config-file.ts";
@@ -47,6 +49,7 @@ export interface EffectiveCodexConversionConfigOptions {
 	cwd: string;
 	projectTrusted: boolean;
 	globalConfigPath?: string | undefined;
+	upgradeSettings?: boolean | undefined;
 	env?: NodeJS.ProcessEnv | undefined;
 }
 
@@ -122,18 +125,20 @@ export function readProjectCodexConversionDocument(
 	cwd: string,
 	projectTrusted: boolean,
 	inheritedCompaction?: CompactionMigrationInheritance,
+	inheritedUi?: Record<string, unknown>,
+	upgrade = false,
 ): Record<string, unknown> | undefined {
 	if (!projectTrusted) return undefined;
 	const path = getProjectCodexConversionConfigPath(cwd);
 	const parsed = readConfigDocument(path, "trusted project");
 	if (!isRecord(parsed)) return undefined;
-	const migration = migrateCodexConversionConfigIfNeeded(
+	const current = migrateCodexConversionConfig(
 		parsed,
 		inheritedCompaction,
+		inheritedUi,
 	);
-	return isRecord(migration.config)
-		? withoutGlobalOnlyDocument(migration.config)
-		: undefined;
+	if (upgrade) persistConfigUpgrade(path, parsed, current, true);
+	return isRecord(current) ? withoutGlobalOnlyDocument(current) : undefined;
 }
 
 export function hasFolderCodexConversionConfig(
@@ -196,11 +201,12 @@ export function readEffectiveCodexConversionConfig(
 export function readLayeredCodexConversionConfig(
 	options: Omit<EffectiveCodexConversionConfigOptions, "env">,
 ): CodexConversionConfig {
-	const document = readConfigDocument(
-		options.globalConfigPath ?? getCodexConversionConfigPath(),
-		"global",
+	const globalPath = options.globalConfigPath ?? getCodexConversionConfigPath();
+	const document = readConfigDocument(globalPath, "global");
+	const global = normalizeGlobalConfigDocument(
+		document,
+		options.upgradeSettings ? globalPath : undefined,
 	);
-	const global = normalizeGlobalConfigDocument(document);
 	// Legacy project options can inherit continuity axes normalization no longer owns.
 	const legacyCompaction =
 		isRecord(document) && isRecord(document["compaction"])
@@ -210,11 +216,20 @@ export function readLayeredCodexConversionConfig(
 		options.cwd,
 		options.projectTrusted,
 		{ ...global.compaction, ...legacyCompaction },
+		isRecord(document) && isRecord(document["ui"]) ? document["ui"] : undefined,
+		options.upgradeSettings,
 	);
 	return project
 		? normalizeCodexConversionConfig(
 				mergeConfigDocument(
-					global as unknown as Record<string, unknown>,
+					{
+						...global,
+						// A project may inherit Deno mode but supply its own Deno profile.
+						executionMode:
+							isRecord(document) && document["executionMode"] === "notebook"
+								? "notebook"
+								: global.executionMode,
+					},
 					project,
 				),
 			)
@@ -238,6 +253,7 @@ export function setProjectCodexCacheKeepalive(
 		if (existsSync(path) && !isRecord(existing))
 			return { ok: false, error: "Project config is not a JSON object" };
 		const document = isRecord(existing) ? existing : {};
+		assertWritableConfig(document);
 		const openai = isRecord(document["openai"])
 			? { ...document["openai"] }
 			: {};
@@ -263,7 +279,7 @@ export function setGlobalCodexLunaCacheKeepalive(
 	minutes: LunaCacheKeepaliveMinutes,
 	globalConfigPath: string = getCodexConversionConfigPath(),
 	intervalMinutes?: LunaCacheKeepaliveIntervalMinutes,
-): { ok: true; warning?: string } | { ok: false; error: string } {
+): { ok: true } | { ok: false; error: string } {
 	const config = readCodexConversionConfig(globalConfigPath);
 	return writeCodexConversionConfig(
 		{
@@ -315,6 +331,14 @@ export function clearFolderCodexConversionConfig(
 	const path = getProjectCodexConversionConfigPath(cwd);
 	const project = readProjectCodexConversionDocument(cwd, true);
 	if (!project) return { ok: true };
+	try {
+		assertWritableConfig(project);
+	} catch (error) {
+		return {
+			ok: false,
+			error: error instanceof Error ? error.message : String(error),
+		};
+	}
 	for (const key of [...OWNED_CONFIG_KEYS, ...LEGACY_OWNED_CONFIG_KEYS]) {
 		if (key === "openai" && isRecord(project[key])) {
 			const keepalive = project[key]["cacheKeepalive"];
@@ -332,7 +356,8 @@ export function clearFolderCodexConversionConfig(
 		delete project[key];
 	}
 	try {
-		if (Object.keys(project).length === 0) rmSync(path, { force: true });
+		if (Object.keys(project).every((key) => key === "settingsVersion"))
+			rmSync(path, { force: true });
 		else writeConfigDocumentAtomic(path, project);
 		return { ok: true };
 	} catch (error) {

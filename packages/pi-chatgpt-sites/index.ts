@@ -92,7 +92,7 @@ export default async function sitesExtension(pi: ExtensionAPI) {
 	const guide = defineTool({
 		name: "sites_documentation",
 		label: "Sites documentation",
-		description: "Sites guide or current resource.action parameter schema",
+		description: "Sites guide/live resource.action parameter schema",
 		parameters: GuideParameters,
 		async execute(
 			_id,
@@ -109,24 +109,13 @@ export default async function sitesExtension(pi: ExtensionAPI) {
 			);
 		},
 	});
-	const tools = [
-		{
-			tool: sites,
-			gpt: "Manage ChatGPT Sites",
-			ordinary: sites.description,
-		},
-		{
-			tool: guide,
-			gpt: "Sites guide/live resource.action parameter schema",
-			ordinary: guide.description,
-		},
-	];
-	for (const { tool } of tools) pi.registerTool(tool);
+	const tools = [sites, guide];
+	for (const tool of tools) pi.registerTool(tool);
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
 			await import("@howaboua/pi-codex-conversion/code-mode");
 		const registration = registerCodeModeExtensionTools(pi, () =>
-			tools.map(({ tool }) =>
+			tools.map((tool) =>
 				adaptToolForCodeMode(tool, {
 					discovery: "help",
 					deferLoading: true,
@@ -134,18 +123,6 @@ export default async function sitesExtension(pi: ExtensionAPI) {
 			),
 		);
 		pi.on("session_shutdown", () => registration.unregister());
-		const { registerGptPromptMode } =
-			await import("@howaboua/pi-codex-conversion/prompt-mode");
-		registerGptPromptMode(pi, (active) => {
-			for (const { tool, gpt, ordinary } of tools) {
-				const description = active ? gpt : ordinary;
-				if (tool.description !== description) {
-					tool.description = description;
-					pi.registerTool(tool);
-				}
-			}
-			return tools.map(({ tool }) => tool);
-		});
 	} catch (error) {
 		if (
 			!(error instanceof Error) ||

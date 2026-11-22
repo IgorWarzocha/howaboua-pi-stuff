@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { CodeModeDelegateRuntime } from "../code-mode/delegate-runtime.ts";
 import {
 	formatCodeModeToolHelp,
-	isCodeModeToolDiscoverable,
+	isCodeModeToolListed,
 } from "../code-mode/custom-tool-prompt.ts";
 import {
 	DEFAULT_CODE_MODE_EXEC_YIELD_MS,
@@ -20,14 +20,14 @@ import type {
 	RuntimeResponse,
 	ToolExecutionContext,
 } from "../code-mode/types.ts";
-import { NotebookCell } from "../notebook-mode/cell.ts";
-import { notebookSessionIdentity } from "../notebook-mode/session-identity.ts";
+import { RuntimeCell } from "../code-mode/runtime-cell.ts";
+import { notebookSessionIdentity } from "../code-mode/session-identity.ts";
 import { VmKernel } from "./kernel.ts";
 import { VM_STORE_TOTAL_MAX, VM_STORE_VALUE_MAX, vmHeapMiB } from "./limits.ts";
 import type { VmMemory, VmTool } from "./protocol.ts";
 
 interface Execution {
-	cell: NotebookCell;
+	cell: RuntimeCell;
 	kernel?: VmKernel;
 	done: Promise<void>;
 	stopping?: Promise<void>;
@@ -55,9 +55,12 @@ export class VmCodeClient implements CodeModeExecutionClient {
 		options: CodeModeClientOptions,
 		renderStore?: CodeModeNestedRenderStore,
 	) {
-		if (process.versions["bun"])
+		if (
+			process.versions["bun"] &&
+			!["linux", "darwin", "win32"].includes(process.platform)
+		)
 			throw new Error(
-				"VM Code requires a Node.js Pi host; start Pi with Node.js. Code and QuickJS Code remain available",
+				"VM Code under Bun is available on Linux, macOS and Windows. Start Pi under Node.js or select Code in /codex settings",
 			);
 		this.heapMiB = vmHeapMiB(options.maxHeapMiB);
 		this.delegate = new CodeModeDelegateRuntime(
@@ -87,7 +90,7 @@ export class VmCodeClient implements CodeModeExecutionClient {
 				"VM Code is still running an exec; wait for it or terminate it",
 			);
 		const parsed = parseExecSource(source);
-		const cell = new NotebookCell({
+		const cell = new RuntimeCell({
 			id: `vm-${randomUUID()}`,
 			source: parsed.code,
 			context,
@@ -254,20 +257,13 @@ export class VmCodeClient implements CodeModeExecutionClient {
 					outcome.error ||
 						"VM Code stopped and dropped conversation bindings. The next exec starts fresh",
 				);
-			if (outcome.error)
-				cell.result = { status: "error", items: [], errorText: outcome.error };
-			else cell.result = { status: "ok", items: [] };
+			cell.errorText = outcome.error;
 		} catch (error) {
 			if (execution.kernel?.failed || execution.stopping) {
 				this.kernel = undefined;
 				this.stored.clear();
 			}
-			if (!cell.result)
-				cell.result = {
-					status: "error",
-					items: [],
-					errorText: error instanceof Error ? error.message : String(error),
-				};
+			cell.errorText ??= error instanceof Error ? error.message : String(error);
 		} finally {
 			this.delegate.cancelCell(cell.id);
 			if (execution.kernel?.failed || execution.stopping)
@@ -322,7 +318,7 @@ export class VmCodeClient implements CodeModeExecutionClient {
 			this.delegate.cancelCell(execution.cell.id);
 			await execution.kernel?.stop();
 			await execution.done;
-			execution.cell.result = { status: "error", items: [], errorText: reason };
+			execution.cell.errorText = reason;
 			await this.drop();
 		})();
 		await execution.stopping;
@@ -356,8 +352,8 @@ export class VmCodeClient implements CodeModeExecutionClient {
 			cellId: cell.id,
 			contentItems: cell.takeContent(),
 			maxOutputTokens: cell.maxOutputTokens,
-			...(kind !== "yielded" && cell.result?.errorText
-				? { errorText: cell.result.errorText }
+			...(kind !== "yielded" && cell.errorText
+				? { errorText: cell.errorText }
 				: {}),
 		});
 		if (kind !== "yielded") {
@@ -372,7 +368,7 @@ function toolDefinitions(tools: CodeModeToolDefinition[]): VmTool[] {
 	return tools.map((tool) => ({
 		name: tool.name,
 		exposed: codeModeGlobalName(tool.name),
-		...(isCodeModeToolDiscoverable(tool)
+		...(isCodeModeToolListed(tool)
 			? { description: formatCodeModeToolHelp(tool) }
 			: {}),
 		...("textOutput" in tool && tool.textOutput

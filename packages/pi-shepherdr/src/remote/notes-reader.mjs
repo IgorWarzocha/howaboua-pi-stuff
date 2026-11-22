@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 
 const packages = ["@howaboua/pi-agent-comms", "@howaboua/pi-notes-compaction"];
 export const NOTES_READER_UNAVAILABLE =
-	"Saved Notes reads are unavailable. Install Agent Comms or Notes Compaction alongside Shepherdr, then reload Pi. Other agent operations remain available.";
+	"Saved Notes reads are unavailable. Install Agent Comms alongside Shepherdr, then reload Pi. Other agent operations remain available.";
 const INVALID_READER =
 	"Saved Notes could not be loaded. Update their extension and reload Pi. Other agent operations remain available.";
 

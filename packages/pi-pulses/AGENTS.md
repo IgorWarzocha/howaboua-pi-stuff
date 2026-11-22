@@ -1,4 +1,4 @@
-- In Git, discover only from the original common root; elsewhere use the explicit session cwd. Never recurse through copied definitions or worktrees.
-- Pulses owns scheduling and controller eligibility, not the generic worker provider. Request detached lifetime explicitly; workers must never schedule themselves.
-- Keep the authoring skill on demand, outside the standing skill catalogue. Only definition instructions plus the approved result-routing paragraph belong in worker tasks.
-- Never steal another main session's ownership or replay an unconfirmed run. Preserve saved sessions, run history and user files.
+- Discover at original Git common root, otherwise explicit session cwd. Skip copies/worktrees.
+- Pulses owns scheduling/eligibility, not generic worker provider. Explicit detached lifetime. Workers never self-schedule.
+- Authoring skill on demand only. Worker tasks: definition plus approved result-routing paragraph only.
+- No takeover of another main session or uncertain-run replay. Preserve sessions, history, user files.

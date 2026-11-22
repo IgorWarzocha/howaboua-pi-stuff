@@ -3,7 +3,7 @@ import {
 	type CacheDiagnosticsMode,
 	type CodexVerbosity,
 	type CompactionMethod,
-	type CompactToolsMode,
+	type ToolDetailsMode,
 	DEFAULT_VOICE_CONTEXT_REASONING,
 	type DictationShortcutMode,
 	LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS,
@@ -22,20 +22,26 @@ export function normalizeAllProvidersMode(
 	value: unknown,
 ): AllProvidersMode | undefined {
 	if (value === true) return "on";
-	if (value === false) return "off";
-	return value === "off" || value === "on" || value === "extras"
+	if (value === false || value === "extras") return "off";
+	return value === "off" || value === "on" ? value : undefined;
+}
+
+export function normalizeToolDetailsMode(
+	value: unknown,
+): ToolDetailsMode | undefined {
+	return value === "minimal" || value === "compact" || value === "preview"
 		? value
 		: undefined;
 }
 
-export function normalizeCompactToolsMode(
-	value: unknown,
-): CompactToolsMode | undefined {
-	if (value === true) return "on";
-	if (value === false) return "off";
-	return value === "off" || value === "on" || value === "minimal"
-		? value
-		: undefined;
+export function resolveLegacyToolDetails(
+	compact: unknown,
+	details: unknown,
+): ToolDetailsMode {
+	if (compact === "minimal") return "minimal";
+	if (details === true && compact !== "on" && compact !== true)
+		return "preview";
+	return "compact";
 }
 
 export function normalizeCompactionMethod(

@@ -1,5 +1,6 @@
 import { Worker } from "node:worker_threads";
 import type { RuntimeContentItem } from "../code-mode/types.ts";
+import { startBunVmProcess } from "./bun-process.ts";
 import type {
 	VmCommand,
 	VmInput,
@@ -17,9 +18,14 @@ interface Callbacks {
 	cancel(): void;
 }
 
-/** One worker owns one vm context. Termination is the hard stop; the context is not reused. */
+interface VmEndpoint {
+	postMessage(command: VmCommand): void;
+	stop(): Promise<void>;
+}
+
+/** One worker owns one VM context. Stop terminates its worker or capped process. */
 export class VmKernel {
-	private readonly worker: Worker;
+	private readonly endpoint: VmEndpoint;
 	private next = 0;
 	private active:
 		| {
@@ -38,40 +44,14 @@ export class VmKernel {
 	}
 
 	private constructor(heapMiB: number) {
-		const entry = import.meta.url.endsWith(".ts")
-			? new URL("./worker.ts", import.meta.url)
-			: new URL("./worker.js", import.meta.url);
-		this.worker = new Worker(entry, {
-			workerData: { heapMiB },
-			resourceLimits: {
-				maxOldGenerationSizeMb: heapMiB,
-				maxYoungGenerationSizeMb: Math.min(32, heapMiB),
-				stackSizeMb: 4,
-			},
-			execArgv: [
-				"--experimental-vm-modules",
-				"--disable-warning=ExperimentalWarning",
-			],
-			stdout: true,
-			stderr: true,
-		});
-		this.worker.stdout.resume();
-		this.worker.stderr.resume();
-		this.worker.on("message", (message: VmMessage) => this.deliver(message));
-		this.worker.once("error", (error) =>
-			this.fail(
-				workerFailure(
-					error instanceof Error ? error : new Error(String(error)),
-				),
-			),
-		);
-		this.worker.once("exit", () =>
-			this.fail(
-				new Error(
-					"VM Code stopped and dropped conversation bindings. The next exec starts fresh",
-				),
-			),
-		);
+		const deliver = (message: VmMessage) => this.deliver(message);
+		this.endpoint = process.versions["bun"]
+			? startBunVmProcess(heapMiB, deliver, (error) =>
+					this.fail(error ?? workerFailure()),
+				)
+			: startNodeVmWorker(heapMiB, deliver, (error) =>
+					this.fail(workerFailure(error)),
+				);
 	}
 
 	get failed(): boolean {
@@ -86,7 +66,7 @@ export class VmKernel {
 		return new Promise((resolve, reject) => {
 			const run = ++this.next;
 			this.active = { run, callbacks, resolve, reject };
-			this.worker.postMessage({ kind: "run", run, input } satisfies VmCommand);
+			this.endpoint.postMessage({ kind: "run", run, input });
 		});
 	}
 
@@ -95,12 +75,12 @@ export class VmKernel {
 			return Promise.reject(this.failure ?? new Error("VM Code is stopping"));
 		return new Promise((resolve) => {
 			this.sampleWait = resolve;
-			this.worker.postMessage({ kind: "sample" } satisfies VmCommand);
+			this.endpoint.postMessage({ kind: "sample" });
 		});
 	}
 
 	async stop(): Promise<void> {
-		this.stopping ??= this.worker.terminate().then(() => undefined);
+		this.stopping ??= this.endpoint.stop();
 		await this.stopping;
 	}
 
@@ -181,14 +161,48 @@ export class VmKernel {
 			};
 		}
 		if (!this.stopping && this.active?.run === message.run)
-			this.worker.postMessage(reply);
+			this.endpoint.postMessage(reply);
 	}
 }
 
 const VM_RESULT_MAX = 32 * 1024 * 1024;
 
-function workerFailure(error: Error): Error {
-	return /out of memory|memory limit/i.test(error.message)
+function startNodeVmWorker(
+	heapMiB: number,
+	deliver: (message: VmMessage) => void,
+	fail: (error?: Error) => void,
+): VmEndpoint {
+	const entry = import.meta.url.endsWith(".ts")
+		? new URL("./worker.ts", import.meta.url)
+		: new URL("./worker.js", import.meta.url);
+	const worker = new Worker(entry, {
+		resourceLimits: {
+			maxOldGenerationSizeMb: heapMiB,
+			maxYoungGenerationSizeMb: Math.min(32, heapMiB),
+			stackSizeMb: 4,
+		},
+		execArgv: [
+			"--experimental-vm-modules",
+			"--disable-warning=ExperimentalWarning",
+		],
+		stdout: true,
+		stderr: true,
+	});
+	worker.stdout.resume();
+	worker.stderr.resume();
+	worker.on("message", deliver);
+	worker.once("error", (error) =>
+		fail(error instanceof Error ? error : new Error(String(error))),
+	);
+	worker.once("exit", () => fail());
+	return {
+		postMessage: (command) => worker.postMessage(command),
+		stop: () => worker.terminate().then(() => undefined),
+	};
+}
+
+function workerFailure(error?: Error): Error {
+	return error && /out of memory|memory limit/i.test(error.message)
 		? new Error(
 				"VM Code hit its memory limit and dropped conversation bindings. The next exec starts fresh",
 				{ cause: error },

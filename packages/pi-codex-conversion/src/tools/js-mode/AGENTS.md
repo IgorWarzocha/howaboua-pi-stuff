@@ -1,4 +1,0 @@
-- Reuse compiled WASM and idle worker threads, never user VMs. Dispose the entire VM before marking a worker reusable. Never read or delete legacy notebook storage.
-- Keep tools routed through CodeModeDelegateRuntime. Tag requests and replies with run IDs; late replies must never reach a replacement VM.
-- Use public Pi/QuickJS exports only. Pi's private VM/prelude is a reference, not an import path. Node worker termination is required for infinite microtask chains; do not enable Bun without proving that boundary.
-- JSON store/load belongs to the conversation/tree, not a project heap. Per-cell snapshots and write-through updates are not transactions; failure does not roll back earlier writes or tool effects.

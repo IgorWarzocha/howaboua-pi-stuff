@@ -82,111 +82,14 @@ export const notebookRenderers = auxiliaryToolRenderers(
 			if (typeof value === "number")
 				facts.push(`${value} ${value === 1 ? singular : plural}`);
 		};
-		switch (action) {
-			case "status": {
-				if (Array.isArray(details["matches"]))
-					count(
-						details["matches"].length +
-							(typeof details["omittedMatches"] === "number"
-								? details["omittedMatches"]
-								: 0),
-						"match",
-						"matches",
-					);
-				count(details["retainedBindings"], "retained binding");
-				count(details["pinnedBindings"], "pinned", "pinned");
-				const memory = displayRecord(details["memory"]);
-				const heap = memory["heapUsedBytes"];
-				const limit = memory["heapLimitBytes"];
-				if (typeof heap === "number")
-					facts.push(`${Math.round(heap / 1024 ** 2)} MiB heap`);
-				if (
-					typeof heap === "number" &&
-					typeof limit === "number" &&
-					limit > 0 &&
-					heap / limit >= 0.8
-				)
-					warnings.push(
-						`Heap at ${Math.round((heap / limit) * 100)}% of limit`,
-					);
-				if (details["state"] === "running")
-					warnings.push(
-						`Cell running${inlineToolText(details["activeCell"]) ? `: ${inlineToolText(details["activeCell"])}` : ""}`,
-					);
-				if (displayRecord(details["checkpoint"])["dirty"] === true)
-					warnings.push("Checkpoint pending");
-				break;
-			}
-			case "list":
-				if (Array.isArray(details["profiles"]))
-					count(details["profiles"].length, "saved profile");
-				break;
-			case "checkpoint":
-				count(details["projectBindings"], "durable binding");
-				break;
-			case "pin":
-			case "unpin":
-				count(details["bindingCount"], "binding");
-				break;
-			case "release":
-			case "prune":
-				count(
-					details["releasedCount"],
-					"binding released",
-					"bindings released",
-				);
-				count(
-					details["protectedCount"],
-					"pinned binding preserved",
-					"pinned bindings preserved",
-				);
-				if (details["restarted"] === true)
-					warnings.push("Kernel restarted · runtime-only handles cleared");
-				if (
-					typeof details["failureCount"] === "number" &&
-					details["failureCount"] > 0
-				)
-					warnings.push(`${details["failureCount"]} cleanup/release failures`);
-				break;
-			case "save":
-			case "load": {
-				const profile =
-					action === "load" ? displayRecord(details["summary"]) : details;
-				count(profile["values"], "value");
-				count(profile["definitions"], "definition");
-				if (typeof profile["skipped"] === "number" && profile["skipped"] > 0)
-					warnings.push(`${profile["skipped"]} skipped`);
-				break;
-			}
-			case "reset":
-				count(
-					details["preservedProjectBindings"],
-					"project binding preserved",
-					"project bindings preserved",
-				);
-				warnings.push("Session checkpoint discarded · profiles preserved");
-				break;
-			case "diagnostics":
-				count(details["diagnosticCount"], "historical diagnostic");
-				if (displayRecord(details["runtime"])["state"] === "invalidated")
-					warnings.push("Runtime invalidated");
-				if (typeof details["error"] === "string")
-					warnings.push(details["error"]);
-				break;
+		if (action === "status") {
+			count(details["retainedBindings"], "retained binding");
+			count(details["pinnedBindings"], "pinned", "pinned");
 		}
-		if (typeof details["terminatedCell"] === "string")
-			warnings.push(
-				`Terminated cell ${inlineToolText(details["terminatedCell"])}`,
-			);
-		if (
-			Array.isArray(details["disposalFailures"]) &&
-			details["disposalFailures"].length > 0
-		)
-			warnings.push(
-				`${details["disposalFailures"].length} resource cleanup failures`,
-			);
-		if (typeof details["restoreNotice"] === "string")
-			warnings.push(details["restoreNotice"]);
+		if (action === "list" && Array.isArray(details["profiles"]))
+			count(details["profiles"].length, "saved profile");
+		if (action === "reset")
+			warnings.push("Session checkpoint discarded · profiles preserved");
 		return {
 			...titles,
 			target,

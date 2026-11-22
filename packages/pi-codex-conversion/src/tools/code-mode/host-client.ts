@@ -17,10 +17,7 @@ import {
 	toWireToolDefinition,
 } from "./host-protocol.js";
 import { CodeModeHostSession } from "./host-session.js";
-import {
-	directToolYieldTime,
-	scopeAllToolsToDiscoverable,
-} from "./tool-source.js";
+import { directToolYieldTime, scopeAllToolsToListed } from "./tool-source.js";
 import type { CodeModeNestedRenderStore } from "./trace-render-state.js";
 import type {
 	CodeModeToolDefinition,
@@ -92,7 +89,7 @@ export class CodeModeHostClient {
 				request: {
 					tool_call_id: `exec-${id}`,
 					enabled_tools: tools.map(toWireToolDefinition),
-					source: scopeAllToolsToDiscoverable(
+					source: scopeAllToolsToListed(
 						withContentOutput(
 							withMissingMcpToolRecovery(withCommandOutput(code, tools), tools),
 						),

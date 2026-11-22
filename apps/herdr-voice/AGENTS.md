@@ -1,10 +1,7 @@
-- Reuse the owning Grok audio bundle unchanged. Do not copy DSP or put provider credentials in the companion or Pi bridge.
-- Native input is a framed stream. Keep its reads in the owned reader task: cancelling partial reads in `select!` loses framing. UI lifetime must not own audio lifetime.
-- Pane startup uses the session-addressed bridge mailbox and verified receipts. Never inject slash commands or keystrokes into an existing terminal's editor.
-- An unknown slash command becomes model input. Check the loaded command before dispatch and preserve `expandPromptTemplates: true`.
-- Only provision the marked bridge file. Preserve unrelated user extensions and kept Pi terminals after connection failure.
-- Manual and Quickstart bridge installs share that managed path. A separately registered copy duplicates handlers.
-- Test audio framing with disposable peers. Opening microphone capture or a real provider call needs separate approval.
-- A passing `herdr-app check` does not prove geometry. Inspect isolated dock and overlay renders; full-size roots need bounded parents.
-- Settings use a dismissible dialog. Floating windows let Escape reach the terminal underneath.
-- Native virtual-list rows cannot register handlers. Register keyed `on_item_click` on the list; keep keyboard focus on its container.
+- Reuse Grok audio bundle unchanged. No DSP copies or credentials in companion/Pi bridge.
+- Owned reader task handles native framing. Cancelling partial reads in `select!` loses framing. Audio lifetime independent of UI.
+- Pane launch via session-addressed bridge mailbox and verified receipts. No editor keystrokes. Unknown slash commands become model input: verify loaded command, retain `expandPromptTemplates: true`.
+- Provision marked bridge only. Manual and Quickstart share one registration. Preserve unrelated extensions and kept Pi terminals on failure.
+- Disposable framing peers. Live mic or provider call: separate approval.
+- Beyond `herdr-app check`, inspect isolated dock/overlay renders. Bound full-size roots. Dismissible settings. Escape reaches terminal beneath floating windows.
+- Native virtual list owns keyed `on_item_click` and container focus, never rows.

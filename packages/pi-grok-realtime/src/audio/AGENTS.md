@@ -1,5 +1,4 @@
-- Keep the helper credential-free and stdout binary-protocol-only. No provider/session transport belongs here.
-- Feed echo processing from actual local speaker writes, not received network PCM. Preserve fixed-size DSP framing and mute epochs across IPC.
-- `--check` is device-free; starting the helper without it opens live capture/playout and requires explicit authorization for testing.
-- Device discovery and capture/playback must use the same CPAL backend and IDs. Keep Sonora processing on every platform; never substitute raw capture as a fallback.
-- DSP frame size is not a transport or queue ceiling. Keep audio queues dynamically allocated, constrain only PCM integrity and platform/wire representation, and wait for drain acknowledgements rather than elapsed-time guesses.
+- Credential-free helper, binary-only protocol stdout. No provider/session transport.
+- Echo reference from actual speaker writes, not network PCM. Fixed DSP framing, IPC mute epochs. Dynamic queues, no frame-size transport cap. Validate PCM/platform/wire integrity. Drain acknowledgements, no timers.
+- `--check` device-free. Otherwise opens capture/playout: explicit test approval.
+- Same CPAL backend/IDs for discovery and audio. Sonora everywhere, no raw fallback. Upgrade rule: `../../../pi-codex-conversion/AGENTS.md`.

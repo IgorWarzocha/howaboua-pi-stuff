@@ -1,5 +1,4 @@
 import {
-	getAgentDir,
 	type ExtensionAPI,
 	type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
@@ -13,16 +12,7 @@ import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.
 import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { initializeBashParser } from "../shell/bash.ts";
-import {
-	appendNotebookTreeEpoch,
-	notebookSessionIdentity,
-} from "../tools/notebook-mode/session-identity.ts";
-import {
-	activateNotebookCheckpoint,
-	type NotebookCheckpointActivity,
-} from "../tools/notebook-mode/checkpoint-activity.ts";
-import { resolveNotebookProject } from "../tools/notebook-mode/project-identity.ts";
-import { scheduleNotebookStorageMaintenance } from "../tools/notebook-mode/storage-retention.ts";
+import { appendNotebookTreeEpoch } from "../tools/code-mode/session-identity.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
@@ -47,18 +37,6 @@ export function createCodexSessionLifecycle(
 ) {
 	const { state, tracker, sessions } = runtime;
 	let activeContext: ExtensionContext | undefined;
-	let checkpointActivity: NotebookCheckpointActivity | undefined;
-	let checkpointSession: string | undefined;
-	const trackCheckpoint = async (ctx: ExtensionContext): Promise<void> => {
-		checkpointActivity?.release();
-		checkpointSession = notebookSessionIdentity(ctx);
-		checkpointActivity = await activateNotebookCheckpoint({
-			project: resolveNotebookProject(ctx.cwd),
-			session: checkpointSession,
-			agentDir: getAgentDir(),
-		});
-		scheduleNotebookStorageMaintenance(getAgentDir());
-	};
 	let pendingExtensionToolRefresh = false;
 	const unregisterContextBriefingHost = registerCodexContextBriefingHost(pi);
 	const unregisterDeveloperMessageBroker = registerCodexDeveloperMessageBroker(
@@ -81,8 +59,6 @@ export function createCodexSessionLifecycle(
 		},
 	);
 	const activate = (ctx: ExtensionContext): void => {
-		if (checkpointSession === notebookSessionIdentity(ctx))
-			checkpointActivity?.touch();
 		activeContext = ctx;
 		pendingExtensionToolRefresh = false;
 	};
@@ -95,7 +71,6 @@ export function createCodexSessionLifecycle(
 
 	return {
 		start: async (event, ctx) => {
-			await trackCheckpoint(ctx);
 			activate(ctx);
 			state.notebookStatusMessageId = undefined;
 			ui.invalidateUsageStatus();
@@ -110,17 +85,11 @@ export function createCodexSessionLifecycle(
 			state.config = readEffectiveCodexConversionConfig({
 				cwd: ctx.cwd,
 				projectTrusted: ctx.isProjectTrusted(),
+				upgradeSettings: true,
 			});
 			state.executionMode = state.config.executionMode;
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 			state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
-			if (state.config.voiceFeaturesOnly) {
-				clearApplyPatchRenderState();
-				ui.clearBackgroundWidget();
-				syncAdapter(pi, ctx, state);
-				await runtime.configureDiagnostics(ctx);
-				return;
-			}
 			sessions.setBaseEnv(runtime.execEnv());
 			tracker.clear();
 			clearApplyPatchRenderState();
@@ -140,12 +109,6 @@ export function createCodexSessionLifecycle(
 			state.cwd = ctx.cwd;
 			state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
-			if (state.config.voiceFeaturesOnly) {
-				ui.clearBackgroundWidget();
-				syncAdapter(pi, ctx, state);
-				await runtime.configureDiagnostics(ctx);
-				return;
-			}
 			syncAdapter(pi, ctx, state);
 			// Keep existing window state, but leave initial creation to the first prepared turn.
 			await runtime.configureDiagnostics(ctx);
@@ -156,22 +119,13 @@ export function createCodexSessionLifecycle(
 			activate(ctx);
 			if (event.oldLeafId !== event.newLeafId)
 				runtime.voice.resetVoiceBranch(ctx);
-			const previousMode = state.executionMode;
 			runtime.resetTransport(ctx.sessionManager.getSessionId());
 			// Internal rollover preserves the admission that requested it.
 			state.notebookStatusMessageId = undefined;
 			const stateful =
-				previousMode === "notebook" ||
-				previousMode === "ts" ||
-				previousMode === "js" ||
-				previousMode === "vm" ||
-				state.executionMode === "notebook" ||
-				state.executionMode === "ts" ||
-				state.executionMode === "js" ||
-				state.executionMode === "vm";
+				state.executionMode === "ts" || state.executionMode === "vm";
 			if (stateful) appendNotebookTreeEpoch(pi);
 			await codeMode.shutdownHost();
-			await trackCheckpoint(ctx);
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 			// Pi restored the branch's tool loadout, not its execution-mode setting.
 			// Reapply the current mode while retaining non-adapter tool selections.
@@ -180,7 +134,7 @@ export function createCodexSessionLifecycle(
 			prepareCodeModeHost(codeMode, ctx);
 			if (stateful) {
 				ctx.ui.notify(
-					`${state.executionMode === "vm" ? "VM Code bindings" : state.executionMode === "js" ? "QuickJS Code store" : state.executionMode === "ts" ? "TS state" : "Notebook state"} reset after conversation-tree navigation`,
+					`${state.executionMode === "vm" ? "VM Code bindings" : "TS Notebook state"} reset after conversation-tree navigation`,
 					"info",
 				);
 			}
@@ -206,7 +160,6 @@ export function createCodexSessionLifecycle(
 			await runShutdownStep(failures, () => tools.shutdown());
 			await runShutdownStep(failures, () => proxyProvider.shutdown());
 			await runShutdownStep(failures, () => codeMode.shutdown());
-			await runShutdownStep(failures, () => checkpointActivity?.release());
 			state.developerMessages.clear();
 			if (failures.length === 1) throw failures[0];
 			if (failures.length > 1)

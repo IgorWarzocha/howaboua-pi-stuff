@@ -8,10 +8,11 @@ import { bool, num, obj, opt, str } from "@earendil-works/pi-schema";
 import { getPiConfiguredShellPath } from "../../adapter/prompt/runtime-shell.ts";
 import {
 	renderExecCommandCall,
+	renderExecOutcome,
 	renderGroupedExecCommandCall,
 } from "../../ui/tool-rendering/codex-rendering.ts";
 import { getExperimentalToolSampling } from "../tool-sampling.ts";
-import type { ExecCommandTracker } from "./command-state.ts";
+import { getExecOutcome, type ExecCommandTracker } from "./command-state.ts";
 import { formatUnifiedExecResult } from "./format.ts";
 import { renderTerminalOutput } from "./output.ts";
 import type {
@@ -120,9 +121,7 @@ const COLLAPSED_OUTPUT_MAX_VISUAL_LINES = 5;
 const COLLAPSED_OUTPUT_MAX_RAW_CHARS = 16_000;
 const COLLAPSED_OUTPUT_MAX_RAW_LINES = 160;
 type CollapsedExecOutput = Pick<UnifiedExecResult, "output"> &
-	Partial<
-		Pick<UnifiedExecResult, "exit_code" | "session_id" | "wall_time_seconds">
-	>;
+	Partial<Pick<UnifiedExecResult, "session_id" | "wall_time_seconds">>;
 
 function collapsedOutput(
 	result: CollapsedExecOutput,
@@ -146,8 +145,6 @@ function collapsedOutput(
 		parts.push(
 			theme.fg("accent", `Session ${result.session_id} still running`),
 		);
-	if (result.exit_code !== undefined && result.exit_code !== 0)
-		parts.push(theme.fg("muted", `Exit code: ${result.exit_code}`));
 	if (typeof result.wall_time_seconds === "number" && parts.some(Boolean))
 		parts.push(
 			theme.fg("muted", `Took ${result.wall_time_seconds.toFixed(1)}s`),
@@ -220,15 +217,20 @@ function renderCall(
 	const info = tracker.getRenderInfo(context?.toolCallId, command);
 	if (info.hidden) return new Text("", 0, 0);
 	const expanded = context?.expanded === true;
-	const text = info.actionGroups
+	const text = info.exploration
 		? renderGroupedExecCommandCall(
-				info.actionGroups,
+				info.exploration,
 				info.status,
 				theme,
 				expanded,
-				info.commands ?? [command],
 			)
-		: renderExecCommandCall(command, info.status, theme, expanded);
+		: renderExecCommandCall(
+				command,
+				info.status,
+				theme,
+				expanded,
+				info.outcome,
+			);
 	return new Text(text, 0, 0);
 }
 
@@ -245,19 +247,27 @@ function renderResult(
 ) {
 	const command =
 		typeof context?.args?.cmd === "string" ? context.args.cmd : "";
-	if (tracker.getRenderInfo(context?.toolCallId, command).hidden)
-		return new Container();
+	const info = tracker.getRenderInfo(context?.toolCallId, command);
+	if (info.hidden) return new Container();
 	const details = isUnifiedExecResult(result.details)
 		? result.details
 		: undefined;
 	const textContent = result.content.find((item) => item.type === "text");
 	const plainText = textContent?.text ?? "";
 	if (!renderOptions.expanded) {
+		const container = new Container();
+		// Restored rows have result details but no live tracker entry.
+		const outcome =
+			!info.outcome && !renderOptions.isPartial && details
+				? getExecOutcome(command, details)
+				: undefined;
+		if (outcome)
+			container.addChild(new Text(renderExecOutcome(outcome, theme), 4, 0));
 		const collapsed =
 			details ?? (plainText ? { output: plainText } : undefined);
-		return options.showOutputWhenCollapsed && collapsed
-			? renderCollapsedOutput(collapsed, theme, context)
-			: new Container();
+		if (options.showOutputWhenCollapsed && collapsed)
+			container.addChild(renderCollapsedOutput(collapsed, theme, context));
+		return container;
 	}
 	let text = theme.fg(
 		"dim",
@@ -279,7 +289,7 @@ export function createExecCommandTool(
 	const tool: Parameters<ExtensionAPI["registerTool"]>[0] = {
 		name: "exec_command",
 		label: "exec_command",
-		description: "Run shell commands; may return session_id",
+		description: "Run shell commands",
 		...(options.promptSnippet === false
 			? {}
 			: { promptSnippet: "Run command" }),
@@ -313,6 +323,7 @@ export function createExecCommandTool(
 			);
 			if (result.session_id !== undefined)
 				tracker.recordPersistentSession(toolCallId, result.session_id);
+			else tracker.recordOutcome(toolCallId, getExecOutcome(input.cmd, result));
 			return toToolResult(result);
 		},
 		...(options.customRendering === false

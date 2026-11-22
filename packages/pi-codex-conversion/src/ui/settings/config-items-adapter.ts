@@ -17,28 +17,11 @@ export function buildAdapterSettings(
 	return [
 		setting(
 			{
-				id: "extensionMode",
-				description:
-					"Voice only disables the prompt and tool adapter. Standalone tools remain controlled by Provider scope.",
-				label: "Extension mode",
-				currentValue: config.voiceFeaturesOnly
-					? "voice only"
-					: "adapter and voice",
-				values: ["adapter and voice", "voice only"],
-			},
-			(value, current) => ({
-				...current,
-				voiceFeaturesOnly: value === "voice only",
-			}),
-		),
-		setting(
-			{
 				id: "allProviders",
-				description:
-					"Choose which models use the adapter. Extra tools only exposes standalone tools without replacing the prompt.",
+				description: "Choose which models use the Codex adapter.",
 				label: "Provider scope",
 				currentValue: formatAllProvidersMode(config.scope.allProviders),
-				values: ["Codex and configured", "all providers", "extra tools only"],
+				values: ["Codex and configured", "all providers"],
 			},
 			(value, current) => ({
 				...current,
@@ -77,22 +60,16 @@ export function buildAdapterSettings(
 			{
 				id: "heavySystemPromptOverwrite",
 				description:
-					"On removes Pi's generic scaffold. GPT also compresses PCC's instructions; savings vary with execution mode and context. Other extensions' instructions are preserved.",
+					"Replace Pi’s default instructions with compact guidance. Keeps instructions from other extensions.",
 				label: "Heavy system prompt overwrite",
-				currentValue:
-					config.prompt.heavySystemPromptOverwrite === "gpt"
-						? "GPT (experimental)"
-						: config.prompt.heavySystemPromptOverwrite
-							? "on (40% smaller)"
-							: "off",
-				values: ["off", "on (40% smaller)", "GPT (experimental)"],
+				currentValue: config.prompt.heavySystemPromptOverwrite ? "on" : "off",
+				values: ["off", "on"],
 			},
 			(value, current) => ({
 				...current,
 				prompt: {
 					...current.prompt,
-					heavySystemPromptOverwrite:
-						value === "GPT (experimental)" ? "gpt" : value !== "off",
+					heavySystemPromptOverwrite: value === "on",
 				},
 			}),
 		),
@@ -137,7 +114,6 @@ function formatAllProvidersMode(
 	value: CodexConversionConfig["scope"]["allProviders"],
 ): string {
 	if (value === "on") return "all providers";
-	if (value === "extras") return "extra tools only";
 	return "Codex and configured";
 }
 
@@ -145,7 +121,6 @@ function parseAllProvidersMode(
 	value: string,
 ): CodexConversionConfig["scope"]["allProviders"] {
 	if (value === "all providers") return "on";
-	if (value === "extra tools only") return "extras";
 	return "off";
 }
 

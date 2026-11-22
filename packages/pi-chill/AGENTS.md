@@ -1,9 +1,5 @@
-Customise folding, exceptions, wording and style for the user's conversation, tools and terminal. These are defaults, not fixed policy.
-
-- Keep source-only, private and outside releases/aggregates unless publication is requested.
-- Choose folding policy first. index.ts owns visibility, pass-through and renderer registration. src/AGENTS.md covers summary/detail/timeline changes. new_context and notes-saved visibility are current preferences, not universal rules.
-- If pass-through changes, align renderer selection, live handlers and restored membership. Otherwise hidden duplicates or empty disclosures survive.
-- Pi message/entry renderers are first-registered. Folding another extension's notices changes ownership/load order. Do not assume a tool-renderer next() chain.
-- Use public rendering hooks. Keep noninteractive output native and /chill reversible for existing history and future events.
-- Presentation only: never patch Conversion internals, mutate model messages/history or add prompts for layout.
-- Probe changed seams with native components at narrow/wide widths. For visibility/lifecycle, include live/restored sessions, expanded details and /chill off. Cosmetic edits need no broad integration tour.
+- Source-only, private, outside releases/aggregates unless requested. Folding, exceptions, copy and style are user defaults. `new_context` and notes-saved visibility configurable.
+- Folding policy first. `index.ts` owns visibility, pass-through, renderer registration. `src/AGENTS.md` for summary/detail/timeline. Align renderer selection, live handlers, restored membership.
+- Pi message/entry renderers first-registered. Folding another extension changes ownership/load order. No assumed tool-renderer `next()`.
+- Public hooks only. Native noninteractive output. `/chill` reversible for history and future events. No Conversion patches, model-history edits or layout prompts.
+- Probe changed seams using native narrow/wide renders. Visibility/lifecycle: live/restore, expanded, `/chill` off. Cosmetic probes stay focused.

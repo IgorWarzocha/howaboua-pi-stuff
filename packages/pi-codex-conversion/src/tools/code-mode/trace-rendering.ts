@@ -5,6 +5,7 @@ import {
 	Text,
 } from "@earendil-works/pi-tui";
 import { previewText, renderTextAndImages } from "./render-content.js";
+import { renderTerminalOutput } from "../exec/output.ts";
 import {
 	matchEmittedImages,
 	restoreEmittedTraceImages,
@@ -134,6 +135,8 @@ function renderTrace(
 		call = renderGenericTraceCall(trace, theme, options.expanded);
 	}
 	const components = [call];
+	const fullResult =
+		options.expanded && !options.isPartial && trace.status === "done";
 	let customResultRendered = false;
 	if (rendererResult && programmatic?.renderResult) {
 		try {
@@ -155,6 +158,14 @@ function renderTrace(
 			renderState.resultComponent = resultComponent;
 			components.push(resultComponent);
 			customResultRendered = true;
+			// Shell renderers show the complete output and exit status in a Text;
+			// a hidden exec_command result instead returns an empty Container.
+			if (
+				fullResult &&
+				programmatic.textOutput &&
+				resultComponent instanceof Text
+			)
+				recordVisibleShellOutput(trace, rendererResult, visibleTraceText, true);
 		} catch {
 			renderState.resultComponent = undefined;
 			// An extension renderer must not break the whole transcript.
@@ -167,20 +178,9 @@ function renderTrace(
 		const text = traceResultText(rendererResult);
 		// Custom renderers can omit or transform text; only the full generic
 		// renderer proves which bytes are visible.
-		if (
-			options.expanded &&
-			!options.isPartial &&
-			trace.status === "done" &&
-			text
-		) {
+		if (fullResult && text) {
 			visibleTraceText.add(text);
-			if (trace.name === "exec_command" || trace.name === "write_stdin") {
-				const plainSuccess = "Exit code: 0\nOutput:\n";
-				if (text.startsWith(plainSuccess))
-					visibleTraceText.add(
-						'{"exit_code":0}\nOutput:\n' + text.slice(plainSuccess.length),
-					);
-			}
+			recordVisibleShellOutput(trace, rendererResult, visibleTraceText);
 		}
 		components.push(
 			renderGenericTraceResult(
@@ -203,6 +203,34 @@ function renderTrace(
 			);
 	}
 	return components;
+}
+
+function recordVisibleShellOutput(
+	trace: RuntimeToolTrace,
+	result: RuntimeToolResult,
+	visible: Set<string>,
+	custom = false,
+): void {
+	if (trace.name !== "exec_command" && trace.name !== "write_stdin") return;
+	const text = traceResultText(result);
+	const marker = "Exit code: 0\nOutput:\n";
+	if (!text.startsWith(marker)) return;
+	const output = text.slice(marker.length);
+	if (custom) {
+		const details = result.details;
+		if (
+			!details ||
+			typeof details !== "object" ||
+			!("output" in details) ||
+			details.output !== output ||
+			!("exit_code" in details) ||
+			details.exit_code !== 0 ||
+			renderTerminalOutput(output) !== output
+		)
+			return;
+	}
+	visible.add('{"exit_code":0}\nOutput:\n' + output);
+	visible.add(JSON.stringify({ output, exit_code: 0 }));
 }
 
 function withoutEmittedImages(

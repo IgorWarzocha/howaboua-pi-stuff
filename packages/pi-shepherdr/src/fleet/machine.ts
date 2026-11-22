@@ -16,6 +16,7 @@ export interface MachineRuntime {
 	coreMachine?: CoreMachine;
 	contextRelayError?: string;
 	local: boolean;
+	localName?: string;
 	monitor?: AgentMonitor;
 	monitoringIssue?: MonitoringIssue;
 	pending: unknown[];
@@ -47,25 +48,48 @@ export function errorMessage(error: unknown): string {
 	return message.length <= 500 ? message : `${message.slice(0, 499)}…`;
 }
 
-/** Local alias and stable IDs win over mutable catalog names; never infer hosts. */
+function machineName(runtime: MachineRuntime): string | undefined {
+	return runtime.local ? runtime.localName : runtime.coreMachine?.name;
+}
+
+function machineId(
+	runtimes: ReadonlyMap<string, MachineRuntime>,
+	selector: string,
+): string | undefined {
+	if (runtimes.has(selector)) return selector;
+	if (runtimes.get(LOCAL_MACHINE)?.coreId === selector) return LOCAL_MACHINE;
+}
+
+export function machineLabel(
+	runtimes: ReadonlyMap<string, MachineRuntime>,
+	id: string,
+	runtime: MachineRuntime,
+): string | undefined {
+	const label = machineName(runtime);
+	const claimed = label && machineId(runtimes, label);
+	// Do not advertise a label that routes to another machine by ID.
+	if (claimed && claimed !== id) return undefined;
+	return label;
+}
+
+/** Local alias and stable IDs win over Core names; never infer aliases. */
 export function resolveMachine(
 	runtimes: ReadonlyMap<string, MachineRuntime>,
 	selector: string,
 ): string {
 	const target = selector.trim();
-	if (runtimes.has(target)) return target;
-	const byId = [...runtimes].find(([, runtime]) => runtime.coreId === target);
-	if (byId) return byId[0];
+	const byId = machineId(runtimes, target);
+	if (byId) return byId;
 	const matches = [...runtimes].filter(
-		([, runtime]) => runtime.coreMachine?.name === target,
+		([, runtime]) => machineName(runtime) === target,
 	);
 	const match = matches[0];
 	if (matches.length === 1 && match) return match[0];
 	if (matches.length > 1)
 		throw new Error(
-			`Ambiguous Core machine ${JSON.stringify(target)}; use a stable machine ID: ${matches.map(([id]) => id).join(", ")}`,
+			`Ambiguous Core machine ${JSON.stringify(target)}; use a machine ID: ${matches.map(([id]) => id).join(", ")}`,
 		);
 	throw new Error(
-		`Unknown Core machine ${JSON.stringify(target)}; use list to see current machines or ${LOCAL_MACHINE}`,
+		`Unknown Core machine ${JSON.stringify(target)}; use list for machine labels and IDs`,
 	);
 }

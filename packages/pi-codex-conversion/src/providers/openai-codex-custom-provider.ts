@@ -9,7 +9,6 @@ import {
 import {
 	extractAccountId,
 	buildWebSocketHeaders,
-	PI_CODEX_CONVERSION_ORIGINATOR,
 	resolveCodexWebSocketUrl,
 } from "./openai-codex/headers.ts";
 import { noThrowCodexDiagnosticsSink } from "./openai-codex/diagnostic-failure.ts";
@@ -40,10 +39,8 @@ import {
 	closeOpenAICodexWebSocketSessions,
 	recordWebSocketSseFallback,
 } from "./openai-codex/websocket.ts";
-import {
-	isWebSocketMessageTooBigError,
-	isWebSocketUpgradeRequiredError,
-} from "./openai-codex/websocket-connection.ts";
+import { isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
+import { WebSocketMessageTooBigError } from "./openai-codex/websocket-size.ts";
 import {
 	codexCacheKeepaliveSocketSessionId,
 	prewarmWebSocket,
@@ -118,7 +115,6 @@ export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
 	options: OpenAICodexStreamOptions,
 	responsesLite: boolean,
 	deps: {
-		getConfig?: () => CodexProviderRuntimeConfig | undefined;
 		turnState?: CodexTurnState | undefined;
 		getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
 		preserveContinuation?: boolean | undefined;
@@ -129,7 +125,6 @@ export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
 			| undefined;
 	},
 ): Promise<CodexPrewarmResult | undefined> {
-	const runtimeConfig = deps.getConfig?.();
 	const transport = getEffectiveCodexTransport(
 		options.transport,
 		options.sessionId,
@@ -146,12 +141,7 @@ export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
 		);
 	await deps.validateRequest?.(body, responsesLite);
 	const accountId = extractAccountId(options.apiKey);
-	const originator =
-		runtimeConfig?.openai.harnessIdentifierHeader === "codex"
-			? "codex_cli_rs"
-			: runtimeConfig?.openai.harnessIdentifierHeader
-				? PI_CODEX_CONVERSION_ORIGINATOR
-				: "pi";
+
 	const requestHeaders = hasRemoteCompactionV2Input(body.input)
 		? withRemoteCompactionV2Feature(options.headers)
 		: options.headers;
@@ -161,7 +151,6 @@ export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
 		accountId,
 		options.apiKey,
 		options.sessionId,
-		originator,
 		body,
 	);
 	const turnState = deps.preserveContinuation ? undefined : deps.turnState;
@@ -196,7 +185,7 @@ export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
 			!options.signal?.aborted &&
 			!(error instanceof CodexProtocolError) &&
 			(isWebSocketUpgradeRequiredError(error) ||
-				isWebSocketMessageTooBigError(error))
+				error instanceof WebSocketMessageTooBigError)
 		) {
 			recordWebSocketSseFallback(options.sessionId);
 			diagnostics?.({

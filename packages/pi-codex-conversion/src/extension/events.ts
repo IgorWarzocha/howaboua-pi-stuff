@@ -75,11 +75,7 @@ export function registerCodexEvents(
 		proxyProvider,
 		reserve.modelSelected,
 	);
-	const shells = registerCodexShellLifecycle(
-		pi,
-		sessions,
-		() => !state.config.voiceFeaturesOnly,
-	);
+	const shells = registerCodexShellLifecycle(pi, sessions);
 	const turn = createCodexTurnLifecycle(
 		pi,
 		runtime,

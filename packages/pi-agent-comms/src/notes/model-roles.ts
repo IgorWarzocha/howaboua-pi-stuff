@@ -67,9 +67,7 @@ export function createModelRoles(
 		const content = config.roles.length
 			? [
 					heading,
-					lifecycle.gptPromptMode()
-						? 'Roles set focus, not permissions. No approval needed to switch or continue in-scope work. Substantial next phase clearly fits another configured role better→SHOULD switch before starting. Small remainder, brief detour or no better fit→MAY stay. MUST save decisions, evidence paths and next step immediately before new_context({role:"name"}). Omit role→keep role.'
-						: 'Roles set your focus, not your permissions. You do not need approval to switch roles or continue work within your task. Before a substantial next phase, compare the configured role descriptions. You SHOULD switch if another role clearly fits the remaining work better. You MAY stay for a small remainder, a brief detour or when no role fits better. To switch, you MUST save the decision, evidence paths and next step immediately before calling new_context({role: "name"}). Omit role to keep it.',
+					'Roles set focus, not permissions. No approval needed to switch or continue in-scope work. Substantial next phase clearly fits another configured role better→SHOULD switch before starting. Small remainder, brief detour or no better fit→MAY stay. MUST save decisions, evidence paths and next step immediately before new_context({role:"name"}). Omit role→keep role.',
 					...config.roles.map((role) => `- ${role.id}: ${role.description}`),
 				].join("\n")
 			: `${heading}\nNo roles available. Call new_context without role.`;

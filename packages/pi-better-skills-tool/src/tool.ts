@@ -1,11 +1,6 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { compile, obj, opt, type Static, str } from "@earendil-works/pi-schema";
-import {
-	defaultSessionSkillsDir,
-	defaultSkillsDir,
-	type LoadedSkill,
-	runSkills,
-} from "./catalog.js";
+import { type LoadedSkill, runSkills } from "./catalog.js";
 
 const SkillsParameters = obj({
 	command: opt(str({ description: "help, list or read" })),
@@ -14,7 +9,6 @@ const checkParameters = compile(SkillsParameters).check;
 type SkillsParameters = Static<typeof SkillsParameters>;
 
 export interface SkillsToolOptions {
-	isGpt?(): boolean;
 	globalRoot?: string;
 	getLoadedSkills?(): readonly LoadedSkill[];
 }
@@ -41,7 +35,7 @@ export function createSkillsTool(options: SkillsToolOptions = {}) {
 		label: "Skills",
 		description: "Load skill instructions and references",
 		promptGuidelines: [
-			"skills: List once at session start; read always-applicable and task-relevant skills before work",
+			"skills: List once/session start; before work read always-applicable+task-relevant skills",
 		],
 		parameters: SkillsParameters,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -49,13 +43,11 @@ export function createSkillsTool(options: SkillsToolOptions = {}) {
 				throw new Error(
 					"Invalid arguments; call skills with no arguments for help",
 				);
-			const { output, skillReads } = runSkills(
-				params.command ?? "",
-				options.globalRoot ?? defaultSkillsDir(),
-				defaultSessionSkillsDir(ctx.cwd),
-				options.getLoadedSkills?.() ?? [],
-				options.isGpt?.() ?? false,
-			);
+			const { output, skillReads } = runSkills(params.command ?? "", {
+				...(options.globalRoot ? { globalRoot: options.globalRoot } : {}),
+				projectCwd: ctx.isProjectTrusted() ? ctx.cwd : undefined,
+				loadedSkills: options.getLoadedSkills?.() ?? [],
+			});
 			return {
 				content: [{ type: "text", text: output }],
 				details: { skillReads },

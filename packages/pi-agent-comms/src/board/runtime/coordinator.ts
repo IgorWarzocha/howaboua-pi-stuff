@@ -11,14 +11,13 @@ import {
 	writeBoardConfig,
 	writeBoardSummaryAutomatic,
 } from "../config.js";
-import { gptBoardHelp, parseBoardRequest } from "../contract.js";
+import { parseBoardRequest } from "../contract.js";
 import { preparePolicyMessage } from "../delivery.js";
 import {
 	binding,
 	rootBoardSetting,
 	saveBinding,
 	saveBoardSetting,
-	setBoardDefault,
 } from "../identity.js";
 import type { BoardAdapter } from "../integration.js";
 import { type BoardEnvelope } from "../protocol.js";
@@ -27,8 +26,6 @@ import { BoardOwner } from "./owner.js";
 import { BoardRouting } from "./routing.js";
 
 export class BoardRuntime {
-	gptPromptMode = false;
-	private preparePromptMode: ((ctx: ExtensionContext) => void) | undefined;
 	private readonly pi: ExtensionAPI;
 	private readonly routing: BoardRouting;
 	private readonly owner: BoardOwner;
@@ -61,13 +58,10 @@ export class BoardRuntime {
 		pi.on("session_start", (_event, ctx) => {
 			this.engine?.summarizer.cancelAll();
 			this.availabilityWarning = undefined;
-			setBoardDefault(ctx, true);
 			return this.refresh(ctx);
 		});
 		pi.on("session_shutdown", () => this.engine?.summarizer.cancelAll());
 		pi.on("before_agent_start", async (_event, ctx) => {
-			const prepared = this.preparePromptMode;
-			this.preparePromptMode?.(ctx);
 			// Reconcile resumed/offline children before tool/prompt preparation.
 			const own = binding(ctx);
 			if (own.upstream) {
@@ -92,7 +86,6 @@ export class BoardRuntime {
 				}
 			}
 			await this.refresh(ctx);
-			if (this.preparePromptMode !== prepared) this.preparePromptMode?.(ctx);
 			const catchup = await this.promptCatchup(ctx);
 			catchup.accepted();
 			if (catchup.content)
@@ -124,9 +117,6 @@ export class BoardRuntime {
 	}
 	setToolRefresh(refresh: () => void) {
 		this.refreshTools = refresh;
-	}
-	setPromptModePreparation(prepare: (ctx: ExtensionContext) => void) {
-		this.preparePromptMode = prepare;
 	}
 	async population(ctx: ExtensionContext) {
 		const own = binding(ctx);
@@ -252,9 +242,7 @@ export class BoardRuntime {
 				"warning",
 			);
 		}
-		return params.action === "help" && this.gptPromptMode
-			? gptBoardHelp(value)
-			: value;
+		return value;
 	}
 	async handle(ctx: ExtensionContext, value: unknown, signal?: AbortSignal) {
 		if (this.enabled(ctx)) await this.ensureEngine();

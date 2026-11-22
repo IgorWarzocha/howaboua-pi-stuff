@@ -11,10 +11,6 @@ import {
 	type CodexDeveloperMessageDetails,
 } from "../developer-messages.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
-import {
-	formatStartupStatus,
-	type NotebookStatusDetails,
-} from "../tools/notebook-mode/lifecycle-result.ts";
 import type { AdapterState } from "./activation/state.ts";
 
 export const CODEX_NOTEBOOK_STATUS_TYPE = "codex-notebook-status";
@@ -61,7 +57,6 @@ export async function recordNotebookStatus(
 	state: Pick<AdapterState, "notebookStatusMessageId">,
 	messages: readonly AgentMessage[],
 	codeMode: Pick<CodeModeRegistration, "notebookStatus">,
-	mode: "notebook" | "ts",
 ): Promise<boolean> {
 	if (
 		state.notebookStatusMessageId &&
@@ -79,16 +74,12 @@ export async function recordNotebookStatus(
 	let title: string;
 	try {
 		const status = await codeMode.notebookStatus(ctx);
-		// notebookStatus requests status with query "*" from NotebookLifecycleController.
-		const ts = status.details["mode"] === "ts";
-		const inventory = ts
-			? (status.details["startupStatus"] ?? status.message)
-			: formatStartupStatus(status.details as NotebookStatusDetails);
+		const inventory = status.details["startupStatus"] ?? status.message;
 		content = [status.details["startupNotice"], inventory]
 			.filter((value) => typeof value === "string" && value)
 			.join("\n");
 		title = [
-			ts ? "TS" : "Notebook",
+			"TS",
 			typeof status.details["retainedBindings"] === "number"
 				? `${status.details["retainedBindings"]} retained`
 				: undefined,
@@ -100,9 +91,8 @@ export async function recordNotebookStatus(
 			.join(" · ");
 	} catch (error) {
 		if (ctx.signal?.aborted) throw error;
-		const label = mode === "ts" ? "TS" : "Notebook";
-		title = `${label} status unavailable`;
-		content = `${label} startup status unavailable: ${error instanceof Error ? error.message : String(error)}\nUse notebook diagnostics to inspect the failure before relying on retained state`;
+		title = "TS status unavailable";
+		content = `TS startup status unavailable: ${error instanceof Error ? error.message : String(error)}\nUse notebook diagnostics to inspect the failure before relying on retained state`;
 	}
 	ctx.signal?.throwIfAborted();
 	const status: NotebookStatus = {

@@ -15,7 +15,6 @@ import {
 	buildWebSocketHeaders,
 	createCodexRequestId,
 	extractAccountId,
-	PI_CODEX_CONVERSION_ORIGINATOR,
 	resolveCodexWebSocketUrl,
 } from "../headers.ts";
 import { codexDiagnosticsFailure } from "../diagnostic-failure.ts";
@@ -40,10 +39,7 @@ import {
 	recordWebSocketSseFallback,
 	validateWebSocketTimeoutOptions,
 } from "../websocket.ts";
-import {
-	isWebSocketMessageTooBigError,
-	isWebSocketUpgradeRequiredError,
-} from "../websocket-connection.ts";
+import { isWebSocketUpgradeRequiredError } from "../websocket-connection.ts";
 import {
 	hasRemoteCompactionV2Input,
 	withRemoteCompactionV2Feature,
@@ -128,9 +124,7 @@ export class CodexTransportRequest<TApi extends Api> {
 		this.responsesLite =
 			deps.useResponsesLite?.(model) ??
 			((this.runtimeConfig?.executionMode === "code" ||
-				this.runtimeConfig?.executionMode === "notebook" ||
 				this.runtimeConfig?.executionMode === "ts" ||
-				this.runtimeConfig?.executionMode === "js" ||
 				this.runtimeConfig?.executionMode === "vm") &&
 				supportsResponsesLiteModel(model.id));
 		this.resolvedContext = resolveCodexTranscript(model, context);
@@ -186,12 +180,7 @@ export class CodexTransportRequest<TApi extends Api> {
 		);
 		const websocketRequestId =
 			effectiveOptions?.sessionId || createCodexRequestId();
-		const originator =
-			runtimeConfig?.openai.harnessIdentifierHeader === "codex"
-				? "codex_cli_rs"
-				: runtimeConfig?.openai.harnessIdentifierHeader
-					? PI_CODEX_CONVERSION_ORIGINATOR
-					: "pi";
+
 		// Pi has completed every before_agent_start/context hook. Only the
 		// handshake overlaps payload rewrites and image preparation, never warmup.
 		if (
@@ -212,7 +201,6 @@ export class CodexTransportRequest<TApi extends Api> {
 					accountId,
 					apiKey,
 					websocketRequestId,
-					originator,
 					{
 						model: model.id,
 						service_tier: effectiveOptions.serviceTier ?? undefined,
@@ -254,7 +242,6 @@ export class CodexTransportRequest<TApi extends Api> {
 				accountId,
 				apiKey,
 				websocketRequestId,
-				originator,
 				body,
 			);
 			const failure = await this.preconnect.handoff(
@@ -268,8 +255,7 @@ export class CodexTransportRequest<TApi extends Api> {
 			if (
 				failure &&
 				!(failure.error instanceof CodexProtocolError) &&
-				(isWebSocketUpgradeRequiredError(failure.error) ||
-					isWebSocketMessageTooBigError(failure.error))
+				isWebSocketUpgradeRequiredError(failure.error)
 			) {
 				recordWebSocketSseFallback(effectiveOptions.sessionId);
 				diagnostics?.({
@@ -277,9 +263,7 @@ export class CodexTransportRequest<TApi extends Api> {
 					lane: diagnosticsLane(body),
 					from: "websocket",
 					to: "sse",
-					reason: isWebSocketUpgradeRequiredError(failure.error)
-						? "upgrade_required"
-						: "message_too_big",
+					reason: "upgrade_required",
 				});
 			}
 		}
@@ -289,7 +273,6 @@ export class CodexTransportRequest<TApi extends Api> {
 				effectiveOptions,
 				runtimeConfig.openai.daybreak,
 				body.model,
-				originator,
 			);
 			delete body.access_programs;
 			if (accessPrograms) body.access_programs = accessPrograms;
@@ -321,7 +304,6 @@ export class CodexTransportRequest<TApi extends Api> {
 			apiKey,
 			effectiveOptions?.sessionId,
 			responsesLite,
-			originator,
 			body,
 		);
 		const websocketHeaders = buildWebSocketHeaders(
@@ -330,7 +312,6 @@ export class CodexTransportRequest<TApi extends Api> {
 			accountId,
 			apiKey,
 			websocketRequestId,
-			originator,
 			body,
 		);
 		const websocketBody = responsesLite

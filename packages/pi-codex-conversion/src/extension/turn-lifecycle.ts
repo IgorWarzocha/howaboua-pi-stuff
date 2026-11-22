@@ -17,6 +17,7 @@ import {
 	resolvePromptSkills,
 } from "../prompt/build-system-prompt.ts";
 import { projectCodeModeMcpSections } from "../prompt/mcp-server-section.ts";
+import { orderProjectContextLast } from "../prompt/project-context-order.ts";
 import {
 	CODE_MODE_TOOL_NAMES,
 	NOTEBOOK_MODE_TOOL_NAMES,
@@ -68,7 +69,7 @@ export function createCodexTurnLifecycle(
 	): Promise<boolean> => {
 		const kind = resolveCodexRuntimePlanForState(ctx, state).kind;
 		if (
-			(kind !== "notebook" && kind !== "ts") ||
+			kind !== "ts" ||
 			!["exec", "wait", "notebook"].every((name) =>
 				selectedTools.includes(name),
 			)
@@ -80,7 +81,6 @@ export function createCodexTurnLifecycle(
 			state,
 			messages ?? runtime.projectContextMessages(ctx),
 			codeMode,
-			kind,
 		);
 	};
 
@@ -96,11 +96,10 @@ export function createCodexTurnLifecycle(
 		beforeAgentStart: async (event, ctx) => {
 			session.activate(ctx);
 			state.codexTurnState.beginTurn();
-			if (!state.config.voiceFeaturesOnly) await reserve.beforeTurn(ctx);
+			await reserve.beforeTurn(ctx);
 			runtime.autoReasoning.begin(ctx);
 			const plan = syncAdapter(pi, ctx, state);
-			if (plan.kind !== "notebook" && plan.kind !== "ts")
-				state.notebookStatusMessageId = undefined;
+			if (plan.kind !== "ts") state.notebookStatusMessageId = undefined;
 			if (!isAdapterRuntime(plan)) {
 				state.preparedPrompt = undefined;
 				return undefined;
@@ -136,13 +135,12 @@ export function createCodexTurnLifecycle(
 			runtime.finishTurn();
 			flushCodexReasoningUpdates(pi, ctx);
 			runtime.autoReasoning.settle(ctx);
-			const quotaExhausted =
-				!state.config.voiceFeaturesOnly && (await reserve.settled(ctx));
+			const quotaExhausted = await reserve.settled(ctx);
 			session.flushToolRefresh(ctx);
 			state.codexTurnState.reset();
 			runtime.voice.settleTurn();
 			runtime.lanVoice.agentSettled();
-			if (!state.config.voiceFeaturesOnly) void ui.refreshUsageStatus(ctx);
+			void ui.refreshUsageStatus(ctx);
 			if (!quotaExhausted) runtime.armCacheKeepalive(ctx);
 		},
 		contextWithSystem: async (event, ctx) => {
@@ -188,9 +186,7 @@ export function createCodexTurnLifecycle(
 			if (shells.recordBriefing(ctx, messages))
 				messages = runtime.projectContextMessages(ctx, event.messages);
 			const required =
-				plan.kind === "notebook" || plan.kind === "ts"
-					? NOTEBOOK_MODE_TOOL_NAMES
-					: CODE_MODE_TOOL_NAMES;
+				plan.kind === "ts" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
 			try {
 				messages = projectCodeModeMcpSections(
 					messages,
@@ -206,6 +202,9 @@ export function createCodexTurnLifecycle(
 			// before the next provider request, rather than waiting for agent settlement.
 			flushCodexReasoningUpdates(pi, ctx);
 			messages = runtime.projectContextMessages(ctx, messages);
+			const head = messages[0];
+			if (head?.role === "system" && isAdapterRuntime(plan))
+				messages[0] = orderProjectContextLast(head);
 			return {
 				messages: state.developerMessages.prepare(
 					messages,

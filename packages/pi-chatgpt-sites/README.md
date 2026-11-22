@@ -1,6 +1,6 @@
 # Pi ChatGPT Sites
 
-Manage ChatGPT Sites from Pi: inspect sites, save committed source, deploy saved versions, and read access, environment, domains, analytics, logs, database tables, and schedules.
+Open an existing ChatGPT Site's source in Pi, save new versions, and deploy to its current audience. You can also inspect and manage hosting without a local checkout.
 
 ```sh
 pi install npm:@howaboua/pi-chatgpt-sites
@@ -10,7 +10,7 @@ Sign in with `/login openai-codex` using the legacy OpenAI Codex provider. The a
 
 Ask Pi to inspect your Sites. The `sites` tool returns help with no arguments, and `sites_documentation` provides topic guides and current operation parameters. In Code Mode and Notebook, both tools are automatically deferred and discoverable through `ALL_TOOLS`.
 
-The repository binding is `.openai/hosting.json`. Source saves require Git and a clean, committed, bound repository. Saves push exact HEAD. Deployments are production and require explicit audience selection. Publication terms may require browser acceptance. Credentials and secret environment values are redacted from results.
+Ask Pi to open an existing Site in a new local directory. Opening fetches committed source without changing the hosted Site. Saving requires Git, a clean worktree and a committed `.openai/hosting.json` binding. A save pushes exactly the selected commit. Pi uses the remote build and cannot upload a local build archive. Deployments are production changes and require explicit audience selection.
 
 This uses the private Sites beta API, which may change. Installation does not create or deploy a site.
 

@@ -2,11 +2,11 @@ Add a changeset only when a package change is intended to alter published behavi
 
 Use `.changeset` for the next release and `.changesets-pending` for deliberately deferred publication. Keep deferred notes rather than deleting them or bypassing the changeset gate. Deferral does not deliver source changes to installed users. Read `.changesets-pending/README.md` for helper commands and coverage rules.
 
-The patch helper compares tracked paths with `origin/main`. Stage a newly added package tree before running `bun changeset -- "summary"` so the package is discoverable, then inspect the staged result normally.
+Prefer `bun changeset -- "summary"` for patches. Use `bun changeset:raw` only for intentional non-patch bumps. Stage a new package tree first so the helper can discover it against `origin/main`.
 
 Do not hand-author aggregate changesets. When deleting a bundled package, do not invent a changeset for the absent package either. `bun run changeset:aggregates` reads deleted manifests from the comparison base and releases affected bundles.
 
-Run a package's direct check while edits are uncommitted. After the implementation and changeset are committed, run `bun run check:changed` and `bun run changeset:check` against the branch diff. Run the umbrella gate once after a dependent batch converges.
+During editing, run focused package checks. `bun run check:changed` selects committed branch changes, not working edits. Run it and `bun run changeset:check` after committing. Run the umbrella gate once after a dependent batch converges.
 
 Keep exactly one changeset per changed extension in a release, with one extension per file. Before inspecting the release plan, run `bun run changeset:aggregates` to fold pending notes for packages already releasing into package and bundle changelogs. Use `bun run version-packages`, not raw versioning, to preserve this preparation. Do not activate unrelated deferred packages merely to consolidate notes. Dependency-only and documentation changes still need none; aggregates remain CI-owned. Drop notes for reverted changes, but preserve inherited pending notes awaiting publication. Remove an active changeset already consumed by an `origin/main` release commit.
 

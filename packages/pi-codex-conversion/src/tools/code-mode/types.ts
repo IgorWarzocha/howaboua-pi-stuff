@@ -46,6 +46,7 @@ export interface ProgrammaticCodeModeToolDefinition extends CodeModeToolMetadata
 	textOutput?: "command" | "plain-command" | undefined;
 	blocking?: boolean | undefined;
 	isBlocking?(input: unknown): boolean;
+	/** For deferred tools: true enables availability notices, false omits catalogue listing. */
 	discoverWhenDeferred?: boolean | undefined;
 	/** Compact callable spine; full help remains in ALL_TOOLS. */
 	discoveryUsage?: string | undefined;
@@ -168,14 +169,6 @@ export interface OpaqueToolOutput {
 	encryptedOutput: string;
 }
 
-export interface NotebookMemoryUsage {
-	heapUsedBytes: number;
-	heapTotalBytes: number;
-	rssBytes: number;
-	externalBytes: number;
-	heapLimitBytes: number;
-}
-
 export type NotebookHook = "startup" | "tool_result";
 
 export type NotebookControlRequest =
@@ -222,5 +215,4 @@ export type RuntimeResponse = (
 	execSessionIds?: number[] | undefined;
 	traces?: RuntimeToolTrace[] | undefined;
 	droppedTraceCount?: number | undefined;
-	notebookMemory?: NotebookMemoryUsage | undefined;
 };

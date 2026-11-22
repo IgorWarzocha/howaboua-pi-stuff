@@ -1,6 +1,5 @@
-import type { ProviderEnv, WebSocketConstructorLike } from "./types.ts";
-
-const dynamicImport = (specifier: string) => import(specifier);
+import type { ProviderEnv } from "./types.ts";
+import { captureWebSocketMessageLimit } from "./websocket-size.ts";
 
 const PROXY_ENV_KEYS = new Set([
 	"all_proxy",
@@ -15,84 +14,68 @@ const PROXY_ENV_KEYS = new Set([
 
 type GetProxyForUrl = (url: string | object | URL) => string;
 
+const dynamicImport = (specifier: string) => import(specifier);
 let proxyFromEnvPromise: Promise<GetProxyForUrl> | undefined;
-async function getProxyFromEnv(): Promise<GetProxyForUrl> {
+function getProxyFromEnv(): Promise<GetProxyForUrl> {
 	proxyFromEnvPromise ??= dynamicImport("proxy-from-env").then(
 		(module) => (module as { getProxyForUrl: GetProxyForUrl }).getProxyForUrl,
 	);
 	return proxyFromEnvPromise;
 }
 
-let _cachedWebSocket: WebSocketConstructorLike | null = null;
-export async function getWebSocketConstructor(
+export async function createWebSocket(
 	url: string,
+	headers: Record<string, string>,
 	env?: ProviderEnv,
-): Promise<WebSocketConstructorLike | null> {
-	if (typeof process !== "undefined" && process.versions["bun"]!) {
-		if (!env && _cachedWebSocket) return _cachedWebSocket;
-		const getProxyForUrl = await getProxyFromEnv();
-		const WebSocketWithProxy = class extends WebSocket {
-			constructor(
-				url: string,
-				options?:
-					| { headers?: Record<string, string> | undefined }
-					| string
-					| string[],
-			) {
-				const proxy = resolveWebSocketProxyForTargetSync(
-					getProxyForUrl,
-					url,
-					env,
-				);
-				const baseOptions =
-					Array.isArray(options) || typeof options === "string"
-						? { protocols: options }
-						: { ...options };
-				super(url, { ...baseOptions, ...(proxy ? { proxy } : {}) } as never);
-			}
-		};
-		if (!env) _cachedWebSocket = WebSocketWithProxy;
-		return WebSocketWithProxy;
+	signal?: AbortSignal,
+) {
+	const [{ WebSocket }, proxy] = await Promise.all([
+		import("ws"),
+		resolveWebSocketProxyForTarget(url, env),
+	]);
+	const tunnel = proxy ? await createProxyTunnel(proxy) : undefined;
+	if (signal?.aborted) {
+		tunnel?.close();
+		throw new Error("Request was aborted");
 	}
-	const getProxyForUrl = await getProxyFromEnv();
-	const proxy = resolveWebSocketProxyForTargetSync(getProxyForUrl, url, env);
-	if (!proxy) {
-		const ctor = (
-			globalThis as typeof globalThis & {
-				WebSocket?: WebSocketConstructorLike | undefined;
-			}
-		).WebSocket;
-		return typeof ctor === "function" ? ctor : null;
+	try {
+		const socket = new WebSocket(url, { headers, agent: tunnel?.agent });
+		socket.once("upgrade", (response) => {
+			captureWebSocketMessageLimit(
+				socket,
+				response.headers["x-codex-websocket-max-message-bytes"],
+			);
+		});
+		// ws emits errors even after abort or listener removal.
+		socket.on("error", () => {});
+		if (tunnel) socket.once("close", tunnel.close);
+		return socket;
+	} catch (error) {
+		tunnel?.close();
+		throw error;
 	}
-	const proxyUrl = proxy;
-	const { ProxyAgent, WebSocket: UndiciWebSocket } = (await dynamicImport(
-		"undici",
-	)) as typeof import("undici");
-	const WebSocketWithProxy = class extends UndiciWebSocket {
-		constructor(
-			socketUrl: string,
-			options?:
-				| { headers?: Record<string, string> | undefined }
-				| string
-				| string[],
-		) {
-			const baseOptions =
-				Array.isArray(options) || typeof options === "string"
-					? { protocols: options }
-					: { ...options };
-			const dispatcher = new ProxyAgent(proxyUrl);
-			super(socketUrl, { ...baseOptions, dispatcher } as never);
-			let dispatcherClosed = false;
-			const closeDispatcher = () => {
-				if (dispatcherClosed) return;
-				dispatcherClosed = true;
-				void dispatcher.close();
-			};
-			this.addEventListener("error", closeDispatcher, { once: true });
-			this.addEventListener("close", closeDispatcher, { once: true });
-		}
+}
+
+async function createProxyTunnel(proxy: string) {
+	const { HttpsProxyAgent } = await import("https-proxy-agent");
+	const url = new URL(proxy);
+	if (url.protocol !== "http:" && url.protocol !== "https:") {
+		throw new Error("WebSocket proxy URL must use HTTP or HTTPS");
+	}
+	const lifetime = new AbortController();
+	const options = { signal: lifetime.signal, keepAlive: false };
+	const agent =
+		url.protocol === "https:"
+			? new HttpsProxyAgent<"https:">(url, options)
+			: new HttpsProxyAgent<"http:">(url, options);
+	return {
+		agent,
+		close() {
+			// The agent does not yet own the proxy socket while CONNECT is pending.
+			lifetime.abort();
+			agent.destroy();
+		},
 	};
-	return WebSocketWithProxy;
 }
 
 function proxyTargetUrl(url: string): string {

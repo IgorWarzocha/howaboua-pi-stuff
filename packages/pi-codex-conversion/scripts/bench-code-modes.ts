@@ -12,14 +12,9 @@ import type {
 	RuntimeResponse,
 	ToolExecutionContext,
 } from "../src/tools/code-mode/types.ts";
-import { JsCodeClient } from "../src/tools/js-mode/client.ts";
-import { NotebookCodeModeClient } from "../src/tools/notebook-mode/client.ts";
 import { TsCodeModeClient } from "../src/tools/ts-mode/client.ts";
 import { VmCodeClient } from "../src/tools/vm-mode/client.ts";
-import {
-	getPackageDir,
-	type ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 const CALLS = Number(process.env["BENCH_CALLS"] ?? 500);
 const WARMUP = 3;
@@ -201,17 +196,12 @@ async function openMode(
 				tools: [],
 			}),
 		};
-	if (mode === "QuickJS Code")
-		return {
-			code: new JsCodeClient({ ...options, piPackageDir: getPackageDir() }),
-		};
-	if (mode === "Notebook") return { code: new NotebookCodeModeClient(options) };
 	if (mode === "TS") return { code: new TsCodeModeClient(options) };
 	const vm = new VmCodeClient(options);
 	return { code: vm, workerHeap: async () => (await vm.sample())?.heapUsed };
 }
 
-const MODES = ["Code", "QuickJS Code", "Notebook", "TS", "VM Code"];
+const MODES = ["Code", "TS", "VM Code"];
 const requested = process.argv[2] === "--mode" ? process.argv[3] : undefined;
 
 if (requested) {

@@ -1,10 +1,9 @@
-- One `node:vm` context per conversation, inside one Node worker. No project heap, lock, snapshot, disk image or VM shared across conversations.
-- Create guest-visible objects, functions and binding accessors in the guest realm. Keep the host callback private to the prelude closure; return only primitives across it, including errors, then construct guest errors. A host function or error exposes the worker's `Function` constructor despite disabled guest string generation.
-- Cells without top-level `await` run unchanged. Awaited cells run as one module in that context: `let`, `const` and `class` are instantiated for the whole cell, including across `await`, and a function closes over those bindings. Publish each declarator when its initializer finishes, before the next declarator runs, so a later rejection keeps the earlier value. A throw before initialization does not publish the name. Do not turn `const` into `let`. Do not imitate the dead zone with a throwing global getter. Do not split awaited cells into separate evaluators.
-- Reject lexical redeclarations and same-cell declaration conflicts before any effect. Predeclare `var` so a bare redeclaration does not reset it. `var` inside an awaited branch stays the outer binding. Block `let` and `const` stay in the block.
-- A failed cell cancels outstanding host tool calls, rejects their guest promises, and flushes callbacks before the next exec. Do not wait for those host calls. Callbacks must not emit into or call tools for the later cell.
-- Do not use Node REPL. Its evaluator always calls the host module loader, so `import("node:fs")` succeeds there. Do not pass `importModuleDynamically`.
-- Bind tools as `tools.<name>` through `CodeModeDelegateRuntime`, with the same names and arguments as QuickJS Code. No bare globals, `$`, `edit`, `searchTools` or `describeTool`.
-- A script error keeps the context. Stall, abort, memory limit, terminate and conversation change terminate the worker. The next exec creates a new context. Say that bindings were dropped.
-- `worker.terminate()` is the hard stop. Do not enable Bun and do not rely on a cooperative interrupt.
-- The heap cap is `VM_HEAP_CAP_MIB`, not Notebook's 4096 MiB default. `store` values use the caps in `limits.ts`.
+- One `node:vm` context/worker per conversation. No shared VM, project heap, lock, snapshot or disk image.
+- Guest-visible objects/functions/accessors from guest realm. Host callback private in prelude closure; primitives only across it, including error data. Construct guest errors. Host functions/errors expose worker `Function` despite disabled guest string generation.
+- No top-level `await`: unchanged. Awaited cell: one module, cell-wide `let`/`const`/`class`, normal closures across awaits. Publish each declarator after initialiser, before next. Later rejection keeps earlier value; throw before init never publishes. No `const` weakening, dead-zone getter or split evaluator.
+- Reject lexical redeclaration/same-cell conflicts before effects. Predeclare `var`; bare redeclaration preserves value, awaited branch uses outer binding. Block lexicals stay local.
+- Failed cell: cancel tools, reject guest promises, flush callbacks before next exec. Don't await host calls. Callbacks cannot emit/invoke tools for later cells.
+- No Node REPL (host loader allows `import("node:fs")`) or `importModuleDynamically`. `tools.<name>` via `CodeModeDelegateRuntime` only. No bare globals, `$`, `edit`, `searchTools`, `describeTool`.
+- Script error keeps context. Stall, abort, memory limit, terminate or conversation change kill worker. Report dropped bindings; next exec creates context.
+- Hard stop: Node worker, Bun separate process (ignores worker `resourceLimits`). Verify Linux cgroup memory/swap before evaluator; no polling fallback. macOS/Windows RSS watchdog best-effort. IPC/watchdog off evaluator thread.
+- `limits.ts`: Node heap/Bun process budgets, not Notebook 4096 MiB. `store` caps separate.

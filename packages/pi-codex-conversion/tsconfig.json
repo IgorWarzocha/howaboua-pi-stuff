@@ -3,5 +3,5 @@
   "compilerOptions": {
     "allowImportingTsExtensions": true
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "scripts/bench-code-modes.ts"]
+  "include": ["src/**/*.ts", "scripts/bench-code-modes.ts"]
 }

@@ -6,20 +6,29 @@ import type { CommsFeature } from "../guidance.js";
 import type { OpenSettings } from "../settings-navigation.js";
 import { binding } from "./identity.js";
 import { acquireBoard } from "./runtime/index.js";
+import { migrateBoardSettings } from "./config.js";
 
 export async function createBoardFeature(
 	pi: ExtensionAPI,
 	openSettings?: OpenSettings,
 ): Promise<CommsFeature> {
+	pi.on("session_start", (_event, ctx) => {
+		try {
+			migrateBoardSettings(ctx.sessionManager.getCwd(), ctx.isProjectTrusted());
+		} catch (error) {
+			ctx.ui.notify(`Board settings not migrated: ${String(error)}`, "warning");
+		}
+	});
 	const board = await acquireBoard(pi);
 	const open = async (ctx: ExtensionContext) => {
 		const { openBoardSettings } = await import("./settings/panel.js");
 		return openBoardSettings(pi, ctx, board, Boolean(openSettings));
 	};
 	pi.registerCommand("board", {
-		description: `${openSettings ? "Board settings" : "Board viewer; settings"}; status, on|off [session|folder|global]`,
+		description:
+			"Board settings, viewer, status, on|off [session|folder|global]",
 		getArgumentCompletions(prefix) {
-			const commands = ["settings", "status", "on", "off"];
+			const commands = ["settings", "viewer", "status", "on", "off"];
 			const scopes = ["session", "folder", "global"];
 			const options = prefix.includes(" ")
 				? ["on", "off"].flatMap((command) =>
@@ -59,9 +68,9 @@ export async function createBoardFeature(
 				ctx.ui.notify(board.status(ctx), "info");
 				return;
 			}
-			if (command) {
+			if (command && args.trim() !== "viewer") {
 				ctx.ui.notify(
-					"Use /board, /board settings, /board status or /board on|off [session|folder|global]",
+					"Use /board settings, /board viewer, /board status or /board on|off [session|folder|global]",
 					"warning",
 				);
 				return;
@@ -85,7 +94,6 @@ export async function createBoardFeature(
 	});
 	return {
 		enabled: (ctx) => board.enabled(ctx),
-		gptPromptMode: () => board.gptPromptMode,
 		openSettings: open,
 	};
 }

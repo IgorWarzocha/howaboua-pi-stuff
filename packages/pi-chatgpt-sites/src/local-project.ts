@@ -1,4 +1,3 @@
-import { execFile } from "node:child_process";
 import {
 	type FileHandle,
 	mkdir,
@@ -9,12 +8,12 @@ import {
 	stat,
 	writeFile,
 } from "node:fs/promises";
-import { dirname, isAbsolute, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
-
-const runFile = promisify(execFile);
-const askPass = join(dirname(fileURLToPath(import.meta.url)), "git-askpass.js");
+import { dirname, join, resolve } from "node:path";
+import {
+	git,
+	requireGitWorktreeEnvironment,
+	verifyCommitProject,
+} from "./source-git.js";
 
 export interface ProjectContext {
 	root: string;
@@ -128,142 +127,41 @@ export async function resolveProjectId(
 		throw new Error("project_id does not match .openai/hosting.json");
 	}
 	const projectId = supplied || manifest["project_id"];
-	if (!projectId) {
-		throw new Error("No project_id supplied and .openai/hosting.json has none");
+	if (typeof projectId !== "string" || !projectId.trim()) {
+		throw new Error("Supply project_id or set it in .openai/hosting.json");
 	}
 	return projectId;
 }
 
 export async function inspectCleanCommit(
 	context: ProjectContext,
+	projectId: string,
 	signal?: AbortSignal,
 ) {
-	const root = (
-		await git(
-			context.root,
-			["rev-parse", "--show-toplevel"],
-			process.env,
-			signal,
-		)
-	).trim();
+	requireGitWorktreeEnvironment();
+	const options = { signal };
+	let root: string;
+	try {
+		root = (
+			await git(context.root, ["rev-parse", "--show-toplevel"], options)
+		).trim();
+	} catch {
+		throw new Error("Source save requires a Git repository");
+	}
 	const status = await git(
 		root,
 		["status", "--porcelain=v1", "--untracked-files=all"],
-		process.env,
-		signal,
+		options,
 	);
 	if (status.trim())
 		throw new Error("Source save requires a clean Git worktree");
-	const manifestRelative = ".openai/hosting.json";
-	await git(
-		root,
-		["ls-files", "--error-unmatch", manifestRelative],
-		process.env,
-		signal,
-	);
 	const commitSha = (
-		await git(root, ["rev-parse", "HEAD"], process.env, signal)
+		await git(root, ["rev-parse", "--verify", "HEAD^{commit}"], options)
 	).trim();
-	if (!/^[0-9a-f]{40,64}$/i.test(commitSha))
+	if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(commitSha))
 		throw new Error("Could not resolve the current Git commit");
+	await verifyCommitProject(root, commitSha, projectId, options);
 	return { root, commitSha };
-}
-
-export async function pushCommit({
-	root,
-	commitSha,
-	credential,
-	signal,
-}: {
-	root: string;
-	commitSha: string;
-	credential: unknown;
-	signal: AbortSignal | undefined;
-}) {
-	const values = isRecord(credential) ? credential : {};
-	const remoteUrl = values["remote_url"];
-	const branch = values["branch"];
-	const token = values["token"];
-	const authMode = String(values["auth_mode"] ?? "").toLowerCase();
-	if (
-		typeof remoteUrl !== "string" ||
-		!remoteUrl ||
-		typeof branch !== "string" ||
-		!branch ||
-		typeof token !== "string" ||
-		!token
-	) {
-		throw new Error(
-			"Sites returned an incomplete source repository credential",
-		);
-	}
-	const url = new URL(remoteUrl);
-	if (url.protocol !== "https:" || url.username || url.password) {
-		throw new Error(
-			"Sites source repository URL must be credential-free HTTPS",
-		);
-	}
-	await git(root, ["check-ref-format", `refs/heads/${branch}`]);
-
-	const env: NodeJS.ProcessEnv = {
-		...process.env,
-		GIT_TERMINAL_PROMPT: "0",
-	};
-	if (authMode.includes("bearer")) {
-		env["GIT_CONFIG_COUNT"] = "1";
-		env["GIT_CONFIG_KEY_0"] = "http.extraHeader";
-		env["GIT_CONFIG_VALUE_0"] = `Authorization: Bearer ${token}`;
-	} else {
-		env["GIT_ASKPASS"] = askPass;
-		env["SITES_GIT_TOKEN"] = token;
-		env["SITES_GIT_USERNAME"] = "x-access-token";
-	}
-	await git(
-		root,
-		[
-			"-c",
-			"credential.helper=",
-			"-c",
-			"core.hooksPath=/dev/null",
-			"push",
-			"--no-verify",
-			"--porcelain",
-			remoteUrl,
-			`${commitSha}:refs/heads/${branch}`,
-		],
-		env,
-		signal,
-	);
-}
-
-async function git(
-	cwd: string,
-	args: string[],
-	env = process.env,
-	signal?: AbortSignal,
-) {
-	if (!isAbsolute(cwd))
-		throw new Error("Git working directory must be absolute");
-	try {
-		const result = await runFile("git", args, {
-			cwd,
-			env,
-			encoding: "utf8",
-			maxBuffer: 1024 * 1024,
-			timeout: 120_000,
-			signal,
-		});
-		return result.stdout;
-	} catch (error) {
-		const stderr =
-			error instanceof Error && "stderr" in error ? error.stderr : undefined;
-		const detail = String(
-			stderr || (error instanceof Error ? error.message : "Git command failed"),
-		)
-			.replaceAll(env["SITES_GIT_TOKEN"] || "\0", "[redacted]")
-			.trim();
-		throw new Error(detail.slice(0, 2_000));
-	}
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

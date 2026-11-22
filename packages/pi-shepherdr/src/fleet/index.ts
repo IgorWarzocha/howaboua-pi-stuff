@@ -95,9 +95,9 @@ export class AgentFleet {
 		const generation = this.generation;
 		this.context = ctx;
 		const identityClient = new CoreConnection();
-		let coreId: string;
+		let identity: Awaited<ReturnType<CoreConnection["coreIdentity"]>>;
 		try {
-			coreId = (await identityClient.machineIdentity()).session;
+			identity = await identityClient.coreIdentity();
 		} catch (error) {
 			const reason =
 				error instanceof Error &&
@@ -113,7 +113,7 @@ export class AgentFleet {
 			identityClient.close();
 		}
 		if (!this.isCurrent(generation, ctx)) return;
-		this.localCoreId = coreId;
+		this.localCoreId = identity.id;
 		const grouped = groupSaved(savedAgents(ctx, this.localCoreId));
 		const coreCatalog = await this.coreCatalog();
 		if (!this.isCurrent(generation, ctx)) return;
@@ -132,7 +132,8 @@ export class AgentFleet {
 		}
 
 		const localRuntime: MachineRuntime = {
-			coreId,
+			coreId: identity.id,
+			localName: identity.name,
 			local: true,
 			pending: grouped.get(LOCAL_MACHINE) ?? [],
 			status: "connecting",

@@ -41,7 +41,6 @@ export function createAgentsTool(
 	board: AgentBoard,
 	pi: ExtensionAPI,
 	commands: ReturnType<typeof createPeerCommands>,
-	gpt: () => boolean = () => false,
 ) {
 	const resumer = new WorkerResumer(pi, fleet);
 	return defineTool({
@@ -50,6 +49,11 @@ export function createAgentsTool(
 		description: "Delegate to persistent agents; {} lists action fields",
 		promptGuidelines: [
 			"agents: MUST use for supported local and remote agent operations. Report blockers instead of bypassing via hc or shell",
+			...(process.env["HC_TERMINAL_ID"] && process.env["HC_TERMINAL_SOCKET"]
+				? [
+						"agents: Herdr active (like tmux). Terminals→hc --skill; window→herdr-app --skill",
+					]
+				: []),
 		],
 		parameters: AgentsParameters,
 		executionMode: "parallel",
@@ -58,7 +62,7 @@ export function createAgentsTool(
 			const executionSignal = signal ?? new AbortController().signal;
 			const update = onUpdate ?? (() => undefined);
 			if (params.action === "help" && !params.commands) {
-				return toolResult(await agentsHelp(board.enabled(ctx), gpt()));
+				return toolResult(await agentsHelp(board.enabled(ctx)));
 			}
 			if (params.commands && params.target === undefined)
 				return toolResult({ commands: commands.available() });

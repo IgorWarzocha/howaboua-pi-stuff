@@ -33,6 +33,7 @@ interface NestedToolContract {
 	allowPlainResult?: boolean;
 	opaqueResultScope?(result: AgentToolResult<unknown>): string | undefined;
 	translatePromptMetadata?: boolean;
+	promptGuidelines?: string[];
 	toolName?: CodeModeToolIdentity;
 	yieldTimeMs?: number;
 	prepareInput?(input: unknown): unknown;
@@ -51,6 +52,9 @@ export function toNestedTool<
 	contract: NestedToolContract = {},
 ): ProgrammaticCodeModeToolDefinition {
 	const kind = contract.kind ?? "function";
+	const promptGuidelines =
+		contract.promptGuidelines ??
+		(contract.translatePromptMetadata ? tool.promptGuidelines : undefined);
 	const argumentsSchema = compile(tool.parameters, {
 		unresolvedRefs: "reject",
 	});
@@ -226,16 +230,14 @@ export function toNestedTool<
 		...(contract.translatePromptMetadata && tool.promptSnippet
 			? { promptSnippet: tool.promptSnippet }
 			: {}),
-		...(contract.translatePromptMetadata && tool.promptGuidelines?.length
-			? { promptGuidelines: tool.promptGuidelines }
-			: {}),
+		...(promptGuidelines?.length ? { promptGuidelines } : {}),
 		deferLoading: contract.deferLoading ?? false,
 		kind,
 		...(contract.textOutput ? { textOutput: contract.textOutput } : {}),
 		...(contract.blocking ? { blocking: true } : {}),
 		...(contract.isBlocking ? { isBlocking: contract.isBlocking } : {}),
 		...(contract.discoverWhenDeferred ? { discoverWhenDeferred: true } : {}),
-		...(contract.translatePromptMetadata
+		...(contract.translatePromptMetadata || contract.promptGuidelines
 			? { translatePromptMetadata: true }
 			: {}),
 		...(tool.executionMode ? { executionMode: tool.executionMode } : {}),

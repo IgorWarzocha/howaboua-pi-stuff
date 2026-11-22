@@ -46,7 +46,7 @@ Letta's `conversation_id: "default"` requires its native `agent_id`. Capture sto
 
 ## Plugin-only agents
 
-These adapters use the native APIs from old Herdr. They capture identity only, with no status heuristics or polling. Tests exercise their transport against a fake `hc`, not a live model. Live compatibility with each agent has not been smoke-tested.
+These adapters use the native APIs from old Herdr. They capture identity only, with no status heuristics or polling. Live compatibility with each agent has not been smoke-tested.
 
 | Agent | Adapter and installation location | Boundary |
 | --- | --- | --- |

@@ -20,6 +20,7 @@ import {
 	type RenderedImage,
 } from "../src/tools/code-mode/render-content.ts";
 import { createCodeModeRenderTracker } from "../src/tools/code-mode/render-tracker.ts";
+import type { ToolDetailsMode } from "../src/adapter/activation/config-contract.ts";
 import { renderTrackedCodeModeResult } from "../src/tools/code-mode/result-rendering.ts";
 import { CodeModeNestedRenderStore } from "../src/tools/code-mode/trace-render-state.ts";
 import type {
@@ -105,8 +106,7 @@ interface Mode {
 	emitted?: boolean;
 	custom?: boolean;
 	showImages?: boolean;
-	details?: boolean;
-	minimal?: boolean;
+	toolDetails?: ToolDetailsMode;
 	chill?: boolean;
 	generated?: boolean;
 	calls?: number;
@@ -119,8 +119,7 @@ function makeRow(
 	leafResult = result,
 ) {
 	const id = `bench-image-${ordinal++}`;
-	let details = mode.details ?? true;
-	let minimal = mode.minimal ?? false;
+	let toolDetails = mode.toolDetails ?? "preview";
 	let chill = mode.chill ?? false;
 	const custom = mode.custom ?? true;
 	const view = createViewImageTool({ customRendering: custom });
@@ -176,14 +175,12 @@ function makeRow(
 					tracker,
 					store,
 					[tool],
-					details,
-					minimal,
+					toolDetails,
 				),
 		};
 	}
 	if (mode.chill) {
 		const timeline = new ActivityTimeline();
-		timeline.beginRun();
 		renderer = (
 			activity ?? new ActivityRenderers(timeline, () => chill)
 		).resolve(mode.kind, renderer);
@@ -203,8 +200,7 @@ function makeRow(
 	return {
 		row,
 		settings() {
-			details = !details;
-			minimal = !minimal;
+			toolDetails = toolDetails === "minimal" ? "preview" : "minimal";
 			row.invalidate();
 		},
 		chill() {
@@ -239,8 +235,18 @@ const modes: Mode[] = [
 		showImages: false,
 		emitted: true,
 	},
-	{ name: "nested-minimal", kind: "nested", emitted: true, minimal: true },
-	{ name: "nested-no-details", kind: "nested", emitted: true, details: false },
+	{
+		name: "nested-minimal",
+		kind: "nested",
+		emitted: true,
+		toolDetails: "minimal",
+	},
+	{
+		name: "nested-compact",
+		kind: "nested",
+		emitted: true,
+		toolDetails: "compact",
+	},
 	{ name: "nested-imagegen", kind: "nested", generated: true },
 	{
 		name: "nested-imagegen-emitted",
@@ -371,7 +377,6 @@ const history = [25, 100, 400].map((count) => {
 const chillHistory = [25, 100, 400].map((count) => {
 	const store = new CodeModeNestedRenderStore();
 	const timeline = new ActivityTimeline();
-	timeline.beginRun();
 	const activity = new ActivityRenderers(timeline);
 	const rows = Array.from(
 		{ length: count },

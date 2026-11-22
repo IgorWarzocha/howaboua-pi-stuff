@@ -143,7 +143,6 @@ function details(
 		dim(
 			`Config (/reload after keybind/port edits): ${getGippityControlConfigPath()}`,
 		),
-		dim("Realtime compaction refresh uses the selected Voice context model"),
 		...(status.running
 			? [
 					theme.fg(

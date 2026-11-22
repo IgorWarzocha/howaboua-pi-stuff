@@ -1,10 +1,9 @@
-- Conversion-specific activation and nested tool definitions stay outside this directory.
-- The only Code host is the checksummed official release in `host-assets.ts`. Cache by release and platform; never select local builds, bundled hosts or `customRustBinariesDir`. Upstream source routes live in the package AGENTS.md.
-- Keep model-native `exec`/`wait`; never rename, configure, or add collision fallbacks.
-- Low-context custom tools belong to Code/Notebook: promoted tools get one standing entry; deferred contracts stay in synchronous `ALL_TOOLS`, with short appended availability updates. Never mimic this in Structured mode.
-- Only explicit `discovery: "help"` tools omit call signatures. Their empty call must return usage without executing an operation. Never infer this from optional arguments or apply it to arbitrary third-party tools.
-- `src/code-mode-preflight.ts` is the lightweight public guard API; keep its shared protocol dependency free of the extension graph.
-- A different extension can register the shared Code turn hook before PCC. Keep prompt-mode preparation at this hook's capture boundary, before provider selection, host preparation and `collectPromptTools`; PCC's own later hook is not sufficient.
-- `shared-runtime.ts` selects the official V8 host, lazy Deno Notebook/TS clients, QuickJS Code or VM Code. Implementations stay under sibling `notebook-mode/`, `ts-mode/`, `js-mode/` and `vm-mode/`; state never crosses execution modes.
-- Delegation scheduling retires admission before delayed result cleanup. Keep result buffers/exec-session routing alive through yielded responses, and abort controllers before clearing cell stores. Opaque capture must reserve capacity and validate the current context before appending.
-- Native Pi owns outer result-content images. Persist matching trace occurrences as references to that row's outer images, not duplicate bytes. Live captures and restored traces must consume the same image counts in order and preserve unmatched occurrences. Custom renderers respect showImages; UI components belong to their row, not the capture store.
+- Conversion activation/nested definitions stay outside.
+- Code host: checksummed official release in `host-assets.ts`, cached by release/platform. No local build, bundled host or `customRustBinariesDir`. Upstream routes in package AGENTS.md.
+- Native `exec`/`wait`: no rename, config or collision fallback. State stays mode-local. Notebook controls TS only.
+- Code/Notebook: one standing entry per promoted tool. `ALL_TOOLS` lists current public callables regardless of promotion/notices, excludes deliberately unlisted controls. Not Structured mode.
+- Only explicit `discovery: "help"` omits signatures; empty call returns usage without execution. Never infer from optional args or apply to arbitrary third-party tools.
+- `src/code-mode-preflight.ts`: lightweight public guard. Shared protocol dependency stays outside extension graph.
+- Shared Code turn hook can precede PCC. Prepare prompt mode at capture, before provider selection/host prep/`collectPromptTools`, not PCC's later hook.
+- Delegation: retire admission before delayed cleanup; keep buffers/exec-session routing through yields; abort controllers before clearing cell stores. Opaque capture: reserve capacity, validate context, then append.
+- Pi owns outer result images. Matching trace occurrences reference that row's images, no byte copies. Live/restored traces consume same counts in order; keep unmatched occurrences. Renderers honour `showImages`. UI belongs to row, not capture store.

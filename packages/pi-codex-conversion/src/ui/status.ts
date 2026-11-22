@@ -9,10 +9,7 @@ import { codexUltrafastCostMultiplier } from "../providers/openai-codex/usage.ts
 export function renderCodexStatus(
 	ctx: ExtensionContext,
 	state: AdapterState,
-	plan: Extract<
-		CodexRuntimePlan,
-		{ kind: "normal" | "code" | "notebook" | "ts" | "js" | "vm" }
-	>,
+	plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" | "ts" | "vm" }>,
 ): void {
 	if (!ctx.hasUI) return;
 	if (!state.config.ui.statusLine) {

@@ -1,7 +1,7 @@
 interface Operation {
 	tool: string;
 	topic: string;
-	local?: "create" | "save" | "deploy";
+	local?: "open" | "create" | "save" | "deploy";
 	select?: "access";
 }
 export interface ResolvedOperation extends Operation {
@@ -15,6 +15,9 @@ const OPERATIONS: Readonly<
 	site: Object.freeze({
 		list: operation("list_sites", "site"),
 		get: operation("get_site", "site"),
+		open: operation("create_source_repository_write_credential", "site", {
+			local: "open",
+		}),
 		create: operation("create_site", "site", { local: "create" }),
 		update: operation("update_site_metadata", "site"),
 		slug: operation("change_site_slug", "site"),

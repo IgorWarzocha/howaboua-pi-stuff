@@ -1,9 +1,5 @@
-import {
-	type Component,
-	Container,
-	Spacer,
-	Text,
-} from "@earendil-works/pi-tui";
+import type { ToolDetailsMode } from "../../adapter/activation/config-contract.ts";
+import { type Component, Container } from "@earendil-works/pi-tui";
 import {
 	previewText,
 	renderTextAndImages,
@@ -11,7 +7,6 @@ import {
 } from "./render-content.js";
 import type { CodeModeRenderTracker } from "./render-tracker.js";
 import type { NestedRenderState } from "./trace-render-state.js";
-import { formatNotebookMemoryWarning } from "./tool-result.js";
 import {
 	type CodeModeNestedRenderStore,
 	renderTraceAndOutput,
@@ -20,7 +15,6 @@ import type {
 	CodeModeRenderContext,
 	CodeModeRenderTheme,
 	CodeModeToolDefinition,
-	NotebookMemoryUsage,
 	RuntimeToolTrace,
 } from "./types.js";
 
@@ -33,7 +27,6 @@ interface CodeModeResultDetails {
 	traces?: RuntimeToolTrace[] | undefined;
 	droppedTraceCount?: number | undefined;
 	scriptError?: string | undefined;
-	notebookMemory?: NotebookMemoryUsage | undefined;
 }
 
 class CodeModeResult extends Container {
@@ -49,8 +42,7 @@ export function renderTrackedCodeModeResult(
 	tracker: CodeModeRenderTracker,
 	renderStore: CodeModeNestedRenderStore,
 	tools: CodeModeToolDefinition[] = [],
-	richRendering = true,
-	minimalOutput = false,
+	mode: ToolDetailsMode = "preview",
 ): Component {
 	const component =
 		context?.lastComponent instanceof CodeModeResult
@@ -76,8 +68,7 @@ export function renderTrackedCodeModeResult(
 			context,
 			tools,
 			renderStore,
-			richRendering,
-			minimalOutput,
+			mode,
 			component.traces,
 		),
 	);
@@ -91,8 +82,7 @@ function renderCodeModeResult(
 	context: CodeModeRenderContext | undefined,
 	tools: CodeModeToolDefinition[],
 	renderStore: CodeModeNestedRenderStore,
-	richRendering: boolean,
-	minimalOutput: boolean,
+	mode: ToolDetailsMode,
 	traceStates: Map<string, NestedRenderState>,
 ): Component {
 	const details = asDetails(result.details);
@@ -101,16 +91,7 @@ function renderCodeModeResult(
 		details.statusPrefix ??
 		(details.status !== undefined && !details.notification);
 	const content = hasStatusPrefix ? result.content.slice(1) : result.content;
-	const notebookMemoryText = details.notebookMemory
-		? formatNotebookMemoryWarning(details.notebookMemory)
-		: undefined;
-	const renderedContent =
-		notebookMemoryText &&
-		content[0]?.type === "text" &&
-		content[0].text === notebookMemoryText
-			? content.slice(1)
-			: content;
-	const textBlocks = renderedContent
+	const textBlocks = content
 		.filter((item) => item.type === "text" && typeof item.text === "string")
 		.map((item) => item.text ?? "");
 	const scriptErrorRenderedByTrace = Boolean(
@@ -126,25 +107,19 @@ function renderCodeModeResult(
 		: details.status === "yielded"
 			? "accent"
 			: "dim";
-	const images = renderedContent.filter(
+	const images = content.filter(
 		(item): item is RenderedToolContent & { data: string; mimeType: string } =>
 			item.type === "image" &&
 			typeof item.data === "string" &&
 			typeof item.mimeType === "string",
 	);
-	const showOutput =
-		richRendering ||
-		Boolean(details.scriptError && !scriptErrorRenderedByTrace) ||
-		details.notification === true ||
-		images.length > 0;
 	const hidePreview =
-		minimalOutput &&
+		mode === "minimal" &&
 		!options.expanded &&
 		!context?.isError &&
 		!details.scriptError &&
 		!details.notification;
 	const renderOutput = (visibleTraceText: ReadonlySet<string>) => {
-		if (!showOutput) return undefined;
 		const text = textBlocks
 			.filter((block) => !visibleTraceText.has(block))
 			.join("\n");
@@ -163,7 +138,7 @@ function renderCodeModeResult(
 				: previewText(renderedText, theme, false, context);
 		return renderTextAndImages(displayText, [], theme);
 	};
-	const body = renderTraceAndOutput(
+	return renderTraceAndOutput(
 		details.traces ?? [],
 		details.droppedTraceCount ?? 0,
 		tools,
@@ -175,33 +150,6 @@ function renderCodeModeResult(
 		renderStore,
 		traceStates,
 	);
-	if (!details.notebookMemory || !notebookMemoryText) return body;
-	const container = new Container();
-	const ratio =
-		details.notebookMemory.heapLimitBytes > 0
-			? details.notebookMemory.heapUsedBytes /
-				details.notebookMemory.heapLimitBytes
-			: 0;
-	container.addChild(
-		new Text(
-			theme.fg(
-				ratio >= 0.9 ? "error" : ratio >= 0.8 ? "accent" : "muted",
-				notebookMemoryText,
-			),
-			0,
-			0,
-		),
-	);
-	if (
-		details.traces?.length ||
-		details.droppedTraceCount ||
-		(showOutput && (textBlocks.some(Boolean) || status)) ||
-		images.length
-	) {
-		container.addChild(new Spacer(1));
-		container.addChild(body);
-	}
-	return container;
 }
 
 function asDetails(value: unknown): CodeModeResultDetails {

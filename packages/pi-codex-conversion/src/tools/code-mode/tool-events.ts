@@ -1,16 +1,14 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { prepareCodeModeToolsPrompt } from "./custom-tool-prompt.js";
 import type { SharedCodeModeRuntime } from "./shared-runtime.js";
-import {
-	prepareGptPromptMode,
-	registerGptPromptMode,
-} from "../../prompt-mode.ts";
+import type { registerPublicCodeModeTools } from "./public-tools.ts";
+import { prepareGptPromptMode } from "../../prompt-mode.ts";
 
 export function registerCodeModeEvents(
 	pi: ExtensionAPI,
 	runtime: SharedCodeModeRuntime,
+	preparePublicTools: ReturnType<typeof registerPublicCodeModeTools>,
 ): void {
-	const promptMode = registerGptPromptMode(pi, () => undefined);
 	pi.on("session_start", () => {
 		runtime.resetPromptTools();
 		runtime.clearOpaqueResults();
@@ -22,12 +20,11 @@ export function registerCodeModeEvents(
 	pi.on("session_shutdown", () => runtime.clearOpaqueResults());
 	pi.on("before_agent_start", (event, ctx) => {
 		// Other extensions can bind this hook before conversion registers its own.
-		prepareGptPromptMode(pi, ctx, event.systemPromptOptions);
+		const heavy = prepareGptPromptMode(pi, ctx, event.systemPromptOptions);
+		preparePublicTools(ctx, event.systemPromptOptions.toolSnippets);
 		const executionKind = runtime.executionKind(ctx);
 		const requiredTools =
-			executionKind === "notebook" || executionKind === "ts"
-				? ["exec", "wait", "notebook"]
-				: ["exec", "wait"];
+			executionKind === "ts" ? ["exec", "wait", "notebook"] : ["exec", "wait"];
 		const activeProviders = runtime.activeProviders(ctx);
 		if (activeProviders.length === 0) return undefined;
 		void runtime.prepare(ctx)?.catch(() => undefined);
@@ -44,7 +41,7 @@ export function registerCodeModeEvents(
 					event.systemPromptOptions.selectedTools.includes(name),
 				),
 			executionKind,
-			promptMode.active,
+			heavy,
 		);
 		return undefined;
 	});

@@ -3,11 +3,7 @@ import {
 	MAX_CODE_MODE_OUTPUT_TOKENS,
 } from "./host-protocol.js";
 import { referenceEmittedTraceImages } from "./trace-images.js";
-import type {
-	NotebookMemoryUsage,
-	RuntimeContentItem,
-	RuntimeResponse,
-} from "./types.js";
+import type { RuntimeContentItem, RuntimeResponse } from "./types.js";
 
 const MAX_OUTPUT_IMAGE_COUNT = 4;
 const MAX_OUTPUT_IMAGE_CHARS = 16 * 1024 * 1024;
@@ -15,7 +11,6 @@ const MAX_OUTPUT_IMAGE_CHARS = 16 * 1024 * 1024;
 export function toCodeModeToolResult(
 	response: RuntimeResponse,
 	maxTokens?: number,
-	gpt = false,
 ) {
 	const scriptError =
 		response.kind === "result"
@@ -29,9 +24,6 @@ export function toCodeModeToolResult(
 				? "Script terminated"
 				: undefined;
 	const output = boundedCodeModeContent(response.contentItems);
-	const memoryWarning =
-		response.notebookMemory &&
-		formatNotebookMemoryWarning(response.notebookMemory);
 	const outputTokens = Math.min(
 		MAX_CODE_MODE_OUTPUT_TOKENS,
 		Math.max(
@@ -41,12 +33,11 @@ export function toCodeModeToolResult(
 	);
 	const content = [
 		...(status ? [{ type: "text" as const, text: status }] : []),
-		...(memoryWarning ? [{ type: "text" as const, text: memoryWarning }] : []),
 		...(response.execSessionIds ?? []).map((sessionId) => ({
 			type: "text" as const,
 			text: formatRunningExecSessionGuidance(sessionId),
 		})),
-		...truncateTextContent(output, outputTokens * 4, gpt),
+		...truncateTextContent(output, outputTokens * 4),
 	];
 	const empty = !content.some(
 		(item) => item.type !== "text" || item.text.length > 0,
@@ -81,9 +72,6 @@ export function toCodeModeToolResult(
 				: {}),
 			...(response.droppedTraceCount
 				? { droppedTraceCount: response.droppedTraceCount }
-				: {}),
-			...(response.notebookMemory
-				? { notebookMemory: response.notebookMemory }
 				: {}),
 			...(scriptError ? { scriptError } : {}),
 		},
@@ -123,34 +111,12 @@ function withScriptErrorRecovery(
 ): string | undefined {
 	if (
 		!errorText ||
-		!/Identifier ['"][^'"]+['"] has already been declared/.test(errorText)
+		!/(?:Identifier ['"][^'"]+['"] has already been declared|\bTS2451\b.*Cannot redeclare block-scoped variable)/.test(
+			errorText,
+		)
 	)
 		return errorText;
-	return `${errorText}\nRecovery: choose a new name or retry one-off code inside { ... }. Reuse the existing binding only after checking its value is still correct`;
-}
-
-export function formatNotebookMemoryWarning(
-	memory: NotebookMemoryUsage,
-): string | undefined {
-	const ratio =
-		memory.heapLimitBytes > 0
-			? memory.heapUsedBytes / memory.heapLimitBytes
-			: 0;
-	const pressure =
-		ratio >= 0.9
-			? " · CRITICAL: finish essential work and release unneeded notebook state"
-			: ratio >= 0.8
-				? " · WARNING: release unneeded notebook state"
-				: "";
-	if (!pressure) return undefined;
-	return `Notebook memory: heap ${formatBinaryBytes(memory.heapUsedBytes)} / ${formatBinaryBytes(memory.heapLimitBytes)} · RSS ${formatBinaryBytes(memory.rssBytes)}${pressure}`;
-}
-
-function formatBinaryBytes(bytes: number): string {
-	const mib = bytes / (1024 * 1024);
-	if (mib < 1024) return `${mib.toFixed(mib < 10 ? 1 : 0)} MiB`;
-	const gib = mib / 1024;
-	return `${gib.toFixed(gib < 10 ? 1 : 0)} GiB`;
+	return `${errorText}\nRetry: wrap one-off const/let and their uses in { ... }. Need a new persistent binding? Use a fresh name. Reuse an existing binding only after verifying its value`;
 }
 
 export function formatRunningExecSessionGuidance(sessionId: number): string {
@@ -186,11 +152,9 @@ function toPiContent(item: RuntimeContentItem):
 function truncateTextContent<T extends { type: string; text?: string }>(
 	content: T[],
 	maxChars: number,
-	gpt: boolean,
 ): T[] {
-	const notice = gpt
-		? "[Output truncated; later results may be missing. Narrow reads; missing help→own cell. NEVER repeat side effects for output]"
-		: "[Output truncated; later results may be omitted. Narrow reads or fetch missing help separately. Do not rerun side effects for output.]";
+	const notice =
+		"[Output truncated; later results may be missing. Narrow reads; missing help→own cell. NEVER repeat side effects for output]";
 	let remaining = maxChars;
 	let truncated = false;
 	const output: T[] = [];

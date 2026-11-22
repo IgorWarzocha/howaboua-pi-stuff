@@ -37,7 +37,7 @@ flowchart LR
 
 ## Public entry points
 
-Agent Comms and the standalone Notes Compaction and Agent Board packages share maintained implementations. The standalone packages are not deprecated and retain their public import keys. Do not load Agent Comms alongside either standalone extension.
+Agent Comms replaces Notes Compaction and Agent Board. Update old imports to the matching Agent Comms subpath below. Discover the loaded Board owner through `discoverBoard`, rather than constructing a Board runtime. Do not load Agent Comms alongside either old extension.
 
 When switching to Agent Comms, update Shepherdr in controllers and workers together. Older Shepherdr releases require the standalone providers. Persisted event channels, owner strings and session records retain their existing names, including `pi-notes-compaction:*` and `shepherdr-board-*`.
 
@@ -51,11 +51,6 @@ When switching to Agent Comms, update Shepherdr in controllers and workers toget
 | `@howaboua/pi-agent-comms/context-sharing` | Family identity, binding and routed notes/history | [`context-sharing.ts`](../packages/pi-agent-comms/src/notes/context-sharing.ts) |
 | `@howaboua/pi-agent-comms/saved-session` | Node-only saved-session reader | [`saved-session.mjs`](../packages/pi-agent-comms/src/notes/saved-session.mjs) |
 | `@howaboua/pi-agent-comms/saved-session-index` | Saved-session index helpers | [`saved-session-index.mjs`](../packages/pi-agent-comms/src/notes/saved-session-index.mjs) |
-| `@howaboua/pi-agent-board/runtime` | Standalone Board discovery and the legacy `BoardRuntime` class export | [`runtime.ts`](../packages/pi-agent-board/runtime.ts) |
-| `@howaboua/pi-agent-board/integration` | Standalone Board adapter and persisted binding helpers | [`integration.ts`](../packages/pi-agent-board/src/board/integration.ts) |
-| `@howaboua/pi-notes-compaction/context-sharing` | Standalone Notes family identity and routed reads | [`context-sharing.ts`](../packages/pi-notes-compaction/src/notes/context-sharing.ts) |
-| `@howaboua/pi-notes-compaction/saved-session` | Standalone Node-only saved-session reader | [`saved-session.mjs`](../packages/pi-notes-compaction/src/notes/saved-session.mjs) |
-| `@howaboua/pi-notes-compaction/saved-session-index` | Standalone saved-session index helpers | [`saved-session-index.mjs`](../packages/pi-notes-compaction/src/notes/saved-session-index.mjs) |
 | `@howaboua/pi-codex-conversion/agent-relationship` | Native parent linkage and cache affinity | [`agent-relationship.ts`](../packages/pi-codex-conversion/src/agent-relationship.ts) |
 | `@howaboua/pi-codex-conversion/compaction` | Context projection and ordered provider-compaction preparation | [`compaction.ts`](../packages/pi-codex-conversion/src/compaction.ts) |
 | `@howaboua/pi-codex-conversion/code-mode` | Custom nested-tool registration | [`code-mode.ts`](../packages/pi-codex-conversion/src/code-mode.ts) |
@@ -424,7 +419,7 @@ Fresh-child sharing opt-in controls new children. It does not detach an already-
 
 ## PCC GPT prompt mode
 
-PCC GPT prompt mode selects compact wording for PCC and participating extensions. Users choose **GPT (experimental)** under **Heavy system prompt overwrite** in `/codex`, or set `prompt.heavySystemPromptOverwrite` to `"gpt"`. It builds on Heavy's scaffold handling without changing tool arguments or execution. The mode is active only while PCC's adapter is active, not simply because the selected model is a GPT model.
+Toolkit extensions ship one set of compact instructions. The prompt mode API remains available for extensions that still switch between two sets of wording. It signals active when PCC's adapter is active and **Heavy system prompt overwrite** is on in `/codex`. It does not depend on the model name or change tool arguments or execution.
 
 Import `registerGptPromptMode` from `@howaboua/pi-codex-conversion/prompt-mode`. Its synchronous callback receives `(active: boolean, context: ExtensionContext | undefined)` and returns current owned tool metadata or nothing. The exported `PromptModeToolMetadata` type contains `name`, optional `promptSnippet` and optional `promptGuidelines`.
 
@@ -512,7 +507,7 @@ Nested tools remain callable through `tools` and discoverable through `ALL_TOOLS
 
 `new_context` remains a sequential model-only tool. Never put it under an `exec` cell or a nested-tool wrapper.
 
-Notebook shares retained project bindings between sessions using the same project and Pi agent directory. Each running kernel keeps its own working state. Session checkpoints and journals follow the user's `/codex` retention settings, so an old session may resume without its temporary variables. Cleanup does not remove shared project and profile bindings, Notes or Pi conversation history. These cache files are not an inter-agent transport API.
+TS Notebook shares pinned bindings between sessions using the same working directory and Pi agent directory. Each kernel keeps its own live state. Checkpoints restore durable values and helpers, not arbitrary live handles. Notebook state is not an inter-agent transport API.
 
 ### Observe and guard nested calls
 

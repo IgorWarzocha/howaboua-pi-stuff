@@ -1,2 +1,2 @@
-Keep responsive rules with their UI owner. Preserve the shared-before-feature cascade in style.css; compare computed styles when moving rules, not just selector text.
-Register every new browser asset in ../src/server.ts. The preview's filesystem serving does not prove the live server serves it.
+- Responsive rules stay with UI owner. `style.css` shared before feature. Compare computed styles on moves.
+- Register browser assets in `../src/server.ts`. Preview serving doesn't prove live serving.

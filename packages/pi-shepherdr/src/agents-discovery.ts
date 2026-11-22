@@ -27,13 +27,11 @@ function describeProfiles(profiles: Map<string, AgentProfile>) {
 
 export async function agentsHelp(
 	boardAvailable = false,
-	gpt = false,
 ): Promise<Record<string, unknown>> {
 	const profiles = await loadAgentProfiles();
 	return {
-		commands: gpt
-			? "commands:true lists slash commands+descriptions; target with optional machine→another session"
-			: "commands:true lists this session's slash commands and descriptions. Supply target and optionally machine for another session.",
+		commands:
+			"commands:true lists slash commands+descriptions; target with optional machine→another session",
 		actions: {
 			help: "",
 			list: "machine?",
@@ -52,70 +50,45 @@ export async function agentsHelp(
 			reply: "target extension id message machine?",
 		},
 		rules: {
-			peers: gpt
-				? "Existing sessions may be independent peers; send/watch leave Notes/Board access unchanged"
-				: "Existing sessions may be independent peers. You can send or watch without attaching or changing shared Notes or Board access.",
-			read: gpt
-				? "latest(default)=last reply+pending extension messages; visible=current TUI screen; recent=TUI scrollback, lines default 40. Findings→returned Notes path if shared Notes available"
-				: "latest (default) returns the last reply and pending extension messages; visible reads the current TUI screen; recent reads TUI scrollback, lines default 40. For findings, read the returned Notes path when shared Notes is available",
-			reply: gpt
-				? "MUST use extension report/read template via reply, not send. Returns on acceptance without waiting for resumed work"
-				: "To resolve an extension request, use its report or read template with reply. The call returns on acceptance without waiting for resumed work.",
-			machine: gpt
-				? "machine omitted=local Pi host; list/find omitted=all machines; select current machine name or ID from list"
-				: "Omit for local (host running Pi); list/find omit for all machines. Select a current machine name or ID from list",
-			target: gpt
-				? "target=Pi session reference or terminal; /root=live spawn root"
-				: "Use the Pi session reference or terminal target; /root selects the live root of saved spawn ancestry",
-			resume: gpt
-				? "send/assign to owned closed worker→resume saved session; restore reporting unless unwatched"
-				: "Sending or assigning to an owned closed worker resumes its saved session and restores reporting unless unwatched.",
+			peers:
+				"Existing sessions may be independent peers; send/watch leave Notes/Board access unchanged",
+			read: "latest(default)=last reply+pending extension messages; visible=current TUI screen; recent=TUI scrollback, lines default 40. Findings→returned Notes path if shared Notes available",
+			reply:
+				"MUST use extension report/read template via reply, not send. Returns on acceptance without waiting for resumed work",
+			machine:
+				"Use list id or unique label; local or omitted→Pi host; list/find omitted→all",
+			target: "target=Pi session reference or terminal; /root=live spawn root",
+			resume:
+				"send/assign to owned closed worker→resume saved session; restore reporting unless unwatched",
 			label: "Short Pi session name; app tabs use default names",
 			placement:
 				"terminal (default), new_tab, new_workspace; new_tab needs space ID",
 			...(boardAvailable
 				? {
-						board_thread_id: gpt
-							? "Existing board thread→child read ref"
-							: "Existing shared-board thread; child receives a read reference",
+						board_thread_id: "Existing board thread→child read ref",
 					}
 				: {}),
-			send: gpt
-				? "Wakes idle agents; only concrete blocker, ownership conflict or actionable handoff. Skip acknowledgements, status-only updates and standby reminders"
-				: "Messages wake idle agents. Send only a concrete blocker, ownership conflict or usable handoff that changes the recipient's next action. Skip acknowledgements, status-only updates and standby reminders.",
-			assign: gpt
-				? "Delegate/update work; active update shares pending result and preserves existing wait"
-				: "Delegate or update work. Updating active work shares its pending result and preserves the existing wait.",
-			focus: gpt
-				? "Running session; passive arrival+return call, no task/watch. voice:true→async active mic transfer; handoff=context; remote focus stays on target host"
-				: "Focus a running session on its host. It gets a passive arrival with a return call and optional handoff context, not a task or watch. voice:true also transfers the active microphone asynchronously.",
+			send: "Wakes idle agents; only concrete blocker, ownership conflict or actionable handoff. Skip acknowledgements, status-only updates and standby reminders",
+			assign:
+				"Delegate/update work; active update shares pending result and preserves existing wait",
+			focus:
+				"Running session; passive arrival+return call, no task/watch. voice:true→async active mic transfer; handoff=context; remote focus stays on target host",
 			sharing: boardAvailable
-				? gpt
-					? "attach/detach require idle target. Select scope: context:true for Notes/history, board:true for board membership, or both"
-					: "The target MUST be idle for attach or detach. Select what changes: context:true for Notes and history, board:true for board membership, or both."
-				: gpt
-					? "attach/detach require idle target + context:true for Notes/history; boards unavailable"
-					: "The target MUST be idle for attach or detach. Select Notes and history with context:true. Boards are unavailable.",
+				? "attach/detach require idle target. Select scope: context:true for Notes/history, board:true for board membership, or both"
+				: "attach/detach require idle target + context:true for Notes/history; boards unavailable",
 			attach: "Changes sharing only, without assigning or watching",
 			detach: "Counterpart checkpoints remain read-only",
-			blocking: gpt
-				? "spawn/assign default→return on dispatch; blocking:true→wait; profile overrides spawn. Reports automatic→other work/end turn; MUST NOT poll"
-				: "spawn and assign return after dispatch by default. Set blocking:true to wait for the result. Spawn profiles can override it. Background reports arrive automatically; do other work or end the turn instead of polling.",
-			share_context: gpt
-				? "Profile false→isolated notes/history; otherwise→controller sharing setting"
-				: "Profile false isolates notes/history; otherwise follows controller sharing setting",
-			watch: gpt
-				? "Delegation/watch→report subsequent work UNTIL unwatch/close"
-				: "Delegation and watch keep reporting subsequent work until unwatch or close",
-			prompt: gpt
-				? "Task + done criteria + needed context. Give real constraints; let the worker choose how. Assign shared work once. Redirecting? Keep the original task covered"
-				: "State the task, what counts as done, and any context or constraints. Leave the approach to the worker. Assign shared work once. If you redirect a worker, keep its original task covered.",
-			slash: gpt
-				? "Leading /→target command/skill/template; bypasses task waits even via assign/spawn; blocked→choices. Close Pi+terminal via send /quit directly; no advance message, wait/watch or resume"
-				: "A leading / routes to a target command, skill or template. Commands bypass task waits even with assign or spawn; blocked commands return available choices. To close Pi and its terminal, send /quit directly without a preceding message, wait or watch. /quit never resumes a closed worker.",
-			reuse: gpt
-				? "Keep each agent until task verified complete; corrections→same agent; then close. Unrelated task→new agent; reviews independent"
-				: "Keep each agent available until its task is verified complete; return corrections to it before closing. Use separate agents for unrelated work and independent reviews.",
+			blocking:
+				"spawn/assign default→return on dispatch; blocking:true→wait; profile overrides spawn. Reports automatic→other work/end turn; MUST NOT poll",
+			share_context:
+				"Profile false→isolated notes/history; otherwise→controller sharing setting",
+			watch: "Delegation/watch→report subsequent work UNTIL unwatch/close",
+			prompt:
+				"Task + done criteria + needed context. Give real constraints; let the worker choose how. Assign shared work once. Redirecting? Keep the original task covered",
+			slash:
+				"Leading /→target command/skill/template; bypasses task waits even via assign/spawn; blocked→choices. Close Pi+terminal via send /quit directly; no advance message, wait/watch or resume",
+			reuse:
+				"Keep each agent until task verified complete; corrections→same agent; then close. Unrelated task→new agent; reviews independent",
 			...(profiles.has("general")
 				? {
 						general: "Only when requested/orchestrating",
@@ -123,7 +96,10 @@ export async function agentsHelp(
 				: {}),
 		},
 		profiles: describeProfiles(profiles),
-		advanced: "hc --skill: non-agent processes and machines",
+		advanced: {
+			core: "Non-agent processes, persistent terminals, remote machines→read hc --skill",
+			app: "Change what the user sees (spaces/tabs/panes)→herdr-app --skill",
+		},
 	};
 }
 
@@ -249,6 +225,7 @@ export async function listFleetAgents(
 				snapshot: _snapshot,
 				monitoredPaneIds: _monitoredPaneIds,
 				session: _session,
+				target: _host,
 				...machine
 			}) => machine,
 		),

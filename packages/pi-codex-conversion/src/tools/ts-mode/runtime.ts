@@ -1,5 +1,6 @@
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import manifest from "../../../package.json" with { type: "json" };
 import { runtimePackage } from "../code-mode/runtime-package.ts";
 
 export interface TsRuntime {
@@ -16,14 +17,14 @@ export async function loadTsRuntime(
 ): Promise<TsRuntime> {
 	const compiler = await runtimePackage(
 		"tsrs",
-		"0.25.0-ts7.1.0-beta",
+		manifest.devDependencies.tsrs,
 		agentDir,
 		"TS",
 		signal,
 	);
 	const node = await runtimePackage(
 		"@types/node",
-		"26.6.6",
+		manifest.devDependencies["@types/node"],
 		agentDir,
 		"TS",
 		signal,

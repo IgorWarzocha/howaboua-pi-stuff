@@ -23,7 +23,6 @@ export default async function imagegenExtension(
 		promptSnippet: false,
 	});
 	pi.registerTool(tool);
-	let gpt = false;
 	let registration: Awaited<ReturnType<typeof registerImagegenInCodeMode>>;
 	const refresh = () => {
 		const parameters = imageGenerationParameters(readImagegenSettings().access);
@@ -35,49 +34,22 @@ export default async function imagegenExtension(
 	registerImagegenSettings(pi, refresh);
 	pi.on("session_start", refresh);
 	pi.on("before_agent_start", refresh);
-	try {
-		const { registerGptPromptMode } =
-			await import("@howaboua/pi-codex-conversion/prompt-mode");
-		registerGptPromptMode(pi, (active) => {
-			if (gpt !== active) {
-				gpt = active;
-				registration?.refresh();
-			}
-			return [tool];
-		});
-	} catch (error) {
-		if (
-			!(error instanceof Error) ||
-			!("code" in error) ||
-			![
-				"ERR_MODULE_NOT_FOUND",
-				"MODULE_NOT_FOUND",
-				"ERR_PACKAGE_PATH_NOT_EXPORTED",
-			].includes(String(error.code)) ||
-			!error.message.includes(CODE_MODE_PACKAGE)
-		)
-			throw error;
-	}
-	registration = await registerImagegenInCodeMode(pi, tool, () => gpt);
+	registration = await registerImagegenInCodeMode(pi, tool);
 	pi.on("session_shutdown", () => registration?.unregister());
 }
 
 async function registerImagegenInCodeMode(
 	pi: ExtensionAPI,
 	tool: ReturnType<typeof createImageGenerationTool>,
-	gpt: () => boolean,
 ) {
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
-			await import(CODE_MODE_MODULE);
+			await import("@howaboua/pi-codex-conversion/code-mode");
 		return registerCodeModeExtensionTools(pi, () => {
 			const adapted = adaptToolForCodeMode(tool, {
 				discovery: "help",
 				usage:
-					"tools.image_gen__imagegen(args) // " +
-					(gpt()
-						? "string→text(result); image→generatedImage(result); MUST NOT print/serialize base64"
-						: "Pass strings to text(result) and images to generatedImage(result). Do not print or serialize base64"),
+					"tools.image_gen__imagegen(args) // string→text(result); image→generatedImage(result); MUST NOT print/serialize base64",
 				promptMetadata: false,
 				deferLoading: true,
 				toolName: { namespace: "image_gen", name: "imagegen" },

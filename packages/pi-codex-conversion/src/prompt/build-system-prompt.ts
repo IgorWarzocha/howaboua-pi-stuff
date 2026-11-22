@@ -9,7 +9,6 @@ import {
 	getPackageDir,
 	type NormalizedBuildSystemPromptOptions,
 } from "@earendil-works/pi-coding-agent";
-import type { HeavySystemPromptOverwrite } from "../adapter/activation/config-contract.js";
 import {
 	codeModeCustomizationGuidance,
 	codeModePromptToolNames,
@@ -30,13 +29,7 @@ export interface StructuredPromptSkill {
 
 export type PiSystemPromptOptions = NormalizedBuildSystemPromptOptions;
 
-export type CodexPromptMode =
-	| "normal"
-	| "code"
-	| "notebook"
-	| "ts"
-	| "js"
-	| "vm";
+export type CodexPromptMode = "normal" | "code" | "ts" | "vm";
 
 function decodeXml(text: string): string {
 	return text
@@ -91,12 +84,10 @@ export function resolvePromptSkills(
 		: promptSkillsFromStructuredSkills(structuredSkills);
 }
 
-function buildSkillsContent(skills: PromptSkill[], gpt = false): string {
+function buildSkillsContent(skills: PromptSkill[]): string {
 	if (skills.length === 0) return "";
 	const lines = [
-		gpt
-			? "Read named/task-matching skills; relative paths→skill dir; load needed refs"
-			: "Read skills named by the user or matching the task; resolve relative paths from the skill directory and load needed references",
+		"Read named/task-matching skills; relative paths→skill dir; load needed refs",
 	];
 
 	for (const skill of skills) {
@@ -112,7 +103,7 @@ export interface PrepareCodexSystemPromptOptions {
 	skills?: PromptSkill[] | undefined;
 	shell?: string | undefined;
 	mode?: CodexPromptMode | undefined;
-	heavySystemPromptOverwrite?: HeavySystemPromptOverwrite | undefined;
+	heavySystemPromptOverwrite?: boolean | undefined;
 }
 
 function defineOwnedSection(
@@ -157,10 +148,9 @@ function prepareStructuredSkills(
 	skills: PromptSkill[],
 	mode: CodexPromptMode,
 	heavy: boolean,
-	gpt: boolean,
 ): void {
 	const sections = (options.sections ??= {});
-	const content = buildSkillsContent(skills, gpt);
+	const content = buildSkillsContent(skills);
 	delete sections["codex_skills"];
 	if (!content) {
 		delete sections["skill_catalog"];
@@ -175,7 +165,6 @@ function prepareStructuredSkills(
 			: options.selectedTools.includes("exec") &&
 				options.selectedTools.includes("wait") &&
 				(mode === "code" ||
-					mode === "js" ||
 					mode === "vm" ||
 					options.selectedTools.includes("notebook"));
 	if (heavy && sections["skills"] === undefined) {
@@ -194,7 +183,7 @@ export function prepareCodexSystemPrompt(
 	config: PrepareCodexSystemPromptOptions = {},
 ): void {
 	const mode = config.mode ?? "normal";
-	const gpt = config.heavySystemPromptOverwrite === "gpt";
+	const overwrite = config.heavySystemPromptOverwrite ?? false;
 	const skills = config.skills ?? [];
 	const shell = config.shell;
 	const sections = (options.sections ??= {});
@@ -208,7 +197,6 @@ export function prepareCodexSystemPrompt(
 			}),
 			shell,
 			codeModeCustomizationGuidance(options),
-			gpt,
 		);
 		let forced = upsertOpaqueSection(
 			options.forceSystemPrompt,
@@ -219,24 +207,18 @@ export function prepareCodexSystemPrompt(
 		forced = upsertOpaqueSection(
 			forced,
 			"skill_catalog",
-			buildSkillsContent(skills, gpt),
+			buildSkillsContent(skills),
 		);
 		forced = upsertOpaqueSection(forced, "codex_runtime", "");
 		options.forceSystemPrompt = forced;
 		return;
 	}
 
-	const heavyPreamble = `Guidelines:\n${formatGuidelines(GENERAL_GUIDELINES.map(([guideline]) => guideline))}`;
-	const gptPreamble = GENERAL_GUIDELINES.map(([, guideline]) => guideline).join(
-		"\n",
-	);
-	const customPrompt =
-		options.customPrompt === heavyPreamble ||
-		options.customPrompt === gptPreamble
-			? undefined
-			: options.customPrompt;
-	if (config.heavySystemPromptOverwrite) {
-		if (!customPrompt) options.customPrompt = gpt ? gptPreamble : heavyPreamble;
+	if (overwrite) {
+		const preamble = GENERAL_GUIDELINES.join("\n");
+		const customPrompt =
+			options.customPrompt && options.customPrompt !== preamble;
+		if (!customPrompt) options.customPrompt = preamble;
 		defineOwnedSection(sections, "runtime_guidelines", () => {
 			const contributed = customPrompt
 				? []
@@ -251,13 +233,12 @@ export function prepareCodexSystemPrompt(
 				? guidelines
 				: guidelines.filter(
 						(guideline) =>
-							!GENERAL_GUIDELINES.some(([general]) => general === guideline),
+							!GENERAL_GUIDELINES.some((general) => general === guideline),
 					);
 			return formatGuidelines(
 				sectionGuidelines,
 				shell,
 				codeModeCustomizationGuidance(options),
-				gpt,
 			);
 		});
 	} else {
@@ -274,11 +255,5 @@ export function prepareCodexSystemPrompt(
 		);
 	}
 
-	prepareStructuredSkills(
-		options,
-		skills,
-		mode,
-		Boolean(config.heavySystemPromptOverwrite),
-		gpt,
-	);
+	prepareStructuredSkills(options, skills, mode, overwrite);
 }

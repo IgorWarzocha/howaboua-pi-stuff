@@ -1,10 +1,9 @@
-- Local tools execute against current Pi. Optional native web search executes at xAI. Never relay tasks to Grok Bot's harness/agents.
-- docs/tools.md owns the public contract. Collect tools through Pi's event bus per call, not a singleton. Continue only after all results and playback drain. Speech interruption does not undo started actions.
-- credentials.ts matches access against active xAI auth. Save checks offline status and isUsingOAuth, start also checks resolved source. Pi cannot select inactive credentials. apiKey proves bearer access, not login type. Never send credentials to native/LAN audio.
-- Keep response retirement/continuation in session/turns.ts, render drains in session/playback.ts and local call/audio replacement in call/lifecycle.ts. Resume sockets without closing/transferring audio ownership. Controls arbitrate voice/dictation; idle requests use user kickoff for full extension preparation.
-- Handoff Stop cancels call startup, not the retained session link. Mark audio for link preservation before aborting; shutdown closes the link. Cancel LAN startup before waiting for its operation queue.
-- xAI VAD cancels interruptions, sometimes without response.done. Retire on speech_started. Late completion cannot own newer turns. Never send a second response.cancel.
-- Pi updates use Grok Bot's seeded function-call/output pair, not system items or mutable prompts. Send complete tools, voice and audio configuration with Pi state. Continue only after active responses finish and playback drains, not generation alone.
-- A quiet tool receipt leaves xAI awaiting continuation, even if that turn also spoke. Delay reconsideration by the existing silence interval after playback drains; never force an immediate response.
-- Use disposable offline protocol probes. Live voice, mic, LAN, account-mint and RPC checks need separate user approval.
-- Add no audio, text, context, timeout or settings caps without concrete Grok Bot provenance. Separate wire/platform validation from product limits. Harness limits do not automatically belong in Pi's task handler.
+- Current Pi runs local tools, xAI optional native search. No Grok Bot harness/agent relay. `docs/tools.md` contract. Per-call Pi bus collection. Speech interruptions don't undo actions.
+- `credentials.ts` matches active xAI auth. Save checks offline status and `isUsingOAuth`. Start also checks resolved source. Pi cannot select inactive credentials. `apiKey`: bearer access, not login type. No credentials in native/LAN audio.
+- `session/turns.ts` retire/continue, `session/playback.ts` render drains, `call/lifecycle.ts` call/audio replacement. Socket resume retains audio ownership. Controls arbitrate voice/dictation. Idle user kickoff for full preparation.
+- Handoff Stop cancels startup, retains link. Mark audio for preservation before abort. Shutdown closes link. Cancel LAN startup before awaiting queue.
+- xAI VAD cancels interruptions, sometimes no `response.done`. Retire on `speech_started`. Ignore late completion ownership. No second `response.cancel`.
+- Pi updates via Grok Bot seeded function-call/output pair, no system items/prompt mutation. Send full tools, voice/audio config and Pi state.
+- Continue after all results, active responses finish and playback drains. Quiet receipt awaits continuation even if turn spoke. Reconsider after existing post-drain silence interval, not immediately.
+- Disposable offline probes. Separate approval for live voice, mic, LAN, account mint or RPC.
+- Caps on audio, text, context, timeout or settings need concrete Grok Bot provenance. Wire/platform validation separate from product limits. Don't inherit harness limits in task handler.

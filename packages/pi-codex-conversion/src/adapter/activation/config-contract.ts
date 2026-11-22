@@ -56,7 +56,6 @@ export function normalizeOpenAIRealtimeVoice(
 import type { ExecutionMode } from "./execution-mode.ts";
 
 export type CodexVerbosity = "low" | "medium" | "high";
-export type HeavySystemPromptOverwrite = boolean | "gpt";
 export const FAST_MODE_FAMILIES = ["astra", "sol", "terra", "luna"] as const;
 export type FastModeFamily = (typeof FAST_MODE_FAMILIES)[number];
 export type FastModeConfig = Record<
@@ -64,11 +63,11 @@ export type FastModeConfig = Record<
 	boolean | "ultrafast"
 >;
 export type CacheDiagnosticsMode = "off" | "status" | "status-and-log";
-export type CompactToolsMode = "off" | "on" | "minimal";
+export type ToolDetailsMode = "minimal" | "compact" | "preview";
 export type LunaCacheKeepaliveMinutes = 0 | 5 | 10 | 15;
 export type LunaCacheKeepaliveIntervalMinutes = 2.5 | 4.5;
 export type CacheKeepaliveIntervalMinutes = 25 | 55;
-export type AllProvidersMode = "off" | "on" | "extras";
+export type AllProvidersMode = "off" | "on";
 export type CompactionMethod = "pi" | "v2" | "both";
 export type V2UserMessageRetention = 16 | 32 | 64;
 export const MIN_NOTEBOOK_HEAP_MIB = 256;
@@ -112,9 +111,8 @@ export const LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS: readonly LunaCacheKeepaliveMi
 
 export interface CodexConversionConfig {
 	executionMode: ExecutionMode;
-	voiceFeaturesOnly: boolean;
 	prompt: {
-		heavySystemPromptOverwrite: HeavySystemPromptOverwrite;
+		heavySystemPromptOverwrite: boolean;
 		currentTimeReminderMinutes: 0 | 30 | 60;
 	};
 	scope: { allProviders: AllProvidersMode; additionalProviders: string[] };
@@ -122,14 +120,11 @@ export interface CodexConversionConfig {
 		autoReasoning: boolean;
 		customRustBinariesDir: string;
 		viewImageFallback: boolean;
-		applyPatchOnly: boolean;
-		viewImageOnly: boolean;
 	};
 	ui: {
 		statusLine: boolean;
 		toolRenaming: boolean;
-		compactTools: CompactToolsMode;
-		codeModeDetails: boolean;
+		toolDetails: ToolDetailsMode;
 		backgroundShellWidget: boolean;
 		backgroundShellToggleShortcut: string;
 		backgroundShellPrevShortcut: string;
@@ -141,8 +136,6 @@ export interface CodexConversionConfig {
 		v2UserMessageRetention: V2UserMessageRetention;
 	};
 	notebook: {
-		journals: "off" | "week" | "on";
-		checkpointCleanup: "never" | "month" | "week";
 		maxHeapMiB: number;
 		plainCommandOutput: boolean;
 		profile?: string | undefined;
@@ -182,27 +175,22 @@ export interface CodexConversionConfig {
 		cacheKeepaliveIntervalMinutes: CacheKeepaliveIntervalMinutes;
 		proxyResponsesLite: boolean;
 		cacheDiagnostics: CacheDiagnosticsMode;
-		harnessIdentifierHeader: boolean | "codex";
 	};
 }
 
 export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	executionMode: "normal",
-	voiceFeaturesOnly: false,
 	prompt: { heavySystemPromptOverwrite: false, currentTimeReminderMinutes: 0 },
 	scope: { allProviders: "off", additionalProviders: [] },
 	tools: {
 		autoReasoning: false,
 		customRustBinariesDir: "",
 		viewImageFallback: false,
-		applyPatchOnly: false,
-		viewImageOnly: false,
 	},
 	ui: {
 		statusLine: true,
 		toolRenaming: true,
-		compactTools: "off",
-		codeModeDetails: false,
+		toolDetails: "compact",
 		backgroundShellWidget: true,
 		backgroundShellToggleShortcut: "alt+w",
 		backgroundShellPrevShortcut: "alt+q",
@@ -215,9 +203,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	},
 	notebook: {
 		maxHeapMiB: 4_096,
-		plainCommandOutput: false,
-		journals: "week",
-		checkpointCleanup: "never",
+		plainCommandOutput: true,
 	},
 	voice: {
 		model: "codex-live-1.1",
@@ -252,6 +238,5 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		cacheKeepaliveIntervalMinutes: 25,
 		proxyResponsesLite: false,
 		cacheDiagnostics: "off",
-		harnessIdentifierHeader: false,
 	},
 };

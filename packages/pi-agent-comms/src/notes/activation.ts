@@ -20,7 +20,6 @@ export function createNotesActivation(
 	store: NotesStore,
 	search: HistorySearch,
 	lifecycle: NotesLifecycle,
-	settingsPath: string,
 	refreshNested: () => void,
 ) {
 	let settings: NotesSettings;
@@ -97,6 +96,7 @@ export function createNotesActivation(
 		lifecycle.newWindowRequests = value.newWindowRequests;
 		lifecycle.taskCompletionRollover = value.taskCompletionRollover;
 		lifecycle.idleMinutes = value.idleMinutes;
+		lifecycle.rolloverTail = value.rolloverTail;
 		lifecycle.taskBoundaryReminder = value.taskBoundaryReminder;
 	}
 	function start(
@@ -111,7 +111,6 @@ export function createNotesActivation(
 		unavailable = undefined;
 		try {
 			settings = initial ?? loadNotesSettings(ctx);
-			writeSettings(settingsPath, settings);
 			applySettings(settings);
 			lifecycle.bridge = family;
 			ready = true;
@@ -123,7 +122,7 @@ export function createNotesActivation(
 		}
 	}
 	function save(value: NotesSettings, ctx: ExtensionContext): void {
-		writeSettings(settingsPath, value);
+		writeSettings(value);
 		applySettings(value);
 		refreshActivation(ctx);
 		refreshHistorySearch(ctx);

@@ -40,11 +40,15 @@ The tool requires a successful checkpoint write immediately before the request. 
 
 Code and Notebook also accept `await tools.new_context(...)` after an awaited note save in the same cell. The native tool remains the advertised entry point. The nested callable does not add prompt guidance or a discovery listing.
 
-Reminders arrive at 85% and 90% context use. With normal compaction off, `/compact` opens a fresh window immediately if the latest completed turn saved fresh notes. Otherwise it requests a checkpoint first. The new window waits for your next prompt; it does not start a continuation turn. Abort, errors and failed writes retain the old context. Overflow recovery still uses Pi's normal compaction.
+Reminders arrive at 85% and 90% context use. With normal compaction off, `/compact` opens a Notes window. If there is no eligible save, it asks the agent to save a checkpoint first. Instructions after `/compact` guide that checkpoint. The new window waits for your next prompt. Overflow recovery still uses Pi's normal compaction.
+
+Set **Rollover tail** to **Conversation** to keep user messages, attachments and assistant replies since the last completed Notes save on the selected branch in this window. **Full** also keeps complete tool-call groups, reasoning and extension messages. The carried conversation stays in its original order. It does not start another turn. With **Off** (the default), no tail is carried and only a save in the latest completed turn qualifies.
 
 Pi rejects `/compact` when there is too little history to prepare compaction, before extensions run. `new_context` follows the separate **New window requests** setting.
 
-Idle rollover is off by default. Choose 25m, 55m, 2h, 6h or 12h in `/notes`. Hour presets use a five-minute buffer, stored as 115, 355 or 715 minutes. Saved 5- and 15-minute settings remain valid. After the interval, the next input waits for rollover only if the latest completed turn saved fresh notes. Otherwise it proceeds in the current window without requesting a checkpoint. These intervals are user preferences, not provider cache-expiry guarantees. Held input retains its original text, attachments and SDK options. If normal compaction has nothing to summarise, input proceeds in the current window. A failed rollover keeps input pending. Submit another prompt to retry, or reload to cancel it.
+Idle rollover is off by default. Choose 25m, 55m, 2h, 6h or 12h in `/notes`. Hour presets leave a five-minute buffer. When the interval elapses, the next prompt waits for rollover. With a Conversation or Full tail, Notes uses the same save eligibility as `/compact` and requests a checkpoint if needed. With the tail off or normal compaction on, input proceeds in the current window if the latest completed turn did not save notes.
+
+Held input keeps its original text, attachments and SDK options. If normal compaction has nothing to summarise, input proceeds in the current window. After a failed checkpoint or rollover, submit another prompt to retry or reload to cancel the pending input.
 
 ## Management
 
@@ -102,7 +106,7 @@ recovery keep their existing Notes settings.
 
 `/notes` opens the settings panel in interactive Pi. It shows continuity status, storage counts and remote capabilities. Changes save immediately.
 
-- **Enabled** selects **Off**, **On** (all models, the default) or **Whitelist**. Whitelist enables Notes only for exact model IDs in the global settings file, regardless of provider. Off disables Notes independently of Board. Switching models applies the choice immediately; other models keep their installed compaction behaviour. Inactive Notes defers initialisation, but retained context projections can still load to preserve previously retired history.
+- **Enabled** selects **Off**, **On** for all models, or **Whitelist**. Whitelist enables Notes only for exact model IDs in the global settings file, regardless of provider. Off disables Notes independently of Board. Switching models applies the choice immediately. Inactive Notes defers initialisation, but can still load saved continuity to preserve an earlier history cut.
 - **Normal compaction** uses the installed Pi or PCC compaction flow for `/compact` and `new_context`. Off keeps notes-only rollover, the default.
 - **New window requests** controls the agent's `new_context` tool independently of the compaction method. **off** disables the tool. **pi-limits** uses Pi's eligibility check and continues in the current window when there is too little history. **unrestricted**, the default, accepts requests at any size. With normal compaction on and nothing to summarise, unrestricted requests open a new window identity without discarding the existing context. Manual `/compact` and idle rollover retain their separate policies.
 - **Task-completion rollover** permits `resume: false` in `new_context`. Off by default. Checkpoint and new-window eligibility rules still apply. Aborting or failing the run cancels its pending task-completion rollover.
@@ -111,17 +115,15 @@ recovery keep their existing Notes settings.
 
 Notes are stored as plaintext in `<Pi agent directory>/notes-compaction/notes.sqlite`, honoring `PI_CODING_AGENT_DIR`. Saved session snapshots preserve notes across forks and branch navigation, including after database pruning. Existing plaintext PCC notes remain readable without an import. On first use, saved PCC notes continuity settings migrate to Notes when no Notes settings file exists. Existing Notes settings take precedence.
 
-The whitelist is preseeded in `<Pi agent directory>/notes-compaction/settings.json` (normally `~/.pi/agent/notes-compaction/settings.json`):
+The whitelist lives under `notes` in the global `pi-agent-comms.json`:
 
 ```json
 {
-	"active": "whitelist",
-	"modelWhitelist": ["gpt-6.2-astra", "gpt-6.2-sol", "gpt-6-luna"],
-	"normalCompaction": false,
-	"rankedHistorySearch": false,
-	"newWindowRequests": "unrestricted",
-	"idleMinutes": 0,
-	"taskBoundaryReminder": 0
+	"notes": {
+		"active": "whitelist",
+		"modelWhitelist": ["gpt-6.2-astra", "gpt-6.2-sol", "gpt-6-luna"],
+		"normalCompaction": false
+	}
 }
 ```
 

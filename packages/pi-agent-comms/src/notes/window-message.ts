@@ -5,6 +5,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { Box, Text, TruncatedText } from "@earendil-works/pi-tui";
 import type { WindowIdentity } from "./bridge.js";
+import type { RolloverTail } from "./rollover-tail.js";
 
 export const WINDOW_MESSAGE = "notes-compaction:window:v1";
 export const SETTLEMENT_ENTRY = "notes-compaction:settled:v1";
@@ -14,16 +15,9 @@ export interface WindowDetails {
 	identity: WindowIdentity;
 	trim: boolean;
 	role?: string | undefined;
+	tail?: RolloverTail;
 }
 const GUIDANCE = `<context_window_guidance>
-Use short checkpoints with relative paths. Reuse notes without duplicating state. Record only the current goal, task-specific constraints or exceptions, decisions, status, next action and evidence/history links. Omit harness instructions, tool usage and skill-read bookkeeping.
-
-Before replying, save only changes you'll need after rollover unless explicit reminders or earlier handoffs require a save. If a no-action report needs recording, add only its run/report ID and "no owned action". Keep current state first. Replace superseded status; append only if prior state remains accurate. Retrieve older decisions and evidence through history.
-
-Save relevant notes before handoff. On recovery, read relevant notes, necessary links and a few relevant user messages via history, then resume the current task. Avoid unchanged rereads except required skills after rollover. Follow current instructions; neither past messages nor checkpoints renew permission to act.
-</context_window_guidance>`;
-
-const GPT_GUIDANCE = `<context_window_guidance>
 Short checkpoints, relative paths. Reuse notes; avoid duplicate state. Keep only current goal, task constraints/exceptions, decisions/status, next action, evidence/history links. Omit harness/tool instructions and skill-read state.
 
 Before reply→save only changes needed after rollover unless explicit reminders/earlier handoffs require saving. No-action report + save needed→run/report ID + "no owned action" only. Current first; replace superseded status; append only if prior state stays accurate. History→older decisions/evidence.
@@ -86,10 +80,32 @@ function identity(value: unknown): WindowIdentity | undefined {
 	return data as WindowIdentity;
 }
 
+function parseTail(value: unknown): RolloverTail | undefined {
+	if (
+		value &&
+		typeof value === "object" &&
+		"mode" in value &&
+		(value.mode === "conversation" || value.mode === "full") &&
+		"firstKeptEntryId" in value &&
+		typeof value.firstKeptEntryId === "string" &&
+		"firstMessage" in value &&
+		typeof value.firstMessage === "string"
+	)
+		return {
+			mode: value.mode,
+			firstKeptEntryId: value.firstKeptEntryId,
+			firstMessage: value.firstMessage,
+		};
+}
+
 function parseWindowDetails(value: unknown): WindowDetails | undefined {
 	if (!value || typeof value !== "object") return;
 	const details = value as Partial<WindowDetails>;
 	const ids = identity(details.identity);
+	const tail =
+		details.kind === "window" && details.trim
+			? parseTail(details.tail)
+			: undefined;
 	if (
 		details.protocol !== 1 ||
 		!ids ||
@@ -104,6 +120,7 @@ function parseWindowDetails(value: unknown): WindowDetails | undefined {
 		kind: details.kind!,
 		identity: ids,
 		trim: details.trim,
+		...(tail ? { tail } : {}),
 		...(typeof details.role === "string" &&
 		/^[a-z][a-z0-9-]*$/.test(details.role)
 			? { role: details.role }
@@ -182,8 +199,8 @@ export function windowMessage(
 	hint: string,
 	trim: boolean,
 	kind: "window" | "identity" = "window",
-	gpt = false,
 	role?: string,
+	tail?: RolloverTail,
 ): CustomMessageEntryDraft {
 	// History exposes lookup IDs on demand; rollover must not churn this text just for UUIDs.
 	const lines = [`Agent name: ${agent}`];
@@ -191,7 +208,7 @@ export function windowMessage(
 	return {
 		type: "custom_message",
 		customType: WINDOW_MESSAGE,
-		content: `${gpt ? GPT_GUIDANCE : GUIDANCE}\n\n<context_window>\n${lines.join("\n")}\n</context_window>`,
+		content: `${GUIDANCE}\n\n<context_window>\n${lines.join("\n")}\n</context_window>`,
 		display: true,
 		details: {
 			protocol: 1,
@@ -199,6 +216,7 @@ export function windowMessage(
 			identity: ids,
 			trim,
 			...(role === undefined ? {} : { role }),
+			...(tail ? { tail } : {}),
 		} satisfies WindowDetails,
 	};
 }

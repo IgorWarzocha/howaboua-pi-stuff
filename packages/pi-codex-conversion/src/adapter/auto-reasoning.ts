@@ -27,10 +27,15 @@ const PARAMETERS = obj(
 	{ level: StringEnum(["low", "medium", "high", "xhigh", "max"] as const) },
 	{ open: true },
 );
+const NORMAL_GUIDANCE =
+	"You should adjust reasoning effort when the work enters a new phase or turns out harder or easier than expected. Use low for routine work, medium for a quick survey, high for tracing a cause across systems, and extra high when several causes interact.";
+const GPT_GUIDANCE =
+	"SHOULD adapt effort when phases change or work turns out harder or easier than expected. Routine→low; quick survey→medium; cross-system cause→high; interacting causes→xhigh";
 
 interface AutoReasoning {
 	begin(ctx: ExtensionContext): void;
 	settle(ctx: ExtensionContext): void;
+	guidance(): string;
 	tool: ToolDefinition<typeof PARAMETERS, { level: Level; floor: Level }>;
 }
 
@@ -40,6 +45,10 @@ export function createAutoReasoning(
 ): AutoReasoning {
 	let baseline: { level: Level; lane: string; session: string } | undefined;
 	let applied: Level | undefined;
+	const guidance = () =>
+		state.config.prompt.heavySystemPromptOverwrite
+			? GPT_GUIDANCE
+			: NORMAL_GUIDANCE;
 	const matches = (ctx: ExtensionContext) =>
 		baseline &&
 		ctx.model &&
@@ -62,6 +71,7 @@ export function createAutoReasoning(
 	};
 	return {
 		begin,
+		guidance,
 		settle(ctx: ExtensionContext) {
 			const restore =
 				matches(ctx) &&
@@ -77,8 +87,10 @@ export function createAutoReasoning(
 			name: "change_reasoning",
 			defaultActive: false,
 			label: "Change Reasoning",
-			description:
-				"Use low for routine work, medium for a quick survey, high to trace a cause across systems, and xhigh when causes may interact. Change when the next phase needs a different level, not per tool call. Applies next request, never below the user's setting.",
+			description: NORMAL_GUIDANCE,
+			prepareLoadout: () => ({
+				descriptions: { change_reasoning: guidance() },
+			}),
 			parameters: PARAMETERS,
 			...auxiliaryToolRenderers(
 				"Reasoning adjustment failed",

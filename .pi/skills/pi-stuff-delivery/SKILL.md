@@ -1,9 +1,13 @@
 ---
 name: pi-stuff-delivery
-description: "Read after general repository delivery when preparing, updating or landing pull requests in this repository."
+description: "Read before splitting modules, changing branches, committing work or opening, updating or landing a repository pull request."
 ---
 
-Discover and load an applicable general repository delivery skill before delivery work.
+Check the branch before editing. Use a worktree and task branch only when concurrent work needs isolation. Other branches require explicit authorisation.
+
+After a behaviour-preserving module split, run `bun refactor:compare --base <pre-refactor> --entry <old path> --probe <ESM>`. Give old and new modules identical inputs, assert normalised outputs, and explain every reachable old-side path. Traversal coverage is not proof. Retain probes only for durable independent contracts.
+
+Discover and load an applicable general repository delivery skill before committing or publishing.
 
 Treat issue disposition as a PR preflight. Reconcile addressed issues against the final diff: fully resolved issues need `Closes #N` in the actual PR targeting `main`; partial fixes need `Refs #N` and concrete remaining work. Carry resolved topic references into the collector or `dev` → `main` PR. Read back the GitHub PR body before landing, then verify the issues closed after merge.
 

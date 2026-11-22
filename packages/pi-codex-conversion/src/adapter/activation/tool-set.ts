@@ -15,19 +15,9 @@ function formatStatusText(
 	return `${theme.fg("accent", STATUS_TEXT)}${suffix ? theme.fg("dim", suffix) : ""}`;
 }
 
-export function buildExtraToolsOnlyStatusText(
-	tools: string[],
-	theme?: StatusTheme | undefined,
-): string {
-	return formatStatusText(
-		` • extra tools${tools.length > 0 ? `: ${tools.join(", ")}` : ""}`,
-		theme,
-	);
-}
-
 export function buildStatusText(
 	options: {
-		mode?: "normal" | "code" | "notebook" | "ts" | "js" | "vm" | undefined;
+		mode?: "normal" | "code" | "ts" | "vm" | undefined;
 		verbosity?: string | undefined;
 		fast: "priority" | "ultrafast" | undefined;
 		baseTierEstimate?: boolean | undefined;
@@ -42,15 +32,11 @@ export function buildStatusText(
 	const extras = [
 		options.mode === "vm"
 			? "VM Code"
-			: options.mode === "js"
-				? "QuickJS Code"
-				: options.mode === "ts"
-					? "TS mode"
-					: options.mode === "notebook"
-						? "notebook mode"
-						: options.mode === "code"
-							? "code mode"
-							: undefined,
+			: options.mode === "ts"
+				? "TS mode"
+				: options.mode === "code"
+					? "code mode"
+					: undefined,
 		options.useOnAllModels ? "all models" : undefined,
 		options.additionalProvider ? "additional provider" : undefined,
 		options.compaction ? "compact v2" : undefined,

@@ -1,7 +1,10 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { num, obj, opt, str } from "@earendil-works/pi-schema";
 import { Container, Text } from "@earendil-works/pi-tui";
-import { renderWriteStdinCall } from "../../ui/tool-rendering/codex-rendering.ts";
+import {
+	renderExecOutcome,
+	renderWriteStdinCall,
+} from "../../ui/tool-rendering/codex-rendering.ts";
 import type {
 	ExecSessionManager,
 	UnifiedExecResult,
@@ -46,9 +49,12 @@ function parseFormattedExecTranscript(text: string): FormattedExecTranscript {
 	const sessionMatch = metadata.match(
 		/(?:Process running with session ID|Call write_stdin\(\{ session_id:) (\d+)(?: \}\))?/,
 	);
-	const exitCodeMatch = metadata.match(
-		/(?:Process exited with code |Exit code: )(-?\d+)/,
-	);
+	const exitCodeMatch =
+		markerIndex === -1
+			? null
+			: metadata.match(
+					/^(?:Process exited with code |Exit code: )(-?\d+)(?=\n|$)/,
+				);
 	return {
 		output,
 		sessionId: sessionMatch ? Number(sessionMatch[1]!) : undefined,
@@ -177,7 +183,17 @@ export function createWriteStdinTool(
 		renderResult(result, { expanded, isPartial }, theme) {
 			const state = getResultState(result);
 			if (!expanded) {
-				if (!isPartial || !options.showOutputWhenCollapsed)
+				if (!isPartial) {
+					const exitCode = state.exitCode;
+					return typeof exitCode === "number" && exitCode !== 0
+						? new Text(
+								renderExecOutcome({ kind: "nonzero", exitCode }, theme),
+								4,
+								0,
+							)
+						: createEmptyResultComponent();
+				}
+				if (!options.showOutputWhenCollapsed)
 					return createEmptyResultComponent();
 				const output = renderTerminalOutput(state.output).trimEnd();
 				const tail = output.slice(-8_000).split("\n").slice(-5).join("\n");

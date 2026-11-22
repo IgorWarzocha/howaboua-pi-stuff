@@ -31,7 +31,6 @@ type OnBlockedChange = (state: BlockedState) => void;
 
 interface AskToolOptions extends AskCoordinatorOptions {
 	onBlockedChange?: OnBlockedChange;
-	isGpt?(): boolean;
 }
 
 export function createAskRuntime({
@@ -40,7 +39,6 @@ export function createAskRuntime({
 	onBlockedChange,
 	onPendingChange,
 	onRequestChange,
-	isGpt = () => false,
 }: AskToolOptions = {}) {
 	const coordinator = createAskCoordinator({
 		...(askInComposer ? { askInComposer } : {}),
@@ -76,20 +74,12 @@ export function createAskRuntime({
 				return {
 					content: [
 						textContent(
-							(isGpt()
-								? [
-										'ask({prompts:[{title,body?,multiple?,choices?:[{label,description?}]}],delivery?:"wait"|"steer",handoff?:boolean})',
-										"wait default; steer only while reversible work can continue. Handoff requires wait; state action+completion signal",
-										"Each review finding MUST go directly into a prompt with disposition choices",
-										"Auto Other/rephrase; no choices=free text; blank Other/rephrase→rephrase/follow up",
-									]
-								: [
-										'ask({ prompts: [{ title, body?, multiple?, choices?: [{ label, description? }] }], delivery?: "wait"|"steer", handoff?: boolean })',
-										"Wait by default; steer only while reversible work can continue. A handoff requires wait; state the user action and its completion signal",
-										"Each review finding MUST go directly into a prompt with disposition choices",
-										"Other/rephrase is automatic; omit choices for free text. Blank Other/rephrase means rephrase or follow up",
-									]
-							).join("\n"),
+							[
+								'ask({prompts:[{title,body?,multiple?,choices?:[{label,description?}]}],delivery?:"wait"|"steer",handoff?:boolean})',
+								"wait default; steer only while reversible work can continue. Handoff requires wait; state action+completion signal",
+								"Each review finding MUST go directly into a prompt with disposition choices",
+								"Auto Other/rephrase; no choices=free text; blank Other/rephrase→rephrase/follow up",
+							].join("\n"),
 						),
 					],
 					details: { kind: "help" },

@@ -1,13 +1,16 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { JsonSchema, SitesClient } from "./client.js";
+import {
+	type JsonSchema,
+	type SitesClient,
+	SitesOperationUnavailable,
+} from "./client.js";
 import {
 	acquireHostingLock,
 	inspectCleanCommit,
 	persistProjectId,
 	projectContext,
-	pushCommit,
 	readHosting,
 	resolveProjectId,
 } from "./local-project.js";
@@ -18,8 +21,24 @@ import {
 	resolveOperation,
 } from "./operations.js";
 import { redact } from "./redact.js";
+import {
+	newCheckoutPath,
+	openSource,
+	pushCommit,
+	requireGitWorktreeEnvironment,
+} from "./source-git.js";
 
 const docsDir = join(dirname(fileURLToPath(import.meta.url)), "docs");
+const sourceCredentialTool = "create_source_repository_write_credential";
+const openSchema = {
+	type: "object",
+	properties: {
+		project_id: { type: "string" },
+		project_dir: { type: "string" },
+	},
+	required: ["project_id", "project_dir"],
+	additionalProperties: false,
+};
 export async function call(
 	request: unknown,
 	client: Pick<SitesClient, "schema" | "call">,
@@ -48,13 +67,20 @@ export async function call(
 		"publish_on_push is not supported; use explicit save/deploy",
 	);
 
+	if (operation.local === "open") {
+		validateAgainstSchema(params, openSchema);
+		requireGitWorktreeEnvironment();
+		const projectId = params["project_id"];
+		if (typeof projectId !== "string" || !projectId.trim()) {
+			throw new Error("site.open requires the selected Site's project_id");
+		}
+		const destination = await newCheckoutPath(params["project_dir"], cwd);
+		const credential = await siteSourceCredential(client, projectId);
+		return openSource(destination, projectId, credential, signal);
+	}
+
 	const prepared = await prepare(operation, { ...params }, client, cwd, signal);
 	try {
-		validateAgainstSchema(
-			prepared.args,
-			await client.schema(prepared.tool),
-			prepared.allowedExtra,
-		);
 		const raw = await client.call(prepared.tool, prepared.args);
 		const completed = await prepared.after(raw);
 		return redact(selectResult(operation, completed));
@@ -70,14 +96,20 @@ async function prepare(
 	cwd: string,
 	signal?: AbortSignal,
 ) {
+	const tool = selectBackendTool(operation, params);
+	const schema = await client.schema(tool);
 	const project = await projectContext(params["project_dir"], cwd);
 	delete params["project_dir"];
-	let tool = operation.tool;
 	let after = async (value: unknown) => value;
 	let cleanup = async () => {};
-	const allowedExtra: string[] = [];
+
+	if (tool === "list_sites" && params["limit"] === undefined)
+		params["limit"] = 20;
+	if (tool === "list_site_versions" && params["limit"] === undefined)
+		params["limit"] = 20;
 
 	if (operation.local === "create") {
+		validateAgainstSchema(params, schema);
 		cleanup = await acquireHostingLock(project);
 		try {
 			const manifest = await readHosting(project);
@@ -123,18 +155,17 @@ async function prepare(
 				"version",
 			);
 		}
-		params["project_id"] = await resolveProjectId(params, project);
-		const { root, commitSha } = await inspectCleanCommit(project, signal);
+		const projectId = await resolveProjectId(params, project);
+		params["project_id"] = projectId;
+		const { root, commitSha } = await inspectCleanCommit(
+			project,
+			projectId,
+			signal,
+		);
 		params["commit_sha"] = commitSha;
 		// Reject invalid inputs before a source push. Both save routes share this owner.
-		validateAgainstSchema(params, await client.schema(tool));
-		const credentialResponse = await client.call(
-			"create_source_repository_write_credential",
-			{
-				project_id: params["project_id"],
-			},
-		);
-		const credential = unwrapResult(credentialResponse);
+		validateAgainstSchema(params, schema);
+		const credential = await siteSourceCredential(client, projectId);
 		if (recordResult(credential)?.["publish_on_push_accepted"] === true) {
 			throw facadeError(
 				"automatic_publication_unsupported",
@@ -142,35 +173,43 @@ async function prepare(
 				"version",
 			);
 		}
-		await pushCommit({ root, commitSha, credential, signal });
+		await pushCommit(root, commitSha, credential, signal);
 	} else {
-		const schema = await client.schema(tool);
 		if (schema?.properties?.["project_id"] && !params["project_id"]) {
 			params["project_id"] = await resolveProjectId(params, project);
 		}
+		validateAgainstSchema(params, schema);
 	}
 
-	if (operation.local === "deploy") {
-		const visibility = params["visibility"];
-		if (visibility !== "private" && visibility !== "shared") {
-			throw facadeError(
-				"visibility_required",
-				'deployment.deploy requires params.visibility as "private" or "shared"',
-				"deployment",
-			);
-		}
-		tool =
-			visibility === "private"
-				? "deploy_private_site_version"
-				: "deploy_site_version";
-		delete params["visibility"];
-	}
+	return { tool, args: params, after, cleanup };
+}
 
-	if (operation.tool === "list_sites" && params["limit"] === undefined)
-		params["limit"] = 20;
-	if (operation.tool === "list_site_versions" && params["limit"] === undefined)
-		params["limit"] = 20;
-	return { tool, args: params, after, cleanup, allowedExtra };
+function selectBackendTool(
+	operation: ResolvedOperation,
+	params: Record<string, unknown>,
+) {
+	if (operation.local !== "deploy") return operation.tool;
+	const visibility = params["visibility"];
+	if (visibility !== "private" && visibility !== "shared") {
+		throw facadeError(
+			"visibility_required",
+			'deployment.deploy requires params.visibility as "private" or "shared"',
+			"deployment",
+		);
+	}
+	delete params["visibility"];
+	return visibility === "private"
+		? "deploy_private_site_version"
+		: operation.tool;
+}
+
+async function siteSourceCredential(
+	client: Pick<SitesClient, "call">,
+	projectId: string,
+) {
+	return unwrapResult(
+		await client.call(sourceCredentialTool, { project_id: projectId }),
+	);
 }
 
 function rejectKeys(
@@ -184,11 +223,10 @@ function rejectKeys(
 function validateAgainstSchema(
 	params: Record<string, unknown>,
 	schema: JsonSchema | undefined,
-	allowedExtra: string[] = [],
 ) {
 	const properties = schema?.properties ?? {};
 	const unknown = Object.keys(params).filter(
-		(key) => !Object.hasOwn(properties, key) && !allowedExtra.includes(key),
+		(key) => !Object.hasOwn(properties, key),
 	);
 	if (unknown.length > 0) {
 		throw new Error(
@@ -241,18 +279,22 @@ export async function documentation(
 	if (operation) {
 		const guide = await readTopic(operation.topic);
 		const schemas =
-			operation.local === "deploy"
-				? {
-						private: documentationSchema(
-							await client.schema("deploy_private_site_version"),
-							operation,
-						),
-						shared: documentationSchema(
-							await client.schema("deploy_site_version"),
-							operation,
-						),
-					}
-				: documentationSchema(await client.schema(operation.tool), operation);
+			operation.local === "open"
+				? openSchema
+				: operation.local === "deploy"
+					? {
+							private: await liveDocumentationSchema(
+								client,
+								"deploy_private_site_version",
+								operation,
+							),
+							shared: await liveDocumentationSchema(
+								client,
+								operation.tool,
+								operation,
+							),
+						}
+					: await liveDocumentationSchema(client, operation.tool, operation);
 		return boundedDocumentation(
 			`${guide}\n\n## Current params schema for ${operation.key}\n\n` +
 				`${operationSchemaNote(operation)}\n\n\`\`\`json\n${JSON.stringify(schemas, null, 2)}\n\`\`\`\n`,
@@ -270,6 +312,7 @@ export async function documentation(
 		"analytics",
 		"mcp",
 		"building",
+		"identity",
 		"diagnostics",
 		"database",
 		"schedules",
@@ -278,19 +321,31 @@ export async function documentation(
 }
 
 function operationSchemaNote(operation: ResolvedOperation) {
+	if (operation.local === "open") {
+		return "Pass the selected Site's exact ID and a new local directory in `params`.";
+	}
 	if (operation.local === "save") {
 		return "The facade derives and pushes `commit_sha`; archives are unsupported. `project_dir` selects the clean bound repository.";
 	}
 	if (operation.local === "deploy") {
-		return 'The facade additionally requires `visibility: "private" | "shared"`; this facade field is stripped before the backend call.';
+		return 'Set `visibility: "private" | "shared"` to select the matching schema. A null schema means that route is unavailable.';
 	}
 	return "Pass the backend fields inside `params`. `project_id` may be omitted when `.openai/hosting.json` supplies it.";
 }
 
-function documentationSchema(
-	schema: JsonSchema | undefined,
+async function liveDocumentationSchema(
+	client: Pick<SitesClient, "schema">,
+	tool: string,
 	operation: ResolvedOperation,
 ) {
+	let schema: JsonSchema | undefined;
+	try {
+		schema = await client.schema(tool);
+	} catch (error) {
+		if (error instanceof SitesOperationUnavailable) return null;
+		throw error;
+	}
+	if (!schema) return null;
 	const projected: JsonSchema = JSON.parse(
 		JSON.stringify(schema, (key, value) =>
 			(key === "description" || key === "title") && typeof value === "string"

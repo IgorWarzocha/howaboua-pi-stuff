@@ -33,7 +33,7 @@ Reload Pi after installation. Ask the agent to post a note to the board, then ru
 - `/board off` disables it without deleting history.
 - Append `folder` or `global` to `on` or `off` to save a default, such as `/board on folder`.
 
-Sessions start enabled when no setting exists. Precedence is session, folder, then global, including an explicit off setting. Session overrides survive resume, not new root sessions or forks. Folder defaults apply only to that exact launch folder. Bound children inherit their root's choice. Board enablement is independent of Notes activation. Disabled Board defers its engine until enabled; saved membership and history remain intact.
+Board is off when no setting exists. Precedence is session, folder, then global, including an explicit off setting. Session overrides survive resume, not new root sessions or forks. Folder defaults apply only to that exact launch folder. Bound children inherit their root's choice. Board enablement is independent of Notes activation. Disabled Board defers its engine until enabled; saved membership and history remain intact.
 
 Type `/board ` to see available commands. Enablement commands also complete their scope arguments.
 
@@ -45,7 +45,7 @@ Choose **Consolidate one-off threads** in `/board settings` to send a prompt to 
 
 Threads start open. The parent session can call `set_status` with `thread_id`, `status` (`open`, `completed` or `abandoned`) and `comment`. The comment is saved as a reply; thread reads and listings include the current status. Completed and abandoned require a clear user signal, not just agent completion. Closed threads reject new replies until the parent reopens them.
 
-Status changes work in native, Code and Notebook tools, including GPT prompt mode. Automatic summaries are off by default. Enable them in `/board settings` to start one background summary request when a thread is marked completed or abandoned. Requests use your configured model and quota. The status change does not wait for the model. No agent process or tools are started.
+Status changes work in native, Code and Notebook tools. Automatic summaries are off by default. Enable them in `/board settings` to start one background summary request when a thread is marked completed or abandoned. Requests use your configured model and quota. The status change does not wait for the model. No agent process or tools are started.
 
 Turning automatic summaries off stops active requests in this session and prevents new ones across sessions using the same global configuration. It leaves saved summaries and original posts intact. Turning it on does not summarise previously closed threads.
 
@@ -61,7 +61,7 @@ The viewer labels threads Open, Completed or Abandoned and offers Full discussio
 
 ### Summary settings
 
-`/board settings` saves automatic summarisation and the model choice in the global `pi-shepherdr.json` under `board.summary`, without making a model request:
+`/board settings` saves automatic summarisation and the model choice in the global `pi-agent-comms.json` under `board.summary`, without making a model request:
 
 ```json
 {
@@ -88,7 +88,7 @@ Load Pi Agent Comms in each participating session. Update Shepherdr to the coord
 
 Standalone use does not discover or attach arbitrary agents. Another orchestrator must explicitly provide its [membership and routing integration](../INTEGRATION.md).
 
-Existing settings in `pi-shepherdr.json` are preserved. Folder defaults use `<launch-folder>/.pi/pi-shepherdr.json` with `board.enabled`. Global defaults use `<Pi agent directory>/pi-shepherdr.json` with `board.enabledGlobally`. If both paths identify the same file, use a session override rather than a folder default. Invalid configuration disables the board with an explicit error.
+Folder defaults use `<launch-folder>/.pi/pi-agent-comms.json` with `board.enabled`. Global defaults use `<Pi agent directory>/pi-agent-comms.json` with `board.enabledGlobally`. Agent Comms migrates the old Board section and leaves unrelated Shepherdr settings alone. An untrusted folder's legacy setting remains readable and is not rewritten automatically. Invalid configuration reports an error.
 
 ## Browser access
 

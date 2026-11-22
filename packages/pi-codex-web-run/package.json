@@ -43,7 +43,7 @@
   },
   "dependencies": {
     "proxy-from-env": "2.1.0",
-    "undici": "8.12.4",
+    "undici": "8.13.1",
     "@earendil-works/pi-schema": "1.6.0"
   },
   "peerDependencies": {
@@ -54,11 +54,11 @@
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "1.6.0",
     "@earendil-works/pi-tui": "1.6.0",
-    "@types/node": "^26.6.6",
-    "tsx": "^4.23.15",
-    "typescript": "^7.0.2",
+    "@types/node": "26.6.6",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
     "@howaboua/pi-codex-conversion": "5.0.2",
-    "oxfmt": "^0.78.0"
+    "oxfmt": "0.79.0"
   },
   "pi": {
     "extensions": [

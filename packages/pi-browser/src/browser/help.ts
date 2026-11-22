@@ -1,24 +1,19 @@
 export function browserHelp(
 	hosts: readonly string[] = [],
-	gpt = false,
 ): Record<string, unknown> {
 	const routed = hosts.length > 0;
 	return {
 		input: "{action,...fields}",
 		...(routed
 			? {
-					host: `${hosts.join("|")}${gpt ? " optional; user-named host→all calls; refs/handles stay with host" : " optional; keep the user-named host on every call and reuse refs or handles only on their host"}`,
+					host: `${hosts.join("|")} optional; user-named host→all calls; refs/handles stay with host`,
 				}
 			: {}),
-		refs: gpt
-			? "tabs→open; ref_id/id/cursors stay with result"
-			: "tabs -> open; keep ref_id/id/cursors with their result",
-		safety: gpt
-			? "MUST ask before unfamiliar low-trust navigation or consequential action unless authorised. MUST NOT close shared browser"
-			: "Unless authorised, MUST ask before unfamiliar low-trust navigation or consequential action. MUST NOT close a shared browser",
-		batch: gpt
-			? "Independent only: {action_name:[{...fields}],...}; nonempty arrays; root host/response_length; omit item action"
-			: "Batch independent actions only: {action_name:[{...fields}],...}. Nonempty arrays; host and response_length at root; omit item action",
+		refs: "tabs→open; ref_id/id/cursors stay with result",
+		safety:
+			"MUST ask before unfamiliar low-trust navigation or consequential action unless authorised. MUST NOT close shared browser",
+		batch:
+			"Independent only: {action_name:[{...fields}],...}; nonempty arrays; root host/response_length; omit item action",
 		actions: {
 			help: "",
 			tabs: "query? offset? owned_only? -> ref_id title url owned",
