@@ -59,6 +59,9 @@ jobs:
           create-github-releases: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Verify npm downloads
+        if: steps.changesets.outputs.has-changesets == 'false'
+        run: node scripts/verify-release-downloads.mjs
       - name: Delete Changesets release branch after publish
         if: steps.changesets.outputs.published == 'true'
         run: git push origin --delete changeset-release/main || true
