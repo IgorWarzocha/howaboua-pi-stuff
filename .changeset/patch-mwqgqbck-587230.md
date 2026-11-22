@@ -13,7 +13,7 @@
 - Codex switches to HTTP for the session when it detects a WebSocket size limit before text appears. If a size rejection follows visible text, Codex reports the incomplete response without replaying it.
 - Folded shell rows distinguish errors from searches with no matches. Background completion notices collapse to one line, and expanded cells show identical shell output only once.
 - Code and Notebook group exact usage calls. `ALL_TOOLS` lists every public tool available to the cell.
-- Code and Notebook guidance recommends composing related calls in one cell. VM Code and TS Notebook explain how to recover from redeclaring a binding.
+- Code and Notebook guidance recommends composing related calls in one cell and checking JavaScript syntax before sending. VM Code and TS Notebook explain how to recover from redeclaring a binding.
 - TS Notebook resolves packages and type roots more reliably.
 - Code and Notebook print plain shell output by default. Existing choices are preserved. To opt out, set `notebook.plainCommandOutput` to `false` in `pi-codex-conversion.json`.
 - Auto Reasoning recommends adjusting effort when the work phase changes or a task turns out harder or easier than expected.

@@ -25,7 +25,7 @@ const EDIT_GUIDELINE =
 const CONCURRENCY_GUIDELINE = "Independent calls→parallel when practical";
 
 const CODE_MODE_GUIDELINES = [
-	"Quoted text→alternate JS quotes; shell/patch/source→literal ${...}/backticks",
+	"JS tool calls: bind complex strings first. Preserve literal ${...} and backticks in payloads. Check quotes, commas and closing delimiters before sending.",
 	"Related calls→one JS cell; branch/loop on results; text()→outcome, blocker or decision needed",
 ];
 const NOTEBOOK_SHELL_GUIDELINE =
