@@ -1,15 +1,12 @@
 import { Buffer } from "node:buffer";
 import {
 	type CatalogSkill,
-	defaultSessionSkillsDir,
-	defaultSkillsDir,
 	discoverVisibleSkills,
-	type LoadedSkill,
+	type SkillDiscoveryOptions,
 } from "./discovery.js";
 import { readSkillPackage, type SkillReadOutput } from "./skill-package.js";
 
 export type { LoadedSkill } from "./discovery.js";
-export { defaultSessionSkillsDir, defaultSkillsDir } from "./discovery.js";
 
 const MAX_OUTPUT_BYTES = 48 * 1024;
 // Leave room for an exact continuation command inside the output budget.
@@ -172,16 +169,9 @@ function boundedOutput(result: SkillReadOutput, request: SkillsRequest) {
 	return page(bytes.subarray(offset, end).toString("utf8") + footer(end), end);
 }
 
-export function runSkills(
-	input: unknown,
-	globalRoot = defaultSkillsDir(),
-	sessionRoot: string | undefined = globalRoot === defaultSkillsDir()
-		? defaultSessionSkillsDir()
-		: undefined,
-	loadedSkills: readonly LoadedSkill[] = [],
-) {
+export function runSkills(input: unknown, options?: SkillDiscoveryOptions) {
 	const request = parseRequest(input);
-	const skills = discoverVisibleSkills(globalRoot, sessionRoot, loadedSkills);
+	const skills = discoverVisibleSkills(options);
 	const result: SkillReadOutput = { output: "", reads: [] };
 	for (const [index, command] of request.commands.entries()) {
 		if (index) result.output += "\n\n";

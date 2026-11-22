@@ -3,11 +3,14 @@ import {
 	existsSync,
 	readdirSync,
 	readFileSync,
+	realpathSync,
 	statSync,
 } from "node:fs";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
 	getAgentDir,
+	loadSkills,
 	loadSkillsFromDir,
 } from "@earendil-works/pi-coding-agent";
 import { parseSkillDocument, validateSkill } from "./skill-document.js";
@@ -40,12 +43,20 @@ interface DirectoryCatalog {
 	hiddenNames: Set<string>;
 }
 
-export function defaultSkillsDir(): string {
-	return join(getAgentDir(), "skills");
-}
-
-export function defaultSessionSkillsDir(cwd = process.cwd()): string {
-	return join(cwd, ".pi", "skills");
+function projectAgentsSkillDirs(cwd: string, userAgentsRoot: string): string[] {
+	const roots: string[] = [];
+	let directory = resolve(cwd);
+	const localRoot = join(directory, ".agents", "skills");
+	while (true) {
+		const skills = join(directory, ".agents", "skills");
+		if (relative(userAgentsRoot, skills) !== "") roots.push(skills);
+		if (existsSync(join(directory, ".git"))) return roots;
+		const parent = dirname(directory);
+		// Outside Git, don't search above the working directory.
+		if (parent === directory)
+			return relative(userAgentsRoot, localRoot) === "" ? [] : [localRoot];
+		directory = parent;
+	}
 }
 
 function skillFileIn(directory: string): string | undefined {
@@ -205,32 +216,73 @@ function catalogLoadedSkill(
 	};
 }
 
-export function discoverVisibleSkills(
-	globalRoot = defaultSkillsDir(),
-	sessionRoot: string | undefined = globalRoot === defaultSkillsDir()
-		? defaultSessionSkillsDir()
-		: undefined,
-	loadedSkills: readonly LoadedSkill[] = [],
-): CatalogSkill[] {
+export interface SkillDiscoveryOptions {
+	globalRoot?: string;
+	projectCwd?: string | undefined;
+	loadedSkills?: readonly LoadedSkill[];
+}
+
+export function discoverVisibleSkills({
+	globalRoot = join(getAgentDir(), "skills"),
+	projectCwd,
+	loadedSkills = [],
+}: SkillDiscoveryOptions = {}): CatalogSkill[] {
+	const sessionRoot = projectCwd
+		? join(projectCwd, ".pi", "skills")
+		: undefined;
+	const userAgentsRoot = resolve(
+		process.env["HOME"] || homedir(),
+		".agents",
+		"skills",
+	);
 	if (loadedSkills.length > 0) {
 		return sortSkills(
 			loadedSkills
-				.filter((skill) => !skill.disableModelInvocation)
+				.filter(
+					(skill) =>
+						!skill.disableModelInvocation &&
+						!isWithin(userAgentsRoot, resolve(skill.filePath)),
+				)
 				.map((skill) => catalogLoadedSkill(skill, globalRoot, sessionRoot)),
 		);
 	}
 
-	const globalCatalog = discoverDirectoryCatalog(globalRoot);
-	const byName = new Map(
-		globalCatalog.skills.map((skill) => [skill.name, skill]),
-	);
+	const byName = new Set<string>();
+	const byPath = new Set<string>();
+	const skills: CatalogSkill[] = [];
+	const add = (skill: CatalogSkill) => {
+		if (byName.has(skill.name)) return;
+		const path = realpathSync(skill.path);
+		byName.add(skill.name);
+		if (byPath.has(path)) return;
+		byPath.add(path);
+		skills.push(skill);
+	};
 	if (sessionRoot) {
 		const sessionCatalog = discoverDirectoryCatalog(sessionRoot);
-		for (const hiddenName of sessionCatalog.hiddenNames)
-			byName.delete(hiddenName);
 		for (const skill of sessionCatalog.skills) {
-			byName.set(skill.name, { ...skill, category: "session" });
+			add({ ...skill, category: "session" });
+		}
+		for (const name of sessionCatalog.hiddenNames) byName.add(name);
+	}
+	if (projectCwd) {
+		const { skills: projectSkills } = loadSkills({
+			cwd: projectCwd,
+			agentDir: getAgentDir(),
+			includeDefaults: false,
+			skillPaths: projectAgentsSkillDirs(projectCwd, userAgentsRoot).filter(
+				(root) => existsSync(root),
+			),
+		});
+		for (const skill of projectSkills) {
+			if (skill.disableModelInvocation) byName.add(skill.name);
+			else
+				add({
+					...catalogLoadedSkill(skill, globalRoot, sessionRoot),
+					category: "session",
+				});
 		}
 	}
-	return sortSkills([...byName.values()]);
+	for (const skill of discoverDirectoryCatalog(globalRoot).skills) add(skill);
+	return sortSkills(skills);
 }

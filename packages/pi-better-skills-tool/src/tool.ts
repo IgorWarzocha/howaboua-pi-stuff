@@ -1,11 +1,6 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { compile, obj, opt, type Static, str } from "@earendil-works/pi-schema";
-import {
-	defaultSessionSkillsDir,
-	defaultSkillsDir,
-	type LoadedSkill,
-	runSkills,
-} from "./catalog.js";
+import { type LoadedSkill, runSkills } from "./catalog.js";
 
 const SkillsParameters = obj({
 	command: opt(str({ description: "help, list or read" })),
@@ -48,12 +43,11 @@ export function createSkillsTool(options: SkillsToolOptions = {}) {
 				throw new Error(
 					"Invalid arguments; call skills with no arguments for help",
 				);
-			const { output, skillReads } = runSkills(
-				params.command ?? "",
-				options.globalRoot ?? defaultSkillsDir(),
-				defaultSessionSkillsDir(ctx.cwd),
-				options.getLoadedSkills?.() ?? [],
-			);
+			const { output, skillReads } = runSkills(params.command ?? "", {
+				...(options.globalRoot ? { globalRoot: options.globalRoot } : {}),
+				projectCwd: ctx.isProjectTrusted() ? ctx.cwd : undefined,
+				loadedSkills: options.getLoadedSkills?.() ?? [],
+			});
 			return {
 				content: [{ type: "text", text: output }],
 				details: { skillReads },

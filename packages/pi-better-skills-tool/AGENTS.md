@@ -1,2 +1,3 @@
 - Pi-loaded skills are authoritative; hiding prompt catalogs must not break native slash expansion or expose disableModelInvocation skills through fallback discovery.
+- Fallback project discovery requires Pi's project trust. Exclude global `~/.agents/skills` from Better Skills without changing Pi's native catalog.
 - Resolve reference symlinks within the skill root; reference-only reads must not expand the whole skill body.

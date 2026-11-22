@@ -31,7 +31,9 @@ await tools.skills(
 );
 ```
 
-Pi's loaded skill catalog is authoritative during normal use. When Pi has no loaded skills, including `--no-skills` sessions, the tool falls back to the standard global `skills/` directory under Pi's agent directory and `$PWD/.pi/skills/`. A same-named session skill overrides the global skill. Skill reads include absolute package paths for later reference, script, or asset access.
+Better Skills uses Pi's loaded catalog, but excludes `~/.agents/skills/`. Skills from a trusted project's `.agents/skills/` appear under Session alongside its `.pi/skills/`.
+
+When Pi has no loaded skills, including in `--no-skills` sessions, the tool falls back to Pi's global `skills/` directory and trusted project skills. Project skills win over same-named global skills. Skill reads include absolute package paths for references, scripts, and assets.
 
 After the initial skill, an exact skill name adds that full skill package. Reference shorthand resolves within the most recently selected skill first, then across the visible catalog. A unique reference can come from another skill. An ambiguous global reference requires a skill-qualified name such as `communication/references/conversation` or an absolute source path. A read with only references still returns only the requested Markdown and source paths, without repeating the initial package inventory.
 
