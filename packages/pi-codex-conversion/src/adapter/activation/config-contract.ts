@@ -203,7 +203,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	},
 	notebook: {
 		maxHeapMiB: 4_096,
-		plainCommandOutput: false,
+		plainCommandOutput: true,
 	},
 	voice: {
 		model: "codex-live-1.1",

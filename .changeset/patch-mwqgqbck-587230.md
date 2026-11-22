@@ -24,6 +24,7 @@
 - Removed the standing ripgrep preference from shell guidance.
 - Code and Notebook guidance shows how to compose related tool calls in one cell and report the outcome with `text()`.
 - VM Code states its runtime limits and binding reset rules once.
+- Code and Notebook print plain shell output by default. The Tools menu no longer shows this setting. Existing choices are preserved, and `notebook.plainCommandOutput` remains available in `pi-codex-conversion.json`.
 - Code and Notebook group usage calls and show the exact call beside each tool.
 - Bundled Codex tools and voice helpers use updated Rust dependencies.
 - Codex sends harness and tool guidance before `AGENTS.md` instructions and the working directory.
