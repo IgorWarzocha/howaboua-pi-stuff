@@ -78,6 +78,7 @@
     "dist/**/*.d.ts",
     "src/**/*.ts",
     "src/**/*.md",
+    "src/tools/vm-mode/bunfig.toml",
     "types/**/*.d.ts",
     "src/voice/lan/assets/**",
     "vendor/tree-sitter-bash/**",

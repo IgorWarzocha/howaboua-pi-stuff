@@ -6,5 +6,5 @@
 - Do not use Node REPL. Its evaluator always calls the host module loader, so `import("node:fs")` succeeds there. Do not pass `importModuleDynamically`.
 - Bind tools as `tools.<name>` through `CodeModeDelegateRuntime`. No bare globals, `$`, `edit`, `searchTools` or `describeTool`.
 - A script error keeps the context. Stall, abort, memory limit, terminate and conversation change terminate the worker. The next exec creates a new context. Say that bindings were dropped.
-- Hard stop: terminate the worker on Node, kill the capped process on Bun. Bun ignores worker `resourceLimits`. Start its separate process in a systemd scope and verify the cgroup memory and swap limits before loading the evaluator. Keep IPC on a thread that can exit if Pi dies while the evaluator stalls. Never fall back to an uncapped worker.
+- Hard stop: terminate the worker on Node, kill the separate process on Bun. Bun ignores worker `resourceLimits`. Verify the Linux cgroup memory and swap limits before loading the evaluator; never fall back to polling on Linux. On macOS and Windows the RSS watchdog is best-effort, not a hard allocation limit. Keep IPC and the watchdog off the evaluator thread so a busy cell cannot block them.
 - The Node heap and Bun process budgets are in `limits.ts`, not Notebook's 4096 MiB default. `store` values use their own caps.

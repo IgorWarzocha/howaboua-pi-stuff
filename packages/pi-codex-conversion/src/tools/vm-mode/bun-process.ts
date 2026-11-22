@@ -1,10 +1,11 @@
 import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { VM_BUN_PROCESS_OVERHEAD_MIB } from "./limits.ts";
+import { VM_BUN_PROCESS_OVERHEAD_MIB, VM_BUN_WATCHDOG_EXIT } from "./limits.ts";
 import type { VmCommand, VmMessage, VmProcessMessage } from "./protocol.ts";
 
-const START_FAILED =
-	"VM Code could not start a memory-limited Bun process. Use a full Bun build on Linux with a systemd user session, start Pi under Node.js or select Code in /codex settings";
+const NEXT_STEP = "Start Pi under Node.js or select Code in /codex settings";
+const MEMORY_LIMIT =
+	"VM Code exceeded its process memory budget. Conversation bindings were dropped. The next exec starts fresh";
 
 export function startBunVmProcess(
 	heapMiB: number,
@@ -15,28 +16,38 @@ export function startBunVmProcess(
 		? new URL("./bun-runner.ts", import.meta.url)
 		: new URL("./bun-runner.js", import.meta.url);
 	const memoryMiB = heapMiB + VM_BUN_PROCESS_OVERHEAD_MIB;
+	const linux = process.platform === "linux";
+	const config = fileURLToPath(
+		new URL("../../../src/tools/vm-mode/bunfig.toml", import.meta.url),
+	);
+	const bunArgs = ["--no-env-file", `--config=${config}`, "run"];
 	// Scope mode execs the interpreter in the same PID, preserving fork IPC
 	// and letting us kill the capped process without a separate systemctl call.
-	const child = fork(fileURLToPath(runner), [String(memoryMiB)], {
-		cwd: fileURLToPath(new URL(".", runner)),
-		execPath: "systemd-run",
-		execArgv: [
-			"--user",
-			"--scope",
-			"--quiet",
-			"--collect",
-			`--property=MemoryMax=${memoryMiB}M`,
-			"--property=MemorySwapMax=0",
-			"--",
-			process.execPath,
-			"--no-env-file",
-			"--config=/dev/null",
-			"run",
-		],
-		env: { ...process.env, BUN_BE_BUN: "1", BUN_OPTIONS: "" },
-		serialization: "json",
-		stdio: ["ignore", "ignore", "ignore", "ipc"],
-	});
+	const child = fork(
+		fileURLToPath(runner),
+		[String(memoryMiB), linux ? "cgroup" : "watchdog"],
+		{
+			cwd: fileURLToPath(new URL(".", runner)),
+			execPath: linux ? "systemd-run" : process.execPath,
+			execArgv: linux
+				? [
+						"--user",
+						"--scope",
+						"--quiet",
+						"--collect",
+						`--property=MemoryMax=${memoryMiB}M`,
+						"--property=MemorySwapMax=0",
+						"--",
+						process.execPath,
+						...bunArgs,
+					]
+				: bunArgs,
+			env: { ...process.env, BUN_BE_BUN: "1", BUN_OPTIONS: "" },
+			serialization: "json",
+			stdio: ["ignore", "ignore", "ignore", "ipc"],
+			windowsHide: true,
+		},
+	);
 	let ready = false;
 	let closed = false;
 	let stopping = false;
@@ -47,16 +58,23 @@ export function startBunVmProcess(
 		if (child.pid) child.kill("SIGKILL");
 	};
 	const done = new Promise<void>((resolve) => {
-		child.once("close", (_code, signal) => {
+		child.once("close", (code, signal) => {
 			closed = true;
 			fail(
-				!ready
-					? new Error(START_FAILED, { cause: fault })
-					: signal === "SIGKILL" && !stopping && !fault
+				code === VM_BUN_WATCHDOG_EXIT && !stopping
+					? new Error(MEMORY_LIMIT)
+					: !ready
 						? new Error(
-								"VM Code was killed, possibly by its process memory limit. Conversation bindings were dropped. The next exec starts fresh",
+								linux
+									? `VM Code could not start a memory-limited Bun process. Use a full Bun build with a systemd user session and cgroup v2. ${NEXT_STEP}`
+									: `VM Code could not start its Bun process. Use a full Bun build. ${NEXT_STEP}`,
+								{ cause: fault },
 							)
-						: undefined,
+						: linux && signal === "SIGKILL" && !stopping && !fault
+							? new Error(
+									"VM Code was killed, possibly by its process memory limit. Conversation bindings were dropped. The next exec starts fresh",
+								)
+							: undefined,
 			);
 			resolve();
 		});

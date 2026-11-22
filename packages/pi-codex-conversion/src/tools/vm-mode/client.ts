@@ -55,9 +55,12 @@ export class VmCodeClient implements CodeModeExecutionClient {
 		options: CodeModeClientOptions,
 		renderStore?: CodeModeNestedRenderStore,
 	) {
-		if (process.versions["bun"] && process.platform !== "linux")
+		if (
+			process.versions["bun"] &&
+			!["linux", "darwin", "win32"].includes(process.platform)
+		)
 			throw new Error(
-				"VM Code under Bun is available only on Linux. Start Pi under Node.js or select Code in /codex settings",
+				"VM Code under Bun is available on Linux, macOS and Windows. Start Pi under Node.js or select Code in /codex settings",
 			);
 		this.heapMiB = vmHeapMiB(options.maxHeapMiB);
 		this.delegate = new CodeModeDelegateRuntime(
