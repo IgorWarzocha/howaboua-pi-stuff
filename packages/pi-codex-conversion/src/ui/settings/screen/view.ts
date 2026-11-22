@@ -26,7 +26,6 @@ export function renderSettingsScreen(
 		activeTab,
 		draft,
 		contextWindowPickerOpen,
-		retentionPickerOpen,
 		list: settingsList,
 	} = settings;
 	const hasSettingsList = activeTab !== "usage" && activeTab !== "about";
@@ -39,7 +38,7 @@ export function renderSettingsScreen(
 		);
 	if (activeTab === "context" && !contextWindowPickerOpen)
 		settingsLines = withContextPortabilityWarning(settingsLines, theme, width);
-	if (activeTab === "tools" && !retentionPickerOpen)
+	if (activeTab === "tools")
 		settingsLines = withSettingsDetails(
 			settingsLines,
 			formatToolsDetails(theme, options.configScope.path()),

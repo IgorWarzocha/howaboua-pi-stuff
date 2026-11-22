@@ -512,7 +512,7 @@ Nested tools remain callable through `tools` and discoverable through `ALL_TOOLS
 
 `new_context` remains a sequential model-only tool. Never put it under an `exec` cell or a nested-tool wrapper.
 
-Notebook shares retained project bindings between sessions using the same project and Pi agent directory. Each running kernel keeps its own working state. Session checkpoints and journals follow the user's `/codex` retention settings, so an old session may resume without its temporary variables. Cleanup does not remove shared project and profile bindings, Notes or Pi conversation history. These cache files are not an inter-agent transport API.
+TS Notebook shares pinned bindings between sessions using the same working directory and Pi agent directory. Each kernel keeps its own live state. Checkpoints restore durable values and helpers, not arbitrary live handles. Notebook state is not an inter-agent transport API.
 
 ### Observe and guard nested calls
 

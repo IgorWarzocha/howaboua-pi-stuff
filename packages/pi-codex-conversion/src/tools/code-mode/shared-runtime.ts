@@ -18,7 +18,7 @@ import type {
 	ToolExecutionContext,
 } from "./types.js";
 
-export type CodeModeExecutionKind = "code" | "notebook" | "ts" | "js" | "vm";
+export type CodeModeExecutionKind = "code" | "ts" | "js" | "vm";
 
 export interface OpaqueContextGuard {
 	lazy: boolean;
@@ -244,7 +244,18 @@ export class SharedCodeModeRuntime {
 		);
 		if (explicit.size > 1)
 			throw new Error("Conflicting code-mode execution runtimes are active");
-		return explicit.values().next().value ?? "code";
+		const kind = explicit.values().next().value ?? "code";
+		switch (kind) {
+			case "code":
+			case "ts":
+			case "js":
+			case "vm":
+				return kind;
+			default:
+				throw new Error(
+					"Unsupported Code execution mode. Reload Pi and choose a supported mode.",
+				);
+		}
 	}
 
 	async getClient(ctx?: unknown): Promise<CodeModeExecutionClient> {
@@ -279,7 +290,7 @@ export class SharedCodeModeRuntime {
 
 	private getRuntimeClient(
 		ctx: unknown,
-		kind: "notebook" | "ts" | "js" | "vm",
+		kind: Exclude<CodeModeExecutionKind, "code">,
 	): Promise<CodeModeExecutionClient> {
 		const options = this.activeProviders(ctx)
 			.find((provider) => provider.notebookOptions)
@@ -292,7 +303,7 @@ export class SharedCodeModeRuntime {
 			kind,
 			options.agentDir,
 			options.maxHeapMiB,
-			kind === "js" || kind === "vm" ? null : (options.profile ?? null),
+			kind === "ts" ? (options.profile ?? null) : null,
 		]);
 		if (this.runtimeClientPromise && this.runtimeClientOptionsKey === key)
 			return this.runtimeClientPromise;
@@ -323,18 +334,10 @@ export class SharedCodeModeRuntime {
 									({ VmCodeClient }) =>
 										new VmCodeClient(clientOptions, this.renderStore),
 								)
-							: kind === "ts"
-								? import("../ts-mode/client.ts").then(
-										({ TsCodeModeClient }) =>
-											new TsCodeModeClient(clientOptions, this.renderStore),
-									)
-								: import("../notebook-mode/client.ts").then(
-										({ NotebookCodeModeClient }) =>
-											new NotebookCodeModeClient(
-												clientOptions,
-												this.renderStore,
-											),
-									);
+							: import("../ts-mode/client.ts").then(
+									({ TsCodeModeClient }) =>
+										new TsCodeModeClient(clientOptions, this.renderStore),
+								);
 				this.runtimeClientPromise = pending;
 				this.runtimeClientOptionsKey = key;
 				void pending.catch(() => {
@@ -370,8 +373,8 @@ export class SharedCodeModeRuntime {
 		signal?: AbortSignal,
 	): Promise<NotebookControlResult> {
 		const kind = this.executionKind(context.extensionContext);
-		if (kind === "code" || kind === "js" || kind === "vm") {
-			throw new Error("notebook is available only in Notebook or TS mode");
+		if (kind !== "ts") {
+			throw new Error("Notebook controls require TS mode");
 		}
 		const client = await this.getRuntimeClient(context.extensionContext, kind);
 		if (!client.controlNotebook)
@@ -408,10 +411,10 @@ export class SharedCodeModeRuntime {
 	private collectProviderTools(ctx?: unknown): CodeModeToolDefinition[] {
 		const tools = collectUniqueTools(this.activeProviders(ctx), ctx);
 		const kind = this.executionKind(ctx);
-		if (kind === "code" || kind === "js" || kind === "vm") return tools;
+		if (kind !== "ts") return tools;
 		if (tools.some((tool) => tool.name === "notebook"))
 			throw new Error("Duplicate code-mode tool: notebook");
-		return [...tools, createNotebookControlProxy(this, kind)];
+		return [...tools, createNotebookControlProxy(this)];
 	}
 }
 

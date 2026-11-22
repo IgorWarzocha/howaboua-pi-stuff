@@ -1,9 +1,4 @@
-import {
-	type Component,
-	Container,
-	Spacer,
-	Text,
-} from "@earendil-works/pi-tui";
+import { type Component, Container } from "@earendil-works/pi-tui";
 import {
 	previewText,
 	renderTextAndImages,
@@ -11,7 +6,6 @@ import {
 } from "./render-content.js";
 import type { CodeModeRenderTracker } from "./render-tracker.js";
 import type { NestedRenderState } from "./trace-render-state.js";
-import { formatNotebookMemoryWarning } from "./tool-result.js";
 import {
 	type CodeModeNestedRenderStore,
 	renderTraceAndOutput,
@@ -20,7 +14,6 @@ import type {
 	CodeModeRenderContext,
 	CodeModeRenderTheme,
 	CodeModeToolDefinition,
-	NotebookMemoryUsage,
 	RuntimeToolTrace,
 } from "./types.js";
 
@@ -33,7 +26,6 @@ interface CodeModeResultDetails {
 	traces?: RuntimeToolTrace[] | undefined;
 	droppedTraceCount?: number | undefined;
 	scriptError?: string | undefined;
-	notebookMemory?: NotebookMemoryUsage | undefined;
 }
 
 class CodeModeResult extends Container {
@@ -101,16 +93,7 @@ function renderCodeModeResult(
 		details.statusPrefix ??
 		(details.status !== undefined && !details.notification);
 	const content = hasStatusPrefix ? result.content.slice(1) : result.content;
-	const notebookMemoryText = details.notebookMemory
-		? formatNotebookMemoryWarning(details.notebookMemory)
-		: undefined;
-	const renderedContent =
-		notebookMemoryText &&
-		content[0]?.type === "text" &&
-		content[0].text === notebookMemoryText
-			? content.slice(1)
-			: content;
-	const textBlocks = renderedContent
+	const textBlocks = content
 		.filter((item) => item.type === "text" && typeof item.text === "string")
 		.map((item) => item.text ?? "");
 	const scriptErrorRenderedByTrace = Boolean(
@@ -126,7 +109,7 @@ function renderCodeModeResult(
 		: details.status === "yielded"
 			? "accent"
 			: "dim";
-	const images = renderedContent.filter(
+	const images = content.filter(
 		(item): item is RenderedToolContent & { data: string; mimeType: string } =>
 			item.type === "image" &&
 			typeof item.data === "string" &&
@@ -163,7 +146,7 @@ function renderCodeModeResult(
 				: previewText(renderedText, theme, false, context);
 		return renderTextAndImages(displayText, [], theme);
 	};
-	const body = renderTraceAndOutput(
+	return renderTraceAndOutput(
 		details.traces ?? [],
 		details.droppedTraceCount ?? 0,
 		tools,
@@ -175,33 +158,6 @@ function renderCodeModeResult(
 		renderStore,
 		traceStates,
 	);
-	if (!details.notebookMemory || !notebookMemoryText) return body;
-	const container = new Container();
-	const ratio =
-		details.notebookMemory.heapLimitBytes > 0
-			? details.notebookMemory.heapUsedBytes /
-				details.notebookMemory.heapLimitBytes
-			: 0;
-	container.addChild(
-		new Text(
-			theme.fg(
-				ratio >= 0.9 ? "error" : ratio >= 0.8 ? "accent" : "muted",
-				notebookMemoryText,
-			),
-			0,
-			0,
-		),
-	);
-	if (
-		details.traces?.length ||
-		details.droppedTraceCount ||
-		(showOutput && (textBlocks.some(Boolean) || status)) ||
-		images.length
-	) {
-		container.addChild(new Spacer(1));
-		container.addChild(body);
-	}
-	return container;
 }
 
 function asDetails(value: unknown): CodeModeResultDetails {

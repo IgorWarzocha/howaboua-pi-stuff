@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from "node:fs";
-import { dirname } from "node:path";
 import {
 	LEGACY_OWNED_CONFIG_KEYS,
 	isRecord,
@@ -17,10 +16,6 @@ import {
 	normalizeCodexConversionConfig,
 	type CodexConversionConfig,
 } from "./config.ts";
-import {
-	maintainNotebookJournals,
-	scheduleNotebookStorageMaintenance,
-} from "../../tools/notebook-mode/storage-retention.ts";
 
 export function readConfigDocument(
 	configPath: string,
@@ -76,7 +71,7 @@ export function writeCodexConversionConfig(
 	config: CodexConversionConfig,
 	configPath: string,
 	folderScope = false,
-): { ok: true; warning?: string } | { ok: false; error: string } {
+): { ok: true } | { ok: false; error: string } {
 	try {
 		const normalizedConfig = normalizeCodexConversionConfig(
 			config,
@@ -87,21 +82,13 @@ export function writeCodexConversionConfig(
 				)
 			: withoutProjectOnlyDocument(normalizedConfig);
 		let document = normalized;
-		let previousJournals: unknown = "week";
-		let previousCheckpointCleanup: unknown = "never";
 		if (existsSync(configPath)) {
 			try {
 				const existing = JSON.parse(
 					readFileSync(configPath, "utf-8"),
 				) as unknown;
-				if (isRecord(existing)) {
-					if (isRecord(existing["notebook"]))
-						previousJournals = existing["notebook"]["journals"] ?? "week";
-					if (isRecord(existing["notebook"]))
-						previousCheckpointCleanup =
-							existing["notebook"]["checkpointCleanup"] ?? "never";
+				if (isRecord(existing))
 					document = mergeConfigDocument(existing, normalized);
-				}
 			} catch {
 				// A valid explicit settings write replaces an unreadable document.
 			}
@@ -122,27 +109,13 @@ export function writeCodexConversionConfig(
 				"portableSummary",
 			])
 				delete compaction[key];
+		const notebook = document["notebook"];
+		if (isRecord(notebook)) {
+			if (!config.notebook.profile) delete notebook["profile"];
+			delete notebook["journals"];
+			delete notebook["checkpointCleanup"];
+		}
 		writeConfigDocumentAtomic(configPath, document);
-		if (
-			!folderScope &&
-			(previousJournals !== config.notebook.journals ||
-				config.notebook.journals === "off")
-		) {
-			try {
-				maintainNotebookJournals(dirname(configPath));
-			} catch (error) {
-				const warning = `Settings saved, but journal cleanup failed: ${error instanceof Error ? error.message : String(error)}. Retry Notebook journals in /codex`;
-				console.warn(warning);
-				return { ok: true, warning };
-			}
-		}
-		if (
-			!folderScope &&
-			(previousCheckpointCleanup !== config.notebook.checkpointCleanup ||
-				previousJournals !== config.notebook.journals)
-		) {
-			scheduleNotebookStorageMaintenance(dirname(configPath), true);
-		}
 		return { ok: true };
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);

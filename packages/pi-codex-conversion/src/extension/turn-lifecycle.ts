@@ -69,7 +69,7 @@ export function createCodexTurnLifecycle(
 	): Promise<boolean> => {
 		const kind = resolveCodexRuntimePlanForState(ctx, state).kind;
 		if (
-			(kind !== "notebook" && kind !== "ts") ||
+			kind !== "ts" ||
 			!["exec", "wait", "notebook"].every((name) =>
 				selectedTools.includes(name),
 			)
@@ -81,7 +81,6 @@ export function createCodexTurnLifecycle(
 			state,
 			messages ?? runtime.projectContextMessages(ctx),
 			codeMode,
-			kind,
 		);
 	};
 
@@ -100,8 +99,7 @@ export function createCodexTurnLifecycle(
 			if (!state.config.voiceFeaturesOnly) await reserve.beforeTurn(ctx);
 			runtime.autoReasoning.begin(ctx);
 			const plan = syncAdapter(pi, ctx, state);
-			if (plan.kind !== "notebook" && plan.kind !== "ts")
-				state.notebookStatusMessageId = undefined;
+			if (plan.kind !== "ts") state.notebookStatusMessageId = undefined;
 			if (!isAdapterRuntime(plan)) {
 				state.preparedPrompt = undefined;
 				return undefined;
@@ -189,9 +187,7 @@ export function createCodexTurnLifecycle(
 			if (shells.recordBriefing(ctx, messages))
 				messages = runtime.projectContextMessages(ctx, event.messages);
 			const required =
-				plan.kind === "notebook" || plan.kind === "ts"
-					? NOTEBOOK_MODE_TOOL_NAMES
-					: CODE_MODE_TOOL_NAMES;
+				plan.kind === "ts" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
 			try {
 				messages = projectCodeModeMcpSections(
 					messages,

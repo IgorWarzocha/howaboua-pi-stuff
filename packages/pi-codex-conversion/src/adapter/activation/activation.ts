@@ -89,7 +89,7 @@ function enableAdapter(
 	state: AdapterState,
 	plan: Extract<
 		CodexRuntimePlan,
-		{ kind: "normal" | "code" | "notebook" | "ts" | "js" | "vm" }
+		{ kind: "normal" | "code" | "ts" | "js" | "vm" }
 	>,
 	extensionTools: ExtensionToolSnapshot,
 ): void {
@@ -255,7 +255,6 @@ function applyRuntimeTools(
 	let projected = toolNames;
 	if (
 		plan.kind === "code" ||
-		plan.kind === "notebook" ||
 		plan.kind === "ts" ||
 		plan.kind === "js" ||
 		plan.kind === "vm"

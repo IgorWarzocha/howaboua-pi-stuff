@@ -168,14 +168,6 @@ export interface OpaqueToolOutput {
 	encryptedOutput: string;
 }
 
-export interface NotebookMemoryUsage {
-	heapUsedBytes: number;
-	heapTotalBytes: number;
-	rssBytes: number;
-	externalBytes: number;
-	heapLimitBytes: number;
-}
-
 export type NotebookHook = "startup" | "tool_result";
 
 export type NotebookControlRequest =
@@ -222,5 +214,4 @@ export type RuntimeResponse = (
 	execSessionIds?: number[] | undefined;
 	traces?: RuntimeToolTrace[] | undefined;
 	droppedTraceCount?: number | undefined;
-	notebookMemory?: NotebookMemoryUsage | undefined;
 };

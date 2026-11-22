@@ -83,15 +83,6 @@ const STATEFUL_MODE_GUIDELINES = [
 	],
 ] as const;
 
-const NOTEBOOK_MODE_GUIDELINES = [
-	...STATEFUL_MODE_GUIDELINES,
-	[
-		"Keep retained helpers self-contained; recreate imports, closures, and live handles after restart",
-		"Helpers=self-contained; restart→recreate imports/closures/live handles",
-	],
-	["Normal exec cells run one at a time", "Normal cells→serial"],
-] as const;
-
 const TS_MODE_GUIDELINES = [
 	...STATEFUL_MODE_GUIDELINES,
 	[
@@ -135,7 +126,6 @@ const ALL_STATIC_CODEX_GUIDELINES = [
 	...GENERAL_GUIDELINES,
 	...NORMAL_CODEX_GUIDELINES,
 	...CODE_MODE_GUIDELINES,
-	...NOTEBOOK_MODE_GUIDELINES,
 	...TS_MODE_GUIDELINES,
 	...VM_MODE_GUIDELINES,
 ];
@@ -185,13 +175,11 @@ function buildCodexGuidelines(
 				mode === "vm" ||
 				active.has("notebook"));
 		guidelines = adapterSurfaceActive
-			? (mode === "notebook"
-					? NOTEBOOK_MODE_GUIDELINES
-					: mode === "ts"
-						? TS_MODE_GUIDELINES
-						: mode === "vm"
-							? VM_MODE_GUIDELINES
-							: CODE_MODE_GUIDELINES
+			? (mode === "ts"
+					? TS_MODE_GUIDELINES
+					: mode === "vm"
+						? VM_MODE_GUIDELINES
+						: CODE_MODE_GUIDELINES
 				)
 					.filter(
 						([, , tool]: RuntimeGuideline) =>
@@ -285,9 +273,7 @@ export function formatGuidelines(
 	);
 	execution.add("exec calls run sequentially");
 	const notebook = new Set<string>(
-		[...NOTEBOOK_MODE_GUIDELINES, ...TS_MODE_GUIDELINES].map(
-			([guideline]) => guideline,
-		),
+		TS_MODE_GUIDELINES.map(([guideline]) => guideline),
 	);
 	const general: string[] = [];
 	const groups: Record<string, string[]> = {

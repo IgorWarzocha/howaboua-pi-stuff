@@ -214,7 +214,14 @@ export function readLayeredCodexConversionConfig(
 	return project
 		? normalizeCodexConversionConfig(
 				mergeConfigDocument(
-					global as unknown as Record<string, unknown>,
+					{
+						...global,
+						// A project may inherit Deno mode but supply its own Deno profile.
+						executionMode:
+							isRecord(document) && document["executionMode"] === "notebook"
+								? "notebook"
+								: global.executionMode,
+					},
 					project,
 				),
 			)
@@ -263,7 +270,7 @@ export function setGlobalCodexLunaCacheKeepalive(
 	minutes: LunaCacheKeepaliveMinutes,
 	globalConfigPath: string = getCodexConversionConfigPath(),
 	intervalMinutes?: LunaCacheKeepaliveIntervalMinutes,
-): { ok: true; warning?: string } | { ok: false; error: string } {
+): { ok: true } | { ok: false; error: string } {
 	const config = readCodexConversionConfig(globalConfigPath);
 	return writeCodexConversionConfig(
 		{

@@ -30,13 +30,7 @@ export interface StructuredPromptSkill {
 
 export type PiSystemPromptOptions = NormalizedBuildSystemPromptOptions;
 
-export type CodexPromptMode =
-	| "normal"
-	| "code"
-	| "notebook"
-	| "ts"
-	| "js"
-	| "vm";
+export type CodexPromptMode = "normal" | "code" | "ts" | "js" | "vm";
 
 function decodeXml(text: string): string {
 	return text

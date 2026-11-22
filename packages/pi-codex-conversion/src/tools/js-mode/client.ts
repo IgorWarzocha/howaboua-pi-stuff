@@ -20,14 +20,14 @@ import type {
 	RuntimeResponse,
 	ToolExecutionContext,
 } from "../code-mode/types.ts";
-import { NotebookCell } from "../notebook-mode/cell.ts";
-import { notebookSessionIdentity } from "../notebook-mode/session-identity.ts";
+import { RuntimeCell } from "../code-mode/runtime-cell.ts";
+import { notebookSessionIdentity } from "../code-mode/session-identity.ts";
 import { JsKernel } from "./kernel.ts";
 import { loadJsRuntime, type JsRuntime } from "./runtime.ts";
 import type { JsTool } from "./protocol.ts";
 
 interface Execution {
-	cell: NotebookCell;
+	cell: RuntimeCell;
 	kernel?: JsKernel;
 	done: Promise<void>;
 	stopping?: Promise<void>;
@@ -88,7 +88,7 @@ export class JsCodeClient implements CodeModeExecutionClient {
 				"QuickJS Code has too many active or uncollected cells; wait for or terminate earlier cells",
 			);
 		const parsed = parseExecSource(source);
-		const cell = new NotebookCell({
+		const cell = new RuntimeCell({
 			id: `js-${randomUUID()}`,
 			source: parsed.code,
 			context,
@@ -234,13 +234,8 @@ export class JsCodeClient implements CodeModeExecutionClient {
 				throw new Error(
 					result.error || "The cell failed with an empty error message",
 				);
-			cell.result = { status: "ok", items: [] };
 		} catch (error) {
-			cell.result = {
-				status: "error",
-				items: [],
-				errorText: error instanceof Error ? error.message : String(error),
-			};
+			cell.errorText = error instanceof Error ? error.message : String(error);
 		} finally {
 			this.delegate.cancelCell(cell.id);
 			if (execution.kernel) {
@@ -306,8 +301,8 @@ export class JsCodeClient implements CodeModeExecutionClient {
 			cellId: cell.id,
 			contentItems: cell.takeContent(),
 			maxOutputTokens: cell.maxOutputTokens,
-			...(kind === "result" && cell.result?.errorText
-				? { errorText: cell.result.errorText }
+			...(kind === "result" && cell.errorText
+				? { errorText: cell.errorText }
 				: {}),
 		});
 		if (kind !== "yielded") {

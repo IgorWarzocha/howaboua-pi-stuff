@@ -25,9 +25,7 @@ export function registerCodeModeEvents(
 		prepareGptPromptMode(pi, ctx, event.systemPromptOptions);
 		const executionKind = runtime.executionKind(ctx);
 		const requiredTools =
-			executionKind === "notebook" || executionKind === "ts"
-				? ["exec", "wait", "notebook"]
-				: ["exec", "wait"];
+			executionKind === "ts" ? ["exec", "wait", "notebook"] : ["exec", "wait"];
 		const activeProviders = runtime.activeProviders(ctx);
 		if (activeProviders.length === 0) return undefined;
 		void runtime.prepare(ctx)?.catch(() => undefined);

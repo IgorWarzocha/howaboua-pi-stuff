@@ -226,7 +226,7 @@ export class TsSessionCompilation {
 	}
 	private compilerFailure(cause: unknown): Error {
 		return new Error(
-			"The TS compiler is unavailable. Try notebook restart; check that this platform supports TS and npm includes optional dependencies. Code and Deno Notebook remain available.",
+			"The TS compiler is unavailable. Check that this platform supports TS and npm includes optional dependencies, then call notebook restart. Code remains available.",
 			{ cause },
 		);
 	}

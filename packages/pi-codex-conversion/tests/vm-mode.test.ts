@@ -41,7 +41,7 @@ function textOf(response: RuntimeResponse): string {
 		.join("\n");
 }
 
-test("heap cap stays well under the notebook default", () => {
+test("heap cap clamps larger settings", () => {
 	assert.equal(vmHeapMiB(4096), VM_HEAP_CAP_MIB);
 	assert.equal(VM_HEAP_CAP_MIB, 256);
 	assert.throws(() => vmHeapMiB(32), /at least 64/);

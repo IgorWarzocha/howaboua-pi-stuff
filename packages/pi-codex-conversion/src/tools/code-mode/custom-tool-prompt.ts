@@ -220,13 +220,9 @@ export function buildCodeModeToolsPrompt(
 					? gpt
 						? "exec=persistent TS; imports/npm/Node/Web APIs; bindings/modules persist"
 						: "exec is a persistent TypeScript kernel with imports, npm, Node and Web APIs; live bindings and module instances persist across cells"
-					: executionKind === "notebook"
-						? gpt
-							? "exec=persistent Deno/TS; console/imports/npm/Deno/Web APIs; small programs across cells; globals can predate agent/session"
-							: "exec is a persistent Deno/TypeScript notebook with console, imports, npm, Deno, and Web APIs; globals may come from earlier agents and sessions. Build small programs on retained state across cells"
-						: gpt
-							? "exec=fresh restricted JS; NO console/imports/Node/browser APIs"
-							: "exec runs fresh restricted JavaScript; no console, imports, Node, or browser APIs",
+					: gpt
+						? "exec=fresh restricted JS; NO console/imports/Node/browser APIs"
+						: "exec runs fresh restricted JavaScript; no console, imports, Node, or browser APIs",
 		executionKind === "ts"
 			? gpt
 				? "Whole-cell strictcheck INCL toolargs; typeerror→NO execution"

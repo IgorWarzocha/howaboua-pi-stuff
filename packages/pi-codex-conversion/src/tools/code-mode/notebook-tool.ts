@@ -1,4 +1,4 @@
-import { notebookHelpForMode } from "./notebook-help.ts";
+import { notebookHelpForPromptMode } from "./notebook-help.ts";
 import type {
 	ExtensionAPI,
 	ToolDefinition,
@@ -19,14 +19,11 @@ import {
 	type GptPromptModeRegistration,
 } from "../../prompt-mode.ts";
 import { getExperimentalToolSampling } from "../tool-sampling.ts";
-import { canExecuteNotebookControlInsideExec } from "../notebook-mode/control-contract.ts";
 import type { SharedCodeModeRuntime } from "./shared-runtime.ts";
 import { notebookRenderers } from "./notebook-rendering.ts";
 import type {
 	NotebookControlRequest,
-	NotebookControlResult,
 	ProgrammaticCodeModeToolDefinition,
-	ToolExecutionContext,
 } from "./types.ts";
 
 const PIN_FIELDS = {
@@ -45,50 +42,32 @@ const PIN_FIELDS = {
 		),
 	),
 };
-const PIN_PARAMETERS = obj(PIN_FIELDS);
-
-function notebookActionParameters(allowCheckpoint = false) {
-	return union([
-		obj({
-			action: StringEnum(["status", "list"]),
-			query: opt(str()),
-		}),
-		obj({
-			action: StringEnum(["checkpoint", "restart", "diagnostics", "reset"]),
-		}),
-		obj({
-			action: StringEnum(["save", "load"]),
-			name: str(),
-		}),
-		allowCheckpoint
-			? obj({
-					...PIN_FIELDS,
-					checkpoint: opt(obj({ snapshot: str(), restore: str() })),
-				})
-			: PIN_PARAMETERS,
-		obj({
-			action: StringEnum(["unpin", "release"]),
-			names: arr(str(), { minItems: 1 }),
-		}),
-		obj({
-			action: { ...lit("prune"), type: "string" },
-			query: str(),
-		}),
-	]);
-}
-
-function actionParameters(kind: string) {
-	return kind === "ts" ? TS_ACTION_PARAMETERS : NOTEBOOK_ACTION_PARAMETERS;
-}
-
-const NOTEBOOK_ACTION_PARAMETERS = notebookActionParameters();
-const TS_ACTION_PARAMETERS = notebookActionParameters(true);
+const NOTEBOOK_ACTION_PARAMETERS = union([
+	obj({
+		action: StringEnum(["status", "list"]),
+		query: opt(str()),
+	}),
+	obj({
+		action: StringEnum(["checkpoint", "restart", "diagnostics", "reset"]),
+	}),
+	obj({
+		action: StringEnum(["save", "load"]),
+		name: str(),
+	}),
+	obj({
+		...PIN_FIELDS,
+		checkpoint: opt(obj({ snapshot: str(), restore: str() })),
+	}),
+	obj({
+		action: StringEnum(["unpin", "release"]),
+		names: arr(str(), { minItems: 1 }),
+	}),
+	obj({
+		action: { ...lit("prune"), type: "string" },
+		query: str(),
+	}),
+]);
 const notebookActions = compile(NOTEBOOK_ACTION_PARAMETERS);
-const tsActions = compile(TS_ACTION_PARAMETERS);
-
-function actionValidator(kind: string) {
-	return kind === "ts" ? tsActions : notebookActions;
-}
 
 export const NOTEBOOK_PARAMETERS = obj({
 	input: opt(
@@ -112,12 +91,8 @@ const notebookPromptModes = new WeakMap<
 	GptPromptModeRegistration
 >();
 
-function notebookHelp(
-	runtime: SharedCodeModeRuntime,
-	context: unknown,
-): string {
-	return notebookHelpForMode(
-		runtime.executionKind(context),
+function notebookHelp(runtime: SharedCodeModeRuntime): string {
+	return notebookHelpForPromptMode(
 		notebookPromptModes.get(runtime)?.active === true,
 	);
 }
@@ -146,7 +121,7 @@ export function registerNotebookTool(
 		exposure: "model-only",
 		executionMode: "sequential",
 		label: "Notebook",
-		description: "Manage persistent notebook state",
+		description: NOTEBOOK_DESCRIPTION,
 		parameters: NOTEBOOK_PARAMETERS,
 		prepareArguments(args) {
 			let prepared = args;
@@ -178,9 +153,11 @@ export function registerNotebookTool(
 			_onUpdate,
 			ctx,
 		) {
+			if (runtime.executionKind(ctx) !== "ts")
+				throw new Error("Notebook controls require TS mode");
 			if (params.input === undefined || params.input === "help")
 				return {
-					content: [{ type: "text", text: notebookHelp(runtime, ctx) }],
+					content: [{ type: "text", text: notebookHelp(runtime) }],
 					details: { action: "help" },
 				};
 			let action: unknown;
@@ -194,15 +171,11 @@ export function registerNotebookTool(
 			}
 			if (notebookDiscovery.check(action))
 				return {
-					content: [{ type: "text", text: notebookHelp(runtime, ctx) }],
+					content: [{ type: "text", text: notebookHelp(runtime) }],
 					details: { action: "help" },
 				};
-			if (!actionValidator(runtime.executionKind(ctx)).check(action)) {
-				throw new Error("Invalid notebook action arguments; call notebook({})");
-			}
-			const result = await executeNotebookControl(
-				runtime,
-				action,
+			const result = await runtime.controlNotebook(
+				parseNotebookRequest(action),
 				{
 					cwd: ctx.cwd,
 					extensionContext: ctx,
@@ -219,7 +192,6 @@ export function registerNotebookTool(
 
 export function createNotebookControlProxy(
 	runtime: SharedCodeModeRuntime,
-	kind: "notebook" | "ts" = "notebook",
 ): ProgrammaticCodeModeToolDefinition {
 	return {
 		name: "notebook",
@@ -228,86 +200,47 @@ export function createNotebookControlProxy(
 		description: NOTEBOOK_DESCRIPTION,
 		deferLoading: true,
 		kind: "function",
-		inputSchema: union([NOTEBOOK_DISCOVERY_PARAMETERS, actionParameters(kind)]),
-		invoke: (input, context, signal) => {
+		inputSchema: union([
+			NOTEBOOK_DISCOVERY_PARAMETERS,
+			NOTEBOOK_ACTION_PARAMETERS,
+		]),
+		async invoke(input, context, signal) {
 			if (input === undefined || notebookDiscovery.check(input))
-				return Promise.resolve({
-					message: notebookHelp(runtime, context.extensionContext),
+				return {
+					message: notebookHelp(runtime),
 					details: { action: "help" },
-				});
-			return executeNotebookExecControl(
-				runtime,
-				input as NotebookToolParameters,
-				context,
-				signal,
-			);
+				};
+			const request = parseNotebookRequest(input);
+			if (!canExecuteNotebookControlInsideExec(request))
+				return {
+					message: `Notebook ${request.action} was not run because it needs the active exec cell to finish. After exec returns, call notebook with ${JSON.stringify({ input: JSON.stringify(request) })}.`,
+					details: { notRun: true, action: request.action, retry: request },
+				};
+			return runtime.controlNotebook(request, context, signal);
 		},
 	};
 }
 
-export async function executeNotebookControl(
-	runtime: SharedCodeModeRuntime,
-	params: NotebookToolParameters,
-	context: ToolExecutionContext,
-	signal?: AbortSignal,
-): Promise<NotebookControlResult> {
-	validateModeRequest(runtime, params, context);
-	return executeNormalizedNotebookControl(
-		runtime,
-		normalizeNotebookRequest(
-			params,
-			runtime.executionKind(context.extensionContext) === "ts",
-		),
-		context,
-		signal,
-	);
-}
-
-export async function executeNotebookExecControl(
-	runtime: SharedCodeModeRuntime,
-	params: NotebookToolParameters,
-	context: ToolExecutionContext,
-	signal?: AbortSignal,
-): Promise<NotebookControlResult> {
-	validateModeRequest(runtime, params, context);
-	const request = normalizeNotebookRequest(
-		params,
-		runtime.executionKind(context.extensionContext) === "ts",
-	);
-	if (!canExecuteNotebookControlInsideExec(request))
-		return {
-			message: `Notebook ${request.action} was not run because it needs the active exec cell to finish. After exec returns, call notebook with ${JSON.stringify({ input: JSON.stringify(request) })}.`,
-			details: { notRun: true, action: request.action, retry: request },
-		};
-	return executeNormalizedNotebookControl(runtime, request, context, signal);
-}
-
-function validateModeRequest(
-	runtime: SharedCodeModeRuntime,
-	params: NotebookToolParameters,
-	context: ToolExecutionContext,
-): void {
-	const kind = runtime.executionKind(context.extensionContext);
-	if (kind !== "notebook" && kind !== "ts")
-		throw new Error("Notebook controls require Notebook or TS mode.");
-	if (!actionValidator(kind).check(params))
+function parseNotebookRequest(input: unknown): NotebookControlRequest {
+	if (!notebookActions.check(input))
 		throw new Error(
 			"Invalid notebook action; call notebook({}) for supported controls",
 		);
+	return normalizeNotebookRequest(input);
 }
 
-function executeNormalizedNotebookControl(
-	runtime: SharedCodeModeRuntime,
+function canExecuteNotebookControlInsideExec(
 	request: NotebookControlRequest,
-	context: ToolExecutionContext,
-	signal?: AbortSignal,
-): Promise<NotebookControlResult> {
-	return runtime.controlNotebook(request, context, signal);
+): boolean {
+	return (
+		request.action === "list" ||
+		request.action === "diagnostics" ||
+		(request.action === "status" && request.query === undefined)
+	);
 }
 
-export function normalizeNotebookRequest(
+function normalizeNotebookRequest(
 	params: NotebookToolParameters,
-	allowCheckpoint = false,
 ): NotebookControlRequest {
 	params = {
 		action: params.action,
@@ -321,8 +254,7 @@ export function normalizeNotebookRequest(
 	};
 	if (
 		params.checkpoint !== undefined &&
-		(!allowCheckpoint ||
-			params.action !== "pin" ||
+		(params.action !== "pin" ||
 			params.names?.length !== 1 ||
 			params.hook !== undefined ||
 			!params.checkpoint ||

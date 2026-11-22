@@ -1,8 +1,4 @@
-import type { KernelExecutionResult } from "./jupyter-kernel.ts";
-import type {
-	RuntimeContentItem,
-	ToolExecutionContext,
-} from "../code-mode/types.ts";
+import type { RuntimeContentItem, ToolExecutionContext } from "./types.ts";
 
 const MAX_CELL_OUTPUT_CHARS = 32 * 1024 * 1024;
 const MAX_CELL_OUTPUT_ITEMS = 10_000;
@@ -12,15 +8,15 @@ interface Deferred {
 	resolve(): void;
 }
 
-export class NotebookCell {
+export class RuntimeCell {
 	readonly id: string;
 	readonly source: string;
 	readonly controller = new AbortController();
-	readonly items: RuntimeContentItem[] = [];
 	readonly maxOutputTokens: number;
 	context: ToolExecutionContext;
-	result?: KernelExecutionResult | undefined;
+	errorText?: string | undefined;
 	terminated = false;
+	private readonly items: RuntimeContentItem[] = [];
 	private outputChars = 0;
 	private outputTruncated = false;
 	private cursor = 0;

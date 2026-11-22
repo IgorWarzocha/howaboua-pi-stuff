@@ -27,7 +27,7 @@ export function buildExtraToolsOnlyStatusText(
 
 export function buildStatusText(
 	options: {
-		mode?: "normal" | "code" | "notebook" | "ts" | "js" | "vm" | undefined;
+		mode?: "normal" | "code" | "ts" | "js" | "vm" | undefined;
 		verbosity?: string | undefined;
 		fast: "priority" | "ultrafast" | undefined;
 		baseTierEstimate?: boolean | undefined;
@@ -46,11 +46,9 @@ export function buildStatusText(
 				? "QuickJS Code"
 				: options.mode === "ts"
 					? "TS mode"
-					: options.mode === "notebook"
-						? "notebook mode"
-						: options.mode === "code"
-							? "code mode"
-							: undefined,
+					: options.mode === "code"
+						? "code mode"
+						: undefined,
 		options.useOnAllModels ? "all models" : undefined,
 		options.additionalProvider ? "additional provider" : undefined,
 		options.compaction ? "compact v2" : undefined,

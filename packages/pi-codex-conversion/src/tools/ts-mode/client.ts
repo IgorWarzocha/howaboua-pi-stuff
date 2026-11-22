@@ -17,8 +17,8 @@ import type {
 	RuntimeResponse,
 	ToolExecutionContext,
 } from "../code-mode/types.ts";
-import { NotebookCell } from "../notebook-mode/cell.ts";
-import { notebookSessionIdentity } from "../notebook-mode/session-identity.ts";
+import { RuntimeCell } from "../code-mode/runtime-cell.ts";
+import { notebookSessionIdentity } from "../code-mode/session-identity.ts";
 import {
 	formatSkipped,
 	selectProjectPins,
@@ -75,11 +75,11 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 			)
 		)
 			throw new Error(
-				`TS is unavailable on ${process.platform}/${process.arch}; choose Code or Deno Notebook. TS supports Linux and macOS x64/arm64, and Windows x64.`,
+				`TS is unavailable on ${process.platform}/${process.arch}; choose Code. TS supports Linux and macOS x64/arm64, and Windows x64.`,
 			);
 		if (process.versions["bun"])
 			throw new Error(
-				"TS execution requires a Node.js Pi host; start Pi with Node.js. Code and Deno Notebook remain available.",
+				"TS execution requires a Node.js Pi host. Start Pi with Node.js or choose Code.",
 			);
 		if (!Number.isSafeInteger(options.maxHeapMiB) || options.maxHeapMiB < 128)
 			throw new Error(
@@ -147,7 +147,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 				"The TS live kernel stopped. Use notebook restart to restore its last durable checkpoint; live-only values and later changes cannot be recovered",
 			);
 		this.latestTools = tools;
-		const cell = new NotebookCell({
+		const cell = new RuntimeCell({
 			id: `ts-${++this.nextId}-${randomUUID().slice(0, 8)}`,
 			source: parsed.code,
 			context,
@@ -438,17 +438,12 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 				const notice = await this.syncProject();
 				if (notice) cell.emit([{ type: "input_text", text: notice }]);
 			});
-			cell.result = { status: "ok", items: [] };
 		} catch (error) {
 			const recovery =
 				execution.worker || (!execution.isolated && this.kernel.unavailable)
 					? `${execution.isolated ? "Isolated state was not adopted." : this.kernel.unavailable ? "The live kernel stopped; live-only values and changes after its last durable checkpoint were lost. Use notebook restart to restore that checkpoint." : "Earlier live mutations may remain; no rollback occurred. Continue inspecting the live notebook, or restart from its last durable checkpoint."} Tool and file effects were not rolled back.`
 					: "The cell did not execute; no cell tool calls or file writes ran. Fix the error and retry.";
-			cell.result = {
-				status: "error",
-				items: [],
-				errorText: `${error instanceof Error ? error.message : String(error)}\n${recovery}`,
-			};
+			cell.errorText = `${error instanceof Error ? error.message : String(error)}\n${recovery}`;
 		} finally {
 			this.delegate.cancelCell(cell.id);
 			if (execution.isolated) await execution.worker?.stop();
@@ -640,9 +635,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 						kind,
 						cellId: cell.id,
 						contentItems: cell.takeContent(),
-						...(cell.result?.errorText
-							? { errorText: cell.result.errorText }
-							: {}),
+						...(cell.errorText ? { errorText: cell.errorText } : {}),
 						maxOutputTokens: cell.maxOutputTokens,
 					}
 				: {

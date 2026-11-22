@@ -125,7 +125,6 @@ export class CodexTransportRequest<TApi extends Api> {
 		this.responsesLite =
 			deps.useResponsesLite?.(model) ??
 			((this.runtimeConfig?.executionMode === "code" ||
-				this.runtimeConfig?.executionMode === "notebook" ||
 				this.runtimeConfig?.executionMode === "ts" ||
 				this.runtimeConfig?.executionMode === "js" ||
 				this.runtimeConfig?.executionMode === "vm") &&

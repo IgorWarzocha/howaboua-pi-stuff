@@ -1,6 +1,6 @@
 import type { CodeModeDelegateRuntime } from "../code-mode/delegate-runtime.ts";
 import type { NotebookRuntimeOptions } from "../code-mode/shared-runtime.ts";
-import type { NotebookCell } from "../notebook-mode/cell.ts";
+import type { RuntimeCell } from "../code-mode/runtime-cell.ts";
 import { TsExecutionWorker } from "./execution-worker.ts";
 import { resolveTsRuntimeImport, type TsImportOptions } from "./imports.ts";
 import type {
@@ -11,7 +11,7 @@ import type {
 import type { TsWorkerInput, TsWorkerOutcome } from "./worker-protocol.ts";
 
 export interface TsExecution {
-	cell: NotebookCell;
+	cell: RuntimeCell;
 	start: PortableState;
 	isolated: boolean;
 	worker?: TsExecutionWorker | undefined;

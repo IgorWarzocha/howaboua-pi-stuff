@@ -30,7 +30,6 @@ export interface AdapterState {
 		| "extras"
 		| "normal"
 		| "code"
-		| "notebook"
 		| "ts"
 		| "js"
 		| "vm"

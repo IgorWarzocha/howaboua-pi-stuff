@@ -53,9 +53,7 @@ export async function registerCodexCodeMode(
 		);
 		if (!isCodeModeRuntime(plan)) return false;
 		const requiredTools =
-			plan.kind === "notebook" || plan.kind === "ts"
-				? NOTEBOOK_MODE_TOOL_NAMES
-				: CODE_MODE_TOOL_NAMES;
+			plan.kind === "ts" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
 		const activeTools = pi.getActiveTools();
 		return requiredTools.every((name) => activeTools.includes(name));
 	};
@@ -71,9 +69,7 @@ export async function registerCodexCodeMode(
 			);
 			if (!isCodeModeRuntime(plan)) return undefined;
 			const required =
-				plan.kind === "notebook" || plan.kind === "ts"
-					? NOTEBOOK_MODE_TOOL_NAMES
-					: CODE_MODE_TOOL_NAMES;
+				plan.kind === "ts" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
 			if (
 				!required.every((name) =>
 					loadout.declared.some((tool) => tool.name === name),
@@ -142,12 +138,7 @@ export async function registerCodexCodeMode(
 				ctx as ExtensionContext,
 				runtime.state,
 			).kind;
-			return kind === "notebook" ||
-				kind === "ts" ||
-				kind === "js" ||
-				kind === "vm"
-				? kind
-				: "code";
+			return kind === "ts" || kind === "js" || kind === "vm" ? kind : "code";
 		},
 		notebookOptions: () => ({
 			maxHeapMiB: runtime.state.config.notebook.maxHeapMiB,

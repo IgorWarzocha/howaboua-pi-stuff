@@ -3,11 +3,7 @@ import {
 	MAX_CODE_MODE_OUTPUT_TOKENS,
 } from "./host-protocol.js";
 import { referenceEmittedTraceImages } from "./trace-images.js";
-import type {
-	NotebookMemoryUsage,
-	RuntimeContentItem,
-	RuntimeResponse,
-} from "./types.js";
+import type { RuntimeContentItem, RuntimeResponse } from "./types.js";
 
 const MAX_OUTPUT_IMAGE_COUNT = 4;
 const MAX_OUTPUT_IMAGE_CHARS = 16 * 1024 * 1024;
@@ -29,9 +25,6 @@ export function toCodeModeToolResult(
 				? "Script terminated"
 				: undefined;
 	const output = boundedCodeModeContent(response.contentItems);
-	const memoryWarning =
-		response.notebookMemory &&
-		formatNotebookMemoryWarning(response.notebookMemory);
 	const outputTokens = Math.min(
 		MAX_CODE_MODE_OUTPUT_TOKENS,
 		Math.max(
@@ -41,7 +34,6 @@ export function toCodeModeToolResult(
 	);
 	const content = [
 		...(status ? [{ type: "text" as const, text: status }] : []),
-		...(memoryWarning ? [{ type: "text" as const, text: memoryWarning }] : []),
 		...(response.execSessionIds ?? []).map((sessionId) => ({
 			type: "text" as const,
 			text: formatRunningExecSessionGuidance(sessionId),
@@ -81,9 +73,6 @@ export function toCodeModeToolResult(
 				: {}),
 			...(response.droppedTraceCount
 				? { droppedTraceCount: response.droppedTraceCount }
-				: {}),
-			...(response.notebookMemory
-				? { notebookMemory: response.notebookMemory }
 				: {}),
 			...(scriptError ? { scriptError } : {}),
 		},
@@ -127,30 +116,6 @@ function withScriptErrorRecovery(
 	)
 		return errorText;
 	return `${errorText}\nRecovery: choose a new name or retry one-off code inside { ... }. Reuse the existing binding only after checking its value is still correct`;
-}
-
-export function formatNotebookMemoryWarning(
-	memory: NotebookMemoryUsage,
-): string | undefined {
-	const ratio =
-		memory.heapLimitBytes > 0
-			? memory.heapUsedBytes / memory.heapLimitBytes
-			: 0;
-	const pressure =
-		ratio >= 0.9
-			? " · CRITICAL: finish essential work and release unneeded notebook state"
-			: ratio >= 0.8
-				? " · WARNING: release unneeded notebook state"
-				: "";
-	if (!pressure) return undefined;
-	return `Notebook memory: heap ${formatBinaryBytes(memory.heapUsedBytes)} / ${formatBinaryBytes(memory.heapLimitBytes)} · RSS ${formatBinaryBytes(memory.rssBytes)}${pressure}`;
-}
-
-function formatBinaryBytes(bytes: number): string {
-	const mib = bytes / (1024 * 1024);
-	if (mib < 1024) return `${mib.toFixed(mib < 10 ? 1 : 0)} MiB`;
-	const gib = mib / 1024;
-	return `${gib.toFixed(gib < 10 ? 1 : 0)} GiB`;
 }
 
 export function formatRunningExecSessionGuidance(sessionId: number): string {

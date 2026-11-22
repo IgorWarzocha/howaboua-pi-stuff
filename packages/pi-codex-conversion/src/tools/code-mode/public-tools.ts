@@ -103,7 +103,7 @@ export function registerPublicCodeModeTools(
 			context === undefined ? "code" : runtime.executionKind(context);
 		const vm = kind === "vm";
 		const js = kind === "js";
-		const notebook = kind === "ts" || kind === "notebook";
+		const notebook = kind === "ts";
 		const language = notebook ? "TypeScript" : "JavaScript";
 		const description = vm
 			? active

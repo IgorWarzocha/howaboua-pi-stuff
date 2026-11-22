@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { acquireDirectoryLock } from "../notebook-mode/directory-lock.ts";
+import { acquireDirectoryLock } from "./directory-lock.ts";
 
 export const runImportCommand = promisify(execFile);
 
@@ -41,7 +41,6 @@ export async function cacheExactNpmImport(
 		pollMs: 100,
 		signal,
 	});
-	if (!lock) throw new Error(`Could not prepare ${specifier}`);
 	try {
 		const manifest = join(cwd, "node_modules", name, "package.json");
 		const completed = join(cwd, ".installed");

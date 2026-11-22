@@ -47,7 +47,9 @@ export function migrateCodexConversionConfigIfNeeded(
 				config: {
 					...withoutBeta,
 					executionMode:
-						normalizeExecutionMode(value["executionMode"]) ??
+						(value["executionMode"] === "notebook"
+							? "notebook"
+							: normalizeExecutionMode(value["executionMode"])) ??
 						(beta["codeMode"] === true ? "code" : "normal"),
 					openai: {
 						...openai,

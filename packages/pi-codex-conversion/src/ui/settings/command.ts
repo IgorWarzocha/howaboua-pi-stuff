@@ -152,7 +152,6 @@ export function registerCodexCommand(
 			);
 			return false;
 		}
-		if (writeResult.warning) ctx.ui.notify(writeResult.warning, "warning");
 		applyEffectiveConfig(ctx);
 		return true;
 	}
@@ -255,28 +254,6 @@ export function registerCodexCommand(
 			initialConfig: readSelectedConfig(),
 			initialTab: tab,
 			onChange: (config) => saveAndApply(ctx, configScope, config),
-			onGlobalNotebookJournals: (journals) => {
-				const global = readCodexConversionConfig();
-				if (
-					!saveAndApply(ctx, "global", {
-						...global,
-						notebook: { ...global.notebook, journals },
-					})
-				)
-					return undefined;
-				return readSelectedConfig();
-			},
-			onGlobalNotebookCheckpointCleanup: (checkpointCleanup) => {
-				const global = readCodexConversionConfig();
-				if (
-					!saveAndApply(ctx, "global", {
-						...global,
-						notebook: { ...global.notebook, checkpointCleanup },
-					})
-				)
-					return undefined;
-				return readSelectedConfig();
-			},
 			onGlobalLunaCacheKeepalive: (minutes, interval) => {
 				const result = setGlobalCodexLunaCacheKeepalive(
 					minutes,
@@ -290,7 +267,6 @@ export function registerCodexCommand(
 					);
 					return undefined;
 				}
-				if (result.warning) ctx.ui.notify(result.warning, "warning");
 				applyEffectiveConfig(ctx);
 				return readSelectedConfig();
 			},

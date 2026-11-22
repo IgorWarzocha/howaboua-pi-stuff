@@ -25,14 +25,12 @@ export async function acquireDirectoryLock(
 		staleMs: number;
 		pollMs: number;
 		signal?: AbortSignal | undefined;
-		stopWaiting?: (() => boolean) | undefined;
 	},
-): Promise<DirectoryLock | undefined> {
+): Promise<DirectoryLock> {
 	const deadline = Date.now() + options.waitMs;
 	const owner = `${process.pid}-${randomUUID()}${OWNER_SUFFIX}`;
 	while (Date.now() < deadline) {
 		options.signal?.throwIfAborted();
-		if (options.stopWaiting?.()) return undefined;
 		try {
 			mkdirSync(path);
 		} catch (error) {
@@ -128,6 +126,7 @@ function ownerIsFreshOrLive(path: string, staleMs: number): boolean {
 }
 
 function releaseDirectoryLock(path: string, owner: string): void {
+	// Release only our owner file. Never recursively remove a lock directory.
 	try {
 		unlinkSync(join(path, owner));
 	} catch {}

@@ -91,12 +91,6 @@ export function withoutProjectOnlyDocument(
 export function withoutGlobalOnlyDocument(
 	document: Record<string, unknown>,
 ): Record<string, unknown> {
-	const notebook = isRecord(document["notebook"])
-		? { ...document["notebook"] }
-		: undefined;
-	if (notebook) delete notebook["journals"];
-	if (notebook) delete notebook["checkpointCleanup"];
-	document = notebook ? { ...document, notebook } : document;
 	const openai = isRecord(document["openai"])
 		? { ...document["openai"] }
 		: undefined;

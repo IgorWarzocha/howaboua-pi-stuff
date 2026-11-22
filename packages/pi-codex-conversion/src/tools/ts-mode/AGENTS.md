@@ -1,4 +1,4 @@
-- TS is an alternate runtime. Do not migrate or read Deno Notebook state.
+- Keep TS storage independent. Do not open or migrate legacy Notebook state.
 - One stable host owns the tsrs compiler. Normal cells share a serial Node REPL kernel through public APIs; isolated cells own disposable processes. Each process owns cwd, heap and subprocess cleanup.
 - Register original top-level function identities at creation, never by the final binding name. Restore recipe functions before decoding data, then initialise lexical bindings from decoded roots. Function declarations need outer lexical self-reference, not an invented named-expression self binding.
 - Live errors can retain mutations. Cancellation of executing live code invalidates the kernel; recovery uses the last durable checkpoint. Isolated candidates never merge automatically into the live heap.
