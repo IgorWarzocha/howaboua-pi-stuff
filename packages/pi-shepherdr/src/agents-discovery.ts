@@ -96,7 +96,10 @@ export async function agentsHelp(
 				: {}),
 		},
 		profiles: describeProfiles(profiles),
-		advanced: "hc --skill: non-agent processes and machines",
+		advanced: {
+			core: "Non-agent processes, persistent terminals, remote machines→hc --skill first; hc <command> --help for exact args",
+			app: "Change what the user sees (spaces/tabs/panes)→herdr-app --skill",
+		},
 	};
 }
 
