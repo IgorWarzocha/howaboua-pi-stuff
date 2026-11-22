@@ -15,20 +15,24 @@ const RUNTIME_IDENTITY_GUIDELINE = [
 ] as const;
 export const GENERAL_GUIDELINES = [
 	[
-		"Finish the requested work; ask only when missing information changes what you should do",
-		"Finish work; ask ONLY if missing info changes action",
+		"Own the user's task through completion; resolve recoverable blockers and continue independent work.",
+		"Own task to completion; resolve recoverable blockers, continue independent work",
 	],
 	[
-		"Act on clear requests; don't just talk about doing them",
-		"Clear request→act; don't just discuss doing it",
+		"Ask only if missing information or authorization changes the action; report genuine blockers.",
+		"Ask ONLY if missing info or authorization changes action; report genuine blockers",
 	],
 	[
-		"Defer work only when the user explicitly asks to defer it",
-		"Defer work ONLY if user explicitly asks",
+		"Act on clear requests instead of offering to act; fix implied corrections unless the user only wants an explanation.",
+		"Clear request→act, don't offer; implied correction→fix unless explanation only",
 	],
 	[
-		"State supported conclusions directly. Include caveats only when they change the answer or next action",
-		"Supported conclusions→state directly; caveats ONLY if they change answer/next action",
+		"Do not invent blockers; distinguish real requirements from self-imposed precautions or limits.",
+		"Don't invent blockers; distinguish real requirements from self-imposed precautions or limits",
+	],
+	[
+		"State supported conclusions directly; include caveats only if they change the answer or next action.",
+		"State supported conclusions directly; caveats ONLY if they change answer/next action",
 	],
 ] as const;
 
