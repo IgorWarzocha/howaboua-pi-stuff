@@ -33,7 +33,7 @@ const NOTEBOOK_SHELL_GUIDELINE =
 	"Canonical artifacts→files; shell state across tools.exec_command→files/args";
 const TS_MODE_GUIDELINES = [
 	"MAY reuse verified globals",
-	"One-offs→block-local; retain ONLY planned reuse; task done→cleanup",
+	"Task done→clean up retained bindings",
 	...CODE_MODE_GUIDELINES,
 	"Manage state: notebook({})",
 	NOTEBOOK_SHELL_GUIDELINE,
@@ -42,7 +42,6 @@ const TS_MODE_GUIDELINES = [
 ];
 const VM_MODE_GUIDELINES = [
 	"MAY reuse verified bindings",
-	"One-offs→block-local; retain ONLY planned reuse",
 	...CODE_MODE_GUIDELINES,
 	"Stall/cancel/memory limit/terminate→bindings dropped; next exec fresh",
 ];

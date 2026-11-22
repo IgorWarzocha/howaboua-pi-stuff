@@ -18,6 +18,7 @@
 - Codex prompt guidance now directs agents to work through recoverable blockers, continue independent work and act on clear requests rather than offering to act.
 - Code and Notebook group each tool's usage and rules. Tools with on-demand usage show the same no-argument discovery call.
 - `ALL_TOOLS` lists every public tool available to the cell, including tools already advertised in the prompt. Look up one entry for its full contract.
+- TS Notebook and VM Code show how to keep one-off variables local to a cell and how to retry a redeclaration error.
 - Codex sends harness and tool guidance before `AGENTS.md` instructions and the working directory.
 - Background shell completion notices collapse to one line. Expand a notice to see its output.
 - Expanded Code cells show identical successful shell output once when the shell trace already displays it.

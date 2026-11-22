@@ -111,10 +111,12 @@ function withScriptErrorRecovery(
 ): string | undefined {
 	if (
 		!errorText ||
-		!/Identifier ['"][^'"]+['"] has already been declared/.test(errorText)
+		!/(?:Identifier ['"][^'"]+['"] has already been declared|\bTS2451\b.*Cannot redeclare block-scoped variable)/.test(
+			errorText,
+		)
 	)
 		return errorText;
-	return `${errorText}\nRecovery: choose a new name or retry one-off code inside { ... }. Reuse the existing binding only after checking its value is still correct`;
+	return `${errorText}\nRetry: wrap one-off const/let and their uses in { ... }. Need a new persistent binding? Use a fresh name. Reuse an existing binding only after verifying its value`;
 }
 
 export function formatRunningExecSessionGuidance(sessionId: number): string {
