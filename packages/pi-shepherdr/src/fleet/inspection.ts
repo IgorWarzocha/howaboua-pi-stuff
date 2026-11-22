@@ -10,6 +10,7 @@ import {
 	type ConnectedMachine,
 	errorMessage,
 	LOCAL_MACHINE,
+	machineLabel,
 	type MachineRuntime,
 	type MachineSnapshot,
 	resolveMachine,
@@ -37,7 +38,7 @@ export function connectedMachine(
 	) => Promise<void>,
 	machine?: string,
 ): ConnectedMachine {
-	const name = resolveMachine(runtimes, machine?.trim() || LOCAL_MACHINE);
+	const name = resolveMachine(runtimes, machine ?? LOCAL_MACHINE);
 	const runtime = runtimes.get(name);
 	if (!runtime) {
 		throw new Error(
@@ -71,9 +72,10 @@ export async function machineSnapshots(
 	runtimes: ReadonlyMap<string, MachineRuntime>,
 	machine?: string,
 ): Promise<MachineSnapshot[]> {
-	const selected = machine?.trim()
-		? [statusFor(runtimes, resolveMachine(runtimes, machine))]
-		: [...runtimes.keys()].map((name) => statusFor(runtimes, name));
+	const selected =
+		machine !== undefined
+			? [statusFor(runtimes, resolveMachine(runtimes, machine))]
+			: [...runtimes.keys()].map((name) => statusFor(runtimes, name));
 	return Promise.all(
 		selected.map(async (status) => {
 			const runtime = runtimes.get(status.id);
@@ -123,12 +125,13 @@ export function statusFor(
 ): MachineStatus {
 	const runtime = runtimes.get(name);
 	if (!runtime) throw new Error(`Unknown Core machine ${JSON.stringify(name)}`);
+	const label = machineLabel(runtimes, name, runtime);
 	return {
 		id: name,
 		local: runtime.local,
+		...(label ? { label } : {}),
 		...(runtime.coreMachine
 			? {
-					label: runtime.coreMachine.name,
 					target: runtime.coreMachine.host,
 					session: runtime.coreMachine.id,
 				}

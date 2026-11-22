@@ -67,7 +67,7 @@ export class CoreConnection {
 		this.focusChannels.clear();
 		this.core.close();
 	}
-	async machineIdentity() {
+	async coreIdentity() {
 		const hello = object(await this.core.request("hello"));
 		const version =
 			typeof hello["version"] === "string"
@@ -87,12 +87,15 @@ export class CoreConnection {
 		const core = object(hello["core"]);
 		if (typeof core["id"] !== "string" || !core["id"])
 			throw new Error("Core returned no stable identity");
+		if (typeof core["name"] !== "string" || !core["name"].trim())
+			throw new Error("Core returned no machine name");
+		return { id: core["id"], name: core["name"] };
+	}
+	async machineIdentity() {
+		const core = await this.coreIdentity();
 		return {
-			host:
-				this.remote && typeof core["name"] === "string"
-					? core["name"]
-					: hostname(),
-			session: core["id"],
+			host: this.remote ? core.name : hostname(),
+			session: core.id,
 		};
 	}
 	requestContext(path: string, request: unknown, signal?: AbortSignal) {

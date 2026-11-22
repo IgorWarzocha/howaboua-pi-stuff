@@ -62,8 +62,8 @@ export async function agentsHelp(
 				? "MUST use extension report/read template via reply, not send. Returns on acceptance without waiting for resumed work"
 				: "To resolve an extension request, use its report or read template with reply. The call returns on acceptance without waiting for resumed work.",
 			machine: gpt
-				? "machine omitted=local Pi host; list/find omitted=all machines; select current machine name or ID from list"
-				: "Omit for local (host running Pi); list/find omit for all machines. Select a current machine name or ID from list",
+				? "Use list id or unique label; local or omitted→Pi host; list/find omitted→all"
+				: "Use an id or unique label from list. Use local or omit machine for the host running Pi. Omit machine from list or find for all machines.",
 			target: gpt
 				? "target=Pi session reference or terminal; /root=live spawn root"
 				: "Use the Pi session reference or terminal target; /root selects the live root of saved spawn ancestry",
@@ -249,6 +249,7 @@ export async function listFleetAgents(
 				snapshot: _snapshot,
 				monitoredPaneIds: _monitoredPaneIds,
 				session: _session,
+				target: _host,
 				...machine
 			}) => machine,
 		),

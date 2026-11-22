@@ -52,7 +52,7 @@ Under **Connections**, enter an SSH target or alias, a machine name and an optio
 
 **Status** refreshes the Core catalogue and retries failed connections or incomplete monitoring without dropping working connections. Removing a machine stops its watches without stopping its agents.
 
-Machines belong to the host running Pi, not the machine displaying its terminal. Omit `machine` for local agent calls. `list` and `find` search all machines unless filtered. The reserved selector `local` always means the host running Pi. Remote calls accept an exact current machine name or a stable Core ID returned by `list`. Duplicate names require an ID. Hostnames and old aliases are not inferred. Refresh **Status** after renaming a machine. Watches and saved routes retain its stable ID across name changes.
+Omit `machine` or use `local` for this host. Omit it from `list` and `find` to search all machines. Use the `id` or exact `label` from `list` to select a machine. If a label is ambiguous, use its ID. SSH targets and aliases are not selectors. Refresh **Status** after renaming a remote machine. Watches and saved routes retain its stable ID.
 
 Remote file watches, Notes, shared-context calls and peer messages use a private Core-owned helper, started lazily and kept alive over a flow-controlled terminal attachment. Shepherdr does not install SSH bridge files or poll through `machine.exec`. Voice focus uses a separate private helper so large Notes transfers do not block its channel. Monitoring uses each Core's own snapshot rather than treating a missing machine in an aggregate terminal list as closed agents.
 

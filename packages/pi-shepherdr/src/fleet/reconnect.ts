@@ -7,9 +7,8 @@ export function connectMachines(
 	retrySetup: (name: string, runtime: MachineRuntime) => Promise<void>,
 	connectMachine: (name: string) => Promise<void>,
 ): string {
-	const target = machine?.trim()
-		? resolveMachine(runtimes, machine)
-		: undefined;
+	const target =
+		machine !== undefined ? resolveMachine(runtimes, machine) : undefined;
 	if (target) {
 		const runtime = runtimes.get(target);
 		if (!runtime)
