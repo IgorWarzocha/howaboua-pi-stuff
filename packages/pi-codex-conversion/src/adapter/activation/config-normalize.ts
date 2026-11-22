@@ -92,14 +92,6 @@ export function normalizeCodexConversionConfig(
 				tools["viewImageFallback"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageFallback"],
 			),
-			applyPatchOnly: normalizeBoolean(
-				tools["applyPatchOnly"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.tools["applyPatchOnly"],
-			),
-			viewImageOnly: normalizeBoolean(
-				tools["viewImageOnly"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageOnly"],
-			),
 		},
 		ui: {
 			statusLine: normalizeBoolean(

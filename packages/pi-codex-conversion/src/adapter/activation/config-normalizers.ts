@@ -22,10 +22,8 @@ export function normalizeAllProvidersMode(
 	value: unknown,
 ): AllProvidersMode | undefined {
 	if (value === true) return "on";
-	if (value === false) return "off";
-	return value === "off" || value === "on" || value === "extras"
-		? value
-		: undefined;
+	if (value === false || value === "extras") return "off";
+	return value === "off" || value === "on" ? value : undefined;
 }
 
 export function normalizeCompactToolsMode(

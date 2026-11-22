@@ -35,25 +35,5 @@ export function buildToolsSettings(
 			}),
 			"In Code and Notebook modes, send shell output without JSON escaping, keeping command status and continuation details.",
 		),
-		toggle(
-			"applyPatchOnly",
-			"Standalone apply_patch",
-			config.tools.applyPatchOnly,
-			(enabled, current) => ({
-				...current,
-				tools: { ...current.tools, applyPatchOnly: enabled },
-			}),
-			"Expose apply_patch without the full adapter.",
-		),
-		toggle(
-			"viewImageOnly",
-			"Standalone view_image",
-			config.tools.viewImageOnly,
-			(enabled, current) => ({
-				...current,
-				tools: { ...current.tools, viewImageOnly: enabled },
-			}),
-			"Expose view_image without the full adapter. Text-only models also need Image descriptions fallback.",
-		),
 	];
 }

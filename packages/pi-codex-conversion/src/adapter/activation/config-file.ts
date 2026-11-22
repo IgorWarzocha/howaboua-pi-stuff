@@ -101,6 +101,13 @@ export function writeCodexConversionConfig(
 		clearAbsentOwnedOptionals(document, normalized, folderScope);
 		for (const key of LEGACY_OWNED_CONFIG_KEYS) delete document[key];
 		delete document["voiceFeaturesOnly"];
+		delete document["applyPatchOnly"];
+		delete document["viewImageOnly"];
+		const tools = document["tools"];
+		if (isRecord(tools)) {
+			delete tools["applyPatchOnly"];
+			delete tools["viewImageOnly"];
+		}
 		const compaction = document["compaction"];
 		if (isRecord(compaction))
 			for (const key of [

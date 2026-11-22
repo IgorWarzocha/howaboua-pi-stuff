@@ -27,7 +27,7 @@ import {
 type RuntimeContext = Pick<ExtensionContext, "model">;
 
 interface RuntimePlanBase {
-	kind: "inactive" | "extras" | "normal" | "code" | "ts" | "vm";
+	kind: "inactive" | "normal" | "code" | "ts" | "vm";
 	toolNames: string[];
 	ownedToolNames: string[];
 	configuredProvider: boolean;
@@ -44,12 +44,6 @@ export interface InactiveRuntimePlan extends RuntimePlanBase {
 	toolNames: [];
 	prompt: undefined;
 	transport: undefined;
-}
-
-export interface ExtrasRuntimePlan extends RuntimePlanBase {
-	kind: "extras";
-	prompt: undefined;
-	transport: "responses";
 }
 
 export interface NormalRuntimePlan extends RuntimePlanBase {
@@ -78,7 +72,6 @@ export interface VmRuntimePlan extends RuntimePlanBase {
 
 export type CodexRuntimePlan =
 	| InactiveRuntimePlan
-	| ExtrasRuntimePlan
 	| NormalRuntimePlan
 	| CodeRuntimePlan
 	| TsRuntimePlan
@@ -131,25 +124,6 @@ function usesResponsesLite(
 	return isCodexTransportContext(ctx)
 		? supportsResponsesLiteModel(ctx.model?.id)
 		: proxySupportsResponsesLite(ctx, config);
-}
-
-function hasExtras(config: CodexConversionConfig): boolean {
-	const tools = config.tools;
-	return tools.applyPatchOnly || tools.viewImageOnly;
-}
-
-function extraToolNames(
-	ctx: RuntimeContext,
-	config: CodexConversionConfig,
-): string[] {
-	const names: string[] = [];
-	if (config.tools.applyPatchOnly) names.push(APPLY_PATCH_TOOL_NAME);
-	if (
-		config.tools.viewImageOnly &&
-		(supportsViewImageInputs(ctx.model) || config.tools.viewImageFallback)
-	)
-		names.push(VIEW_IMAGE_TOOL_NAME);
-	return names;
 }
 
 function normalToolNames(
@@ -212,21 +186,6 @@ export function resolveCodexRuntimePlan(
 		nativeReplay: false,
 		autoReasoning: false,
 	};
-	const extras =
-		hasExtras(config) &&
-		(config.scope.allProviders === "extras" ||
-			(config.scope.allProviders === "off" &&
-				(isConfigured || isCodexLikeModel(ctx.model))));
-	if (extras) {
-		return {
-			...base,
-			kind: "extras",
-			toolNames: extraToolNames(ctx, config),
-			prompt: undefined,
-			transport: "responses",
-		};
-	}
-
 	const active =
 		config.scope.allProviders === "on" ||
 		isConfigured ||

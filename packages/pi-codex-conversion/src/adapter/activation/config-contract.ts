@@ -68,7 +68,7 @@ export type CompactToolsMode = "off" | "on" | "minimal";
 export type LunaCacheKeepaliveMinutes = 0 | 5 | 10 | 15;
 export type LunaCacheKeepaliveIntervalMinutes = 2.5 | 4.5;
 export type CacheKeepaliveIntervalMinutes = 25 | 55;
-export type AllProvidersMode = "off" | "on" | "extras";
+export type AllProvidersMode = "off" | "on";
 export type CompactionMethod = "pi" | "v2" | "both";
 export type V2UserMessageRetention = 16 | 32 | 64;
 export const MIN_NOTEBOOK_HEAP_MIB = 256;
@@ -121,8 +121,6 @@ export interface CodexConversionConfig {
 		autoReasoning: boolean;
 		customRustBinariesDir: string;
 		viewImageFallback: boolean;
-		applyPatchOnly: boolean;
-		viewImageOnly: boolean;
 	};
 	ui: {
 		statusLine: boolean;
@@ -191,8 +189,6 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		autoReasoning: false,
 		customRustBinariesDir: "",
 		viewImageFallback: false,
-		applyPatchOnly: false,
-		viewImageOnly: false,
 	},
 	ui: {
 		statusLine: true,

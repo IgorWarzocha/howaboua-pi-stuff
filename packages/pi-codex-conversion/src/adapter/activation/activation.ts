@@ -11,11 +11,7 @@ import {
 	type CodexRuntimePlan,
 } from "./runtime-plan.ts";
 import type { AdapterState } from "./state.ts";
-import {
-	DEFAULT_TOOL_NAMES,
-	STATUS_KEY,
-	buildExtraToolsOnlyStatusText,
-} from "./tool-set.ts";
+import { DEFAULT_TOOL_NAMES, STATUS_KEY } from "./tool-set.ts";
 
 export function syncAdapter(
 	pi: ExtensionAPI,
@@ -26,12 +22,10 @@ export function syncAdapter(
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
 	reconcileExternalToolLoadout(state, pi.getActiveTools());
 	const extensionTools =
-		state.enabled || plan.kind === "extras" || isAdapterRuntime(plan)
+		state.enabled || isAdapterRuntime(plan)
 			? getCodeModeExtensionToolSnapshot(pi, ctx, { refreshGates: true })
 			: { tools: [], allToolNames: [] };
-	if (plan.kind === "extras")
-		enableExtraTools(pi, ctx, state, plan, extensionTools);
-	else if (isAdapterRuntime(plan))
+	if (isAdapterRuntime(plan))
 		enableAdapter(pi, ctx, state, plan, extensionTools);
 	else disableAdapter(pi, ctx, state, plan, extensionTools);
 	return plan;
@@ -40,48 +34,6 @@ export function syncAdapter(
 type ExtensionToolSnapshot = ReturnType<
 	typeof getCodeModeExtensionToolSnapshot
 >;
-
-function enableExtraTools(
-	pi: ExtensionAPI,
-	ctx: ExtensionContext,
-	state: AdapterState,
-	plan: CodexRuntimePlan,
-	extensionTools: ExtensionToolSnapshot,
-): void {
-	const changed = hasRuntimePlanChanged(state, plan);
-	const previousOwned =
-		state.adapterOwnedToolNames ?? ALL_CODEX_ADAPTER_TOOL_NAMES;
-	const owned = state.enabled
-		? mergeToolNames(previousOwned, plan.toolNames)
-		: plan.ownedToolNames;
-	if (!state.enabled)
-		state.previousToolNames = stripAdapterTools(pi.getActiveTools(), owned);
-	state.enabled = true;
-	const projectedTools = reconcileExtensionToolProjection(
-		state,
-		pi.getActiveTools(),
-		extensionTools,
-	);
-	const tools = changed
-		? mergeToolNames(
-				restoreTools(
-					state.previousToolNames ?? DEFAULT_TOOL_NAMES,
-					projectedTools,
-					owned,
-				),
-				plan.toolNames,
-			)
-		: projectedTools;
-	state.adapterOwnedToolNames = plan.toolNames;
-	applyRuntimeTools(pi, state, plan, tools);
-	if (ctx.hasUI)
-		ctx.ui.setStatus(
-			STATUS_KEY,
-			state.config.ui.statusLine
-				? buildExtraToolsOnlyStatusText(plan.toolNames, ctx.ui.theme)
-				: undefined,
-		);
-}
 
 function enableAdapter(
 	pi: ExtensionAPI,

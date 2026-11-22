@@ -18,11 +18,10 @@ export function buildAdapterSettings(
 		setting(
 			{
 				id: "allProviders",
-				description:
-					"Choose which models use the adapter. Extra tools only exposes standalone tools without replacing the prompt.",
+				description: "Choose which models use the Codex adapter.",
 				label: "Provider scope",
 				currentValue: formatAllProvidersMode(config.scope.allProviders),
-				values: ["Codex and configured", "all providers", "extra tools only"],
+				values: ["Codex and configured", "all providers"],
 			},
 			(value, current) => ({
 				...current,
@@ -121,7 +120,6 @@ function formatAllProvidersMode(
 	value: CodexConversionConfig["scope"]["allProviders"],
 ): string {
 	if (value === "on") return "all providers";
-	if (value === "extras") return "extra tools only";
 	return "Codex and configured";
 }
 
@@ -129,7 +127,6 @@ function parseAllProvidersMode(
 	value: string,
 ): CodexConversionConfig["scope"]["allProviders"] {
 	if (value === "all providers") return "on";
-	if (value === "extra tools only") return "extras";
 	return "off";
 }
 

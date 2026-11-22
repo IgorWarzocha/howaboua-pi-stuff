@@ -15,16 +15,6 @@ function formatStatusText(
 	return `${theme.fg("accent", STATUS_TEXT)}${suffix ? theme.fg("dim", suffix) : ""}`;
 }
 
-export function buildExtraToolsOnlyStatusText(
-	tools: string[],
-	theme?: StatusTheme | undefined,
-): string {
-	return formatStatusText(
-		` • extra tools${tools.length > 0 ? `: ${tools.join(", ")}` : ""}`,
-		theme,
-	);
-}
-
 export function buildStatusText(
 	options: {
 		mode?: "normal" | "code" | "ts" | "vm" | undefined;

@@ -97,11 +97,6 @@ export function migrateCodexConversionConfigIfNeeded(
 				DEFAULT_CODEX_CONVERSION_CONFIG.tools["customRustBinariesDir"],
 			viewImageFallback:
 				DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageFallback"],
-			applyPatchOnly:
-				typeof value["applyPatchOnly"] === "boolean"
-					? value["applyPatchOnly"]
-					: DEFAULT_CODEX_CONVERSION_CONFIG.tools["applyPatchOnly"],
-			viewImageOnly: DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageOnly"],
 		},
 		ui: {
 			statusLine:
