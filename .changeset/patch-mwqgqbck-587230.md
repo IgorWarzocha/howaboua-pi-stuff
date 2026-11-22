@@ -6,5 +6,5 @@
 - Codex reports an incomplete response without replaying it when a WebSocket size rejection follows visible output.
 - Codex settings clarify what prompt overwrite, cache keepalive and voice refresh change, and which tool naming changes are display-only.
 - Codex prompt guidance now directs agents to work through recoverable blockers, continue independent work and act on clear requests rather than offering to act.
-- Code and Notebook list each tool's usage and standing rules together, including how to discover arguments.
+- Code and Notebook list each tool's usage and standing rules together, including argument discovery and shell and patch guidance.
 - Background shell completion notices collapse to one line. Expand a notice to see its output.

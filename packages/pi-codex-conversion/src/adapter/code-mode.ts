@@ -211,6 +211,8 @@ function createNestedTools(
 					"Wrap in *** Begin Patch / *** End Patch. Actions: *** Add File: path | *** Update File: path | *** Delete File: path",
 					"*** Move to: path follows its Update File header immediately; include a nonempty @@ hunk (one unchanged context line for a pure move)",
 					"Update hunks follow file order. Copy exact context; @@ text is context, not a line range. Reread changed files before patching",
+					"One patch per file; split oversized patches serially. Batch independent files with Promise.allSettled",
+					"Use for targeted edits. Reserve shell/Python for formatting and bulk rewrites",
 				],
 				prepareInput(input) {
 					if (typeof input !== "string")
@@ -253,6 +255,8 @@ function createNestedTools(
 			{
 				yieldTimeMs: LONG_RUNNING_TOOL_OUTER_YIELD_MS,
 				promptGuidelines: [
+					"Prefer rg and rg --files; filter large output at the source",
+					"Use tty=true for input and persistent processes",
 					"Returns { output: string, session_id?: number, exit_code?: number }",
 				],
 				...textOutput,

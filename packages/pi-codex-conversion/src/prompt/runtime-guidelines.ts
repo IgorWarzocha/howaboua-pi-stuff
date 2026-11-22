@@ -59,23 +59,8 @@ type RuntimeGuideline = readonly [normal: string, gpt: string, tool?: string];
 
 const CODE_MODE_GUIDELINES = [
 	[
-		"Use tools.exec_command for shell commands; prefer rg and rg --files; filter large output at the source",
-		"Shell→tools.exec_command; prefer rg/rg --files; largeoutput→sourcefilter",
-		"exec_command",
-	],
-	[
 		"Use the other JavaScript quote style around quoted text; preserve literal ${...} and backticks in shell, patches, and source",
 		"Quoted text→alternate JS quotes; shell/patch/source→literal ${...}/backticks",
-	],
-	[
-		"Use tty=true for input and persistent processes",
-		"Input/persistent processes→tty=true",
-		"exec_command",
-	],
-	[
-		"Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled; reserve shell/Python for formatting and bulk rewrites",
-		"tools.apply_patch: 1/file; oversized→serial splits; independent files→Promise.allSettled; shell/Python ONLY formatting/bulk rewrites",
-		"apply_patch",
 	],
 	["Return concise exec output with text()", "Output→concise text()"],
 ] as const;
@@ -128,11 +113,7 @@ const VM_MODE_GUIDELINES = [
 		"Keep one-offs block-local. Retain only what you plan to reuse",
 		"One-offs→block-local; retain ONLY planned reuse",
 	],
-	CODE_MODE_GUIDELINES[0],
-	CODE_MODE_GUIDELINES[1],
-	CODE_MODE_GUIDELINES[2],
-	CODE_MODE_GUIDELINES[3],
-	CODE_MODE_GUIDELINES[4],
+	...CODE_MODE_GUIDELINES,
 	[
 		"A stall, cancellation, memory limit or terminate drops conversation bindings. The next exec starts fresh",
 		"Stall/cancel/memory limit/terminate→bindings dropped; next exec fresh",
@@ -295,10 +276,6 @@ export function formatGuidelines(
 		]
 			.filter(Boolean)
 			.join("\n");
-	const editing = new Set<string>([
-		NORMAL_CODEX_GUIDELINES[2][0],
-		CODE_MODE_GUIDELINES[3][0],
-	]);
 	const execution = new Set<string>(
 		[
 			...NORMAL_CODEX_GUIDELINES,
@@ -320,15 +297,16 @@ export function formatGuidelines(
 		"Harness customization": [],
 	};
 	for (const line of guidelines) {
-		const group = editing.has(line)
-			? "Editing"
-			: execution.has(line)
-				? "Execution"
-				: notebook.has(line)
-					? "Notebook state"
-					: line.startsWith("Pi customization or integration:")
-						? "Harness customization"
-						: undefined;
+		const group =
+			line === NORMAL_CODEX_GUIDELINES[2][0]
+				? "Editing"
+				: execution.has(line)
+					? "Execution"
+					: notebook.has(line)
+						? "Notebook state"
+						: line.startsWith("Pi customization or integration:")
+							? "Harness customization"
+							: undefined;
 		(group ? groups[group]! : general).push(line);
 	}
 	if (shell) groups["Execution"]!.push(formatShellContext(shell));
