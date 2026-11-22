@@ -65,14 +65,11 @@ function isConfiguredCustomTool(
 	return "command" in tool;
 }
 
-export function isCodeModeToolDiscoverable(
-	tool: CodeModeToolDefinition,
-): boolean {
-	return (
-		isConfiguredCustomTool(tool) ||
-		(tool.deferLoading &&
-			"invoke" in tool &&
-			tool.discoverWhenDeferred === true)
+export function isCodeModeToolListed(tool: CodeModeToolDefinition): boolean {
+	return !(
+		"invoke" in tool &&
+		tool.deferLoading &&
+		tool.discoverWhenDeferred === false
 	);
 }
 
@@ -199,7 +196,7 @@ export function buildCodeModeToolsPrompt(
 		]),
 		buildUsageSection(CUSTOM_TOOLS_HEADING, promotedCustom),
 		// The catalogue is always available, even when its first or last tool is unlisted.
-		"More tools/contracts→text(ALL_TOOLS)",
+		"Tool names→text(ALL_TOOLS.map(t=>t.name)); contract→text(ALL_TOOLS.find(t=>t.name==='NAME'))",
 		custom.length > 0 ? CUSTOM_TOOLS_GUIDANCE : undefined,
 	].filter(Boolean);
 	return sections.join("\n");

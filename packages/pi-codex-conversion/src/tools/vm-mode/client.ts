@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { CodeModeDelegateRuntime } from "../code-mode/delegate-runtime.ts";
 import {
 	formatCodeModeToolHelp,
-	isCodeModeToolDiscoverable,
+	isCodeModeToolListed,
 } from "../code-mode/custom-tool-prompt.ts";
 import {
 	DEFAULT_CODE_MODE_EXEC_YIELD_MS,
@@ -368,7 +368,7 @@ function toolDefinitions(tools: CodeModeToolDefinition[]): VmTool[] {
 	return tools.map((tool) => ({
 		name: tool.name,
 		exposed: codeModeGlobalName(tool.name),
-		...(isCodeModeToolDiscoverable(tool)
+		...(isCodeModeToolListed(tool)
 			? { description: formatCodeModeToolHelp(tool) }
 			: {}),
 		...("textOutput" in tool && tool.textOutput

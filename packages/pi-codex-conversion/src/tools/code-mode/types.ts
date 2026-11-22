@@ -46,6 +46,7 @@ export interface ProgrammaticCodeModeToolDefinition extends CodeModeToolMetadata
 	textOutput?: "command" | "plain-command" | undefined;
 	blocking?: boolean | undefined;
 	isBlocking?(input: unknown): boolean;
+	/** For deferred tools: true enables availability notices, false omits catalogue listing. */
 	discoverWhenDeferred?: boolean | undefined;
 	/** Compact callable spine; full help remains in ALL_TOOLS. */
 	discoveryUsage?: string | undefined;

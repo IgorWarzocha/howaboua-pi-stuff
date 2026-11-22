@@ -1,15 +1,16 @@
-import { isCodeModeToolDiscoverable } from "./custom-tool-prompt.js";
+import { isCodeModeToolListed } from "./custom-tool-prompt.js";
 import { codeModeGlobalName } from "./tool-identity.ts";
 import type { CodeModeToolDefinition } from "./types.js";
 
-export function scopeAllToolsToDiscoverable(
+export function scopeAllToolsToListed(
 	source: string,
 	tools: CodeModeToolDefinition[],
 ): string {
-	const names = tools
-		.filter(isCodeModeToolDiscoverable)
+	const unlisted = tools
+		.filter((tool) => !isCodeModeToolListed(tool))
 		.map((tool) => codeModeGlobalName(tool.name));
-	return `globalThis.ALL_TOOLS=globalThis.ALL_TOOLS.filter(({name})=>${JSON.stringify(names)}.includes(name));${source}`;
+	if (unlisted.length === 0) return source;
+	return `globalThis.ALL_TOOLS=globalThis.ALL_TOOLS.filter(({name})=>!${JSON.stringify(unlisted)}.includes(name));${source}`;
 }
 
 export function directToolYieldTime(
