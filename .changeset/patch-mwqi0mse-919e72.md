@@ -8,4 +8,5 @@
 - Idle rollover with a tail now asks for a checkpoint when no save qualifies, then releases your original prompt and attachments.
 - Settings clarify ranked history search, when pruning runs, how Notes rollovers differ from compaction, and what Board thread consolidation does.
 - Code and Notebook list History alongside Notes. Notes, History and Board use compact help in every prompt mode.
+- Notes help shows which fields list, search, read and write return.
 - Fixed Board replies using the `reply` alias failing Notebook type checks.

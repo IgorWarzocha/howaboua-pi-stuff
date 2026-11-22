@@ -274,7 +274,10 @@ export function queryHelp(
 		const actions = namespace === "notes" ? NOTES_ACTIONS : HISTORY_ACTIONS;
 		return (namespace === "notes" ? noteResult : result)({
 			...(namespace === "notes"
-				? { results: "read: file.content; write/append: file.path" }
+				? {
+						returns:
+							"list: files; search: files[].matches; read: file.content or file=null; write/append: file.path",
+					}
 				: {}),
 			actions: Object.fromEntries(
 				actions.map((action) => [

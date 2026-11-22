@@ -59,7 +59,7 @@ const NOTES_RESULT_SCHEMA = obj(
 		read_only: OPTIONAL_BOOLEAN,
 		saved_at: OPTIONAL_STRING,
 		captured_at: OPTIONAL_STRING,
-		results: OPTIONAL_STRING,
+		returns: OPTIONAL_STRING,
 		actions: opt(
 			unsafe<Record<string, string>>({
 				type: "object",
