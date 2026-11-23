@@ -5,9 +5,9 @@ import {
 	isCodeModeToolListed,
 } from "../code-mode/custom-tool-prompt.ts";
 import {
-	DEFAULT_CODE_MODE_EXEC_YIELD_MS,
+	DEFAULT_EXEC_YIELD_MS,
 	parseExecSource,
-} from "../code-mode/host-protocol.ts";
+} from "../code-mode/exec-contract.ts";
 import type {
 	CodeModeClientOptions,
 	CodeModeExecutionClient,
@@ -128,7 +128,7 @@ export class VmCodeClient implements CodeModeExecutionClient {
 				execution,
 				directToolYieldTime(parsed.code, tools) ??
 					parsed.yieldTimeMs ??
-					DEFAULT_CODE_MODE_EXEC_YIELD_MS,
+					DEFAULT_EXEC_YIELD_MS,
 				signal,
 			);
 		} catch (error) {

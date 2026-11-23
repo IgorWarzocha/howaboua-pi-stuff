@@ -5,7 +5,7 @@ import { getExperimentalToolSampling } from "../tools/tool-sampling.ts";
 
 export function getActiveToolsInActiveOrder(
 	pi: Pick<ExtensionAPI, "getActiveTools" | "getAllTools">,
-	codeMode = false,
+	usesExecTools = false,
 ): Tool[] {
 	const toolsByName = new Map(
 		pi.getAllTools().map((tool) => [tool.name, tool]),
@@ -14,7 +14,7 @@ export function getActiveToolsInActiveOrder(
 		const tool = toolsByName.get(name);
 		if (!tool) return [];
 		const constrainedSampling =
-			codeMode && tool.name === "exec"
+			usesExecTools && tool.name === "exec"
 				? CODE_MODE_EXEC_CONSTRAINED_SAMPLING
 				: getExperimentalToolSampling(tool.name);
 		return [

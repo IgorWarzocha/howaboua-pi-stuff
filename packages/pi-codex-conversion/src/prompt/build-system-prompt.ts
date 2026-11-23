@@ -1,3 +1,4 @@
+import { defineOwnedSection, upsertOpaqueSection } from "./owned-sections.ts";
 import type { ExecutionMode } from "../adapter/activation/execution-mode.ts";
 import { formatAgentBehaviour } from "./agent-behaviour.ts";
 import { formatRuntimeGuidelines } from "./runtime-guidelines.ts";
@@ -5,81 +6,12 @@ import {
 	getPackageDir,
 	type NormalizedBuildSystemPromptOptions,
 } from "@earendil-works/pi-coding-agent";
-import {
-	codeModeCustomizationGuidance,
-	codeModePromptToolNames,
-} from "../tools/code-mode/custom-tool-prompt.js";
-
-export interface PromptSkill {
-	name: string;
-	description: string;
-	filePath: string;
-}
-
-export interface StructuredPromptSkill {
-	name: string;
-	description: string;
-	filePath: string;
-	disableModelInvocation?: boolean | undefined;
-}
+import { getCodeModePromptCapture } from "../tools/code-mode/custom-tool-prompt.js";
 
 export type PiSystemPromptOptions = NormalizedBuildSystemPromptOptions;
 
-function decodeXml(text: string): string {
-	return text
-		.replace(/&apos;/g, "'")
-		.replace(/&quot;/g, '"')
-		.replace(/&gt;/g, ">")
-		.replace(/&lt;/g, "<")
-		.replace(/&amp;/g, "&");
-}
-
-export function extractPiPromptSkills(prompt: string): PromptSkill[] {
-	const skillsBlockMatch = prompt.match(
-		/<available_skills>\n([\s\S]*?)\n<\/available_skills>/,
-	);
-	if (!skillsBlockMatch) {
-		return [];
-	}
-
-	const skillMatches = skillsBlockMatch[1]!.matchAll(
-		/<skill>\n\s*<name>([\s\S]*?)<\/name>\n\s*<description>([\s\S]*?)<\/description>\n\s*<location>([\s\S]*?)<\/location>\n\s*<\/skill>/g,
-	);
-
-	return Array.from(skillMatches, (match) => ({
-		name: decodeXml(match[1]!.trim()),
-		description: decodeXml(match[2]!.trim()),
-		filePath: decodeXml(match[3]!.trim()),
-	}));
-}
-
-export function promptSkillsFromStructuredSkills(
-	skills: readonly StructuredPromptSkill[] | undefined,
-): PromptSkill[] {
-	if (!Array.isArray(skills)) {
-		return [];
-	}
-
-	return skills
-		.filter((skill) => !skill.disableModelInvocation)
-		.map((skill) => ({
-			name: skill.name,
-			description: skill.description,
-			filePath: skill.filePath,
-		}));
-}
-
-export function resolvePromptSkills(
-	structuredSkills: readonly StructuredPromptSkill[] | undefined,
-	fallbackSkills: readonly PromptSkill[],
-): PromptSkill[] {
-	return structuredSkills === undefined
-		? [...fallbackSkills]
-		: promptSkillsFromStructuredSkills(structuredSkills);
-}
-
 function buildSkillsContent(
-	skills: PromptSkill[],
+	skills: PiSystemPromptOptions["skills"],
 	heavySystemPromptOverwrite: boolean,
 ): string {
 	if (skills.length === 0) return "";
@@ -99,52 +31,14 @@ function buildSkillsContent(
 }
 
 export interface PrepareCodexSystemPromptOptions {
-	skills?: PromptSkill[] | undefined;
 	shell?: string | undefined;
 	executionMode?: ExecutionMode | undefined;
 	heavySystemPromptOverwrite?: boolean | undefined;
 }
 
-function defineOwnedSection(
-	sections: Record<string, string>,
-	name: string,
-	render: () => string,
-): void {
-	let override: string | undefined;
-	Object.defineProperty(sections, name, {
-		configurable: true,
-		enumerable: true,
-		get: () => override ?? render(),
-		set: (value: string) => {
-			override = value;
-		},
-	});
-}
-
-function upsertOpaqueSection(
-	prompt: string,
-	name: string,
-	content: string,
-): string {
-	const open = `<${name}>`;
-	const close = `</${name}>`;
-	const start = prompt.indexOf(open);
-	const end = start === -1 ? -1 : prompt.indexOf(close, start + open.length);
-	if (start !== -1 && end !== -1) {
-		const after = end + close.length;
-		if (!content)
-			return `${prompt.slice(0, start)}${prompt.slice(after)}`
-				.replace(/\n{3,}/g, "\n\n")
-				.trim();
-		return `${prompt.slice(0, start)}${open}\n${content}\n${close}${prompt.slice(after)}`;
-	}
-	if (!content) return prompt;
-	return `${prompt.trimEnd()}\n\n${open}\n${content}\n${close}`;
-}
-
 function prepareStructuredSkills(
 	options: PiSystemPromptOptions,
-	skills: PromptSkill[],
+	skills: PiSystemPromptOptions["skills"],
 	executionMode: ExecutionMode,
 	heavySystemPromptOverwrite: boolean,
 ): void {
@@ -183,20 +77,24 @@ export function prepareCodexSystemPrompt(
 ): void {
 	const executionMode = config.executionMode ?? "normal";
 	const heavySystemPromptOverwrite = config.heavySystemPromptOverwrite ?? false;
-	const skills = config.skills ?? [];
+	const skills = options.skills.filter(
+		(skill) => !skill.disableModelInvocation,
+	);
 	const sections = (options.sections ??= {});
 	delete sections["codex_runtime"];
 	const behaviour = formatAgentBehaviour(heavySystemPromptOverwrite);
-	const renderRuntime = (replacePiScaffold: boolean) =>
-		formatRuntimeGuidelines(options, {
+	const renderRuntime = (replacePiScaffold: boolean) => {
+		const capture = getCodeModePromptCapture(options);
+		return formatRuntimeGuidelines(options, {
 			executionMode,
 			heavySystemPromptOverwrite,
 			replacePiScaffold,
 			shell: config.shell,
-			nestedTools: codeModePromptToolNames(options),
-			customization: codeModeCustomizationGuidance(options),
+			nestedTools: capture?.toolNames ?? [],
+			customization: capture?.customizationGuidance() ?? "",
 			...(replacePiScaffold ? { piPackageRoot: getPackageDir() } : {}),
 		});
+	};
 
 	if (options.forceSystemPrompt !== undefined) {
 		let forced = upsertOpaqueSection(

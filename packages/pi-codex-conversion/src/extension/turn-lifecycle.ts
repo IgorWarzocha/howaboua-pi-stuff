@@ -11,11 +11,7 @@ import {
 	resolveCodexRuntimePlanForState,
 } from "../adapter/activation/runtime-plan.ts";
 import { supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
-import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
-import {
-	prepareCodexSystemPrompt,
-	resolvePromptSkills,
-} from "../prompt/build-system-prompt.ts";
+import { prepareCodexSystemPrompt } from "../prompt/build-system-prompt.ts";
 import { projectCodeModeMcpSections } from "../prompt/mcp-server-section.ts";
 import { orderProjectContextLast } from "../prompt/project-context-order.ts";
 import {
@@ -105,12 +101,7 @@ export function createCodexTurnLifecycle(
 				return undefined;
 			}
 			recordCodexReasoningUpdate(pi, ctx, runtime.projectContextMessages(ctx));
-			const skills = resolvePromptSkills(
-				event.systemPromptOptions?.skills,
-				hasNoSkillsFlag() ? [] : state.promptSkills,
-			);
 			prepareCodexSystemPrompt(event.systemPromptOptions, {
-				skills,
 				shell: getPiCodexRuntimeShell(ctx),
 				executionMode: plan.kind,
 				heavySystemPromptOverwrite:

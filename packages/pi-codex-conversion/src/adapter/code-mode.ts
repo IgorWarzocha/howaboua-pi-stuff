@@ -141,7 +141,7 @@ export async function registerCodexCodeMode(
 			).kind;
 			return kind === "ts" || kind === "vm" ? kind : "code";
 		},
-		notebookOptions: () => ({
+		executionClientOptions: () => ({
 			maxHeapMiB: runtime.state.config.notebook.maxHeapMiB,
 			agentDir: getAgentDir(),
 			...(runtime.state.config.notebook.profile

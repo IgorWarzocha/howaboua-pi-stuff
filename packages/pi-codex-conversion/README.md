@@ -94,7 +94,7 @@ Press **Ctrl+O** to expand tool output and see the available source, output and 
 
 ### Optional controls
 
-- **Heavy system prompt overwrite:** **on** replaces Pi's default instructions with compact guidance and keeps other extensions' contributions. **Off** keeps Pi's defaults. Pi Codex uses compact wording in both cases.
+- **Heavy system prompt overwrite:** **Off** keeps Pi's default prompt and adds Codex guidance in plain prose. **On** replaces Pi's default instructions with shorter Codex guidance. Both preserve other extensions' contributions.
 - **Current time reminders:** adds periodic time updates for the model. Choose 30 or 60 minutes under General. Off by default.
 - **Auto reasoning:** asks supported GPT-6 models to adjust effort during work, never below your selected level. Your selection returns when the run settles. Off by default. The model can ignore the instruction, so this is not a guarantee of adaptive effort.
 - **Fast Mode:** choose off, priority processing or Ultrafast independently for Astra, Sol, Terra and Luna. Availability depends on the model and account.

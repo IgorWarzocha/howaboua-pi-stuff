@@ -31,7 +31,7 @@ export interface OpaqueContextGuard {
 	resolveScope(): Promise<string>;
 }
 
-export interface NotebookRuntimeOptions {
+export interface ExecutionClientOptions {
 	maxHeapMiB: number;
 	agentDir: string;
 	profile?: string | undefined;
@@ -84,7 +84,7 @@ export interface CodeModeToolProvider {
 	providesRenderers?: boolean | undefined;
 	toolDetails?(): ToolDetailsMode;
 	executionKind?(ctx: unknown): CodeModeExecutionKind;
-	notebookOptions?(ctx: unknown): NotebookRuntimeOptions;
+	executionClientOptions?(ctx: unknown): ExecutionClientOptions;
 	opaqueResultScope?(ctx: ExtensionContext): Promise<string>;
 	lazyOpaqueResultScope?(): boolean;
 	deliverOpaqueResponse?(
@@ -278,8 +278,8 @@ export class SharedCodeModeRuntime {
 		kind: Exclude<CodeModeExecutionKind, "code">,
 	): Promise<CodeModeExecutionClient> {
 		const options = this.activeProviders(ctx)
-			.find((provider) => provider.notebookOptions)
-			?.notebookOptions?.(ctx);
+			.find((provider) => provider.executionClientOptions)
+			?.executionClientOptions?.(ctx);
 		if (!options)
 			return Promise.reject(
 				new Error("Execution settings are unavailable. Reload Pi and retry."),
@@ -312,8 +312,8 @@ export class SharedCodeModeRuntime {
 									new VmCodeClient(clientOptions, this.renderStore),
 							)
 						: import("../ts-mode/client.ts").then(
-								({ TsCodeModeClient }) =>
-									new TsCodeModeClient(clientOptions, this.renderStore),
+								({ TsNotebookClient }) =>
+									new TsNotebookClient(clientOptions, this.renderStore),
 							);
 				this.runtimeClientPromise = pending;
 				this.runtimeClientOptionsKey = key;

@@ -25,6 +25,7 @@ import {
 } from "./tool-set.ts";
 
 type RuntimeContext = Pick<ExtensionContext, "model">;
+export type ResponsesFormat = "responses" | "responses-lite";
 
 interface RuntimePlanBase {
 	kind: "inactive" | "normal" | "code" | "ts" | "vm";
@@ -52,17 +53,17 @@ export interface NormalRuntimePlan extends RuntimePlanBase {
 
 export interface CodeRuntimePlan extends RuntimePlanBase {
 	kind: "code";
-	responsesFormat: "responses" | "responses-lite";
+	responsesFormat: ResponsesFormat;
 }
 
 export interface TsRuntimePlan extends RuntimePlanBase {
 	kind: "ts";
-	responsesFormat: "responses" | "responses-lite";
+	responsesFormat: ResponsesFormat;
 }
 
 export interface VmRuntimePlan extends RuntimePlanBase {
 	kind: "vm";
-	responsesFormat: "responses" | "responses-lite";
+	responsesFormat: ResponsesFormat;
 }
 
 export type CodexRuntimePlan =
@@ -201,10 +202,7 @@ export function resolveCodexRuntimePlan(
 		configuredExecutionMode === "ts" ||
 		configuredExecutionMode === "vm"
 	) {
-		const responsesFormat: "responses-lite" | "responses" = usesResponsesLite(
-			ctx,
-			config,
-		)
+		const responsesFormat: ResponsesFormat = usesResponsesLite(ctx, config)
 			? "responses-lite"
 			: "responses";
 		if (configuredExecutionMode === "ts") {

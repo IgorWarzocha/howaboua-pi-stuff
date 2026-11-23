@@ -4,7 +4,7 @@ import type { CodexVoiceAuth } from "../auth.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
 import {
 	buildApiLiveCallRequest,
-	buildRealtimeCallRequest,
+	buildCodexLiveCallRequest,
 	parseApiLiveAnswer,
 	type RealtimeCallSetup,
 	setupRealtimeCall,
@@ -123,7 +123,7 @@ export class ConversationSetup {
 			);
 		else
 			requestBody = JSON.stringify(
-				buildRealtimeCallRequest(sdp, config, instructions, initialItems),
+				buildCodexLiveCallRequest(sdp, config, instructions, initialItems),
 			);
 		let status: number;
 		let answer: string;

@@ -1,7 +1,7 @@
 import {
-	DEFAULT_CODE_MODE_OUTPUT_TOKENS,
-	MAX_CODE_MODE_OUTPUT_TOKENS,
-} from "./host-protocol.js";
+	DEFAULT_EXEC_OUTPUT_TOKENS,
+	MAX_EXEC_OUTPUT_TOKENS,
+} from "./exec-contract.ts";
 import { referenceEmittedTraceImages } from "./trace-images.js";
 import type { RuntimeContentItem, RuntimeResponse } from "./types.js";
 
@@ -25,10 +25,10 @@ export function toCodeModeToolResult(
 				: undefined;
 	const output = boundedCodeModeContent(response.contentItems);
 	const outputTokens = Math.min(
-		MAX_CODE_MODE_OUTPUT_TOKENS,
+		MAX_EXEC_OUTPUT_TOKENS,
 		Math.max(
 			1,
-			maxTokens ?? response.maxOutputTokens ?? DEFAULT_CODE_MODE_OUTPUT_TOKENS,
+			maxTokens ?? response.maxOutputTokens ?? DEFAULT_EXEC_OUTPUT_TOKENS,
 		),
 	);
 	const content = [

@@ -359,7 +359,7 @@ export function createCodexExtensionTransport(
 					model: model.id,
 					baseUrl: model.baseUrl.replace(/\/+$/, ""),
 					executionMode: state.executionMode,
-					transport: responsesLite ? "responses-lite" : "responses",
+					responsesFormat: responsesLite ? "responses-lite" : "responses",
 					systemMessage: structuredClone(systemMessage),
 				};
 			}

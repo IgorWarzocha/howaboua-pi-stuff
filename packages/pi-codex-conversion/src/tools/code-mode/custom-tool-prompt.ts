@@ -1,3 +1,7 @@
+import {
+	defineOwnedSection,
+	upsertOpaqueSection,
+} from "../../prompt/owned-sections.ts";
 import type { CodeModeToolDefinition, CustomToolDefinition } from "./types.js";
 import type { CodeModeExecutionKind } from "./shared-runtime.js";
 import {
@@ -35,25 +39,20 @@ export interface CodeModeSystemPromptOptions {
 	sections?: Record<string, string> | undefined;
 }
 
-const customizationGuidance = new WeakMap<
-	CodeModeSystemPromptOptions,
-	() => string
->();
-const promptToolNames = new WeakMap<
-	CodeModeSystemPromptOptions,
-	readonly string[]
->();
-
-export function codeModePromptToolNames(
-	options: CodeModeSystemPromptOptions,
-): readonly string[] {
-	return promptToolNames.get(options) ?? [];
+interface CodeModePromptCapture {
+	toolNames: readonly string[];
+	customizationGuidance(): string;
 }
 
-export function codeModeCustomizationGuidance(
+const promptCaptures = new WeakMap<
+	CodeModeSystemPromptOptions,
+	CodeModePromptCapture
+>();
+
+export function getCodeModePromptCapture(
 	options: CodeModeSystemPromptOptions,
-): string {
-	return customizationGuidance.get(options)?.() ?? "";
+): CodeModePromptCapture | undefined {
+	return promptCaptures.get(options);
 }
 
 function isConfiguredCustomTool(
@@ -119,16 +118,10 @@ function renderStandingTool(tool: CodeModeToolDefinition): string[] {
 		tool.description ?? "",
 		tool.name,
 	).trim();
-	const capability =
-		help &&
-		name === "agents" &&
-		description.endsWith("; {} lists action fields")
-			? description.slice(0, -"; {} lists action fields".length)
-			: description;
 	const usage = translateCodeModeUsage(tool.usage, tool.name);
 	const call = usage.startsWith(`${binding}(`) ? usage : undefined;
 	const entry = help
-		? `- ${binding}()${capability ? `: ${capability}` : ""}`
+		? `- ${binding}()${description ? `: ${description}` : ""}`
 		: call
 			? `- ${call}${description ? `; ${description}` : ""}`
 			: `- ${binding}: ${[description, `Usage: ${usage}`].filter(Boolean).join("; ")}`;
@@ -248,43 +241,6 @@ export function buildCodeModeToolsPrompt(
 	return sections.join("\n");
 }
 
-function upsertCodeModeToolsSection(
-	systemPrompt: string,
-	section: string,
-): string {
-	const open = `<${CODE_MODE_TOOLS_SECTION}>`;
-	const close = `</${CODE_MODE_TOOLS_SECTION}>`;
-	const start = systemPrompt.indexOf(open);
-	const end =
-		start === -1 ? -1 : systemPrompt.indexOf(close, start + open.length);
-	if (start !== -1 && end !== -1) {
-		const after = end + close.length;
-		if (!section)
-			return `${systemPrompt.slice(0, start)}${systemPrompt.slice(after)}`
-				.replace(/\n{3,}/g, "\n\n")
-				.trim();
-		return `${systemPrompt.slice(0, start)}${open}\n${section}\n${close}${systemPrompt.slice(after)}`;
-	}
-	if (!section) return systemPrompt;
-	return `${systemPrompt.trimEnd()}\n\n${open}\n${section}\n${close}`;
-}
-
-function defineCodeModeToolsSection(
-	sections: Record<string, string>,
-	section: string,
-	isEnabled: () => boolean,
-): void {
-	let override: string | undefined;
-	Object.defineProperty(sections, CODE_MODE_TOOLS_SECTION, {
-		configurable: true,
-		enumerable: true,
-		get: () => override ?? (isEnabled() ? section : ""),
-		set: (value: string) => {
-			override = value;
-		},
-	});
-}
-
 export function prepareCodeModeToolsPrompt(
 	options: CodeModeSystemPromptOptions,
 	tools: CodeModeToolDefinition[],
@@ -295,29 +251,30 @@ export function prepareCodeModeToolsPrompt(
 ): string {
 	const sections = (options.sections ??= {});
 	// Share this turn's canonical snapshot, not the changing live catalogue.
-	promptToolNames.set(
-		options,
-		tools.map((tool) => tool.name),
-	);
-	customizationGuidance.set(options, () =>
-		documentationPath && isEnabled()
-			? heavySystemPromptOverwrite
-				? `exec custom tools→read ${documentationPath}, not Pi docs`
-				: `For exec custom tools, read ${documentationPath} instead of the Pi documentation.`
-			: "",
-	);
+	promptCaptures.set(options, {
+		toolNames: tools.map((tool) => tool.name),
+		customizationGuidance: () =>
+			documentationPath && isEnabled()
+				? heavySystemPromptOverwrite
+					? `exec custom tools→read ${documentationPath}, not Pi docs`
+					: `For exec custom tools, read ${documentationPath} instead of the Pi documentation.`
+				: "",
+	});
 	const section = buildCodeModeToolsPrompt(
 		tools,
 		executionKind,
 		heavySystemPromptOverwrite,
 	);
 	if (options.forceSystemPrompt !== undefined) {
-		options.forceSystemPrompt = upsertCodeModeToolsSection(
+		options.forceSystemPrompt = upsertOpaqueSection(
 			options.forceSystemPrompt,
+			CODE_MODE_TOOLS_SECTION,
 			isEnabled() ? section : "",
 		);
 	} else {
-		defineCodeModeToolsSection(sections, section, isEnabled);
+		defineOwnedSection(sections, CODE_MODE_TOOLS_SECTION, () =>
+			isEnabled() ? section : "",
+		);
 	}
 	return section;
 }

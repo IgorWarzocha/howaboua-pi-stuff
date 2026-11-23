@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { CodeModeDelegateRuntime } from "../code-mode/delegate-runtime.ts";
 import {
-	DEFAULT_CODE_MODE_EXEC_YIELD_MS,
+	DEFAULT_EXEC_YIELD_MS,
 	parseExecSource,
-} from "../code-mode/host-protocol.ts";
+} from "../code-mode/exec-contract.ts";
 import type {
 	CodeModeExecutionClient,
 	NotebookClientOptions,
@@ -40,7 +40,7 @@ import {
 	type TsExecution,
 } from "./session-kernel.ts";
 
-export class TsCodeModeClient implements CodeModeExecutionClient {
+export class TsNotebookClient implements CodeModeExecutionClient {
 	private readonly options: NotebookClientOptions;
 	private readonly delegate: CodeModeDelegateRuntime;
 	private readonly lifecycle: TsStateLifecycle;
@@ -193,7 +193,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 			execution,
 			directToolYieldTime(parsed.code, tools) ??
 				parsed.yieldTimeMs ??
-				DEFAULT_CODE_MODE_EXEC_YIELD_MS,
+				DEFAULT_EXEC_YIELD_MS,
 			signal,
 		);
 	}

@@ -6,7 +6,6 @@ import { readEffectiveCodexConversionConfig } from "../adapter/activation/config
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import { supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
 import { onCodeModeExtensionToolsRefresh } from "../code-mode-extension-tools.ts";
-import { extractPiPromptSkills } from "../prompt/build-system-prompt.ts";
 import type { CodeModeProxyProviderRegistration } from "../providers/code-mode-proxy-provider.ts";
 import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.ts";
 import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
@@ -89,7 +88,6 @@ export function createCodexSessionLifecycle(
 			});
 			state.executionMode = state.config.executionMode;
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
-			state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 			sessions.setBaseEnv(runtime.execEnv());
 			tracker.clear();
 			clearApplyPatchRenderState();
@@ -107,7 +105,6 @@ export function createCodexSessionLifecycle(
 			ui.invalidateUsageStatus();
 			runtime.resetTransport(ctx.sessionManager.getSessionId());
 			state.cwd = ctx.cwd;
-			state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 			syncAdapter(pi, ctx, state);
 			// Keep existing window state, but leave initial creation to the first prepared turn.

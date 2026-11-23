@@ -1,5 +1,5 @@
 import type { CodeModeDelegateRuntime } from "../code-mode/delegate-runtime.ts";
-import type { NotebookRuntimeOptions } from "../code-mode/shared-runtime.ts";
+import type { ExecutionClientOptions } from "../code-mode/shared-runtime.ts";
 import type { RuntimeCell } from "../code-mode/runtime-cell.ts";
 import { TsExecutionWorker } from "./execution-worker.ts";
 import { resolveTsRuntimeImport, type TsImportOptions } from "./imports.ts";
@@ -28,8 +28,8 @@ export class TsSessionKernel {
 	private kernel: TsExecutionWorker | undefined;
 	private kernelUnavailable = false;
 	private restoreFailed: string[] | undefined;
-	private readonly options: NotebookRuntimeOptions;
-	constructor(options: NotebookRuntimeOptions) {
+	private readonly options: ExecutionClientOptions;
+	constructor(options: ExecutionClientOptions) {
 		this.options = options;
 	}
 	get hasWorker(): boolean {

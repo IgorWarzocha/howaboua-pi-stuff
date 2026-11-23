@@ -129,7 +129,7 @@ export function buildOpenAISettings(
 			}),
 		),
 		toggle(
-			"responsesLite",
+			"proxyResponsesLite",
 			"Proxy Responses Lite",
 			config.openai.proxyResponsesLite,
 			(enabled, current) => ({

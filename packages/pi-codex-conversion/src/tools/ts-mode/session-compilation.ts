@@ -8,7 +8,7 @@ import {
 import { commandOutputFormatterSource } from "../code-mode/command-output.ts";
 import { codeModeGlobalName } from "../code-mode/tool-identity.ts";
 import type { CodeModeToolDefinition } from "../code-mode/types.ts";
-import type { NotebookRuntimeOptions } from "../code-mode/shared-runtime.ts";
+import type { ExecutionClientOptions } from "../code-mode/shared-runtime.ts";
 import { TsCompiler } from "./compiler.ts";
 import { loadTsRuntime, type TsRuntime } from "./runtime.ts";
 import {
@@ -22,13 +22,13 @@ import { tsGlobalDeclarations, type TsWorkerInput } from "./worker-protocol.ts";
 
 /** Session compiler and import authority; resetting the heap does not close the compiler. */
 export class TsSessionCompilation {
-	private readonly options: NotebookRuntimeOptions;
+	private readonly options: ExecutionClientOptions;
 	private readonly importOptions: TsImportOptions;
 	private readonly liveSourceModules = new Map<string, string>();
 	private compiler: TsCompiler | undefined;
 	private runtime: TsRuntime | undefined;
 
-	constructor(options: NotebookRuntimeOptions) {
+	constructor(options: ExecutionClientOptions) {
 		this.options = options;
 		this.importOptions = {
 			cwd: process.cwd(),

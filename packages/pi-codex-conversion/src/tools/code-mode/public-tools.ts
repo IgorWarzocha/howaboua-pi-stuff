@@ -13,9 +13,9 @@ import {
 } from "@earendil-works/pi-schema";
 import { getExperimentalToolSampling } from "../tool-sampling.ts";
 import {
-	DEFAULT_CODE_MODE_OUTPUT_TOKENS,
-	MAX_CODE_MODE_OUTPUT_TOKENS,
-} from "./host-protocol.js";
+	DEFAULT_EXEC_OUTPUT_TOKENS,
+	MAX_EXEC_OUTPUT_TOKENS,
+} from "./exec-contract.ts";
 import {
 	EXEC_DESCRIPTION,
 	ISOLATED_EXEC_GUIDANCE,
@@ -60,8 +60,8 @@ const WAIT_PARAMETERS = obj(
 		max_tokens: opt(
 			int({
 				minimum: 1,
-				maximum: MAX_CODE_MODE_OUTPUT_TOKENS,
-				default: DEFAULT_CODE_MODE_OUTPUT_TOKENS,
+				maximum: MAX_EXEC_OUTPUT_TOKENS,
+				default: DEFAULT_EXEC_OUTPUT_TOKENS,
 			}),
 		),
 		terminate: opt(bool()),

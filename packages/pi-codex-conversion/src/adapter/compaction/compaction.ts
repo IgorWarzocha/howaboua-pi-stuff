@@ -260,9 +260,10 @@ async function handleCodexSessionBeforeCompactInner(
 			);
 		}
 	}
-	const codeMode = usesExecTools(plan);
+	const execToolsActive = usesExecTools(plan);
+	const responsesFormat = plan.responsesFormat ?? "responses";
 	const serializationOptions: SerializeResponsesMessagesOptions = {
-		...(plan.responsesFormat === "responses-lite"
+		...(responsesFormat === "responses-lite"
 			? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS }
 			: {}),
 	};
@@ -271,7 +272,7 @@ async function handleCodexSessionBeforeCompactInner(
 		ctx,
 		state,
 		compactionTargetModel,
-		codeMode,
+		execToolsActive,
 		branchEntries,
 	);
 	const builtInput = buildNativeCompactionInput({
@@ -292,7 +293,7 @@ async function handleCodexSessionBeforeCompactInner(
 	const canonicalReplay =
 		runtime.codexTransport && runtime.apiKey
 			? await resolveCanonicalCompactionReplay({
-					codeMode,
+					responsesFormat,
 					sessionId: ctx.sessionManager.getSessionId(),
 					model: runtime.model,
 					identity: {
@@ -337,8 +338,8 @@ async function handleCodexSessionBeforeCompactInner(
 		ctx,
 		state,
 		runtime,
-		plan.responsesFormat === "responses-lite" ? "responses-lite" : "responses",
-		codeMode,
+		responsesFormat,
+		execToolsActive,
 		branchEntries,
 	);
 	const compactResult = await executeRemoteCompactionV2({

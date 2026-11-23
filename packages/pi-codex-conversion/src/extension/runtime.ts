@@ -100,7 +100,6 @@ export function createCodexExtensionRuntime(
 	const state: AdapterState = {
 		enabled: false,
 		cwd: process.cwd(),
-		promptSkills: [],
 		config: initialConfig,
 		executionMode: initialConfig.executionMode,
 		codexTurnState: createCodexTurnState(),

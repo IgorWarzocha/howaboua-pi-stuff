@@ -7,7 +7,7 @@ export interface CodexLikeModelDescriptor {
 	baseUrl: string;
 }
 
-export function isOpenAICodexModel(
+export function hasOpenAICodexProviderId(
 	model: Partial<CodexLikeModelDescriptor> | null | undefined,
 ): boolean {
 	if (!model) return false;
@@ -60,7 +60,7 @@ export function isCodexTransportModel(
 ): boolean {
 	return Boolean(
 		model &&
-		(isOpenAICodexModel(model) ||
+		(hasOpenAICodexProviderId(model) ||
 			(model.api ?? "").trim().toLowerCase() === "openai-codex-responses"),
 	);
 }

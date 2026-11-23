@@ -202,7 +202,7 @@ export function buildVoiceSettings(
 			{
 				id: "forwardReasoningSummaries",
 				description:
-					"Let voice relay reasoning summaries as progress when the coding agent has no spoken text update.",
+					"Let voice relay eligible reasoning summaries as progress during coding tasks.",
 				label: "Speak reasoning summaries",
 				currentValue: config.voice.forwardReasoningSummaries ? "on" : "off",
 				values: ["off", "on"],

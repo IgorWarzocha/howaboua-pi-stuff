@@ -1,9 +1,9 @@
-import { normalizeVoiceApiProvider } from "../../adapter/activation/config.ts";
+import { normalizeVoiceApiProvider } from "../adapter/activation/config.ts";
 import {
 	GIPPITY_VOICE_MODELS,
 	OPENAI_REALTIME_VOICES,
-} from "../../adapter/activation/config.ts";
-import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
+} from "../adapter/activation/config.ts";
+import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import {
 	REALTIME_V3_VOICES,
 	VOICE_CONTEXT_REASONING_LEVELS,
@@ -11,8 +11,8 @@ import {
 	normalizeVoiceContextReasoning,
 	type RealtimeV3Voice,
 	type VoiceContextReasoning,
-} from "../../adapter/activation/config.ts";
-import { LanVoiceSettingsError } from "./settings-contract.ts";
+} from "../adapter/activation/config.ts";
+import { VoiceSettingsError } from "./settings-error.ts";
 
 const BOOLEAN_SETTINGS = [
 	"webSearch",
@@ -86,14 +86,14 @@ export function createVoiceSettings(dependencies: VoiceSettingsDependencies) {
 				if (key === "apiProvider") {
 					const provider = normalizeVoiceApiProvider(value);
 					if (!provider)
-						throw new LanVoiceSettingsError(
+						throw new VoiceSettingsError(
 							"Enter a nonempty API provider name, at most 512 bytes, without surrounding whitespace or control characters",
 						);
 					patch.apiProvider = provider;
 				} else if (key === "model") {
 					const model = GIPPITY_VOICE_MODELS.find((entry) => entry === value);
 					if (!model)
-						throw new LanVoiceSettingsError("Choose a listed voice model");
+						throw new VoiceSettingsError("Choose a listed voice model");
 					patch.model = model;
 				} else if (
 					key === "realtimeVoice" ||
@@ -101,11 +101,11 @@ export function createVoiceSettings(dependencies: VoiceSettingsDependencies) {
 				) {
 					const voice = OPENAI_REALTIME_VOICES.find((entry) => entry === value);
 					if (!voice)
-						throw new LanVoiceSettingsError("Choose a listed Realtime voice");
+						throw new VoiceSettingsError("Choose a listed Realtime voice");
 					patch[key] = voice;
 				} else if (key === "v3Voice" || key === "v3AlternateVoice") {
 					const voice = normalizeRealtimeV3Voice(value);
-					if (!voice) throw new LanVoiceSettingsError("Choose a listed voice");
+					if (!voice) throw new VoiceSettingsError("Choose a listed voice");
 					patch[key] = voice;
 				} else if (
 					key === "contextReasoning" ||
@@ -117,14 +117,14 @@ export function createVoiceSettings(dependencies: VoiceSettingsDependencies) {
 							value,
 						)
 					)
-						throw new LanVoiceSettingsError("Choose a listed reasoning level");
+						throw new VoiceSettingsError("Choose a listed reasoning level");
 					patch[key] = normalizeVoiceContextReasoning(value);
 				} else if (key === "contextModel") {
 					if (value === null) patch.contextModel = undefined;
 					else if (value === "current") patch.contextModel = value;
 					else {
 						if (!value || typeof value !== "object" || Array.isArray(value))
-							throw new LanVoiceSettingsError(
+							throw new VoiceSettingsError(
 								"Choose a listed context model, Default, or Off",
 							);
 						const model = value as Record<string, unknown>;
@@ -133,7 +133,7 @@ export function createVoiceSettings(dependencies: VoiceSettingsDependencies) {
 								(field) => field !== "provider" && field !== "modelId",
 							)
 						)
-							throw new LanVoiceSettingsError("Invalid context model");
+							throw new VoiceSettingsError("Invalid context model");
 						const current = readConfig().voice.contextModel;
 						const selected = [
 							...models(),
@@ -144,17 +144,15 @@ export function createVoiceSettings(dependencies: VoiceSettingsDependencies) {
 								entry.modelId === model["modelId"],
 						);
 						if (!selected)
-							throw new LanVoiceSettingsError(
-								"Choose an available context model",
-							);
+							throw new VoiceSettingsError("Choose an available context model");
 						patch.contextModel = selected;
 					}
 				} else {
 					const booleanKey = BOOLEAN_SETTINGS.find((field) => field === key);
 					if (!booleanKey)
-						throw new LanVoiceSettingsError("Unknown voice setting");
+						throw new VoiceSettingsError("Unknown voice setting");
 					if (typeof value !== "boolean")
-						throw new LanVoiceSettingsError(
+						throw new VoiceSettingsError(
 							"Voice switches must be true or false",
 						);
 					patch[booleanKey] = value;

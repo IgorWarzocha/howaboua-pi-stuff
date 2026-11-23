@@ -21,7 +21,10 @@ import {
 	type ResponsesInputItem,
 	type SerializeResponsesMessagesOptions,
 } from "./serializer.ts";
-import { resolveCodexRuntimePlanForState } from "../activation/runtime-plan.ts";
+import {
+	resolveCodexRuntimePlanForState,
+	type ResponsesFormat,
+} from "../activation/runtime-plan.ts";
 import type { AdapterState } from "../activation/state.ts";
 import { resolveFastModeServiceTier } from "../activation/fast-mode.ts";
 import { getActiveToolsInActiveOrder } from "../active-tools.ts";
@@ -37,9 +40,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function buildCompactionTools(
 	pi: ExtensionAPI,
-	codeMode: boolean,
+	usesExecTools: boolean,
 ): unknown[] | undefined {
-	const tools = getActiveToolsInActiveOrder(pi, codeMode);
+	const tools = getActiveToolsInActiveOrder(pi, usesExecTools);
 	if (tools.length === 0) return undefined;
 	return convertResponsesTools(tools, { strict: false });
 }
@@ -101,10 +104,10 @@ export function buildCompactionRequestOptions(
 	ctx: ExtensionContext,
 	state: AdapterState,
 	compactionTargetModel: Model<Api>,
-	codeMode: boolean,
+	usesExecTools: boolean,
 	branchEntries: SessionEntry[],
 ): NativeCompactionRequestOptions {
-	const tools = buildCompactionTools(pi, codeMode);
+	const tools = buildCompactionTools(pi, usesExecTools);
 	const reasoning = buildCompactionReasoning(
 		pi,
 		ctx,
@@ -139,8 +142,8 @@ export function buildCompactionTranscript(
 	ctx: ExtensionContext,
 	state: AdapterState,
 	runtime: { provider: string; api: string; model: string; baseUrl: string },
-	transport: "responses" | "responses-lite",
-	codeMode: boolean,
+	responsesFormat: ResponsesFormat,
+	usesExecTools: boolean,
 	branchEntries: SessionEntry[],
 ): TranscriptContext {
 	const prepared = state.preparedPrompt;
@@ -151,7 +154,7 @@ export function buildCompactionTranscript(
 		prepared.model === runtime.model &&
 		prepared.baseUrl === runtime.baseUrl &&
 		prepared.executionMode === state.executionMode &&
-		prepared.transport === transport
+		prepared.responsesFormat === responsesFormat
 	) {
 		return normalizeContext({
 			messages: [
@@ -165,7 +168,7 @@ export function buildCompactionTranscript(
 	);
 	if (current)
 		return normalizeContext({ messages: [orderProjectContextLast(current)] });
-	const tools = getActiveToolsInActiveOrder(pi, codeMode);
+	const tools = getActiveToolsInActiveOrder(pi, usesExecTools);
 	return normalizeContext({
 		systemPrompt: ctx.getSystemPrompt(),
 		messages: [],
@@ -210,18 +213,19 @@ export function buildNativeCompactionInput(args: {
 }
 
 export async function resolveCanonicalCompactionReplay(args: {
-	codeMode: boolean;
+	responsesFormat: ResponsesFormat;
 	sessionId: string;
 	model: string;
 	identity?: { url: string; accountId: string } | undefined;
 	reconstructedInput: readonly ResponsesInputItem[];
 }) {
-	const reconstructedInput = args.codeMode
-		? await prepareResponsesLiteConversationInput(
-				args.reconstructedInput,
-				args.sessionId,
-			)
-		: args.reconstructedInput;
+	const reconstructedInput =
+		args.responsesFormat === "responses-lite"
+			? await prepareResponsesLiteConversationInput(
+					args.reconstructedInput,
+					args.sessionId,
+				)
+			: args.reconstructedInput;
 	return resolveCanonicalCompactionPromptInput(
 		args.sessionId,
 		args.model,

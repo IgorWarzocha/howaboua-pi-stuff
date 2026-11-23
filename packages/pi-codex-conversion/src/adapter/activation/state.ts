@@ -1,9 +1,9 @@
-import type { PromptSkill } from "../../prompt/build-system-prompt.ts";
 import type { SystemMessage } from "@earendil-works/pi-ai";
 import type { CodexConversionConfig } from "./config.ts";
 import type { ResponsesInputItem } from "../compaction/serializer.ts";
 import type { CodexTurnState } from "../../providers/openai-codex/turn-state.ts";
 import type { ExecutionMode } from "./execution-mode.ts";
+import type { ResponsesFormat } from "./runtime-plan.ts";
 import type { CodexDeveloperMessageBridge } from "../developer-messages.ts";
 import type { CodexUsageStatus } from "../../codex-usage/payload.ts";
 
@@ -29,7 +29,6 @@ export interface AdapterState {
 	appliedRuntimeToolNames?: string[] | undefined;
 	appliedActiveToolNames?: string[] | undefined;
 	previousToolNames?: string[] | undefined;
-	promptSkills: PromptSkill[];
 	preparedPrompt?:
 		| {
 				sessionId: string;
@@ -38,7 +37,7 @@ export interface AdapterState {
 				model: string;
 				baseUrl: string;
 				executionMode: ExecutionMode;
-				transport: "responses" | "responses-lite";
+				responsesFormat: ResponsesFormat;
 				systemMessage: SystemMessage;
 		  }
 		| undefined;

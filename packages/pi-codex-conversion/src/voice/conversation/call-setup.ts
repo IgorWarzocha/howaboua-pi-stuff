@@ -9,7 +9,7 @@ import { resolveWebSocketProxyForTarget } from "../../providers/openai-codex/web
 import type { RealtimeInitialMessageItem } from "../context.ts";
 import { MAX_REALTIME_SDP_BYTES } from "./peer.ts";
 
-const V3_MODEL = "gpt-live-1.1-codex";
+const CODEX_LIVE_MODEL = "gpt-live-1.1-codex";
 const API_LIVE_MODEL = "gpt-live-1.1";
 
 type RealtimeCallResult = { status: number; answer: string };
@@ -21,7 +21,7 @@ export type RealtimeCallSetup = (
 	env?: Record<string, string>,
 ) => Promise<RealtimeCallResult>;
 
-export function buildRealtimeCallRequest(
+export function buildCodexLiveCallRequest(
 	sdp: string,
 	config: CodexConversionConfig,
 	instructions: string,
@@ -30,7 +30,7 @@ export function buildRealtimeCallRequest(
 	return {
 		sdp,
 		session: {
-			model: V3_MODEL,
+			model: CODEX_LIVE_MODEL,
 			instructions,
 			audio: { output: { voice: config.voice.v3Voice } },
 			delegation: {

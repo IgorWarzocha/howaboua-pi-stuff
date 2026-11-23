@@ -3,7 +3,7 @@ import {
 	readCodexConversionConfig,
 	writeCodexConversionConfig,
 } from "./adapter/activation/config-file.ts";
-import { createVoiceSettings } from "./voice/lan/settings-core.ts";
+import { createVoiceSettings } from "./voice/settings.ts";
 import { isAbsolute, join, resolve } from "node:path";
 
 export interface HostSettingsIdentity {
