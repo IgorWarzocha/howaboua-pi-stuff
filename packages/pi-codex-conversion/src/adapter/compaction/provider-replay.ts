@@ -127,6 +127,7 @@ export async function rewriteCodexCompactedProviderRequest(
 	payload: unknown,
 	ctx: ExtensionContext,
 	state: AdapterState,
+	hiddenToolNames: readonly string[],
 ): Promise<unknown | undefined> {
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
 	if (!plan.nativeReplay) return undefined;
@@ -177,6 +178,7 @@ export async function rewriteCodexCompactedProviderRequest(
 		branchEntries,
 		compactionEntry: latest.entry,
 		serializationOptions: {
+			hiddenToolNames,
 			...(plan.responsesFormat === "responses-lite"
 				? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS }
 				: {}),

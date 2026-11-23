@@ -62,6 +62,12 @@ function prepareStructuredSkills(
 	const piWillRenderSkills = () =>
 		options.selectedTools.includes("read") ||
 		options.selectedTools.includes("bash");
+	const hasVisiblePiReader = () =>
+		["read", "bash"].some(
+			(name) =>
+				options.selectedTools.includes(name) &&
+				!options.hiddenTools.includes(name),
+		);
 	const codexCanReadSkills = () =>
 		executionMode === "normal"
 			? options.selectedTools.includes("exec_command")
@@ -70,9 +76,13 @@ function prepareStructuredSkills(
 				(executionMode === "code" ||
 					executionMode === "vm" ||
 					options.selectedTools.includes("notebook"));
-	if (heavySystemPromptOverwrite && sections["skills"] === undefined) {
+	if (sections["skills"] === undefined) {
 		defineOwnedSection(sections, "skills", () =>
-			piWillRenderSkills() ? content : "",
+			piWillRenderSkills() &&
+			(heavySystemPromptOverwrite ||
+				(!hasVisiblePiReader() && codexCanReadSkills()))
+				? content
+				: "",
 		);
 	}
 	defineOwnedSection(sections, "skill_catalog", () =>

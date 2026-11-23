@@ -7,3 +7,4 @@
 - Code, VM Code, and TS Notebook tell agents not to add decorative backticks to tool arguments.
 - Execution mode names match the settings picker in status and error messages.
 - Native compaction matches replay history using the actual request format, including Code and Notebook sessions that do not use Responses Lite.
+- Preserve Pi's selected file and shell tools across reloads and model switches in every execution mode, without restoring tools the user disabled.

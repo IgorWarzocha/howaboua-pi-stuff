@@ -1,4 +1,5 @@
 - `runtime-plan.ts` alone plans activation/tools/prompt/transport/compaction. Execute, never recalculate. Variants: inactive, normal, code, ts, vm. Ignore legacy `mode: path`; no auto TS Notebook, PATH injection or shell interception.
 - Execution mode follows adapter scope, independent of transport and Responses Lite. Compaction: Pi, OpenAI V2 or both.
+- Keep replaced Pi file/shell tools in Pi's active selection for reload and tree restore. Hide declarations and block dispatch only while replacements are available. Never restore from registered names.
 - Startup upgrades stale global/trusted project settings once. Sparse project writes; validate then atomic replace. Skip current/unreadable/newer files. Keep Notes continuity and old project files' global display axes. No Deno→TS profiles. Explicit writes preserve unknowns.
 - `config.ts` façade; contracts/defaults/readers/normalisers in named `config-*` owners.

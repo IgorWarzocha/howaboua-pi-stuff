@@ -11,7 +11,7 @@ import {
 	type CodexRuntimePlan,
 } from "./runtime-plan.ts";
 import type { AdapterState } from "./state.ts";
-import { DEFAULT_TOOL_NAMES, STATUS_KEY } from "./tool-set.ts";
+import { REPLACED_PI_TOOL_NAMES, STATUS_KEY } from "./tool-set.ts";
 
 export function syncAdapter(
 	pi: ExtensionAPI,
@@ -64,7 +64,11 @@ function enableAdapter(
 			plan.kind === "normal"
 				? restoreTools(state.previousToolNames ?? [], projectedTools, owned)
 				: projectedTools;
-		tools = mergeAdapterTools(activeTools, plan.toolNames, owned);
+		// Pi persists the admitted selection. Hide replaced declarations at request time.
+		tools = mergeToolNames(
+			plan.toolNames,
+			stripAdapterTools(activeTools, owned),
+		);
 	}
 	state.adapterOwnedToolNames = plan.ownedToolNames;
 	applyRuntimeTools(pi, state, plan, tools);
@@ -215,8 +219,8 @@ function applyRuntimeTools(
 				name !== "codemode" && !(nativeSearch && name === "tool_search"),
 		);
 	}
-	setActiveTools(pi, projected);
 	state.appliedRuntimeKind = plan.kind;
+	setActiveTools(pi, projected);
 	state.appliedRuntimeToolNames = [...plan.toolNames];
 	state.appliedActiveToolNames = [...pi.getActiveTools()];
 }
@@ -241,7 +245,7 @@ export function mergeAdapterTools(
 ): string[] {
 	const owned = new Set([...adapterTools, ...adapterOwnedTools]);
 	const preserved = activeTools.filter(
-		(name) => !DEFAULT_TOOL_NAMES.includes(name) && !owned.has(name),
+		(name) => !REPLACED_PI_TOOL_NAMES.includes(name) && !owned.has(name),
 	);
 	return [...adapterTools, ...preserved];
 }

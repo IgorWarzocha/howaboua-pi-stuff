@@ -26,6 +26,7 @@ import {
 	resolveCodexRuntimePlanForState,
 } from "../activation/runtime-plan.ts";
 import type { AdapterState } from "../activation/state.ts";
+import { hiddenPiReplacementToolNames } from "../activation/tool-set.ts";
 import { executeRemoteCompactionV2 } from "./remote-v2-client.ts";
 import { buildRemoteCompactionV2Window } from "./remote-v2-history.ts";
 import { CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../../tools/code-mode/exec-contract.ts";
@@ -263,6 +264,10 @@ async function handleCodexSessionBeforeCompactInner(
 	const execToolsActive = usesExecTools(plan);
 	const responsesFormat = plan.responsesFormat ?? "responses";
 	const serializationOptions: SerializeResponsesMessagesOptions = {
+		hiddenToolNames: hiddenPiReplacementToolNames(
+			state.appliedRuntimeKind,
+			pi.getActiveTools(),
+		),
 		...(responsesFormat === "responses-lite"
 			? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS }
 			: {}),

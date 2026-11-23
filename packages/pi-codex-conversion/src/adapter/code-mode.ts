@@ -24,6 +24,7 @@ import {
 import {
 	EXEC_TOOL_NAMES,
 	TS_NOTEBOOK_TOOL_NAMES,
+	REPLACED_PI_TOOL_NAMES,
 } from "./activation/tool-set.ts";
 import {
 	codeModeImageResult,
@@ -111,6 +112,7 @@ export async function registerCodexCodeMode(
 				});
 			}
 			return piTools.prepareLoadout(loadout, [
+				...REPLACED_PI_TOOL_NAMES,
 				"codemode",
 				...(nativeSearch ? ["tool_search"] : []),
 			]);

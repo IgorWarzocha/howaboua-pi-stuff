@@ -129,9 +129,27 @@ export type SerializeResponsesMessagesOptions = {
 	includeInstructionsInInput?: boolean | undefined;
 	blockImages?: boolean | undefined;
 	grammarToolInputProperties?: ReadonlyMap<string, string> | undefined;
+	/** Tool declarations hidden by Pi's ordinary request projection. */
+	hiddenToolNames?: readonly string[] | undefined;
 	/** Complete prompt/tool state that precedes a replay slice but is not itself conversation input. */
 	transcriptBaseline?: SystemMessage | undefined;
 };
+
+export function omitHiddenToolDeclarations(
+	message: SystemMessage,
+	hidden: readonly string[] = [],
+): SystemMessage {
+	if (!hidden.length || (!message.toolsAdded && !message.toolsRemoved))
+		return message;
+	const { toolsAdded, toolsRemoved, ...rest } = message;
+	const added = toolsAdded?.filter(({ name }) => !hidden.includes(name));
+	const removed = toolsRemoved?.filter(({ name }) => !hidden.includes(name));
+	return {
+		...rest,
+		...(added?.length ? { toolsAdded: added } : {}),
+		...(removed?.length ? { toolsRemoved: removed } : {}),
+	};
+}
 
 export type ResponsesParityReport = {
 	ok: boolean;
@@ -237,7 +255,15 @@ export function serializeMessagesToResponsesInput<TApi extends Api>(
 		...(options.transcriptBaseline ? [options.transcriptBaseline] : []),
 		...llmMessages,
 	];
-	const context = normalizeContext({ messages: transcriptMessages });
+	const context = normalizeContext({
+		messages: options.hiddenToolNames?.length
+			? transcriptMessages.map((message) =>
+					message.role === "system"
+						? omitHiddenToolDeclarations(message, options.hiddenToolNames)
+						: message,
+				)
+			: transcriptMessages,
+	});
 	const compat = model.compat as
 		| {
 				supportsStrictMode?: boolean | undefined;

@@ -1,6 +1,5 @@
 import {
 	type AgentToolResult,
-	type ExtensionAPI,
 	type ExtensionContext,
 	type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
@@ -327,11 +326,4 @@ export function createViewImageTool(
 					},
 				}),
 	};
-}
-
-export function registerViewImageTool(
-	pi: ExtensionAPI,
-	options: CreateViewImageToolOptions = {},
-): void {
-	pi.registerTool(createViewImageTool(options));
 }

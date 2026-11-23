@@ -168,6 +168,7 @@ export function registerCodexEvents(
 			event.payload,
 			ctx,
 			state,
+			pi.getActiveTools(),
 			pi.getSettings().images?.blockImages,
 		);
 	});

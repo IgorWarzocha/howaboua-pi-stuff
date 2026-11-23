@@ -358,12 +358,3 @@ export function createExecCommandTool(
 	};
 	return tool;
 }
-
-export function registerExecCommandTool(
-	pi: ExtensionAPI,
-	tracker: ExecCommandTracker,
-	sessions: ExecSessionManager,
-	options: ExecCommandToolOptions = {},
-): void {
-	pi.registerTool(createExecCommandTool(tracker, sessions, options) as never);
-}

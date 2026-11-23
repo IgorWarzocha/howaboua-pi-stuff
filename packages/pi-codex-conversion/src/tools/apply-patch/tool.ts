@@ -414,13 +414,6 @@ export function createApplyPatchTool(
 	} satisfies ApplyPatchToolDefinition;
 }
 
-export function registerApplyPatchTool(
-	pi: ExtensionAPI,
-	options: ApplyPatchToolOptions = {},
-): void {
-	pi.registerTool(createApplyPatchTool(options));
-}
-
 export function registerApplyPatchResultEvent(pi: ExtensionAPI): void {
 	pi.on("tool_result", (event) => {
 		if (
