@@ -66,8 +66,8 @@ export function formatRuntimeGuidelines(
 		if (executionMode !== "code")
 			add("You may reuse verified bindings.", "Reuse verified bindings only");
 		add(
-			"Bind complex strings before calling tools from JavaScript. Preserve literal backticks and ${...}. Check quotes, commas, and closing delimiters before sending.",
-			"JS calls: bind complex strings first; preserve literal backticks and ${...}; check quotes, commas, delimiters",
+			"Bind complex strings before calling tools from JavaScript. Check quotes, commas, and closing delimiters before sending.",
+			"JS calls: bind complex strings first; check quotes, commas, delimiters",
 		);
 		add(
 			"Group related calls in one JavaScript cell and use their results to decide what to do next. Use text() to show the outcome, a blocker, or a decision needed.",

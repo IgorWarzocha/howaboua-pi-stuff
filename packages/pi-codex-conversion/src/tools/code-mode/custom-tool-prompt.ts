@@ -204,12 +204,10 @@ export function buildCodeModeToolsPrompt(
 					"Strict check: entire cell, including tool args. Type error→no execution",
 				)
 			: undefined,
-		executionKind === "ts"
-			? prose(
-					'For Markdown or multiline text, join an array of quoted lines with "\\n". If you use a template literal, escape literal backticks and ${...}.',
-					'Markdown/multiline text→quoted lines joined with "\\n"; escape literal backticks and ${...} in templates',
-				)
-			: undefined,
+		prose(
+			'Use ordinary quoted strings for text containing literal backticks or ${...}, not template literals. For multiline text, join quoted lines with "\\n".',
+			'Text with backticks or ${...}→ordinary quotes, not template literals. Multiline→quoted lines joined with "\\n"',
+		),
 		buildUsageSection(
 			BUNDLED_TOOLS_HEADING,
 			bundled.filter((tool) => !hasUsageCall(tool)),
