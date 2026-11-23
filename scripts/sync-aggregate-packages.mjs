@@ -4,7 +4,7 @@ import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import { listActivePackageDirs } from "./active-packages.mjs";
 import { bundleExcludedPackages } from "./aggregate-package-policy.mjs";
-import { PI_PEER_RANGE, pi1PeerDependencies } from "./pi-sdk-policy.mjs";
+import { piPeerDependencies } from "./pi-sdk-policy.mjs";
 
 const root = process.cwd();
 const packagesDir = join(root, "packages");
@@ -98,11 +98,11 @@ function updateAggregate(dir, filter, includeExtensions, includeSkills) {
 		]),
 	);
 	if (includeExtensions) {
-		pkg.peerDependencies = {
-			...pi1PeerDependencies(pkg.peerDependencies),
-			"@earendil-works/pi-coding-agent": PI_PEER_RANGE,
-			"@earendil-works/pi-tui": PI_PEER_RANGE,
-		};
+		pkg.peerDependencies = piPeerDependencies({
+			...pkg.peerDependencies,
+			"@earendil-works/pi-coding-agent": "*",
+			"@earendil-works/pi-tui": "*",
+		});
 	}
 	pkg.pi = {};
 	if (includeExtensions)

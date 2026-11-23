@@ -10,7 +10,7 @@ Choose Codex Live or an OpenAI Realtime model for spoken conversation, then send
 pi install npm:@howaboua/pi-gippity-control
 ```
 
-Requires Pi 1.0.0 or newer and Node.js 22.19 or newer. Run `/gippity` to choose a voice model and configure audio.
+Requires the latest Pi release and Node.js 22.19 or newer. Run `/gippity` to choose a voice model and configure audio.
 
 | Voice model                   | Credential                         |
 | ----------------------------- | ---------------------------------- |

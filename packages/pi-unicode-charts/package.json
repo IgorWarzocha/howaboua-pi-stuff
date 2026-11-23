@@ -59,7 +59,7 @@
     "oxfmt": "0.79.0"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=1.5.0",
-    "@earendil-works/pi-tui": ">=1.0.0"
+    "@earendil-works/pi-coding-agent": ">=1.6.0",
+    "@earendil-works/pi-tui": ">=1.6.0"
   }
 }

@@ -26,7 +26,7 @@ Install [Web Run](../pi-codex-web-run) or [Imagegen](../pi-codex-imagegen) for w
 pi install npm:@howaboua/pi-codex-conversion
 ```
 
-Requires Pi 1.4.0 or newer and Node.js 22.19 or newer. Native helpers for macOS, Linux and Windows are bundled for x64 and arm64. TS Notebook has [narrower platform support](#code-mode-and-custom-tools).
+Requires the latest Pi release and Node.js 22.19 or newer. Native helpers for macOS, Linux and Windows are bundled for x64 and arm64. TS Notebook has [narrower platform support](#code-mode-and-custom-tools).
 
 Open `/codex` after installation. Codex-like GPT models use **Structured** mode by default.
 

@@ -2,7 +2,7 @@
 
 The Pi extensions and skills I use to keep long agent sessions useful without building a fake operating system around them.
 
-Published packages can be installed individually or in a general-purpose bundle. Pick only what you need. Revolutionary stuff. A table.
+Use the latest release of Pi. Published packages can be installed individually or in a general-purpose bundle. Pick only what you need. Revolutionary stuff. A table.
 
 Pi packages run with your local permissions. You can obviously trust me, a stranger on the internet with a folder called `pi-stuff`, but read the source before installing it anyway.
 
@@ -131,7 +131,7 @@ Use `dev/<package>/<commit>` for the `dev` channel. GitHub Actions runs the sele
 
 See [CHANGELOG.md](./CHANGELOG.md). Package-level changelogs remain beside packages that have them.
 
-Extension updates use Pi 1.5's native notices on the next fresh launch. The first launch records installed versions silently. Use `collapseChangelog` in Pi's settings for condensed notices. Bundles show their combined changelog rather than separate notices for each bundled extension. Direct extension-file loads do not show package update notices. `/changelog` shows Pi's own history; use the links above for package history.
+Extension updates use Pi's native notices on the next fresh launch. The first launch records installed versions silently. Use `collapseChangelog` in Pi's settings for condensed notices. Bundles show their combined changelog rather than separate notices for each bundled extension. Direct extension-file loads do not show package update notices. `/changelog` shows Pi's own history; use the links above for package history.
 
 The old `howaboua-pi-stuff-changelog.json` state and its `suppress` preference are no longer read or migrated. Set Pi's `collapseChangelog` preference yourself if you want condensed notices. This condenses updates rather than hiding them.
 

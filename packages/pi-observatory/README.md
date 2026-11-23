@@ -18,7 +18,7 @@ The [PCC cache tab](https://github.com/IgorWarzocha/howaboua-pi-stuff/blob/main/
 
 ## Run
 
-Requires Node 22.18 or newer and Pi 1.3 or newer. Install separately; Observatory is not included in the aggregate bundles.
+Requires Node 22.18 or newer and the latest Pi release. Install separately; Observatory is not included in the aggregate bundles.
 
 ```sh
 pi install npm:@howaboua/pi-observatory

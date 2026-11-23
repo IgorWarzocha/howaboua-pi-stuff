@@ -22,7 +22,7 @@ The examples are integration fragments, not a replacement orchestrator. Your ext
 **Without Shepherdr does not mean without an orchestrator.** Board and Notes do not find arbitrary agents, launch processes, invent membership or authenticate another extension's transport. Shepherdr is one consumer of these APIs, not a required process manager.
 
 Board and Notes export integration APIs. Installing Agent Comms does not supply another subagent extension's membership or transport.
-Agent Comms requires Pi 1.5.0 or newer. Check each package's manifest for its Node.js and peer requirements, and check optional capabilities on the discovered service.
+Agent Comms requires the latest Pi release. Check each package's manifest for its Node.js and peer requirements, and check optional capabilities on the discovered service.
 
 ```mermaid
 flowchart LR

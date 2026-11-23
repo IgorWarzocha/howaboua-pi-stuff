@@ -19,6 +19,7 @@
     "check:changed": "bun run scripts/check-changed.mjs",
     "refactor:compare": "node scripts/refactor-compare.mjs",
     "pi:link-checkout": "node scripts/link-pi-checkout.mjs",
+    "pi:sdk:sync": "node scripts/pi-sdk-policy.mjs --write",
     "sandbox:setup": "node scripts/setup-repo-sandbox.mjs",
     "browser-cdp:sync": "node scripts/sync-browser-cdp.mjs --write",
     "knip": "knip --workspace @howaboua/pi-suggestions --workspace @howaboua/pi-observatory --workspace @howaboua/pi-agent-comms --workspace @howaboua/pi-grok-realtime --workspace @howaboua/pi-chatgpt-sites --workspace @howaboua/pi-ask --workspace @howaboua/pi-better-skills-tool --workspace @howaboua/pi-browser --workspace @howaboua/pi-chill --workspace @howaboua/pi-sandbox --workspace @howaboua/pi-codex-conversion --workspace @howaboua/pi-codex-guardian --workspace @howaboua/pi-codex-imagegen --workspace @howaboua/pi-codex-web-run --workspace @howaboua/pi-gippity-control --workspace @howaboua/pi-github-watch --workspace @howaboua/pi-pet --workspace @howaboua/pi-pulses --workspace @howaboua/pi-shepherdr --no-progress --include files,dependencies,unlisted,unresolved,cycles,exports,nsExports,types,nsTypes,enumMembers,namespaceMembers,duplicates",
@@ -32,7 +33,7 @@
     "format": "oxfmt --write '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'",
     "format:check:root": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}' '!packages/**'",
     "lint": "bun run lint:root && bun run scripts/workspaces.mjs lint",
-    "lint:root": "bun run format:check:root && oxlint --type-aware . --ignore-pattern 'packages/**'"
+    "lint:root": "node scripts/pi-sdk-policy.mjs && bun run format:check:root && oxlint --type-aware . --ignore-pattern 'packages/**'"
   },
   "devDependencies": {
     "@changesets/changelog-github": "1.0.1",

@@ -77,8 +77,8 @@
   "packageManager": "bun@1.4.2",
   "peerDependencies": {
     "@howaboua/pi-gippity-control": ">=0.0.34",
-    "@earendil-works/pi-coding-agent": ">=1.5.0",
-    "@earendil-works/pi-tui": ">=1.0.0",
+    "@earendil-works/pi-coding-agent": ">=1.6.0",
+    "@earendil-works/pi-tui": ">=1.6.0",
     "@howaboua/pi-codex-conversion": ">=5.1.0"
   },
   "peerDependenciesMeta": {

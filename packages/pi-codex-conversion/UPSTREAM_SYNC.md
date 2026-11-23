@@ -19,7 +19,7 @@ Adapted Codex [#60841](https://github.com/openai/codex/pull/60841) and [#60840](
 
 ## Pi 1.6 compatibility
 
-Pi now supplies the GPT-6.2 Sol and Astra catalogue entries. PCC uses them when present and retains its fallbacks for Pi 1.5. PCC already places the leading system prompt in a developer input item and carries reasoning changes in chronological configuration updates, so it does not also add Pi's reasoning replay mechanism.
+Pi supplies the GPT-6.2 Sol and Astra catalogue entries. PCC uses those entries directly. PCC places the leading system prompt in a developer input item and carries reasoning changes in chronological configuration updates, so it does not also add Pi's reasoning replay mechanism.
 
 PCC follows [Codex CLI](https://github.com/openai/codex/blob/rust-v0.171.0/codex-rs/core/tests/suite/client_websockets.rs#L2033-L2063) and reconnects on the server's WebSocket lifetime-limit error. Pi's 45-minute preemptive rotation is not part of that policy.
 

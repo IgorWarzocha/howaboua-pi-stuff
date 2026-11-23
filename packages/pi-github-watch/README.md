@@ -8,7 +8,7 @@ Opt-in GitHub watches that wake the same Pi session for PR commit changes, unres
 pi install npm:@howaboua/pi-github-watch
 ```
 
-Requires Pi 1.2 or later and an authenticated `gh` CLI. Works with structured tools, Pi native Code mode and Codex Conversion Code mode.
+Requires the latest Pi release and an authenticated `gh` CLI. Works with structured tools, Pi native Code mode and Codex Conversion Code mode.
 
 ## Watch a thread
 
