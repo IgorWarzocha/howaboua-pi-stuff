@@ -204,10 +204,7 @@ export function buildCodeModeToolsPrompt(
 					"Strict check: entire cell, including tool args. Type error→no execution",
 				)
 			: undefined,
-		prose(
-			'Use ordinary quoted strings for text containing literal backticks or ${...}, not template literals. For multiline text, join quoted lines with "\\n".',
-			'Text with backticks or ${...}→ordinary quotes, not template literals. Multiline→quoted lines joined with "\\n"',
-		),
+		"Do not add decorative backticks to text in tool calls.",
 		buildUsageSection(
 			BUNDLED_TOOLS_HEADING,
 			bundled.filter((tool) => !hasUsageCall(tool)),
