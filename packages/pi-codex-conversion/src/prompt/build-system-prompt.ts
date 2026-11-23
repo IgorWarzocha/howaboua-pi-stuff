@@ -1,6 +1,5 @@
 import { defineOwnedSection, upsertOpaqueSection } from "./owned-sections.ts";
 import type { ExecutionMode } from "../adapter/activation/execution-mode.ts";
-import { formatAgentBehaviour } from "./agent-behaviour.ts";
 import { formatRuntimeGuidelines } from "./runtime-guidelines.ts";
 import {
 	getPackageDir,
@@ -9,6 +8,17 @@ import {
 import { getCodeModePromptCapture } from "../tools/code-mode/custom-tool-prompt.js";
 
 export type PiSystemPromptOptions = NormalizedBuildSystemPromptOptions;
+
+const FOLLOW_THROUGH =
+	"When execution is in scope, run or assign a check for promising findings. Verify existing equivalents in actual use. If evidence is missing, run the smallest useful test. Try uncertain changes reversibly and keep them only if validation supports them.";
+const HEAVY_SYSTEM_PROMPT_OVERWRITE_FOLLOW_THROUGH =
+	"Execution in scope: promising finding→own or assign next check. Existing equivalent→verify in use. Evidence missing→smallest useful test. Uncertain change→reversible trial; keep only if validated";
+const HEAVY_SYSTEM_PROMPT_OVERWRITE_PREAMBLE = `Pi with Codex tools\n${HEAVY_SYSTEM_PROMPT_OVERWRITE_FOLLOW_THROUGH}`;
+
+function appendGuidance(prompt: string, guidance: string): string {
+	if (!prompt) return guidance;
+	return prompt.endsWith(guidance) ? prompt : `${prompt}\n\n${guidance}`;
+}
 
 function buildSkillsContent(
 	skills: PiSystemPromptOptions["skills"],
@@ -82,7 +92,9 @@ export function prepareCodexSystemPrompt(
 	);
 	const sections = (options.sections ??= {});
 	delete sections["codex_runtime"];
-	const behaviour = formatAgentBehaviour(heavySystemPromptOverwrite);
+	const followThrough = heavySystemPromptOverwrite
+		? HEAVY_SYSTEM_PROMPT_OVERWRITE_FOLLOW_THROUGH
+		: FOLLOW_THROUGH;
 	const renderRuntime = (replacePiScaffold: boolean) => {
 		const capture = getCodeModePromptCapture(options);
 		return formatRuntimeGuidelines(options, {
@@ -99,11 +111,6 @@ export function prepareCodexSystemPrompt(
 	if (options.forceSystemPrompt !== undefined) {
 		let forced = upsertOpaqueSection(
 			options.forceSystemPrompt,
-			"pcc_agent_behaviour",
-			behaviour,
-		);
-		forced = upsertOpaqueSection(
-			forced,
 			"runtime_guidelines",
 			renderRuntime(false),
 		);
@@ -114,17 +121,24 @@ export function prepareCodexSystemPrompt(
 			buildSkillsContent(skills, heavySystemPromptOverwrite),
 		);
 		forced = upsertOpaqueSection(forced, "codex_runtime", "");
-		options.forceSystemPrompt = forced;
+		options.forceSystemPrompt = appendGuidance(forced, followThrough);
 		return;
 	}
 
 	const replacePiScaffold =
 		heavySystemPromptOverwrite &&
-		(!options.customPrompt || options.customPrompt === behaviour);
+		(!options.customPrompt ||
+			options.customPrompt === HEAVY_SYSTEM_PROMPT_OVERWRITE_PREAMBLE);
 	if (replacePiScaffold) {
-		options.customPrompt = behaviour;
-		delete sections["pcc_agent_behaviour"];
-	} else sections["pcc_agent_behaviour"] = behaviour;
+		options.customPrompt = HEAVY_SYSTEM_PROMPT_OVERWRITE_PREAMBLE;
+	} else if (options.customPrompt) {
+		options.appendSystemPrompt = appendGuidance(
+			options.appendSystemPrompt,
+			followThrough,
+		);
+	} else if (!options.promptGuidelines.includes(followThrough)) {
+		options.promptGuidelines.push(followThrough);
+	}
 	defineOwnedSection(sections, "runtime_guidelines", () =>
 		renderRuntime(replacePiScaffold),
 	);

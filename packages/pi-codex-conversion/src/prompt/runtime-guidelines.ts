@@ -38,7 +38,6 @@ export function formatRuntimeGuidelines(
 				.flatMap((name) => options.toolGuidelines[name] ?? []),
 			...options.promptGuidelines,
 		);
-	add("This is Pi with Codex-native tools.", "Pi; Codex-native tools");
 	if (executionMode === "normal") {
 		if (active.has("exec_command")) {
 			add(
