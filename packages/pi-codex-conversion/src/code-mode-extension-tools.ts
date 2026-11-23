@@ -2,7 +2,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { NOTEBOOK_MODE_TOOL_NAMES } from "./adapter/activation/tool-set.ts";
+import { TS_NOTEBOOK_TOOL_NAMES } from "./adapter/activation/tool-set.ts";
 import { codeModeGlobalName } from "./tools/code-mode/tool-identity.ts";
 import type { ProgrammaticCodeModeToolDefinition } from "./tools/code-mode/types.ts";
 
@@ -10,7 +10,7 @@ const EXTENSION_TOOLS_CHANNEL =
 	"@howaboua/pi-codex-conversion.extension-code-mode-tools/v1";
 const EXTENSION_TOOLS_REFRESH_CHANNEL =
 	"@howaboua/pi-codex-conversion.extension-code-mode-tools-refresh/v1";
-const RESERVED_EXTENSION_TOOL_NAMES = new Set(NOTEBOOK_MODE_TOOL_NAMES);
+const RESERVED_EXTENSION_TOOL_NAMES = new Set(TS_NOTEBOOK_TOOL_NAMES);
 
 export type CodeModeExtensionToolProvider = (
 	context: ExtensionContext | undefined,
@@ -102,7 +102,7 @@ export function getCodeModeExtensionToolSnapshot(
 	const registeredNames = new Set(pi.getAllTools().map((tool) => tool.name));
 	for (const tool of allTools) {
 		if (RESERVED_EXTENSION_TOOL_NAMES.has(codeModeGlobalName(tool.name)))
-			throw new Error(`Reserved Code Mode extension tool name: ${tool.name}`);
+			throw new Error(`Reserved nested tool name: ${tool.name}`);
 	}
 	return {
 		tools: resolved

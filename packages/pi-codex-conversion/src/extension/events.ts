@@ -158,7 +158,7 @@ export function registerCodexEvents(
 	pi.on("cache_warming_decision", (_event, ctx) => {
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
 		// These routes cannot honor Pi's one-token cap and must not advance the live response chain.
-		if (plan.codexTransport || plan.transport === "responses-lite")
+		if (plan.codexTransport || plan.responsesFormat === "responses-lite")
 			return { action: "stop" };
 		return undefined;
 	});

@@ -115,7 +115,7 @@ export class RuntimeCell {
 			) {
 				const notice = {
 					type: "input_text" as const,
-					text: "[Notebook cell output truncated]",
+					text: "[Cell output truncated]",
 				};
 				this.items.push(notice);
 				accepted.push(notice);

@@ -177,7 +177,7 @@ export async function rewriteCodexCompactedProviderRequest(
 		branchEntries,
 		compactionEntry: latest.entry,
 		serializationOptions: {
-			...(plan.transport === "responses-lite"
+			...(plan.responsesFormat === "responses-lite"
 				? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS }
 				: {}),
 		},

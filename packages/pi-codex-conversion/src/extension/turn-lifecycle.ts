@@ -7,7 +7,7 @@ import type {
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import {
 	isAdapterRuntime,
-	isCodeModeRuntime,
+	usesExecTools,
 	resolveCodexRuntimePlanForState,
 } from "../adapter/activation/runtime-plan.ts";
 import { supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
@@ -19,8 +19,8 @@ import {
 import { projectCodeModeMcpSections } from "../prompt/mcp-server-section.ts";
 import { orderProjectContextLast } from "../prompt/project-context-order.ts";
 import {
-	CODE_MODE_TOOL_NAMES,
-	NOTEBOOK_MODE_TOOL_NAMES,
+	EXEC_TOOL_NAMES,
+	TS_NOTEBOOK_TOOL_NAMES,
 } from "../adapter/activation/tool-set.ts";
 import { getPiCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
@@ -112,7 +112,7 @@ export function createCodexTurnLifecycle(
 			prepareCodexSystemPrompt(event.systemPromptOptions, {
 				skills,
 				shell: getPiCodexRuntimeShell(ctx),
-				mode: plan.prompt ?? "normal",
+				executionMode: plan.kind,
 				heavySystemPromptOverwrite:
 					state.config.prompt.heavySystemPromptOverwrite,
 			});
@@ -161,7 +161,7 @@ export function createCodexTurnLifecycle(
 			if (await refreshNotebookStatus(ctx, messages))
 				messages = runtime.projectContextMessages(ctx, event.messages);
 			if (
-				isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx, state)) &&
+				usesExecTools(resolveCodexRuntimePlanForState(ctx, state)) &&
 				recordCodeModeToolkit(
 					pi,
 					ctx,
@@ -186,11 +186,11 @@ export function createCodexTurnLifecycle(
 			if (shells.recordBriefing(ctx, messages))
 				messages = runtime.projectContextMessages(ctx, event.messages);
 			const required =
-				plan.kind === "ts" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
+				plan.kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES;
 			try {
 				messages = projectCodeModeMcpSections(
 					messages,
-					isCodeModeRuntime(plan) &&
+					usesExecTools(plan) &&
 						required.every((name) => pi.getActiveTools().includes(name)),
 				);
 			} catch (error) {

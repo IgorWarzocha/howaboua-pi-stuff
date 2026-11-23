@@ -18,7 +18,7 @@ import type {
 	ToolExecutionContext,
 } from "../code-mode/types.ts";
 import { RuntimeCell } from "../code-mode/runtime-cell.ts";
-import { notebookSessionIdentity } from "../code-mode/session-identity.ts";
+import { executionSessionIdentity } from "../code-mode/session-identity.ts";
 import {
 	formatSkipped,
 	selectProjectPins,
@@ -75,15 +75,15 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 			)
 		)
 			throw new Error(
-				`TS is unavailable on ${process.platform}/${process.arch}; choose Code. TS supports Linux and macOS x64/arm64, and Windows x64.`,
+				`TS Notebook is unavailable on ${process.platform}/${process.arch}. Choose Code. TS Notebook supports Linux and macOS x64/arm64, and Windows x64.`,
 			);
 		if (process.versions["bun"])
 			throw new Error(
-				"TS execution requires a Node.js Pi host. Start Pi with Node.js or choose Code.",
+				"TS Notebook requires a Node.js Pi host. Start Pi with Node.js or choose Code.",
 			);
 		if (!Number.isSafeInteger(options.maxHeapMiB) || options.maxHeapMiB < 128)
 			throw new Error(
-				"TS requires a session heap budget of at least 128 MiB; increase the Notebook heap setting before selecting TS. Half is reserved for live execution and half for up to four isolated cells",
+				"TS Notebook requires at least 128 MiB. Increase notebook.maxHeapMiB before selecting TS Notebook. Half is reserved for live execution and half for up to four isolated cells.",
 			);
 		this.options = options;
 		this.delegate = new CodeModeDelegateRuntime(
@@ -352,7 +352,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 			throw new Error("TS execution requires an extension session context");
 		return JSON.stringify([
 			context.cwd,
-			notebookSessionIdentity(context.extensionContext),
+			executionSessionIdentity(context.extensionContext),
 		]);
 	}
 	private isClosing(): boolean {

@@ -18,12 +18,12 @@ import { createWriteStdinTool } from "../tools/exec/write-stdin-tool.ts";
 import { createViewImageTool } from "../tools/view-image/tool.ts";
 import { supportsViewImageInputs } from "./tool-support.ts";
 import {
-	isCodeModeRuntime,
+	usesExecTools,
 	resolveCodexRuntimePlanForState,
 } from "./activation/runtime-plan.ts";
 import {
-	CODE_MODE_TOOL_NAMES,
-	NOTEBOOK_MODE_TOOL_NAMES,
+	EXEC_TOOL_NAMES,
+	TS_NOTEBOOK_TOOL_NAMES,
 } from "./activation/tool-set.ts";
 import {
 	codeModeImageResult,
@@ -39,7 +39,6 @@ const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
 export async function registerCodexCodeMode(
 	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
-	beforePrepare?: (ctx: ExtensionContext) => void,
 ): Promise<CodeModeRegistration> {
 	let latestContext: ExtensionContext | undefined;
 	let stopped = false;
@@ -51,9 +50,9 @@ export async function registerCodexCodeMode(
 			ctx as ExtensionContext,
 			runtime.state,
 		);
-		if (!isCodeModeRuntime(plan)) return false;
+		if (!usesExecTools(plan)) return false;
 		const requiredTools =
-			plan.kind === "ts" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
+			plan.kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES;
 		const activeTools = pi.getActiveTools();
 		return requiredTools.every((name) => activeTools.includes(name));
 	};
@@ -67,9 +66,9 @@ export async function registerCodexCodeMode(
 				latestContext,
 				runtime.state,
 			);
-			if (!isCodeModeRuntime(plan)) return undefined;
+			if (!usesExecTools(plan)) return undefined;
 			const required =
-				plan.kind === "ts" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
+				plan.kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES;
 			if (
 				!required.every((name) =>
 					loadout.declared.some((tool) => tool.name === name),
@@ -129,6 +128,8 @@ export async function registerCodexCodeMode(
 			];
 		},
 		isActive,
+		heavySystemPromptOverwrite: () =>
+			runtime.state.config.prompt.heavySystemPromptOverwrite,
 		opaqueResultScope: (ctx) => resolveProtectedOutputScope(ctx),
 		lazyOpaqueResultScope: () => true,
 		deliverOpaqueResponse: (response, callId, scope, ctx) =>
@@ -151,10 +152,7 @@ export async function registerCodexCodeMode(
 		toolDetails: () => runtime.state.config.ui.toolDetails,
 	});
 	return {
-		prepare: (ctx) => {
-			if (ctx) beforePrepare?.(ctx as ExtensionContext);
-			return programmaticRuntime.prepare(ctx);
-		},
+		prepare: programmaticRuntime.prepare,
 		getTools: (ctx) => programmaticRuntime.getTools(ctx),
 		getPromptTools: (ctx) => programmaticRuntime.getPromptTools(ctx),
 		notebookStatus: (ctx) => programmaticRuntime.notebookStatus(ctx),

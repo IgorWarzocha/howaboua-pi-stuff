@@ -5,7 +5,7 @@ import { registerApplyPatchDisplayBroker } from "../tools/apply-patch/display-br
 import { registerCodexCommand } from "../ui/settings/command.ts";
 import { registerCodexCodeMode } from "../adapter/code-mode.ts";
 import { registerCodexEvents } from "./events.ts";
-import { prepareCodeModeHost } from "./session-lifecycle.ts";
+import { prepareExecutionHost } from "./session-lifecycle.ts";
 import { createCodexExtensionRuntime } from "./runtime.ts";
 import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
@@ -18,7 +18,6 @@ import {
 } from "../adapter/activation/runtime-plan.ts";
 import { hasCodexCacheKeepalivePlanChanged } from "../adapter/activation/cache-keepalive.ts";
 import { recordCodexSpend } from "../codex-usage/ledger-store.ts";
-import { registerGptPromptModeBroker } from "../prompt-mode.ts";
 import { registerCodexAgentRelationships } from "../agent-relationship.ts";
 import { registerProtectedOutputHost } from "../tools/code-mode/protected-output.ts";
 import { registerNotesMigrationGuard } from "./notes-migration.ts";
@@ -29,23 +28,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerApplyPatchDisplayBroker(pi);
 	registerCodexAgentRelationships(pi);
 	const runtime = createCodexExtensionRuntime(pi, recordCodexSpend);
-	const promptMode = registerGptPromptModeBroker(
-		pi,
-		(ctx) =>
-			runtime.state.config.prompt.heavySystemPromptOverwrite &&
-			isAdapterRuntime(resolveCodexRuntimePlanForState(ctx, runtime.state)),
-	);
-	// Refresh legacy opt-in metadata before Code captures tools or PCC builds its prompt.
-	pi.on("before_agent_start", (event, ctx) =>
-		promptMode.prepare(ctx, event.systemPromptOptions),
-	);
-	pi.on("session_shutdown", () => promptMode.dispose());
-	const codeMode = await registerCodexCodeMode(pi, runtime, (ctx) =>
-		promptMode.prepare(ctx),
-	).catch((error) => {
-		promptMode.dispose();
-		throw error;
-	});
+	const codeMode = await registerCodexCodeMode(pi, runtime);
 	let cleanupProxyProvider:
 		| ReturnType<typeof registerCodeModeProxyProvider>
 		| undefined;
@@ -57,8 +40,8 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				compaction: runtime.state.config.compaction,
 			}),
 			useResponsesLite: (model) =>
-				resolveCodexRuntimePlanForState({ model }, runtime.state).transport ===
-				"responses-lite",
+				resolveCodexRuntimePlanForState({ model }, runtime.state)
+					.responsesFormat === "responses-lite",
 			turnState: runtime.state.codexTurnState,
 			getDiagnostics: (sessionId) => runtime.diagnosticsSink(sessionId),
 			beforeRequestSend: runtime.beforeRequestSend,
@@ -92,7 +75,6 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				runtime.state.availableToolNames = pi
 					.getAllTools()
 					.map((tool) => tool.name);
-				promptMode.prepare(ctx);
 				proxyProvider.applyConfig(config, ctx.modelRegistry);
 				ui.applyConfig(config, ctx, previousConfig);
 				if (
@@ -120,7 +102,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				if (executionModeChanged) {
 					void codeMode
 						.shutdownHost()
-						.then(() => prepareCodeModeHost(codeMode, ctx))
+						.then(() => prepareExecutionHost(codeMode, ctx))
 						.catch((error: unknown) => {
 							ctx.ui.notify(
 								`Could not switch execution mode: ${error instanceof Error ? error.message : String(error)}`,
@@ -144,7 +126,6 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 		});
 		pi.on("session_shutdown", stopProtectedOutput);
 	} catch (registrationError) {
-		promptMode.dispose();
 		try {
 			try {
 				cleanupProxyProvider?.shutdown();

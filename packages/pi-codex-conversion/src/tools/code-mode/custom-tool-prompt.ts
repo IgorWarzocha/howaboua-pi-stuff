@@ -174,7 +174,7 @@ function buildUsageSection(
 export function buildCodeModeToolsPrompt(
 	tools: CodeModeToolDefinition[],
 	executionKind: CodeModeExecutionKind = "code",
-	heavy = false,
+	heavySystemPromptOverwrite = false,
 ): string {
 	const bundled = tools.filter(
 		(tool) => !isConfiguredCustomTool(tool) && !tool.deferLoading,
@@ -182,20 +182,40 @@ export function buildCodeModeToolsPrompt(
 	const custom = tools.filter(isConfiguredCustomTool);
 	const promotedCustom = custom.filter((tool) => !tool.deferLoading);
 	const usageCalls = bundled.filter(hasUsageCall);
+	const prose = (plain: string, compact: string) =>
+		heavySystemPromptOverwrite ? compact : plain;
 	const sections = [
 		executionKind === "vm"
-			? "exec=one JS context for this conversation; let/const/function/class persist; NO Node/imports/fetch/timers; stall/cancel/memory limit/terminate drops bindings"
+			? prose(
+					"exec uses one JavaScript context for the conversation. let, const, function, and class declarations persist. Node, imports, fetch, and timers are unavailable. A stall, cancellation, memory limit, or termination clears bindings.",
+					"exec=one JS context per conversation; let/const/function/class persist; no Node/imports/fetch/timers; stall/cancel/memory limit/termination clears bindings",
+				)
 			: executionKind === "ts"
-				? "exec=persistent TS; imports/npm/Node/Web APIs; bindings/modules persist"
-				: "exec=fresh restricted JS; NO console/imports/Node/browser APIs",
+				? prose(
+						"exec runs TypeScript with persistent bindings and modules. Imports, npm, Node, and Web APIs are available.",
+						"exec=persistent TS; imports/npm/Node/Web APIs; bindings/modules persist",
+					)
+				: prose(
+						"Each exec call runs in a fresh JavaScript context without console, imports, Node, or browser APIs.",
+						"exec=fresh restricted JS; no console/imports/Node/browser APIs",
+					),
 		executionKind !== "code"
-			? "One-off const/let→{ ... }; top-level ONLY for reuse across cells"
+			? prose(
+					"Put one-off const and let declarations in a block. Keep them at the top level only if another cell needs them.",
+					"One-off const/let→block; top-level only for reuse across cells",
+				)
 			: undefined,
 		executionKind === "ts"
-			? "Whole-cell strictcheck INCL toolargs; typeerror→NO execution"
+			? prose(
+					"The entire cell, including tool arguments, is checked strictly. A type error prevents execution.",
+					"Strict check: entire cell, including tool args. Type error→no execution",
+				)
 			: undefined,
 		executionKind === "ts"
-			? 'Markdown/multiline text→ordinary quoted line arrays joined with "\\n"; template literals require escaping backticks and ${...}'
+			? prose(
+					'For Markdown or multiline text, join an array of quoted lines with "\\n". If you use a template literal, escape literal backticks and ${...}.',
+					'Markdown/multiline text→quoted lines joined with "\\n"; escape literal backticks and ${...} in templates',
+				)
 			: undefined,
 		buildUsageSection(
 			BUNDLED_TOOLS_HEADING,
@@ -210,15 +230,20 @@ export function buildCodeModeToolsPrompt(
 			],
 		),
 		buildUsageSection(
-			heavy
+			heavySystemPromptOverwrite
 				? "Usage calls below. MUST NOT guess args. Unknown args→call for usage first, separately; known args→call directly"
 				: "These calls show usage. MUST NOT guess arguments. If you don't know the current arguments, call for usage separately before the operation. If you know them, call the operation directly.",
 			usageCalls,
 		),
 		buildUsageSection(CUSTOM_TOOLS_HEADING, promotedCustom),
 		// The catalogue is always available, even when its first or last tool is unlisted.
-		"Tool names→text(ALL_TOOLS.map(t=>t.name)); contract→text(ALL_TOOLS.find(t=>t.name==='NAME'))",
-		custom.length > 0 ? CUSTOM_TOOLS_GUIDANCE : undefined,
+		prose(
+			"List tool names with text(ALL_TOOLS.map(t=>t.name)). Look up a tool contract with text(ALL_TOOLS.find(t=>t.name==='NAME')).",
+			"Tool names→text(ALL_TOOLS.map(t=>t.name)); contract→text(ALL_TOOLS.find(t=>t.name==='NAME'))",
+		),
+		custom.length > 0
+			? prose(`${CUSTOM_TOOLS_GUIDANCE}.`, CUSTOM_TOOLS_GUIDANCE)
+			: undefined,
 	].filter(Boolean);
 	return sections.join("\n");
 }
@@ -266,7 +291,7 @@ export function prepareCodeModeToolsPrompt(
 	documentationPath?: string,
 	isEnabled: () => boolean = () => true,
 	executionKind: CodeModeExecutionKind = "code",
-	heavy = false,
+	heavySystemPromptOverwrite = false,
 ): string {
 	const sections = (options.sections ??= {});
 	// Share this turn's canonical snapshot, not the changing live catalogue.
@@ -276,10 +301,16 @@ export function prepareCodeModeToolsPrompt(
 	);
 	customizationGuidance.set(options, () =>
 		documentationPath && isEnabled()
-			? `exec custom tools→read ${documentationPath}, NOT Pi docs`
+			? heavySystemPromptOverwrite
+				? `exec custom tools→read ${documentationPath}, not Pi docs`
+				: `For exec custom tools, read ${documentationPath} instead of the Pi documentation.`
 			: "",
 	);
-	const section = buildCodeModeToolsPrompt(tools, executionKind, heavy);
+	const section = buildCodeModeToolsPrompt(
+		tools,
+		executionKind,
+		heavySystemPromptOverwrite,
+	);
 	if (options.forceSystemPrompt !== undefined) {
 		options.forceSystemPrompt = upsertCodeModeToolsSection(
 			options.forceSystemPrompt,

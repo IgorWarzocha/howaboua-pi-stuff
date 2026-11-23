@@ -66,7 +66,7 @@ export function rewriteCodexProviderHeaders(
 	state: AdapterState,
 ): void {
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
-	if (plan.transport === "responses-lite") {
+	if (plan.responsesFormat === "responses-lite") {
 		headers[RESPONSES_LITE_HEADER] = "true";
 	}
 	if (isAdapterRuntime(plan) && plan.effectiveOpenAICodex)
@@ -105,7 +105,7 @@ export async function rewriteCodexProviderRequest(
 	}
 	const finalPayload = applyCodexRuntimePayload(
 		rewrittenPayload,
-		plan.transport === "responses-lite",
+		plan.responsesFormat === "responses-lite",
 	);
 	return plan.effectiveOpenAICodex
 		? rewriteRelationshipPayload(finalPayload, ctx)

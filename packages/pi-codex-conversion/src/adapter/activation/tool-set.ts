@@ -1,4 +1,5 @@
 import type { CodexUsageStatus } from "../../codex-usage/payload.ts";
+import { EXECUTION_MODE_LABELS, type ExecutionMode } from "./execution-mode.ts";
 
 export const STATUS_KEY = "codex-adapter";
 export const STATUS_TEXT = "Codex adapter";
@@ -17,7 +18,7 @@ function formatStatusText(
 
 export function buildStatusText(
 	options: {
-		mode?: "normal" | "code" | "ts" | "vm" | undefined;
+		executionMode?: ExecutionMode | undefined;
 		verbosity?: string | undefined;
 		fast: "priority" | "ultrafast" | undefined;
 		baseTierEstimate?: boolean | undefined;
@@ -30,13 +31,9 @@ export function buildStatusText(
 	theme?: StatusTheme | undefined,
 ): string {
 	const extras = [
-		options.mode === "vm"
-			? "VM Code"
-			: options.mode === "ts"
-				? "TS mode"
-				: options.mode === "code"
-					? "code mode"
-					: undefined,
+		options.executionMode && options.executionMode !== "normal"
+			? EXECUTION_MODE_LABELS[options.executionMode]
+			: undefined,
 		options.useOnAllModels ? "all models" : undefined,
 		options.additionalProvider ? "additional provider" : undefined,
 		options.compaction ? "compact v2" : undefined,
@@ -76,6 +73,6 @@ export const CORE_ADAPTER_TOOL_NAMES = [
 	...SHELL_ADAPTER_TOOL_NAMES,
 	APPLY_PATCH_TOOL_NAME,
 ];
-export const CODE_MODE_TOOL_NAMES = ["exec", "wait"];
-export const NOTEBOOK_MODE_TOOL_NAMES = [...CODE_MODE_TOOL_NAMES, "notebook"];
+export const EXEC_TOOL_NAMES = ["exec", "wait"];
+export const TS_NOTEBOOK_TOOL_NAMES = [...EXEC_TOOL_NAMES, "notebook"];
 export const VIEW_IMAGE_TOOL_NAME = "view_image";

@@ -24,7 +24,7 @@ export function renderCodexStatus(
 		STATUS_KEY,
 		buildStatusText(
 			{
-				mode: plan.kind,
+				executionMode: plan.kind,
 				useOnAllModels: config.scope.allProviders === "on",
 				additionalProvider: plan.configuredProvider,
 				fast,

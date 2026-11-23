@@ -10,7 +10,10 @@ import type {
 	VoiceContextModel,
 	LunaCacheKeepaliveMinutes,
 } from "../../../adapter/activation/config.ts";
-import type { ExecutionMode } from "../../../adapter/activation/execution-mode.ts";
+import {
+	EXECUTION_MODE_LABELS,
+	executionModeFromLabel,
+} from "../../../adapter/activation/execution-mode.ts";
 import type { CodexSettingsScreenOptions } from "../screen.ts";
 import { openCodexConfigInExternalEditor } from "../config-editor.ts";
 import { buildConfigSettings, type ConfigSetting } from "../config-items.ts";
@@ -82,12 +85,12 @@ export function createSettingsConfiguration(
 								description:
 									"Structured: standard JSON schemas. Code: fresh JavaScript cells. VM Code: JavaScript bindings kept for this conversation. TS Notebook: persistent TypeScript with checkpoints and concurrent cells.",
 								label: "Execution mode",
-								currentValue: formatExecutionMode(draft.executionMode),
-								values: ["Structured", "Code", "VM Code", "TS Notebook"],
+								currentValue: EXECUTION_MODE_LABELS[draft.executionMode],
+								values: Object.values(EXECUTION_MODE_LABELS),
 							},
 							update: (value: string, current: CodexConversionConfig) => ({
 								...current,
-								executionMode: parseExecutionMode(value),
+								executionMode: executionModeFromLabel(value),
 							}),
 						},
 					]
@@ -357,17 +360,3 @@ export function createSettingsConfiguration(
 export type SettingsConfiguration = ReturnType<
 	typeof createSettingsConfiguration
 >;
-
-function formatExecutionMode(mode: ExecutionMode): string {
-	if (mode === "vm") return "VM Code";
-	if (mode === "ts") return "TS Notebook";
-	if (mode === "code") return "Code";
-	return "Structured";
-}
-
-function parseExecutionMode(value: string): ExecutionMode {
-	if (value === "VM Code") return "vm";
-	if (value === "TS Notebook") return "ts";
-	if (value === "Code") return "code";
-	return "normal";
-}

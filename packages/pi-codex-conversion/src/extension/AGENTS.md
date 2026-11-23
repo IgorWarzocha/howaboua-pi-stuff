@@ -1,5 +1,4 @@
 - `register.ts` composition root; `runtime.ts` process/session state, transport lifecycle; `events.ts` explicit Pi event routing. Lazy cold features, especially compaction. No startup cost for wrappers/hidden dispatch.
-- GPT prompt-mode broker before Code registration. Refresh at applied settings, before host setup/turn capture. Pi clones metadata early; adopters refresh snippets/guidelines from owned native defs, not `ToolInfo` (no `promptSnippet`).
 - Prewarm final serialised requests with real-turn tools. Restore owned `exec` sampling missing from `ToolInfo`. Compaction warmup waits for real request: no supported rerun of all context hooks. Generic compaction preparations before provider work in either extension order.
 - Native compaction UI: custom entry, never `sendMessage` (queues empty continuations). Notices use Pi theme tokens and expansion hooks. Summaries are metadata, not content previews. Provider-role promotion doesn't own UI.
 - Auto-compaction can resume without `agent_start`. Keep live delivery/request context across same-session transport/window resets. Canonical summary requests supply own context.

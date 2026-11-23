@@ -1,10 +1,6 @@
-import {
-	GENERAL_GUIDELINES,
-	formatGuidelines,
-	mergeCodexGuidelines,
-	selectedToolGuidelines,
-	withoutCodexGuidelines,
-} from "./runtime-guidelines.ts";
+import type { ExecutionMode } from "../adapter/activation/execution-mode.ts";
+import { formatAgentBehaviour } from "./agent-behaviour.ts";
+import { formatRuntimeGuidelines } from "./runtime-guidelines.ts";
 import {
 	getPackageDir,
 	type NormalizedBuildSystemPromptOptions,
@@ -28,8 +24,6 @@ export interface StructuredPromptSkill {
 }
 
 export type PiSystemPromptOptions = NormalizedBuildSystemPromptOptions;
-
-export type CodexPromptMode = "normal" | "code" | "ts" | "vm";
 
 function decodeXml(text: string): string {
 	return text
@@ -84,10 +78,15 @@ export function resolvePromptSkills(
 		: promptSkillsFromStructuredSkills(structuredSkills);
 }
 
-function buildSkillsContent(skills: PromptSkill[]): string {
+function buildSkillsContent(
+	skills: PromptSkill[],
+	heavySystemPromptOverwrite: boolean,
+): string {
 	if (skills.length === 0) return "";
 	const lines = [
-		"Read named/task-matching skills; relative paths→skill dir; load needed refs",
+		heavySystemPromptOverwrite
+			? "Read named or task-matching skills; relative paths→skill directory; load needed references"
+			: "Read skills named by the user or relevant to the task. Resolve relative paths from the skill directory and read any references you need.",
 	];
 
 	for (const skill of skills) {
@@ -102,7 +101,7 @@ function buildSkillsContent(skills: PromptSkill[]): string {
 export interface PrepareCodexSystemPromptOptions {
 	skills?: PromptSkill[] | undefined;
 	shell?: string | undefined;
-	mode?: CodexPromptMode | undefined;
+	executionMode?: ExecutionMode | undefined;
 	heavySystemPromptOverwrite?: boolean | undefined;
 }
 
@@ -146,11 +145,11 @@ function upsertOpaqueSection(
 function prepareStructuredSkills(
 	options: PiSystemPromptOptions,
 	skills: PromptSkill[],
-	mode: CodexPromptMode,
-	heavy: boolean,
+	executionMode: ExecutionMode,
+	heavySystemPromptOverwrite: boolean,
 ): void {
 	const sections = (options.sections ??= {});
-	const content = buildSkillsContent(skills);
+	const content = buildSkillsContent(skills, heavySystemPromptOverwrite);
 	delete sections["codex_skills"];
 	if (!content) {
 		delete sections["skill_catalog"];
@@ -160,14 +159,14 @@ function prepareStructuredSkills(
 		options.selectedTools.includes("read") ||
 		options.selectedTools.includes("bash");
 	const codexCanReadSkills = () =>
-		mode === "normal"
+		executionMode === "normal"
 			? options.selectedTools.includes("exec_command")
 			: options.selectedTools.includes("exec") &&
 				options.selectedTools.includes("wait") &&
-				(mode === "code" ||
-					mode === "vm" ||
+				(executionMode === "code" ||
+					executionMode === "vm" ||
 					options.selectedTools.includes("notebook"));
-	if (heavy && sections["skills"] === undefined) {
+	if (heavySystemPromptOverwrite && sections["skills"] === undefined) {
 		defineOwnedSection(sections, "skills", () =>
 			piWillRenderSkills() ? content : "",
 		);
@@ -182,78 +181,60 @@ export function prepareCodexSystemPrompt(
 	options: PiSystemPromptOptions,
 	config: PrepareCodexSystemPromptOptions = {},
 ): void {
-	const mode = config.mode ?? "normal";
-	const overwrite = config.heavySystemPromptOverwrite ?? false;
+	const executionMode = config.executionMode ?? "normal";
+	const heavySystemPromptOverwrite = config.heavySystemPromptOverwrite ?? false;
 	const skills = config.skills ?? [];
-	const shell = config.shell;
 	const sections = (options.sections ??= {});
 	delete sections["codex_runtime"];
+	const behaviour = formatAgentBehaviour(heavySystemPromptOverwrite);
+	const renderRuntime = (replacePiScaffold: boolean) =>
+		formatRuntimeGuidelines(options, {
+			executionMode,
+			heavySystemPromptOverwrite,
+			replacePiScaffold,
+			shell: config.shell,
+			nestedTools: codeModePromptToolNames(options),
+			customization: codeModeCustomizationGuidance(options),
+			...(replacePiScaffold ? { piPackageRoot: getPackageDir() } : {}),
+		});
 
 	if (options.forceSystemPrompt !== undefined) {
-		const guidelines = formatGuidelines(
-			mergeCodexGuidelines([], mode, {
-				selectedTools: options.selectedTools,
-				nestedTools: codeModePromptToolNames(options),
-			}),
-			shell,
-			codeModeCustomizationGuidance(options),
-		);
 		let forced = upsertOpaqueSection(
 			options.forceSystemPrompt,
+			"pcc_agent_behaviour",
+			behaviour,
+		);
+		forced = upsertOpaqueSection(
+			forced,
 			"runtime_guidelines",
-			guidelines,
+			renderRuntime(false),
 		);
 		forced = upsertOpaqueSection(forced, "codex_skills", "");
 		forced = upsertOpaqueSection(
 			forced,
 			"skill_catalog",
-			buildSkillsContent(skills),
+			buildSkillsContent(skills, heavySystemPromptOverwrite),
 		);
 		forced = upsertOpaqueSection(forced, "codex_runtime", "");
 		options.forceSystemPrompt = forced;
 		return;
 	}
 
-	if (overwrite) {
-		const preamble = GENERAL_GUIDELINES.join("\n");
-		const customPrompt =
-			options.customPrompt && options.customPrompt !== preamble;
-		if (!customPrompt) options.customPrompt = preamble;
-		defineOwnedSection(sections, "runtime_guidelines", () => {
-			const contributed = customPrompt
-				? []
-				: [...selectedToolGuidelines(options), ...options.promptGuidelines];
-			const guidelines = mergeCodexGuidelines(contributed, mode, {
-				removePiDefaults: true,
-				selectedTools: options.selectedTools,
-				nestedTools: codeModePromptToolNames(options),
-				...(!customPrompt ? { piPackageRoot: getPackageDir() } : {}),
-			});
-			const sectionGuidelines = customPrompt
-				? guidelines
-				: guidelines.filter(
-						(guideline) =>
-							!GENERAL_GUIDELINES.some((general) => general === guideline),
-					);
-			return formatGuidelines(
-				sectionGuidelines,
-				shell,
-				codeModeCustomizationGuidance(options),
-			);
-		});
-	} else {
-		options.promptGuidelines = withoutCodexGuidelines(options.promptGuidelines);
-		defineOwnedSection(sections, "runtime_guidelines", () =>
-			formatGuidelines(
-				mergeCodexGuidelines([], mode, {
-					selectedTools: options.selectedTools,
-					nestedTools: codeModePromptToolNames(options),
-				}),
-				shell,
-				codeModeCustomizationGuidance(options),
-			),
-		);
-	}
+	const replacePiScaffold =
+		heavySystemPromptOverwrite &&
+		(!options.customPrompt || options.customPrompt === behaviour);
+	if (replacePiScaffold) {
+		options.customPrompt = behaviour;
+		delete sections["pcc_agent_behaviour"];
+	} else sections["pcc_agent_behaviour"] = behaviour;
+	defineOwnedSection(sections, "runtime_guidelines", () =>
+		renderRuntime(replacePiScaffold),
+	);
 
-	prepareStructuredSkills(options, skills, mode, overwrite);
+	prepareStructuredSkills(
+		options,
+		skills,
+		executionMode,
+		heavySystemPromptOverwrite,
+	);
 }

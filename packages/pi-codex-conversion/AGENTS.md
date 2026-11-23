@@ -5,7 +5,9 @@
 - Identity by backend, not name/endpoint. Renamed/proxied `openai-codex-responses` keeps Codex transport, Fast Mode, account isolation. Proxies: policy/monitoring/routing. Env proxies keep ChatGPT contracts; explicit `openai-responses` passthrough limited to backend capabilities.
 - Native compaction only for OpenAI Codex or configured OpenAI/Codex passthrough. V2 requires raw Responses output items, not arbitrary streams. Agent Comms owns Notes/history/window.
 - Nested adapters preserve declared `structuredContent` after protected-output checks. Protected results: opaque receipts, never JS data.
-- Prompt: short, argv-shaped. README: foldable, user-facing, no duplicate APIs/developer setup. Contracts: `../../docs/extension-apis.md`.
+- Heavy system prompt overwrite off: preserve Pi's scaffold, add PCC guidance in plain prose. On: replace the stock scaffold, use telegraphic PCC prose. Keep behaviour separate from runtime mechanics. Preserve foreign prompts and contributions.
+- README: foldable, user-facing, no duplicate APIs/developer setup. Contracts: `../../docs/extension-apis.md`.
+- Name identifiers after the setting they implement. Shared paths name the shared capability, not one mode. Display execution modes from `EXECUTION_MODE_LABELS`; persisted keys and historical aliases stay at their boundaries.
 - Run bundled helpers directly. Rebuild checkout, don't patch npm install. Web/image: TS packages. `tools.customRustBinariesDir`: filename-based helper override, not Code host. Incompatibility errors point there, no loader noise.
 - `src/voice/rust/**` and `scripts/build-voice-helper.mjs`: byte-identical with `pi-gippity-control`; change and changeset together.
 - Native builds: `github_watch` if help supports Actions URLs, else `gh run watch <id> --exit-status` near 10–15 min. No polling loops, background shells or temp logs.

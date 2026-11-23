@@ -2,7 +2,6 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { prepareCodeModeToolsPrompt } from "./custom-tool-prompt.js";
 import type { SharedCodeModeRuntime } from "./shared-runtime.js";
 import type { registerPublicCodeModeTools } from "./public-tools.ts";
-import { prepareGptPromptMode } from "../../prompt-mode.ts";
 
 export function registerCodeModeEvents(
 	pi: ExtensionAPI,
@@ -19,8 +18,6 @@ export function registerCodeModeEvents(
 	});
 	pi.on("session_shutdown", () => runtime.clearOpaqueResults());
 	pi.on("before_agent_start", (event, ctx) => {
-		// Other extensions can bind this hook before conversion registers its own.
-		const heavy = prepareGptPromptMode(pi, ctx, event.systemPromptOptions);
 		preparePublicTools(ctx, event.systemPromptOptions.toolSnippets);
 		const executionKind = runtime.executionKind(ctx);
 		const requiredTools =
@@ -41,7 +38,9 @@ export function registerCodeModeEvents(
 					event.systemPromptOptions.selectedTools.includes(name),
 				),
 			executionKind,
-			heavy,
+			activeProviders.some((provider) =>
+				provider.heavySystemPromptOverwrite?.(),
+			),
 		);
 		return undefined;
 	});

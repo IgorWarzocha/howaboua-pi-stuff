@@ -21,7 +21,7 @@ import type {
 	ToolExecutionContext,
 } from "../code-mode/types.ts";
 import { RuntimeCell } from "../code-mode/runtime-cell.ts";
-import { notebookSessionIdentity } from "../code-mode/session-identity.ts";
+import { executionSessionIdentity } from "../code-mode/session-identity.ts";
 import { VmKernel } from "./kernel.ts";
 import { VM_STORE_TOTAL_MAX, VM_STORE_VALUE_MAX, vmHeapMiB } from "./limits.ts";
 import type { VmMemory, VmTool } from "./protocol.ts";
@@ -277,7 +277,7 @@ export class VmCodeClient implements CodeModeExecutionClient {
 			throw new Error("VM Code requires an extension session context");
 		const identity = JSON.stringify([
 			context.cwd,
-			notebookSessionIdentity(context.extensionContext),
+			executionSessionIdentity(context.extensionContext),
 		]);
 		if (this.identity === identity) return;
 		if (this.active && !this.active.cell.isCompleted())

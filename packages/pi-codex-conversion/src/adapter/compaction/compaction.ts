@@ -22,7 +22,7 @@ import {
 } from "./types.ts";
 import { isResponsesContext } from "../prompt/codex-model.ts";
 import {
-	isCodeModeRuntime,
+	usesExecTools,
 	resolveCodexRuntimePlanForState,
 } from "../activation/runtime-plan.ts";
 import type { AdapterState } from "../activation/state.ts";
@@ -260,9 +260,9 @@ async function handleCodexSessionBeforeCompactInner(
 			);
 		}
 	}
-	const codeMode = isCodeModeRuntime(plan);
+	const codeMode = usesExecTools(plan);
 	const serializationOptions: SerializeResponsesMessagesOptions = {
-		...(plan.transport === "responses-lite"
+		...(plan.responsesFormat === "responses-lite"
 			? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS }
 			: {}),
 	};
@@ -337,7 +337,7 @@ async function handleCodexSessionBeforeCompactInner(
 		ctx,
 		state,
 		runtime,
-		plan.transport === "responses-lite" ? "responses-lite" : "responses",
+		plan.responsesFormat === "responses-lite" ? "responses-lite" : "responses",
 		codeMode,
 		branchEntries,
 	);

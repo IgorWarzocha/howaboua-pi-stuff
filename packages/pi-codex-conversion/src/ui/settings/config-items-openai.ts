@@ -136,7 +136,7 @@ export function buildOpenAISettings(
 				...current,
 				openai: { ...current.openai, proxyResponsesLite: enabled },
 			}),
-			"Use Responses Lite for supported models on configured proxies in Code or Notebook mode. Requires proxy support.",
+			"Use Responses Lite for supported models on configured proxies in Code, VM Code, or TS Notebook. Requires proxy support.",
 		),
 		setting(
 			{

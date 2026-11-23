@@ -80,6 +80,7 @@ export interface CodeModeToolProvider {
 	prepareLoadout?(loadout: ToolLoadout): ToolLoadoutChanges | undefined;
 	documentationPath?: string | undefined;
 	isActive?(ctx: unknown): boolean;
+	heavySystemPromptOverwrite?(): boolean;
 	providesRenderers?: boolean | undefined;
 	toolDetails?(): ToolDetailsMode;
 	executionKind?(ctx: unknown): CodeModeExecutionKind;
@@ -350,7 +351,7 @@ export class SharedCodeModeRuntime {
 	): Promise<NotebookControlResult> {
 		const kind = this.executionKind(context.extensionContext);
 		if (kind !== "ts") {
-			throw new Error("Notebook controls require TS mode");
+			throw new Error("Notebook controls require TS Notebook");
 		}
 		const client = await this.getRuntimeClient(context.extensionContext, kind);
 		if (!client.controlNotebook)
@@ -435,7 +436,7 @@ function collectUniqueTools(
 				continue;
 			if (previous.name !== tool.name) {
 				throw new Error(
-					`Code Mode tool names ${previous.name} and ${tool.name} both translate to ${globalName}`,
+					`Nested tool names ${previous.name} and ${tool.name} both translate to ${globalName}`,
 				);
 			}
 			throw new Error(`Duplicate code-mode tool: ${tool.name}`);

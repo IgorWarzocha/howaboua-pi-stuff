@@ -135,7 +135,7 @@ export function registerNotebookTool(
 			ctx,
 		) {
 			if (runtime.executionKind(ctx) !== "ts")
-				throw new Error("Notebook controls require TS mode");
+				throw new Error("Notebook controls require TS Notebook");
 			if (params.input === undefined || params.input === "help")
 				return {
 					content: [{ type: "text", text: NOTEBOOK_HELP }],

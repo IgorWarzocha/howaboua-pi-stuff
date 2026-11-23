@@ -17,9 +17,9 @@ import type { ExecutionMode } from "./execution-mode.ts";
 import type { AdapterState } from "./state.ts";
 import {
 	APPLY_PATCH_TOOL_NAME,
-	CODE_MODE_TOOL_NAMES,
+	EXEC_TOOL_NAMES,
 	CORE_ADAPTER_TOOL_NAMES,
-	NOTEBOOK_MODE_TOOL_NAMES,
+	TS_NOTEBOOK_TOOL_NAMES,
 	SHELL_ADAPTER_TOOL_NAMES,
 	VIEW_IMAGE_TOOL_NAME,
 } from "./tool-set.ts";
@@ -42,32 +42,27 @@ export interface InactiveRuntimePlan extends RuntimePlanBase {
 	kind: "inactive";
 	missingToolNames?: string[];
 	toolNames: [];
-	prompt: undefined;
-	transport: undefined;
+	responsesFormat: undefined;
 }
 
 export interface NormalRuntimePlan extends RuntimePlanBase {
 	kind: "normal";
-	prompt: "normal";
-	transport: "responses";
+	responsesFormat: "responses";
 }
 
 export interface CodeRuntimePlan extends RuntimePlanBase {
 	kind: "code";
-	prompt: "code";
-	transport: "responses" | "responses-lite";
+	responsesFormat: "responses" | "responses-lite";
 }
 
 export interface TsRuntimePlan extends RuntimePlanBase {
 	kind: "ts";
-	prompt: "ts";
-	transport: "responses" | "responses-lite";
+	responsesFormat: "responses" | "responses-lite";
 }
 
 export interface VmRuntimePlan extends RuntimePlanBase {
 	kind: "vm";
-	prompt: "vm";
-	transport: "responses" | "responses-lite";
+	responsesFormat: "responses" | "responses-lite";
 }
 
 export type CodexRuntimePlan =
@@ -80,7 +75,7 @@ export type CodexRuntimePlan =
 const ALL_ADAPTER_TOOL_NAMES = [
 	"change_reasoning",
 	...CORE_ADAPTER_TOOL_NAMES,
-	...NOTEBOOK_MODE_TOOL_NAMES,
+	...TS_NOTEBOOK_TOOL_NAMES,
 	VIEW_IMAGE_TOOL_NAME,
 ];
 
@@ -126,7 +121,7 @@ function usesResponsesLite(
 		: proxySupportsResponsesLite(ctx, config);
 }
 
-function normalToolNames(
+function structuredToolNames(
 	ctx: RuntimeContext,
 	config: CodexConversionConfig,
 ): string[] {
@@ -171,7 +166,7 @@ export function resolveCodexRuntimePlan(
 	const ownedToolNames = [
 		"change_reasoning",
 		...SHELL_ADAPTER_TOOL_NAMES,
-		...NOTEBOOK_MODE_TOOL_NAMES,
+		...TS_NOTEBOOK_TOOL_NAMES,
 		APPLY_PATCH_TOOL_NAME,
 		VIEW_IMAGE_TOOL_NAME,
 	];
@@ -193,8 +188,7 @@ export function resolveCodexRuntimePlan(
 			...base,
 			kind: "inactive",
 			toolNames: [],
-			prompt: undefined,
-			transport: undefined,
+			responsesFormat: undefined,
 		};
 	base.nativeReplay = effectiveOpenAICodex;
 	const nativeCompaction =
@@ -202,47 +196,44 @@ export function resolveCodexRuntimePlan(
 	base.autoReasoning =
 		config.tools.autoReasoning && supportsCodexReasoningUpdates(ctx.model);
 	const configuredExecutionMode = executionMode ?? config.executionMode;
-	const requestedCodeMode =
+	if (
 		configuredExecutionMode === "code" ||
 		configuredExecutionMode === "ts" ||
 		configuredExecutionMode === "vm"
-			? configuredExecutionMode
-			: undefined;
-	if (requestedCodeMode) {
-		const transport: "responses-lite" | "responses" = usesResponsesLite(
+	) {
+		const responsesFormat: "responses-lite" | "responses" = usesResponsesLite(
 			ctx,
 			config,
 		)
 			? "responses-lite"
 			: "responses";
-		if (requestedCodeMode === "ts") {
-			const statefulPlan = {
+		if (configuredExecutionMode === "ts") {
+			const tsNotebookPlan = {
 				...base,
-				toolNames: [...NOTEBOOK_MODE_TOOL_NAMES],
-				transport,
+				toolNames: [...TS_NOTEBOOK_TOOL_NAMES],
+				responsesFormat,
 				nativeCompaction,
 			};
-			return { ...statefulPlan, kind: "ts", prompt: "ts" };
+			return { ...tsNotebookPlan, kind: "ts" };
 		}
-		const codePlan = {
+		const execPlan = {
 			...base,
-			toolNames: [...CODE_MODE_TOOL_NAMES],
-			transport,
+			toolNames: [...EXEC_TOOL_NAMES],
+			responsesFormat,
 			nativeCompaction,
 		};
-		return requestedCodeMode === "vm"
-			? { ...codePlan, kind: "vm", prompt: "vm" }
-			: { ...codePlan, kind: "code", prompt: "code" };
+		return configuredExecutionMode === "vm"
+			? { ...execPlan, kind: "vm" }
+			: { ...execPlan, kind: "code" };
 	}
 	return {
 		...base,
 		kind: "normal",
 		toolNames: [
-			...normalToolNames(ctx, config),
+			...structuredToolNames(ctx, config),
 			...(base.autoReasoning ? ["change_reasoning"] : []),
 		],
-		prompt: "normal",
-		transport: "responses",
+		responsesFormat: "responses",
 		nativeCompaction,
 	};
 }
@@ -264,8 +255,7 @@ export function resolveCodexRuntimePlanForState(
 		kind: "inactive",
 		toolNames: [],
 		missingToolNames,
-		prompt: undefined,
-		transport: undefined,
+		responsesFormat: undefined,
 		nativeCompaction: false,
 		nativeReplay: false,
 		autoReasoning: false,
@@ -283,7 +273,7 @@ export function isAdapterRuntime(
 	);
 }
 
-export function isCodeModeRuntime(
+export function usesExecTools(
 	plan: CodexRuntimePlan,
 ): plan is CodeRuntimePlan | TsRuntimePlan | VmRuntimePlan {
 	return plan.kind === "code" || plan.kind === "ts" || plan.kind === "vm";

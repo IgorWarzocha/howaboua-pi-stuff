@@ -15,7 +15,6 @@ The examples are integration fragments, not a replacement orchestrator. Your ext
 | Local notes, history and context rollover | [Agent Comms Notes](../packages/pi-agent-comms/docs/NOTES.md) | Nothing |
 | Shared notes | Agent Comms in the participants with Notes active | Notes context-sharing discovery, child binding and an authenticated family router |
 | A Pi tool usable from Code or Notebook | A normal Pi tool, with PCC present | Usually no extra registration. Use the Code Mode API for custom behavior |
-| Compact extension guidance in PCC GPT prompt mode | PCC and your extension | Alternate wording through `registerGptPromptMode` |
 | Separate Pi workers with saved-session reuse | [Shepherdr](../packages/pi-shepherdr/README.md#worker-api) | A caller scope, worker keys, task request IDs and lifetime policy |
 | A local tool callable by Grok voice | [Grok Realtime](../packages/pi-grok-realtime/README.md) | A `GrokToolDefinition` |
 | A miniapp in GipPity's browser UI | The standalone [GipPity Control](../packages/pi-gippity-control/README.md) extension | A static app and a state/event provider |
@@ -54,7 +53,6 @@ When switching to Agent Comms, update Shepherdr in controllers and workers toget
 | `@howaboua/pi-codex-conversion/agent-relationship` | Native parent linkage and cache affinity | [`agent-relationship.ts`](../packages/pi-codex-conversion/src/agent-relationship.ts) |
 | `@howaboua/pi-codex-conversion/compaction` | Context projection and ordered provider-compaction preparation | [`compaction.ts`](../packages/pi-codex-conversion/src/compaction.ts) |
 | `@howaboua/pi-codex-conversion/code-mode` | Custom nested-tool registration | [`code-mode.ts`](../packages/pi-codex-conversion/src/code-mode.ts) |
-| `@howaboua/pi-codex-conversion/prompt-mode` | Select owned guidance for PCC GPT prompt mode | [`prompt-mode.ts`](../packages/pi-codex-conversion/src/prompt-mode.ts) |
 | `@howaboua/pi-codex-conversion/code-mode-hooks` | Nested-call preflight and completion | [`code-mode-hooks.ts`](../packages/pi-codex-conversion/src/code-mode-hooks.ts) |
 | `@howaboua/pi-codex-conversion/code-mode-preflight` | Supported older preflight import | [`code-mode-preflight.ts`](../packages/pi-codex-conversion/src/code-mode-preflight.ts) |
 | `@howaboua/pi-codex-conversion/developer-messages` | Developer delivery, reminder annotation and context briefings | [`developer-messages.ts`](../packages/pi-codex-conversion/src/developer-messages.ts) |
@@ -417,46 +415,6 @@ Board and context binding are separate transactions. If both are enabled, comple
 
 Fresh-child sharing opt-in controls new children. It does not detach an already-adopted family when turned off. Resume retains identity. Forks get their own identity. Existing-agent attachment must preserve the original owner rather than rebind it under a new child path.
 
-## PCC GPT prompt mode
-
-Toolkit extensions ship one set of compact instructions. The prompt mode API remains available for extensions that still switch between two sets of wording. It signals active when PCC's adapter is active and **Heavy system prompt overwrite** is on in `/codex`. It does not depend on the model name or change tool arguments or execution.
-
-Import `registerGptPromptMode` from `@howaboua/pi-codex-conversion/prompt-mode`. Its synchronous callback receives `(active: boolean, context: ExtensionContext | undefined)` and returns current owned tool metadata or nothing. The exported `PromptModeToolMetadata` type contains `name`, optional `promptSnippet` and optional `promptGuidelines`.
-
-The caller below supplies two definitions of the same tool that differ only in owned wording:
-
-```ts
-import type { ExtensionAPI, ToolDefinition } from
-  "@earendil-works/pi-coding-agent";
-import { registerGptPromptMode } from
-  "@howaboua/pi-codex-conversion/prompt-mode";
-
-export function registerModeAwareTool(
-  pi: ExtensionAPI,
-  ordinary: ToolDefinition,
-  compact: ToolDefinition,
-) {
-  let current = ordinary;
-  pi.registerTool(current);
-  return registerGptPromptMode(pi, active => {
-    const next = active ? compact : ordinary;
-    if (next !== current) {
-      current = next;
-      pi.registerTool(current);
-    }
-    return [current];
-  });
-}
-```
-
-Registration first calls the handler with `false` and no context, then requests the broker's latest prepared mode. It works in either extension load order. Preparation calls the handler again before prompt and tool capture, even when the mode has not changed. Keep it synchronous and repeatable. Re-register native definitions only when their text changes, but return their current metadata every time: Pi has already cloned the prompt metadata before preparation. Handler errors fail registration or preparation rather than silently selecting ordinary wording.
-
-The returned `GptPromptModeRegistration` exposes read-only `active` for help and nested-tool providers, plus `dispose()`. Read `active` when producing guidance rather than caching it at startup. Registration disposes automatically on shutdown. Disposal stops updates; it does not unregister your tool. Without a PCC broker, `active` remains false. For optional PCC support, load the module lazily and retain ordinary wording when the package or subpath is absent.
-
-Most adopters need only registration. If a command or an early preparation hook consumes the mode before normal capture, call `prepareGptPromptMode(pi, ctx)` first. A hook capturing prompt metadata can pass `event.systemPromptOptions` as its third argument, supplying `toolSnippets` and `toolGuidelines`. This synchronously prepares the current mode and is a no-op without the host. PCC owns `registerGptPromptModeBroker`; consumer extensions must not register a competing broker.
-
-Change only your extension's own prose. Preserve tool names, schemas, execution, user content, project instructions and other extensions' contributions. The helper does not grant permission to rewrite a running session's standing prompt.
-
 ## Tools in Code and Notebook
 
 Register a normal Pi tool first. PCC can expose ordinary Pi extension and MCP tools automatically. Use the `code-mode` API when you need custom usage, activation, blocking, input conversion or result projection.
@@ -503,7 +461,7 @@ This fragment assumes a tool name that is a JavaScript identifier. Use PCC's nam
 
 For a help-backed tool, use `adaptToolForCodeMode(tool, { discovery: "help", deferLoading: true })`. Omitting `usage` generates its no-argument help call. Structured help calls use `{}`. This is an explicit contract, not inferred behaviour: the tool must accept empty input and return usage instead of executing its task. The option does not implement help for you. Ordinary operation tools retain their explicit `usage` signatures.
 
-Nested tools remain callable through `tools` and discoverable through `ALL_TOOLS`, which retains descriptions, snippets and schemas for on-demand help. They are not necessarily separate provider JSON schemas. Do not infer that prompt guidance survived merely because a callable exists. Help discovery works independently of PCC GPT prompt mode.
+Nested tools remain callable through `tools` and discoverable through `ALL_TOOLS`, which retains descriptions, snippets and schemas for on-demand help. They are not necessarily separate provider JSON schemas. Do not infer that prompt guidance survived merely because a callable exists.
 
 `new_context` remains a sequential model-only tool. Never put it under an `exec` cell or a nested-tool wrapper.
 

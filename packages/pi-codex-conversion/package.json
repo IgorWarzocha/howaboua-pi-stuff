@@ -45,10 +45,6 @@
       "types": "./dist/developer-messages.d.ts",
       "import": "./dist/developer-messages.js"
     },
-    "./prompt-mode": {
-      "types": "./dist/prompt-mode.d.ts",
-      "import": "./dist/prompt-mode.js"
-    },
     "./compaction": {
       "types": "./dist/compaction.d.ts",
       "import": "./dist/compaction.js"

@@ -65,7 +65,7 @@ export function registerCodeModePreflightBroker(
 						}),
 					);
 				} catch (error) {
-					console.error("Code Mode completion subscriber failed", error);
+					console.error("Nested tool completion subscriber failed", error);
 				}
 			}
 		},
@@ -81,9 +81,7 @@ export function registerCodeModePreflightBroker(
 				if (result?.block !== true) continue;
 				const reason =
 					typeof result.reason === "string" ? result.reason.trim() : "";
-				throw new Error(
-					reason || `Code Mode nested tool blocked: ${call.toolName}`,
-				);
+				throw new Error(reason || `Nested tool blocked: ${call.toolName}`);
 			}
 		},
 	};
@@ -121,7 +119,7 @@ export async function runCodeModeToolPreflight(
 	signal.throwIfAborted();
 	if (!context.preflight) return;
 	if (!context.toolCallId || !context.extensionContext)
-		throw new Error("Code Mode nested tool preflight context is unavailable");
+		throw new Error("Nested tool preflight context is unavailable");
 	await context.preflight({
 		toolName,
 		input,

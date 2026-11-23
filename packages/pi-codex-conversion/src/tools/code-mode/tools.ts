@@ -80,7 +80,7 @@ function reportCustomToolErrors(
 	const current = new Map(errors.map((error) => [error.path, error.message]));
 	for (const error of errors) {
 		if (previous.get(error.path) === error.message) continue;
-		ctx.ui.notify(`Code Mode custom tool disabled: ${error.message}`, "error");
+		ctx.ui.notify(`Custom tool disabled: ${error.message}`, "error");
 	}
 	return current;
 }

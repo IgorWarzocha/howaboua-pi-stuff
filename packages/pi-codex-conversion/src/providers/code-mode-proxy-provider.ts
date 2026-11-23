@@ -368,7 +368,7 @@ export function registerCodeModeProxyProvider(
 				);
 				if (
 					model.api === "openai-responses" &&
-					plan.transport === "responses-lite"
+					plan.responsesFormat === "responses-lite"
 				)
 					return streamCodeModeResponsesProxy(
 						model,
