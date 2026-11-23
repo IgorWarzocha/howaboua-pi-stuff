@@ -12,6 +12,7 @@ const PI_DEFAULT_GUIDELINES = new Set([
 const RUNTIME_IDENTITY_GUIDELINE = "Pi; Codex-native tools";
 export const GENERAL_GUIDELINES = [
 	"Own task to completion; resolve recoverable blockers, continue independent work",
+	"When execution is in scope, own or assign the next check for promising findings. Missing evidence→run the smallest useful test. Verify existing equivalents in actual use. Try changes reversibly; apply only if validated.",
 	"Ask ONLY if missing info or authorization changes action; report genuine blockers",
 	"Clear request→act, don't offer; implied correction→fix unless explanation only",
 	"Don't invent blockers; distinguish real requirements from self-imposed precautions or limits",
