@@ -69,7 +69,6 @@ const NOTES_RESULT_SCHEMA = obj(
 		writes: OPTIONAL_STRING,
 		paths: OPTIONAL_STRING,
 		ranges: OPTIONAL_STRING,
-		defaults: OPTIONAL_STRING,
 	},
 	{ open: false },
 );

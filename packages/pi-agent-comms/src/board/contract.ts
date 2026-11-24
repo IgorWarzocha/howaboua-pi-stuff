@@ -26,6 +26,7 @@ const BOARD_ACTIONS = [
 ] as const;
 const REPLY_ALIAS = { input: "reply", canonical: "post" } as const;
 const THREAD_STATUSES = ["open", "completed", "abandoned"] as const;
+const THREAD_SORTS = ["created", "activity"] as const;
 export type ThreadStatus = (typeof THREAD_STATUSES)[number];
 export const BoardParameters = obj(
 	{
@@ -64,7 +65,7 @@ const Request = obj(
 		full: opt(bool()),
 		subscribe: opt(bool()),
 		recent_first: opt(bool()),
-		sort: opt({ ...oneOf(["created", "activity"]), type: "string" }),
+		sort: opt({ ...oneOf(THREAD_SORTS), type: "string" }),
 		limit: positive,
 		max_chars_per_post: positive,
 		limit_chars: positive,
@@ -208,35 +209,35 @@ export function agentPath(value: string, caller: string): string {
 		throw new Error("Invalid agent path");
 	return path;
 }
+const fieldChoices: Record<string, readonly string[]> = {
+	status: THREAD_STATUSES,
+	sort: THREAD_SORTS,
+};
 export const boardHelp = {
 	actions: Object.fromEntries(
 		Object.entries(fields).map(([action, values]) => [
 			action,
 			values
-				.map(
-					(field) =>
-						`${field === "status" ? `status=${THREAD_STATUSES.join("|")}` : field}${requiredFields[action as BoardAction]?.includes(field) ? "" : "?"}`,
-				)
+				.map((field) => {
+					const choices = fieldChoices[field];
+					const name = choices ? `${field}=${choices.join("|")}` : field;
+					return `${name}${requiredFields[action as BoardAction]?.includes(field) ? "" : "?"}`;
+				})
 				.join(" "),
 		]),
 	),
 	rules: {
-		scope: "Default=your tree; list_boards→read-only board_id",
-		post: "Exactly one: channel_name|new_channel_name|thread_id. Reply MUST use full first post ID (list_threads→thread_id). New channel→subscribe author to first posts",
+		scope: "Defaults to your tree. list_boards → board_id for reads only",
+		post: "Exactly one: channel_name, new_channel_name or thread_id. Reply → copy full thread_id from list_threads",
 		set_status:
-			"Parent session only; completed=user confirms done; abandoned=user drops it. Closed→reopen before reply",
+			"Parent only. completed → user confirms done. abandoned → user drops it. Reopen before replying",
 		subscriptions:
-			"Exactly one: channel_name|thread_id; channel=first posts, thread=replies; target_agent defaults to you; post→subscribe author unless explicitly unsubscribed",
-		notify: "agents_to_notify→one-time notice to other agents on running turns",
-		agents: "Agent=/<Pi session ID>; legacy references accepted",
+			"Choose channel_name for new threads or thread_id for replies. Default target: you. Posting subscribes you to the thread unless you opted out",
+		notify:
+			"Agent refs: /<Pi session ID>. agents_to_notify sends one-time notices to active agents",
+		originals:
+			"Saved summary → full=true for originals. Truncated preview → read_post",
 		paging:
-			"limit default 20 max 50; reuse cursor with unchanged query/sort/full; concurrent edits can shift pages",
-		summaries:
-			"Close can trigger summary if enabled; read/search default to saved summary; full=true→originals; summary author filters=participants; read_post→originals",
-		order:
-			"Newest first; get_channels by activity; list_threads sort=created|activity; read_thread repeats root each page",
-		text: "Case-insensitive substring; max_chars_per_post default1000; read_post→Unicode-char offsets, limit_chars default20000; next_offset_chars<n_chars→continue",
-		budget:
-			"Post max 64 KiB; channel 1-128 UTF-8 bytes without edge whitespace/control chars. Result max 8000 serialized UTF-8 bytes. Reads can lower limits; continue at returned cursor/offset",
+			"Repeat the same read with next_cursor as cursor. For read_post, use next_offset_chars as offset_chars while below n_chars",
 	},
 };

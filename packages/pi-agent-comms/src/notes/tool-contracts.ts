@@ -296,13 +296,11 @@ export function queryHelp(
 			),
 			...(namespace === "notes"
 				? {
-						writes: "write=replace; append=add",
+						writes: "write replaces the whole note",
 						paths:
-							"Own list/search→omit path; relative=own notes; absolute MUST use /<session ID>/notes[/path]",
+							"Relative paths refer to your notes. Absolute: /<session ID>/notes[/path]. Omit path to list or search all your notes",
 						ranges:
-							"start_line/stop_line=1-based inclusive; negative=from end; 0/null/omitted=first/last; out-of-range→clamp; reversed→empty",
-						defaults:
-							"list limit=20; search limit/max_matches_per_file=20; limits clamp 1..100; list/search name ascending; recent_file_first→created_at descending",
+							"Read ranges: 1-based, inclusive. Negative lines count from the end",
 					}
 				: {
 						usage:
