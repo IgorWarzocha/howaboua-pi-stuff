@@ -34,7 +34,7 @@ const MINUTE = 60000;
 const AUTOMATIC_UPDATES =
 	"Updates arrive automatically; no polling or gh run watch needed";
 const HELP =
-	"action: watch, status, cancel. watch thread: issue/PR or Actions run URL, owner/repo#123, number for current repo's GitHub origin. status→list; cancel same thread or omit→cancel all offline. Checks every minute; PR first after 7min. Conversation/standalone review changes except authenticated gh account's; PR head changes and existing/updated unresolved threads. PR closed/merged or latest run attempt complete→report+stop; already terminal→report immediately. Fetch bodies/logs separately. Session switch/reload/shutdown→end watches. Check failure→pause; watch again→resume";
+	"Actions: watch, status, cancel. thread: issue/PR or Actions run URL, owner/repo#123, or number in current repo. status lists watches. cancel without thread cancels all. Updates arrive automatically; first PR check can take several minutes. Reports PR head changes, conversation/review activity from others, and unresolved review threads. Fetch bodies/logs separately. Stops when PR closes or run completes, or when you leave the session. Check failure pauses the watch; watch again to resume";
 
 function runResult(
 	run: WorkflowRun,
