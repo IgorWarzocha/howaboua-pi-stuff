@@ -1,5 +1,9 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.35
+
+- Shortened voice setup, unsent-task and call-ending messages.
+
 ## 0.0.34
 
 - GipPity settings explain how browser access, dropped-call recovery and voice context refresh work.

@@ -1,5 +1,14 @@
 # @howaboua/pi-agent-comms
 
+## 0.0.6
+
+- Requires Pi 1.6.1 or newer.
+- Shortened Board and Notes help and clarified how to continue reads.
+- Board errors name the rejected action or field and distinguish safe retries from writes that may have completed.
+- Notes access and freshness warnings now appear in both text and structured results.
+- `new_context` says when a pending checkpoint or rollover prevented a new request from being queued.
+- Session pruning reports a permission wait to Pi. Cancel remains the default.
+
 ## 0.0.5
 
 - Replaces standalone Notes Compaction and Agent Board. Remove the old extensions when switching. Their settings move to `pi-agent-comms.json`; saved data stays in place. Features without prior settings start off.

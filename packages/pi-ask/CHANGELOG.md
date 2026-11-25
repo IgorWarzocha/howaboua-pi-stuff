@@ -1,5 +1,9 @@
 # @howaboua/pi-ask
 
+## 0.0.23
+
+- Shortened Ask replies, steering receipts and invalid-field errors. Errors still list valid fields.
+
 ## 0.0.22
 
 - Ask always uses compact question and handoff help, including in standalone installs.

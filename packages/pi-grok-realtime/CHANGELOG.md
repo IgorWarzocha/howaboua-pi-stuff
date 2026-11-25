@@ -1,5 +1,9 @@
 # @howaboua/pi-grok-realtime
 
+## 0.0.9
+
+- Shortened xAI credential errors, voice task receipts and reconnect guidance.
+
 ## 0.0.8
 
 - Grok settings explain how the access selection matches Pi’s active xAI credential, and when voice context summaries and follow-ups are used.
