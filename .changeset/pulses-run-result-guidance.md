@@ -2,4 +2,4 @@
 "@howaboua/pi-pulses": patch
 ---
 
-Pulses distinguishes accepted requests from runs that never started or remain blocked pending manual recovery.
+Shortened pulse run receipts and recovery messages for failed starts and unconfirmed runs.

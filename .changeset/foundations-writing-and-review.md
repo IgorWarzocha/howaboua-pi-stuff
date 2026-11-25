@@ -2,6 +2,6 @@
 "@howaboua/pi-skill-foundations": patch
 ---
 
-Use `writing` for prose and `non-code-review` for documents, plans, and designs. `communication` now applies on demand for conversational voice, investigation findings, and teaching.
-
-`writing` includes telegraphic prose and interface copy. `agents-md` avoids rereading rules already in context and clarifies when nested guidance earns its place. `skill-creator` keeps reusable skills focused on observed needs rather than speculative rules.
+- Added `writing` for prose and interface copy, including telegraphic style, and `non-code-review` for documents, plans and designs.
+- Narrowed `communication` to conversation, investigation reports and teaching.
+- Updated `agents-md` and `skill-creator` to add guidance only where it changes behaviour.

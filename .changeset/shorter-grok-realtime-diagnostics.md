@@ -2,4 +2,4 @@
 "@howaboua/pi-grok-realtime": patch
 ---
 
-Shorter xAI credential and voice tool errors keep the active credential, task acceptance and reconnect steps explicit.
+Shortened xAI credential errors, voice task receipts and reconnect guidance.

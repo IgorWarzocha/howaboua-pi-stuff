@@ -2,6 +2,4 @@
 "@howaboua/pi-cache-hit-predictor": patch
 ---
 
-Requires Pi 1.5 or newer.
-
-- Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+Removed custom changelog suppression. Update notices now follow Pi's `collapseChangelog` setting.

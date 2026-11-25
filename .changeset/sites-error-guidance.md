@@ -2,4 +2,4 @@
 "@howaboua/pi-chatgpt-sites": patch
 ---
 
-Sites errors use shorter account and action guidance and retain the saved version ID and deploy-only recovery when publication fails after saving.
+Shortened Sites errors. When deployment fails after saving, the error includes the saved version ID for a deploy-only retry.

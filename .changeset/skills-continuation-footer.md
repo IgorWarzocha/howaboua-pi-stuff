@@ -2,4 +2,4 @@
 "@howaboua/pi-better-skills-tool": patch
 ---
 
-Truncated skill output uses a shorter footer with the byte range and exact continuation command.
+Shortened the truncated skill output footer to the byte range and continuation command.

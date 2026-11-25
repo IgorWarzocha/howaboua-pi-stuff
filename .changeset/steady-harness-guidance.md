@@ -2,4 +2,6 @@
 "@howaboua/pi-skill-harness-and-agent-engineering": patch
 ---
 
-Update Herdr help pointers for live session diagnosis. Clarify when extensions need a permanent agent tool, what to surface during interactive instruction comparisons, and how to locate the first cache miss in a provider request sequence.
+- Updated session diagnosis and prompt-cache guidance to verify the live session and trace the first cache miss.
+- Updated extension design guidance on when to add tools and how to compare agent instructions.
+- Tool design now requires signalling failures through the host's error mechanism.
