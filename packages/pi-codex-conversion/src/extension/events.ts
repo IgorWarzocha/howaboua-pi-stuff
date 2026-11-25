@@ -85,12 +85,7 @@ export function registerCodexEvents(
 		session,
 		shells,
 	);
-	const compaction = createCodexCompactionLifecycle(
-		pi,
-		runtime,
-		codeMode,
-		turn.refreshBindingStatus,
-	);
+	const compaction = createCodexCompactionLifecycle(pi, runtime, codeMode);
 	pi.events.on(REALTIME_VOICE_PROMPT_CHANNEL, (value) => {
 		const report = parseRealtimeVoicePrompt(value);
 		if (report) runtime.voice.setPrompt(report);

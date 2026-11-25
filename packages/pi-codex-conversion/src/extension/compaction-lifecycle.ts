@@ -1,7 +1,4 @@
-import type {
-	ExtensionAPI,
-	ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolveAdapterRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import {
 	hasPortableNativeCompactionSummary,
@@ -33,7 +30,6 @@ export function createCodexCompactionLifecycle(
 	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
 	codeMode: CodeModeRegistration,
-	refreshBindingStatus: (ctx: ExtensionContext) => Promise<boolean>,
 ) {
 	const { state } = runtime;
 	const stopWindowPreparation = registerContextWindowPreparation(
@@ -137,7 +133,6 @@ export function createCodexCompactionLifecycle(
 				);
 				// A retained VM notice may predate bindings created in the compacted window.
 				if (state.bindingStatus?.kind === "vm") state.bindingStatus = undefined;
-				await refreshBindingStatus(ctx);
 				// Pi has not run the next context chain yet. Warm only its final request.
 				runtime.prepareTurn(ctx);
 				await runtime.voice.refreshRealtimeContext(ctx, state.config);

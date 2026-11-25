@@ -60,22 +60,15 @@ export function createCodexTurnLifecycle(
 	const { state } = runtime;
 	const refreshBindingStatus = (
 		ctx: ExtensionContext,
-		messages?: readonly AgentMessage[],
-		selectedTools = pi.getActiveTools(),
+		messages: readonly AgentMessage[],
 	): Promise<boolean> => {
 		const kind = resolveAdapterRuntimePlanForState(ctx, state).kind;
 		if (kind !== "ts" && kind !== "vm") return Promise.resolve(false);
 		const required = kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES;
+		const selectedTools = pi.getActiveTools();
 		if (!required.every((name) => selectedTools.includes(name)))
 			return Promise.resolve(false);
-		return recordBindingStatus(
-			pi,
-			ctx,
-			state,
-			kind,
-			messages ?? runtime.projectContextMessages(ctx),
-			codeMode,
-		);
+		return recordBindingStatus(pi, ctx, state, kind, messages, codeMode);
 	};
 
 	return {
@@ -106,11 +99,6 @@ export function createCodexTurnLifecycle(
 				heavySystemPromptOverwrite:
 					state.config.prompt.heavySystemPromptOverwrite,
 			});
-			await refreshBindingStatus(
-				ctx,
-				runtime.projectContextMessages(ctx),
-				event.systemPromptOptions.selectedTools,
-			);
 			return undefined;
 		},
 		agentStarted: async (_event, ctx) => {
@@ -148,8 +136,6 @@ export function createCodexTurnLifecycle(
 				throw error;
 			}
 			let messages = runtime.projectContextMessages(ctx, event.messages);
-			if (await refreshBindingStatus(ctx, messages))
-				messages = runtime.projectContextMessages(ctx, event.messages);
 			if (
 				usesExecTools(resolveAdapterRuntimePlanForState(ctx, state)) &&
 				recordCodeModeToolkit(
@@ -160,6 +146,9 @@ export function createCodexTurnLifecycle(
 					codeMode.getPromptTools(ctx),
 				)
 			)
+				messages = runtime.projectContextMessages(ctx, event.messages);
+			// Keep the stable toolkit before each new inventory without relocating sent history.
+			if (await refreshBindingStatus(ctx, messages))
 				messages = runtime.projectContextMessages(ctx, event.messages);
 			const developerMessages = supportsCodexDeveloperMessages(ctx, state);
 			if (
@@ -203,13 +192,7 @@ export function createCodexTurnLifecycle(
 				),
 			};
 		},
-		refreshBindingStatus,
 	} satisfies {
-		refreshBindingStatus: (
-			ctx: ExtensionContext,
-			messages?: readonly AgentMessage[],
-			selectedTools?: string[],
-		) => Promise<boolean>;
 		input: ExtensionHandler<InputEvent, InputEventResult>;
 		beforeAgentStart: ExtensionHandler<
 			BeforeAgentStartEvent,
