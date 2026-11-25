@@ -11,7 +11,6 @@ import {
 	NATIVE_COMPACTION_PORTABLE_DISPLAY_TEXT,
 	NATIVE_COMPACTION_STRATEGY,
 	type NativeCompactionDisplayEntry,
-	type NativeCompactionUsage,
 } from "../adapter/compaction/types.ts";
 import { findLatestCompactionEntry } from "../adapter/compaction/details-store.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
@@ -109,29 +108,29 @@ export function createCodexCompactionLifecycle(
 					isNativeCompactionDetails(compactionEntry.details)
 				) {
 					const details = compactionEntry.details;
+					const description = hasPortableNativeCompactionSummary(
+						compactionEntry,
+					)
+						? NATIVE_COMPACTION_PORTABLE_DISPLAY_TEXT
+						: NATIVE_COMPACTION_DISPLAY_TEXT;
+					const usage =
+						details.strategy === NATIVE_COMPACTION_STRATEGY
+							? details.usage
+							: undefined;
+					const cacheDiagnostic = usage
+						? formatCompactionCacheDiagnostic(usage, usage.diagnostic)
+						: undefined;
 					// Presentation entries persist and render without entering Pi's turn queue or LLM context.
 					pi.appendEntry<NativeCompactionDisplayEntry>(
 						NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
 						{
-							content: hasPortableNativeCompactionSummary(compactionEntry)
-								? NATIVE_COMPACTION_PORTABLE_DISPLAY_TEXT
-								: NATIVE_COMPACTION_DISPLAY_TEXT,
+							content:
+								usage && cacheDiagnostic
+									? `${description}\n\nCache read: ${((usage.cachedInputTokens / usage.inputTokens) * 100).toFixed(1)}% ${cacheDiagnostic}`
+									: description,
 							compactionEntryId: compactionEntry.id,
 						},
 					);
-					if (
-						details.strategy === NATIVE_COMPACTION_STRATEGY &&
-						details.usage
-					) {
-						pi.appendEntry<NativeCompactionDisplayEntry>(
-							NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
-							{
-								content: formatCompactionUsage(details.usage),
-								compactionEntryId: compactionEntry.id,
-								kind: "usage",
-							},
-						);
-					}
 				}
 				runtime.resetTransportForContextWindow(
 					ctx.sessionManager.getSessionId(),
@@ -154,14 +153,4 @@ export function createCodexCompactionLifecycle(
 		failed: ExtensionHandler<SessionCompactFailedEvent>;
 		compacted: ExtensionHandler<SessionCompactEvent>;
 	};
-}
-
-function formatCompactionUsage(usage: NativeCompactionUsage): string {
-	const ratio =
-		usage.inputTokens > 0
-			? `${((usage.cachedInputTokens / usage.inputTokens) * 100).toFixed(1)}%`
-			: "0%";
-	const tokens = (value: number) => Math.round(value).toLocaleString("en-US");
-	const diagnostic = formatCompactionCacheDiagnostic(usage, usage.diagnostic);
-	return `Compaction V2 · input ${tokens(usage.inputTokens)} · cache read ${tokens(usage.cachedInputTokens)} (${ratio}) · cache write ${tokens(usage.cacheWriteInputTokens)} · output ${tokens(usage.outputTokens)}${diagnostic ? ` ${diagnostic}` : ""}`;
 }

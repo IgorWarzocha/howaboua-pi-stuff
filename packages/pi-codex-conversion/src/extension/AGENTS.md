@@ -1,6 +1,6 @@
 - `register.ts` composition root; `runtime.ts` process/session state, transport lifecycle; `events.ts` explicit Pi event routing. Lazy cold features, especially compaction. No startup cost for wrappers/hidden dispatch.
 - Prewarm final serialised requests with real-turn tools. Restore owned `exec` sampling missing from `ToolInfo`. Compaction warmup waits for real request: no supported rerun of all context hooks. Generic compaction preparations before provider work in either extension order.
-- Native compaction UI: custom entry, never `sendMessage` (queues empty continuations). Notices use Pi theme tokens and expansion hooks. Summaries are metadata, not content previews. Provider-role promotion doesn't own UI.
+- Native compaction usage → Pi compaction result for totals and cost notices. Checkpoint description and cache diagnostics → custom entry, never `sendMessage` (queues empty continuations). Notices use Pi theme tokens and expansion hooks. Summaries are metadata, not content previews. Provider-role promotion doesn't own UI.
 - Auto-compaction can resume without `agent_start`. Keep live delivery/request context across same-session transport/window resets. Canonical summary requests supply own context.
 - Binding inventories: durable entries projected in chronology, not system or queued messages. VM resamples after successful compaction; TS resamples if its notice is no longer visible.
 - `transport/runtime.ts`: one ordinary/keepalive controller and settlement lane. Scheduler owns timer/epoch only. Capture final request after validation.

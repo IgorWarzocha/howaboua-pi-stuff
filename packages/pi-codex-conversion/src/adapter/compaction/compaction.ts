@@ -395,7 +395,7 @@ async function handleCodexSessionBeforeCompactInner(
 			compactedWindow,
 			compactResponseId: compactResult.responseId,
 			createdAt: compactResult.createdAt,
-			usage: compactResult.usage,
+			usage: compactResult.usage?.details,
 			requestMeta: {
 				tokensBefore: event.preparation.tokensBefore,
 				previousSummaryPresent: Boolean(event.preparation.previousSummary),
@@ -408,7 +408,8 @@ async function handleCodexSessionBeforeCompactInner(
 				firstKeptEntryId: event.preparation.firstKeptEntryId,
 				tokensBefore: event.preparation.tokensBefore,
 				details,
-				usage: portableCompaction?.usage,
+				nativeUsage: compactResult.usage?.accounting,
+				portableUsage: portableCompaction?.usage,
 			}),
 		};
 	} catch {

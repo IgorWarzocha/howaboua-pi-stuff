@@ -13,3 +13,4 @@
 - Code Mode results show nested tool failures even when the cell handles them. `apply_patch` guidance now requires file-ordered, non-overlapping hunks.
 - Shell, Code and TS Notebook status and recovery messages are shorter. Running shell notices explain that completion reports automatically when idle and that separate status commands and log-check loops are unnecessary.
 - Fixed a tool-call replay mismatch that could make GPT-6.2 drop replayed reasoning after a WebSocket reconnect. Pi's optional reasoning-drop notices now also report removals from PCC Responses streams.
+- Codex compaction counts toward Pi's session totals and optional compaction cost notice. The checkpoint still explains low cache reuse.

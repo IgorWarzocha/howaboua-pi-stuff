@@ -1,3 +1,4 @@
+import type { Usage } from "@earendil-works/pi-ai";
 import type {
 	CompactionEntry,
 	CompactionResult,
@@ -82,7 +83,8 @@ export type CreateNativeCompactionShimResultInput = {
 	firstKeptEntryId: string;
 	tokensBefore: number;
 	details: NativeCompactionDetails;
-	usage?: CompactionResult["usage"];
+	nativeUsage?: CompactionResult["usage"];
+	portableUsage?: CompactionResult["usage"];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -286,11 +288,45 @@ export function createNativeCompactionDetails(
 export function createNativeCompactionShimResult(
 	input: CreateNativeCompactionShimResultInput,
 ): CompactionResult<NativeCompactionDetails> {
+	const usage = combineCompactionUsage(input.nativeUsage, input.portableUsage);
 	return {
 		summary: input.summary,
 		firstKeptEntryId: input.firstKeptEntryId,
 		tokensBefore: input.tokensBefore,
 		details: input.details,
-		...(input.usage ? { usage: input.usage } : {}),
+		...(usage ? { usage } : {}),
+	};
+}
+
+function combineCompactionUsage(
+	native: Usage | undefined,
+	portable: Usage | undefined,
+): Usage | undefined {
+	if (!native || !portable) return native ?? portable;
+	return {
+		input: native.input + portable.input,
+		output: native.output + portable.output,
+		cacheRead: native.cacheRead + portable.cacheRead,
+		cacheWrite: native.cacheWrite + portable.cacheWrite,
+		totalTokens: native.totalTokens + portable.totalTokens,
+		...(native.cacheWrite1h !== undefined || portable.cacheWrite1h !== undefined
+			? {
+					cacheWrite1h:
+						(native.cacheWrite1h ?? 0) + (portable.cacheWrite1h ?? 0),
+				}
+			: {}),
+		...(native.reasoning !== undefined || portable.reasoning !== undefined
+			? { reasoning: (native.reasoning ?? 0) + (portable.reasoning ?? 0) }
+			: {}),
+		cost: {
+			input: native.cost.input + portable.cost.input,
+			output: native.cost.output + portable.cost.output,
+			cacheRead: native.cost.cacheRead + portable.cost.cacheRead,
+			cacheWrite: native.cost.cacheWrite + portable.cost.cacheWrite,
+			total: native.cost.total + portable.cost.total,
+			...(native.cost.totalFromProvider && portable.cost.totalFromProvider
+				? { totalFromProvider: true }
+				: {}),
+		},
 	};
 }

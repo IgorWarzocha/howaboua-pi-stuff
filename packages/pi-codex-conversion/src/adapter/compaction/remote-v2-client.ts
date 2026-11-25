@@ -5,6 +5,7 @@ import {
 	type SimpleStreamOptions,
 	type TranscriptContext,
 	type Transport,
+	type Usage,
 } from "@earendil-works/pi-ai";
 import type {
 	ExtensionContext,
@@ -40,6 +41,7 @@ import {
 	resolveCodexWebSocketUrl,
 } from "../../providers/openai-codex/headers.ts";
 import type { CodexCompactionDiagnostic } from "./diagnostics.ts";
+import type { NativeCompactionUsage } from "./types.ts";
 
 const MAX_STREAM_RETRIES = 2;
 type V2Stream = (
@@ -54,7 +56,7 @@ export type RemoteCompactionV2Result =
 			compaction: Record<string, unknown>;
 			responseId: string;
 			createdAt: string;
-			usage?: RemoteCompactionV2Usage | undefined;
+			usage?: RemoteCompactionUsage | undefined;
 	  }
 	| {
 			ok: false;
@@ -63,12 +65,9 @@ export type RemoteCompactionV2Result =
 			status?: number | undefined;
 	  };
 
-export type RemoteCompactionV2Usage = {
-	inputTokens: number;
-	cachedInputTokens: number;
-	cacheWriteInputTokens: number;
-	outputTokens: number;
-	diagnostic?: CodexCompactionDiagnostic | undefined;
+type RemoteCompactionUsage = {
+	accounting: Usage;
+	details: NativeCompactionUsage;
 };
 
 export type ExecuteRemoteCompactionV2Options = {
@@ -129,28 +128,26 @@ function shouldRetry(
 function compactionUsage(
 	message: AssistantMessage,
 	diagnostic: CodexCompactionDiagnostic,
-): RemoteCompactionV2Usage | undefined {
-	const inputTokens =
-		message.usage.input + message.usage.cacheRead + message.usage.cacheWrite;
-	const cachedInputTokens = message.usage.cacheRead;
-	const cacheWriteInputTokens = message.usage.cacheWrite;
-	const outputTokens = message.usage.output;
+): RemoteCompactionUsage | undefined {
+	const accounting = message.usage;
+	const { input, cacheRead, cacheWrite, output } = accounting;
 	if (
-		![
-			inputTokens,
-			cachedInputTokens,
-			cacheWriteInputTokens,
-			outputTokens,
-		].every((value) => Number.isFinite(value) && value >= 0)
+		![input, cacheRead, cacheWrite, output].every(
+			(value) => Number.isFinite(value) && value >= 0,
+		)
 	)
 		return undefined;
-	if (inputTokens + outputTokens === 0) return undefined;
+	const inputTokens = input + cacheRead + cacheWrite;
+	if (inputTokens + output === 0) return undefined;
 	return {
-		inputTokens,
-		cachedInputTokens,
-		cacheWriteInputTokens,
-		outputTokens,
-		diagnostic: structuredClone(diagnostic),
+		accounting,
+		details: {
+			inputTokens,
+			cachedInputTokens: cacheRead,
+			cacheWriteInputTokens: cacheWrite,
+			outputTokens: output,
+			diagnostic: structuredClone(diagnostic),
+		},
 	};
 }
 
