@@ -3,7 +3,7 @@ import type {
 	ExtensionAPI,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
-import { Box, Text, TruncatedText } from "@earendil-works/pi-tui";
+import { Box, MouseRegion, Text, TruncatedText } from "@earendil-works/pi-tui";
 import type { WindowIdentity } from "./bridge.js";
 import type { RolloverTail } from "./rollover-tail.js";
 
@@ -26,6 +26,7 @@ Save relevant notes before handoff. Recovery→relevant notes, necessary links, 
 </context_window_guidance>`;
 
 export function registerWindowRenderer(pi: ExtensionAPI): void {
+	const views = new WeakMap<object, { expanded: boolean; open: boolean }>();
 	pi.registerMessageRenderer(
 		WINDOW_MESSAGE,
 		(message, { expanded, outputPad, keyHint }, theme) => {
@@ -39,26 +40,54 @@ export function registerWindowRenderer(pi: ExtensionAPI): void {
 						: details.kind === "reminder"
 							? "Context checkpoint reminder · Save notes and start a new window"
 							: `Context window ${details.identity.windowNumber + 1} · Notes and history`;
-			const box = new Box(outputPad, 1, (text) =>
-				theme.bg("customMessageBg", text),
+			let view = views.get(message);
+			if (!view || view.expanded !== expanded) {
+				view = { expanded, open: expanded };
+				views.set(message, view);
+			}
+			const state = view;
+			const colour =
+				details.kind === "urgent" ? "warning" : "customMessageLabel";
+			const makeBox = (open: boolean) => {
+				const box = new Box(outputPad, 1, (text) =>
+					theme.bg("customMessageBg", text),
+				);
+				const hint = open
+					? ""
+					: theme.fg("dim", ` (${keyHint("app.tools.expand", "to expand")})`);
+				box.addChild(
+					new TruncatedText(
+						theme.fg(colour, `${open ? "▾" : "▸"} ${title}`) + hint,
+						0,
+						0,
+					),
+				);
+				return box;
+			};
+			const closed = makeBox(false);
+			const opened = makeBox(true);
+			opened.addChild(
+				new Text(theme.fg("customMessageText", message.content), 0, 0),
 			);
-			box.addChild(
-				expanded
-					? new Text(theme.fg("customMessageText", message.content), 0, 0)
-					: new TruncatedText(
-							theme.fg(
-								details.kind === "urgent" ? "warning" : "customMessageLabel",
-								title,
-							) +
-								theme.fg(
-									"dim",
-									` (${keyHint("app.tools.expand", "to expand")})`,
-								),
-							0,
-							0,
-						),
+			return new MouseRegion(
+				{
+					render: (width) => (state.open ? opened : closed).render(width),
+					invalidate() {
+						closed.invalidate();
+						opened.invalidate();
+					},
+				},
+				(event) => {
+					if (
+						event.type !== "click" ||
+						event.button !== "left" ||
+						event.y !== 1
+					)
+						return undefined;
+					state.open = !state.open;
+					return { handled: true };
+				},
 			);
-			return box;
 		},
 	);
 }
