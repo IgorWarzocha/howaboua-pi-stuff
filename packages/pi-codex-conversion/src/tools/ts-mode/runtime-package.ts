@@ -54,7 +54,7 @@ export async function runtimePackage(
 	} catch (cause) {
 		signal?.throwIfAborted();
 		throw new RuntimeInstallError(
-			`${mode} runtime installation failed. Check npm and registry access, then retry; other execution modes remain available.`,
+			`${mode} runtime install failed. Check npm and registry access before retrying. Other modes remain available.`,
 			{ cause },
 		);
 	}

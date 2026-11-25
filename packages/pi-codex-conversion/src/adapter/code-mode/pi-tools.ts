@@ -102,8 +102,11 @@ export function createPiCodeModeBridge(pi: ExtensionAPI): {
 							if (
 								(mcp || tool.outputSchema) &&
 								result.structuredContent !== undefined
-							)
+							) {
+								if (outcome.isError)
+									context.reportNestedFailure?.(text || `${tool.name} failed`);
 								return result.structuredContent;
+							}
 							if (outcome.isError)
 								throw new Error(text || `Tool ${tool.name} failed`);
 							return result.content.some((block) => block.type !== "text")

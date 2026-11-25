@@ -2,6 +2,7 @@ import type {
 	RuntimeResponse,
 	OpaqueToolOutput,
 	RuntimeContentItem,
+	RuntimeNestedFailure,
 	ToolExecutionContext,
 } from "../types.ts";
 import type { CodeModeTraceStore } from "../trace-store.ts";
@@ -9,6 +10,8 @@ import type { CodeModeTraceStore } from "../trace-store.ts";
 const MAX_NOTIFICATION_CHARS = 16_384;
 const MAX_NOTIFICATIONS_PER_CELL = 100;
 const MAX_OPAQUE_BYTES = 32 * 1024 * 1024;
+const MAX_FAILURE_GROUPS = 6;
+const MAX_FAILURE_MESSAGE_CHARS = 800;
 
 interface PendingOpaqueResults {
 	outputs: OpaqueToolOutput[];
@@ -18,6 +21,10 @@ interface PendingOpaqueResults {
 
 export class DelegateCellResults {
 	private readonly notifications = new Map<string, string[]>();
+	private readonly failures = new Map<
+		string,
+		{ groups: RuntimeNestedFailure[]; omitted: number }
+	>();
 	private readonly opaqueResults = new Map<string, PendingOpaqueResults>();
 	private readonly originalExecCalls = new Map<string, string>();
 	// Continuation routing must survive bounded display traces.
@@ -45,6 +52,7 @@ export class DelegateCellResults {
 	}
 	delete(cellId: string): void {
 		this.notifications.delete(cellId);
+		this.failures.delete(cellId);
 		this.opaqueResults.delete(cellId);
 		this.originalExecCalls.delete(cellId);
 		this.execSessions.delete(cellId);
@@ -53,6 +61,7 @@ export class DelegateCellResults {
 	clear(): void {
 		this.originalExecCalls.clear();
 		this.notifications.clear();
+		this.failures.clear();
 		this.clearOpaqueResults();
 		this.execSessions.clear();
 		this.terminatingCells.clear();
@@ -100,6 +109,23 @@ export class DelegateCellResults {
 		});
 	}
 
+	recordFailure(cellId: string, name: string, cause: unknown): void {
+		const failure = this.failures.get(cellId) ?? { groups: [], omitted: 0 };
+		const message = cause instanceof Error ? cause.message : String(cause);
+		const error =
+			message.length > MAX_FAILURE_MESSAGE_CHARS
+				? `${message.slice(0, MAX_FAILURE_MESSAGE_CHARS / 2)}\n[Error truncated; check effects before retry]\n${message.slice(-MAX_FAILURE_MESSAGE_CHARS / 2)}`
+				: message || "Tool call failed";
+		const existing = failure.groups.find(
+			(item) => item.name === name && item.error === error,
+		);
+		if (existing) existing.count++;
+		else if (failure.groups.length < MAX_FAILURE_GROUPS)
+			failure.groups.push({ name, error, count: 1 });
+		else failure.omitted++;
+		this.failures.set(cellId, failure);
+	}
+
 	attach(
 		response: RuntimeResponse,
 		traces: CodeModeTraceStore,
@@ -109,6 +135,8 @@ export class DelegateCellResults {
 			this.originalExecCalls.delete(response.cellId);
 		const notifications = this.notifications.get(response.cellId) ?? [];
 		this.notifications.delete(response.cellId);
+		const failures = this.failures.get(response.cellId);
+		this.failures.delete(response.cellId);
 		const opaque = this.opaqueResults.get(response.cellId);
 		const opaqueOutputs = opaque?.outputs;
 		const opaqueImages = opaque?.images;
@@ -136,6 +164,8 @@ export class DelegateCellResults {
 			...(opaqueOutputs?.length ? { opaqueOutputs } : {}),
 			...(terminate ? { terminate: true as const } : {}),
 			...(execSessionIds.length > 0 ? { execSessionIds } : {}),
+			...(failures?.groups.length ? { nestedFailures: failures.groups } : {}),
+			...(failures?.omitted ? { omittedNestedFailures: failures.omitted } : {}),
 			contentItems: [
 				...notifications.map((text) => ({ type: "input_text" as const, text })),
 				...response.contentItems,

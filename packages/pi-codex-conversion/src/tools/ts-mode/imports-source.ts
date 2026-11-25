@@ -116,7 +116,7 @@ export async function compileTsImportSource(
 						const argument = node.arguments[0];
 						if (!argument || !isStringLiteral(argument))
 							throw new Error(
-								`Computed dynamic imports in local TypeScript modules are unavailable: ${path}. Use a literal specifier or import dynamically in the cell.`,
+								`Unsupported computed dynamic import in local TypeScript module: ${path}. Use a literal specifier or import dynamically in the cell.`,
 							);
 						references.push({
 							specifier: argument.text,

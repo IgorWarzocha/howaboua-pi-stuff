@@ -177,8 +177,8 @@ export function buildCodeModeToolsPrompt(
 					),
 		executionKind !== "code"
 			? prose(
-					"Put one-off const and let declarations in a block. For a reusable result, declare let once, then assign without redeclaring. Use descriptive names for values retained across cells.",
-					"One-off const/let→{ ... }; reusable result→let once, then assign without let; retained values→descriptive names",
+					"One-off declarations MUST stay inside { ... }. Reserve top-level bindings for reuse across cells. For results you will replace, declare a descriptive let once, then assign without redeclaring.",
+					"One-off declarations MUST stay in { ... }. Top level: cross-cell reuse only. Replaceable result→descriptive let once, then assign without let.",
 				)
 			: undefined,
 		executionKind === "ts"

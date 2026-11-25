@@ -59,7 +59,7 @@ export class TsStateLifecycle {
 		}
 		if (this.host.activeCells().length)
 			throw new Error(
-				"TS lifecycle changes require idle state; wait for or terminate active cells first. Status remains available.",
+				"Wait for or terminate active TS cells before changing state. Status remains available.",
 			);
 		// Reset and restart must also work when the live kernel is unavailable.
 		if (request.action === "reset") {
@@ -74,7 +74,7 @@ export class TsStateLifecycle {
 			await this.host.restart();
 			return {
 				message:
-					"TS restarted from its last durable checkpoint; live-only values and changes since that checkpoint cannot be restored",
+					"TS restarted from its last durable checkpoint. Live-only values and later changes lost.",
 				details: {},
 			};
 		}
@@ -140,7 +140,7 @@ export class TsStateLifecycle {
 				);
 				if (collisions.length)
 					throw new Error(
-						`TS profile ${request.name} conflicts with existing bindings: ${collisions.join(", ")}. Release or rename them before loading`,
+						`TS profile ${request.name} conflicts with: ${collisions.join(", ")}. Release or rename those bindings before loading.`,
 					);
 				next = {
 					...next,
@@ -157,7 +157,7 @@ export class TsStateLifecycle {
 					const skipped = capture.skipped.find((entry) => entry.name === name);
 					if (skipped)
 						throw new Error(
-							`Cannot pin live-only TS binding ${name}: ${skipped.reason}. It remains available in this session`,
+							`Cannot pin ${name}: ${skipped.reason}. It remains live in this session.`,
 						);
 					const binding = next.bindings[name];
 					if (!binding) throw new Error(`No TS binding ${name}`);
@@ -234,7 +234,7 @@ export class TsStateLifecycle {
 				? `\nKernel rebuilt so released names are reusable${capture.skipped.length ? `; live-only bindings discarded: ${capture.skipped.map(({ name }) => name).join(", ")}` : ""}`
 				: "";
 		const adoptNotice = adopting
-			? "\nCandidate replaced the live kernel; previous live-only values and unsaved changes were discarded"
+			? "\nCandidate replaced the live kernel. Previous live-only values and unsaved changes lost."
 			: "";
 		return {
 			message: `TS ${request.action} complete${skippedNotice}${releaseNotice}${adoptNotice}${notice ? `\n${notice}` : ""}`,
@@ -266,9 +266,9 @@ export class TsStateLifecycle {
 		const imports = state.imports.filter((specifier) =>
 			specifier.startsWith("npm:"),
 		);
-		const startupStatus = `TS state: ${Object.keys(state.bindings).length} bindings, ${state.pins.length} pinned${bindings.length ? `\n${bindings.map((binding) => `${binding.name}: ${binding.kind}${binding.pinned ? " [pinned]" : ""}${binding.hook ? ` [${binding.hook}]` : ""}`).join("\n")}` : ""}\nAvailable npm imports in TS: ${imports.length ? imports.join(", ") : "none"}. Ask before adding another, then use an exact-version npm: specifier`;
+		const startupStatus = `TS state: ${Object.keys(state.bindings).length} bindings, ${state.pins.length} pinned${bindings.length ? `\n${bindings.map((binding) => `${binding.name}: ${binding.kind}${binding.pinned ? " [pinned]" : ""}${binding.hook ? ` [${binding.hook}]` : ""}`).join("\n")}` : ""}\nnpm imports: ${imports.length ? imports.join(", ") : "none"}. Ask before adding another, then use an exact-version npm: specifier`;
 		return {
-			message: `${startupStatus}${query ? `\n${bindings.map((binding) => binding.declaration).join("\n")}` : ""}\n${this.host.activeCells().length} active cells. Live closures and handles remain usable until restart; durable capture reports skipped bindings. Tool and file effects are not rolled back.`,
+			message: `${startupStatus}${query ? `\n${bindings.map((binding) => binding.declaration).join("\n")}` : ""}\n${this.host.activeCells().length} active cells. Live closures and handles last until restart. Checkpoints report skipped bindings. Tool and file effects are not rolled back.`,
 			details: {
 				mode: "ts",
 				startupStatus,

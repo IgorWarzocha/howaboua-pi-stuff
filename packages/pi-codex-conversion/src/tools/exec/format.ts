@@ -4,7 +4,7 @@ export function formatRunningShellGuidance(
 	sessionId: number,
 	nested = false,
 ): string {
-	return `Session ${sessionId} still running. Completion reports automatically when idle; continue work or end turn. Use ${nested ? "tools." : ""}write_stdin for input or intermediate output${nested ? "; do not use wait" : ""}`;
+	return `Session ${sessionId} running. Completion reports when idle. Continue work or end turn. Input or interim output: ${nested ? "tools.write_stdin, not wait" : "write_stdin"}.`;
 }
 
 export function formatUnifiedExecResult(result: UnifiedExecResult): string {

@@ -47,7 +47,7 @@ async function importLocation(
 		!specifier.startsWith("file:")
 	) {
 		throw new Error(
-			`Unsupported import ${specifier}. Use node:, an installed package, an exact npm: import, or a local file.`,
+			`Unsupported import ${specifier}. Use node:, an installed package, an exact-version npm: specifier or a local file.`,
 		);
 	}
 	return { cwd: resolve(options.cwd), bare: specifier };

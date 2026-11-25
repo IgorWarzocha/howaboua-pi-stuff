@@ -150,6 +150,10 @@ export class CodeModeDelegateRuntime {
 				String(requestId),
 				controller,
 			);
+		} catch (error) {
+			if (this.cells.context(cellId))
+				this.results.recordFailure(cellId, toolName, error);
+			throw error;
 		} finally {
 			this.controllers.delete(key);
 		}
@@ -193,6 +197,8 @@ export class CodeModeDelegateRuntime {
 				value: { type: "tool/result", result },
 			});
 		} catch (error) {
+			if (this.cells.context(cellId))
+				this.results.recordFailure(cellId, toolName, error);
 			this.respond(message.id, {
 				status: "error",
 				message: error instanceof Error ? error.message : String(error),

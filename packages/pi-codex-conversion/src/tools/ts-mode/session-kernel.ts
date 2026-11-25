@@ -98,7 +98,7 @@ export class TsSessionKernel {
 				execution.cell.emit([
 					{
 						type: "input_text",
-						text: "The TS live kernel was terminated; live-only values and changes after its last durable checkpoint were lost. Use notebook restart to restore that checkpoint. Tool and file effects were not rolled back.",
+						text: "TS kernel terminated. Live-only values and changes since the last durable checkpoint lost. Restore it with notebook restart. Tool and file effects were not rolled back.",
 					},
 				]);
 			}
@@ -167,7 +167,7 @@ export class TsSessionKernel {
 			this.restoreFailed = result.restoreFailed;
 		if (result.kind === "live-done" && result.error)
 			throw new Error(
-				`TS profile load partially executed: ${result.error}. Inspect the live state or restart; no rollback occurred`,
+				`TS profile load partially executed: ${result.error}. No rollback. Inspect live state or restart.`,
 			);
 	}
 	async reset(): Promise<void> {

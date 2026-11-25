@@ -76,7 +76,7 @@ export async function continueExecSessionFromMistakenWait(
 			content: [
 				{
 					type: "text",
-					text: `Recovered wait cell_id ${cellId} as exec_command session_id ${sessionId} and continued it with write_stdin`,
+					text: `wait cell_id ${cellId} was exec_command session_id ${sessionId}. Continued with write_stdin.`,
 				},
 				...(output ? [{ type: "text" as const, text: output }] : []),
 				...(exitCode === undefined

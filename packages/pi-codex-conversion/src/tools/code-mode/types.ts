@@ -97,6 +97,7 @@ export interface ToolExecutionContext {
 	completion?: CodeModeToolCompletion | undefined;
 	onUpdate?: ((result: AgentToolResult<unknown>) => void) | undefined;
 	captureResult?: ((result: RuntimeToolResult) => void) | undefined;
+	reportNestedFailure?: ((error: string) => void) | undefined;
 	captureOpaqueResult?:
 		| ((output: OpaqueToolOutput, images: RuntimeContentItem[]) => void)
 		| undefined;
@@ -163,6 +164,12 @@ export interface RuntimeContentItem {
 	detail?: "auto" | "low" | "high" | "original" | null;
 }
 
+export interface RuntimeNestedFailure {
+	name: string;
+	error: string;
+	count: number;
+}
+
 export interface OpaqueToolOutput {
 	resultId: string;
 	name: string;
@@ -213,6 +220,8 @@ export type RuntimeResponse = (
 	maxOutputTokens?: number | undefined;
 	missingCell?: true | undefined;
 	execSessionIds?: number[] | undefined;
+	nestedFailures?: RuntimeNestedFailure[] | undefined;
+	omittedNestedFailures?: number | undefined;
 	traces?: RuntimeToolTrace[] | undefined;
 	droppedTraceCount?: number | undefined;
 };

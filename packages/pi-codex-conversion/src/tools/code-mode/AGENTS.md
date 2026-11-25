@@ -6,4 +6,5 @@
 - `src/code-mode-preflight.ts`: lightweight public guard. Shared protocol dependency stays outside extension graph.
 - Shared Code turn hook can precede PCC. Capture Heavy system prompt overwrite from the active provider, not PCC's later hook.
 - Delegation: retire admission before delayed cleanup; keep buffers/exec-session routing through yields; abort controllers before clearing cell stores. Opaque capture: reserve capacity, validate context, then append.
+- Nested failures: report each completed failure once across exec/wait, independently of bounded display traces. Preserve caught-error semantics and the cell's own status.
 - Pi owns outer result images. Matching trace occurrences reference that row's images, no byte copies. Live/restored traces consume same counts in order; keep unmatched occurrences. Renderers honour `showImages`. UI belongs to row, not capture store.

@@ -23,10 +23,10 @@ export function missingMcpToolMessage(
 			identity = `Ambiguous MCP namespace ${JSON.stringify(matches)}; confirm the server`;
 		} else {
 			const prefix = name.slice(0, name.indexOf("__", 5));
-			identity = `MCP namespace prefix ${JSON.stringify(prefix)} inferred from the tool name; normalized names can be ambiguous, so confirm the server`;
+			identity = `Inferred MCP prefix ${JSON.stringify(prefix)} may be ambiguous; confirm the server`;
 		}
 	}
-	return `Missing MCP tool: ${name}. ${identity}. If that server connects, retry in a new exec cell. If failures repeat, suggest disabling that specific server to the user.`;
+	return `Missing MCP tool: ${name}. ${identity}. Retry in a new exec cell after the server connects. If failures recur, suggest disabling that server to the user.`;
 }
 
 export function mcpToolNamespaces(

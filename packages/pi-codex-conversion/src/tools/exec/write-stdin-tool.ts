@@ -46,9 +46,11 @@ function parseFormattedExecTranscript(text: string): FormattedExecTranscript {
 	const output =
 		markerIndex !== -1 ? text.slice(markerIndex + marker.length) : text;
 	const metadata = markerIndex !== -1 ? text.slice(0, markerIndex) : text;
-	const sessionMatch = metadata.match(
-		/(?:Process running with session ID|Call write_stdin\(\{ session_id:) (\d+)(?: \}\))?/,
-	);
+	const sessionMatch =
+		metadata.match(/^Session (\d+) running\./m) ??
+		metadata.match(
+			/(?:Process running with session ID|Call write_stdin\(\{ session_id:) (\d+)(?: \}\))?/,
+		);
 	const exitCodeMatch =
 		markerIndex === -1
 			? null

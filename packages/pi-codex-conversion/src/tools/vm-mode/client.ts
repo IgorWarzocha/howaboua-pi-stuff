@@ -35,7 +35,7 @@ interface Execution {
 }
 
 const STALL =
-	"VM Code stopped a script that did not finish or yield. Conversation bindings were dropped. The next exec starts fresh";
+	"VM Code stopped a stalled script. Conversation bindings dropped. Next exec starts fresh.";
 const RESET = "VM Code reset and dropped conversation bindings";
 
 /** One context for the active conversation. Session changes, terminate, stall and memory limits drop it. */

@@ -280,7 +280,7 @@ function createWaitTool(
 					);
 				if (resumed.missingCell && guard)
 					throw new Error(
-						"Remote cell unavailable; operations may already have executed, so check completed results before retrying",
+						"Remote cell unavailable. Operations may have executed. Check completed results before retrying.",
 					);
 				const response = runtime.deliverOpaqueResponse(resumed, id, guard);
 				const recovered =

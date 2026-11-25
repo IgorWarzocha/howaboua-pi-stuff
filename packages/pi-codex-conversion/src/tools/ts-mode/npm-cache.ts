@@ -37,7 +37,7 @@ export async function resolveWindowsNpmCli({
 		if (info?.isFile()) return candidate;
 	}
 	throw new Error(
-		"npm was not found. Install npm with Node.js or put its installation directory on PATH, then retry.",
+		"npm not found. Install npm with Node.js or add its directory to PATH, then retry.",
 	);
 }
 
@@ -128,7 +128,7 @@ export async function cacheExactNpmImport(
 			} catch (error) {
 				signal?.throwIfAborted();
 				throw new Error(
-					`Could not install ${identity} without lifecycle scripts. Check registry access; packages needing install scripts are unavailable.`,
+					`Could not install ${identity} without lifecycle scripts. Check registry access. Packages needing install scripts are unavailable.`,
 					{ cause: error },
 				);
 			}

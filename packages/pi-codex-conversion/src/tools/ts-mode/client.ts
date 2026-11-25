@@ -138,13 +138,13 @@ export class TsNotebookClient implements CodeModeExecutionClient {
 			);
 		if (this.cells.size >= 32)
 			throw new Error(
-				"TS has 32 uncollected cell results; use wait to collect completed results before starting another cell",
+				"TS has 32 uncollected results. Collect completed cells with wait before starting another.",
 			);
 		const parsed = parseExecSource(source, { allowIsolated: true });
 		const isolated = parsed.isolated === true;
 		if (!isolated && this.kernel.unavailable)
 			throw new Error(
-				"The TS live kernel stopped. Use notebook restart to restore its last durable checkpoint; live-only values and later changes cannot be recovered",
+				"TS kernel stopped. Restore the last durable checkpoint with notebook restart. Live-only values and later changes are lost.",
 			);
 		this.latestTools = tools;
 		const cell = new RuntimeCell({
@@ -390,7 +390,7 @@ export class TsNotebookClient implements CodeModeExecutionClient {
 					cell.emit([
 						{
 							type: "input_text",
-							text: `Isolated result saved as ${name}; the live notebook was not changed. Loading this candidate explicitly replaces the live kernel and discards its live-only values and later changes.`,
+							text: `Isolated result saved as ${name}. Live notebook unchanged. Loading the candidate replaces the live kernel and discards live-only values and later changes.`,
 						},
 					]);
 					return;
@@ -410,7 +410,7 @@ export class TsNotebookClient implements CodeModeExecutionClient {
 					cell.emit([
 						{
 							type: "input_text",
-							text: `Live cell succeeded, but its durable checkpoint and project pins were not updated: ${outcome.captureError}. Live values remain available.`,
+							text: `Live cell succeeded. Checkpoint and project pins unchanged: ${outcome.captureError}. Live values remain available.`,
 						},
 					]);
 					return;
@@ -423,7 +423,7 @@ export class TsNotebookClient implements CodeModeExecutionClient {
 					cell.emit([
 						{
 							type: "input_text",
-							text: `Live cell succeeded, but its durable checkpoint and project pins were not updated: ${lostPins.map((item) => `${item.name} (${item.reason})`).join("; ")}. Restore portable values or explicitly unpin them before checkpointing.`,
+							text: `Live cell succeeded. Checkpoint and project pins unchanged: ${lostPins.map((item) => `${item.name} (${item.reason})`).join("; ")}. Restore portable values or explicitly unpin them before checkpointing.`,
 						},
 					]);
 					return;
@@ -441,8 +441,8 @@ export class TsNotebookClient implements CodeModeExecutionClient {
 		} catch (error) {
 			const recovery =
 				execution.worker || (!execution.isolated && this.kernel.unavailable)
-					? `${execution.isolated ? "Isolated state was not adopted." : this.kernel.unavailable ? "The live kernel stopped; live-only values and changes after its last durable checkpoint were lost. Use notebook restart to restore that checkpoint." : "Earlier live mutations may remain; no rollback occurred. Continue inspecting the live notebook, or restart from its last durable checkpoint."} Tool and file effects were not rolled back.`
-					: "The cell did not execute; no cell tool calls or file writes ran. Fix the error and retry.";
+					? `${execution.isolated ? "Isolated state was not adopted." : this.kernel.unavailable ? "Live kernel stopped. Live-only values and changes since the last durable checkpoint lost. Restore it with notebook restart." : "Earlier live mutations may remain; no rollback occurred. Continue inspecting the live notebook, or restart from its last durable checkpoint."} Tool and file effects were not rolled back.`
+					: "Cell did not execute. No tool calls or file writes. Fix the error and retry.";
 			cell.errorText = `${error instanceof Error ? error.message : String(error)}\n${recovery}`;
 		} finally {
 			this.delegate.cancelCell(cell.id);
@@ -530,7 +530,7 @@ export class TsNotebookClient implements CodeModeExecutionClient {
 		compactState(next);
 		const notice = await this.commitState(next, "adopt");
 		return {
-			message: `TS restore recovery discarded unavailable bindings: ${[...removed].join(", ")}. Other saved bindings were preserved${notice ? `\n${notice}` : ""}`,
+			message: `TS restore recovery discarded: ${[...removed].join(", ")}. Other saved bindings were preserved${notice ? `\n${notice}` : ""}`,
 			details: { discarded: [...removed] },
 		};
 	}
@@ -606,12 +606,12 @@ export class TsNotebookClient implements CodeModeExecutionClient {
 			if (result.conflicts.length) {
 				const name = `candidate-project-${randomUUID().slice(0, 8)}`;
 				await this.storage.write(this.state, name);
-				return `TS session state committed, but project pins conflict (${result.conflicts.join(", ")}). Project state was preserved; candidate saved as ${name}. Load it while this session is idle to recover the candidate, or unpin the conflicting binding before checkpointing.`;
+				return `TS session committed. Project pins conflict (${result.conflicts.join(", ")}); project state preserved. Candidate ${name} saved. Load it while idle or unpin the conflicting binding before checkpointing.`;
 			}
 			await this.storage.write(candidate, "observed-project");
 			this.observedProject = candidate;
 		} catch (error) {
-			return `TS session state committed, but project pins were not saved: ${error instanceof Error ? error.message : String(error)}. Retry notebook checkpoint.`;
+			return `TS session committed. Project pins not saved: ${error instanceof Error ? error.message : String(error)}. Retry notebook checkpoint.`;
 		}
 		return undefined;
 	}
