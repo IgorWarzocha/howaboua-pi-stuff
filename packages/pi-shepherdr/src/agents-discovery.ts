@@ -88,6 +88,8 @@ export async function agentsHelp(
 		profiles: describeProfiles(profiles),
 		advanced: {
 			core: "Non-agent processes, persistent terminals, remote machines→read hc --skill",
+			core_background:
+				"hc run --bg → parent exit note unless notes off or --no-notify. Other work or end turn. No sleep, hc get/read loops or log checks for exit. hc wait only if exit/readiness blocks progress or needed result won't arrive by note.",
 			app: "Change what the user sees (spaces/tabs/panes)→herdr-app --skill",
 		},
 	};
