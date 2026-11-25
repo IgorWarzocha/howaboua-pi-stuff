@@ -12,7 +12,7 @@ import {
 import { type NotesOwner, OWNER_CHANNEL, type OwnerRequest } from "./bridge.js";
 import { optionalPccMissing } from "./integrations.js";
 import type { NotesLifecycle } from "./lifecycle.js";
-import { noteResult } from "./note-result.js";
+import { noteResult, PROTECTED_NOTES_UNAVAILABLE } from "./note-result.js";
 import { modelIsActive } from "./settings.js";
 import { registerContextSharingService } from "./sharing-service.js";
 
@@ -75,30 +75,25 @@ export async function registerNotesSharing(
 					"protectedOutputs" in result.details)
 			)
 				throw new Error(
-					"That agent returned encrypted history instead of Pi session history. Update and reload Notes on the other agent, or open its saved Pi JSONL session locally.",
+					"Encrypted history is unsupported. Update and reload the owner's Notes, or open its saved Pi JSONL session locally.",
 				);
 			if (!result?.details.externalNotesResponses?.length) return result;
 			const { externalNotesResponses, ...details } = result.details;
 			if (!remote.projectResult || remote.canProject?.(ctx) === false) {
-				const warning =
-					"Some notes cannot be read with this model. Available notes are shown; select a compatible Codex model to read the rest.";
-				const data = result.structuredContent;
-				if (!data || typeof data !== "object" || Array.isArray(data))
+				try {
+					return {
+						...noteResult(
+							result.structuredContent,
+							PROTECTED_NOTES_UNAVAILABLE,
+						),
+						details,
+					};
+				} catch (error) {
 					throw new Error(
-						"Shared Notes data is invalid. Update Notes on the other agent and retry.",
+						"Invalid shared Notes result. Update the owner's Notes and retry.",
+						{ cause: error },
 					);
-				return {
-					...noteResult({
-						...data,
-						warnings: [
-							...("warnings" in data && Array.isArray(data["warnings"])
-								? data["warnings"]
-								: []),
-							warning,
-						],
-					}),
-					details,
-				};
+				}
 			}
 			return remote.projectResult(
 				{ ...result, details },

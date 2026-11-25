@@ -188,7 +188,7 @@ export class RolloverRequests {
 										{
 											customType: "notes-compaction:continuation",
 											content:
-												"Not enough history to compact. Continue here; wait for more conversation before calling new_context again.",
+												"Not enough history to compact. Continue here. Retry new_context after more conversation.",
 											display: true,
 										},
 										{ triggerTurn: true },

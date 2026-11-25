@@ -23,7 +23,7 @@ export function canonicalPath(
 	} else if (value.startsWith(`${root}/`)) value = value.slice(root.length + 1);
 	else if (value.startsWith("/"))
 		throw new Error(
-			"That agent's notes are not available here. Use a relative path for this agent.",
+			"Agent notes unavailable here. Use a relative path for your own notes.",
 		);
 	if (
 		(required && !value) ||

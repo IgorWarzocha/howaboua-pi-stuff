@@ -61,7 +61,7 @@ export function createSavedSessionAccess(
 					: (() => {
 							throw Object.assign(
 								new Error(
-									"Saved context on that machine is unavailable. Request a handoff from its owner, or ask the user to reconnect the machine before retrying.",
+									"Saved context unavailable on that machine. Request a handoff or ask the user to reconnect it.",
 								),
 								{ code: "SAVED_SESSION_UNAVAILABLE" },
 							);
@@ -89,7 +89,7 @@ export function createSavedSessionAccess(
 					member.agentName !== target
 				)
 					throw new Error(
-						"This session cannot access the requested saved context. Request an accessible handoff or note path from its owner.",
+						"Saved context inaccessible. Ask its owner for an accessible handoff or note path.",
 					);
 				// A verified remote-backed member is not an access failure. Leave
 				// it to the recorded family route, not the local index shortcut.
@@ -107,7 +107,7 @@ export function createSavedSessionAccess(
 		signal?.throwIfAborted();
 		if (!locationsValidator.check(value))
 			throw new Error(
-				"Saved session discovery response is invalid. Update Notes on the other machine and retry.",
+				"Invalid session discovery result. Update Notes on the other machine and retry.",
 			);
 		return [
 			...new Map(

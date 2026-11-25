@@ -276,7 +276,7 @@ export function writeNote(
 		});
 	} catch {
 		throw new Error(
-			"Local note could not be saved. The selected branch remains unchanged. Retry after local storage is available.",
+			"Note not saved. Branch unchanged. Retry when local storage is available.",
 		);
 	}
 	try {
@@ -290,7 +290,7 @@ export function writeNote(
 		} satisfies NoteReceipt);
 	} catch {
 		throw new Error(
-			`Note ${root}${path} was stored but not attached to this session. Read it before retrying the write.`,
+			`Stored ${root}${path} but did not attach it to this session. Reread before retrying.`,
 		);
 	}
 	return {

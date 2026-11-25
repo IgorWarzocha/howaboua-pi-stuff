@@ -131,7 +131,7 @@ const requiredFields: Partial<Record<BoardAction, string[]>> = {
 };
 const requestValidator = compile(Request);
 
-export function prepareBoardArguments(value: unknown): unknown {
+function normalizeBoardAction(value: unknown): unknown {
 	if (
 		typeof value === "object" &&
 		value !== null &&
@@ -147,23 +147,46 @@ export function prepareBoardArguments(value: unknown): unknown {
 }
 
 export function parseBoardRequest(value: unknown): BoardParams {
-	value = prepareBoardArguments(value);
-	if (
-		value === undefined ||
-		(typeof value === "object" &&
-			value !== null &&
-			!Array.isArray(value) &&
-			Object.keys(value).length === 0)
-	)
-		return { action: "help" };
-	if (!requestValidator.check(value))
-		throw new Error("Invalid board request; call board help");
-	const request = { ...(value as BoardParams) };
-	const allowed = new Set(["action", ...fields[request.action]]);
-	if (Object.keys(request).some((field) => !allowed.has(field)))
-		throw new Error(`Unknown ${request.action} field; board_id is read-only`);
+	value = normalizeBoardAction(value);
+	if (value === undefined) return { action: "help" };
+	if (!value || typeof value !== "object" || Array.isArray(value))
+		throw new Error("Expected a board action object. Use {} for help.");
+	const keys = Object.keys(value);
+	if (!keys.length) return { action: "help" };
+	if (!("action" in value))
+		throw new Error("Missing board action. Use {} for help.");
+	const inputAction = value.action;
+	if (typeof inputAction !== "string")
+		throw new Error("Board action must be a string. Use {} for help.");
+	const action = BOARD_ACTIONS.find((candidate) => candidate === inputAction);
+	if (!action)
+		throw new Error(
+			`Unknown board action ${JSON.stringify(inputAction)}. Use {} for help.`,
+		);
+	const unexpected = keys.find(
+		(field) => field !== "action" && !fields[action].includes(field),
+	);
+	if (unexpected === "board_id" && MUTATIONS.has(action))
+		throw new Error(
+			`${action} does not accept board_id. It is for reads only.`,
+		);
+	if (unexpected !== undefined)
+		throw new Error(
+			`${action} does not accept ${JSON.stringify(unexpected)}. Use {} for help.`,
+		);
+	const validated = requestValidator.validate(value);
+	if (!validated.ok) {
+		const issue = validated.errors[0];
+		throw new Error(
+			issue
+				? `${action} ${issue.path.slice(1)}: ${issue.message}`
+				: `Invalid ${action} arguments. Use {} for help.`,
+		);
+	}
+	const request = { ...validated.value };
 	for (const field of requiredFields[request.action] ?? []) {
-		if (!(field in request)) throw new Error(`${field} is required`);
+		if (!(field in request))
+			throw new Error(`${request.action} requires ${field}`);
 	}
 	for (const field of [
 		"thread_id",
@@ -179,8 +202,8 @@ export function parseBoardRequest(value: unknown): BoardParams {
 		)
 			throw new Error(
 				field === "thread_id"
-					? "thread_id must be a full UUID. Use list_threads on the same board and channel and copy thread_id."
-					: `${field} must be a UUID`,
+					? "Copy the full thread_id from list_threads on the same board and channel."
+					: `${field} must be a full UUID`,
 			);
 		if (id !== undefined) request[field] = id.toLowerCase();
 	}

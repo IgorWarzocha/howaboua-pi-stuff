@@ -209,7 +209,7 @@ export function registerContextSharingService(
 				throw new Error("Shared context request does not belong to this agent");
 			if (request.encryptedArguments)
 				throw new Error(
-					"Encrypted Remote arguments cannot execute against Local storage; use Code or Notebook history/notes with ordinary query/text",
+					"Local storage cannot read encrypted arguments. Use ordinary query/text in Code or Notebook.",
 				);
 			return config.execute(ctx, request, signal);
 		},
@@ -249,7 +249,7 @@ export function registerContextSharingService(
 			describe(ctx);
 			if (!router) {
 				throw new Error(
-					"Cross-agent context requires an available context router",
+					"Cross-agent context requires an available context router. Request an accessible handoff.",
 				);
 			}
 			return router(ctx, request, signal);
@@ -264,7 +264,7 @@ export function registerContextSharingService(
 					if (!savedSessionLoader)
 						throw Object.assign(
 							new Error(
-								"Saved context on that machine is unavailable. Request a handoff from its owner, or ask the user to reconnect the machine before retrying.",
+								"Saved context unavailable on that machine. Request a handoff or ask the user to reconnect it.",
 							),
 							{ code: "SAVED_SESSION_UNAVAILABLE" },
 						);

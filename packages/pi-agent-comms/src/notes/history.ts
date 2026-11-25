@@ -60,7 +60,7 @@ export async function useHistory(
 		const itemId = params["item_id"];
 		if (typeof windowId !== "string" || typeof itemId !== "string")
 			throw new Error(
-				`history read requires ${typeof windowId !== "string" ? "window_id" : "item_id"} as a string. Copy window_id and item_id from the same search or list result`,
+				`history read requires ${typeof windowId !== "string" ? "window_id" : "item_id"} as a string. Copy both IDs from the same search or list result`,
 			);
 		// Keep exact pre-initialisation references saved by earlier releases readable.
 		const items =
@@ -86,7 +86,7 @@ export async function useHistory(
 		action === "search_contents" &&
 		(typeof params["query"] !== "string" || !params["query"])
 	)
-		throw new Error("Supply a nonempty search query");
+		throw new Error("history search requires a nonempty query");
 	const limit = integer(params["limit"], 10, 25);
 	let items = [...windows.values()]
 		.flat()

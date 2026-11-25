@@ -127,7 +127,7 @@ export function prepareNewContextArguments(input: unknown) {
 	const args = input ?? {};
 	if (!newContextSchemaValidator.check(args))
 		throw new Error(
-			"Use {} for a fresh context window. Pass a configured role ID to switch roles. resume must be true or false.",
+			"Use {} or set role to a configured ID. If available, resume must be boolean.",
 		);
 	return args;
 }
@@ -298,13 +298,12 @@ export function queryHelp(
 				? {
 						writes: "write replaces the whole note",
 						paths:
-							"Relative paths refer to your notes. Absolute: /<session ID>/notes[/path]. Omit path to list or search all your notes",
+							"Relative: your notes. Absolute: /<session ID>/notes[/path]. List/search without path includes all your notes",
 						ranges:
-							"Read ranges: 1-based, inclusive. Negative lines count from the end",
+							"Ranges: 1-based, inclusive. Negative lines count from the end",
 					}
 				: {
-						usage:
-							"query→search default; past chat→search rather than browse; reuse returned IDs unchanged",
+						usage: "query alone → search. Search past chat. Reuse exact IDs",
 						search: "recent_first=true→newest first",
 					}),
 		});

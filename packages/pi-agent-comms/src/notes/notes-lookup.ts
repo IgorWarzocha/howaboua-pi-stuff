@@ -10,7 +10,7 @@ import type {
 } from "./bridge.js";
 import { queryKey } from "./bridge.js";
 import type { NotesLifecycle } from "./lifecycle.js";
-import { noteResult } from "./note-result.js";
+import { noteResult, PROTECTED_NOTES_UNAVAILABLE } from "./note-result.js";
 import { CACHE_RECEIPT, sessionRef, sourceSessionIds } from "./notes.js";
 import type { NotesStore } from "./store.js";
 
@@ -47,7 +47,7 @@ export async function lookupNotes(
 				store.cache(sessionRef(ctx), fetched);
 			} catch {
 				throw new Error(
-					"Notes lookup could not finish. Retry when local storage is available.",
+					"Notes cache write failed. Retry when local storage is available.",
 				);
 			}
 			if (fetched.length)
@@ -69,21 +69,18 @@ export async function lookupNotes(
 		(Boolean(bridge?.projectResult) && bridge?.canProject?.(ctx) !== false);
 	if (responses.length && !canProject) state = "incompatible";
 	const warnings: string[] = [];
-	if (state === "incompatible")
-		warnings.push(
-			"Some notes cannot be read with this model. Available notes are shown; ask the user to select a compatible Codex model to read the rest.",
-		);
+	if (state === "incompatible") warnings.push(PROTECTED_NOTES_UNAVAILABLE);
 	else if (state === "cache")
 		warnings.push(
-			"These results could not be refreshed and may be outdated. Retry when access is restored.",
+			"Using cached remote notes. May be outdated. Refresh when access returns.",
 		);
 	else if (lookupFailed)
 		warnings.push(
-			"Remote notes could not be checked. Local results are shown; retry to check for remote-only notes.",
+			"Remote lookup failed. Local results only. Retry for remote notes.",
 		);
 	if (responses.length && canProject && replacementsInScope)
 		warnings.push(
-			"Older matches may refer to replaced notes. Read a note before relying on its excerpt; read returns the current saved version.",
+			"Remote matches may predate replacements. Read the note for the current version.",
 		);
 	const output = noteResult({
 		...local,
@@ -105,9 +102,11 @@ export async function lookupNotes(
 	if (responses.length && canProject && bridge?.projectResult) {
 		try {
 			return await bridge.projectResult(output, responses, callId, ctx, signal);
-		} catch {
+		} catch (error) {
+			signal?.throwIfAborted();
 			throw new Error(
-				"Notes could not be displayed. Retry the lookup with a compatible Codex model.",
+				"Protected notes not delivered. Retry in a compatible Codex session.",
+				{ cause: error },
 			);
 		}
 	}

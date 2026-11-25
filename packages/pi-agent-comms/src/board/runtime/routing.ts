@@ -2,6 +2,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { MUTATIONS, parseBoardRequest } from "../contract.js";
 import { binding, parseBinding, saveBinding } from "../identity.js";
 import type { BoardAdapter } from "../integration.js";
 import { type BoardEnvelope, parseEnvelope } from "../protocol.js";
@@ -109,17 +110,24 @@ export class BoardRouting {
 				if (
 					error instanceof Error &&
 					error.message.startsWith("Shared context response was lost")
-				)
+				) {
+					const read =
+						request.operation === "board-catchup" ||
+						(request.operation === "board-call" &&
+							!MUTATIONS.has(parseBoardRequest(request.params).action));
 					throw new Error(
-						"Board response lost; a mutation may have completed. Read the channel/thread before retrying",
+						read
+							? "Board response lost. Retry the read."
+							: "Board response lost. A write may have committed. Reread the channel or thread before retrying.",
 						{ cause: error },
 					);
+				}
 				if (
 					error instanceof Error &&
 					error.message.startsWith("Shared context owner is unavailable")
 				)
 					throw new Error(
-						"Board owner unavailable; resume its Pi session and reconnect its machine",
+						"Board owner unavailable. Ask the user to resume its Pi session and reconnect its machine.",
 						{ cause: error },
 					);
 				throw error;
@@ -145,7 +153,7 @@ export class BoardRouting {
 	requireAdapter() {
 		if (!this.adapter)
 			throw new Error(
-				"Board member route unavailable; load the extension that manages this session's board membership",
+				"Board route unavailable. Ask the user to load the membership extension.",
 			);
 		return this.adapter;
 	}

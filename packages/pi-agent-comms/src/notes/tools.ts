@@ -60,9 +60,7 @@ export function createTools(
 ) {
 	const assertActive = () => {
 		if (!lifecycle.active)
-			throw new Error(
-				"Notes tools are inactive. Ask the user to check /notes.",
-			);
+			throw new Error("Notes inactive. Ask the user to check /notes.");
 	};
 	const queries = createQueryExecutor(pi, store, lifecycle, search);
 	const requestContext = async (
@@ -85,19 +83,19 @@ export function createTools(
 			resume,
 			parentCallId,
 		);
-		if (started && resume) ctx.abort();
+		if (!started)
+			throw new Error(
+				"Not queued: checkpoint or rollover pending. Save notes and finish your reply.",
+			);
+		if (resume) ctx.abort();
 		return {
 			...result({
-				started,
-				message: started
-					? !resume
-						? "Window request queued without continuation. Finish your reply"
-						: lifecycle.newWindowRequests === "pi-limits"
-							? "Window request queued"
-							: "New window queued"
-					: "Checkpoint or rollover is already pending. Save notes and finish your response",
+				started: true,
+				message: resume
+					? "Rollover queued"
+					: "Rollover queued without continuation. Finish your reply.",
 			}),
-			...(started && resume ? { terminate: true } : {}),
+			...(resume ? { terminate: true } : {}),
 		};
 	};
 	const tools: ToolDefinition[] = [

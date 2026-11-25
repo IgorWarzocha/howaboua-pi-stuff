@@ -49,7 +49,7 @@ function readQuery(query: LookupQuery): {
 } {
 	if (query.namespace !== "notes")
 		throw new Error(
-			"History is available only from saved Pi JSONL sessions. Restore access to the session on this machine, then retry.",
+			"Remote lookup cannot read history. Restore access to the saved Pi session.",
 		);
 	const action = query.params["action"];
 	const actions: Record<string, readonly string[]> = ENDPOINTS;
@@ -253,7 +253,7 @@ export async function executeRemoteAttachment(
 ): Promise<SharedContextResult> {
 	if (request.namespace === "history")
 		throw new Error(
-			"History is unavailable from a saved remote notes attachment. Open its saved Pi JSONL session on this machine, then retry.",
+			"Remote Notes attachment cannot serve history. Open its saved Pi JSONL session locally.",
 		);
 	const identity = canonicalContextIdentity(reference.identity);
 	if (
@@ -266,9 +266,7 @@ export async function executeRemoteAttachment(
 			reference.identity.agentName,
 		) !== request.agentName
 	)
-		throw new Error(
-			"Saved remote request does not belong to its checkpoint owner",
-		);
+		throw new Error("Saved remote request does not match the checkpoint owner");
 	if (request.encryptedArguments)
 		throw new Error("Saved remote reads require ordinary query arguments");
 	const responses = await lookup(

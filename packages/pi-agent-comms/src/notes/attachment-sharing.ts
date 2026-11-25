@@ -104,7 +104,7 @@ export function createAttachmentSharing(
 		async executeRemoteAttachment(ctx, snapshot, request, signal) {
 			if (request.namespace === "history")
 				throw new Error(
-					"History is unavailable from a saved remote notes attachment. Open its saved Pi JSONL session on this machine, then retry.",
+					"Remote Notes attachment cannot serve history. Open its saved Pi JSONL session locally.",
 				);
 			const { executeRemoteAttachment } = await import("./remote.js");
 			return executeRemoteAttachment(
