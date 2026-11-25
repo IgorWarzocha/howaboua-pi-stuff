@@ -18,14 +18,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ## Latest package changelogs
 
-### @howaboua/pi-agent-comms — 0.0.6
+### @howaboua/pi-agent-comms — 0.0.7
 
-- Requires Pi 1.6.1 or newer.
-- Shortened Board and Notes help and clarified how to continue reads.
-- Board errors name the rejected action or field and distinguish safe retries from writes that may have completed.
-- Notes access and freshness warnings now appear in both text and structured results.
-- `new_context` says when a pending checkpoint or rollover prevented a new request from being queued.
-- Session pruning reports a permission wait to Pi. Cancel remains the default.
+- Context-window notices now expand and collapse on click as well as with the keyboard shortcut.
 
 [Full changelog](./packages/pi-agent-comms/CHANGELOG.md)
 
@@ -63,18 +58,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-chatgpt-sites/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 5.1.1
+### @howaboua/pi-codex-conversion — 5.1.2
 
-- Requires Pi 1.6.1 or newer.
-- Removed `yield_control()` from VM Code and TS Notebook. Use the `exec` yield timeout and `wait`. Code still supports the helper.
-- VM Code lists retained bindings when a context window changes. At inventory refresh, an idle VM resets at 90% of its memory budget. Automatic and manual `exec` resets clear bindings but preserve all `store()` values.
-- Fixed disabled Pi file and shell tools reappearing after reloads or model switches.
-- Fixed two TS Notebook startup failures on Windows: npm failing to launch and the compiler hanging on its first request. The npm fix also covers exact-version `npm:` imports.
-- Fixed GPT-6.2 losing replayed reasoning after a WebSocket reconnect. Pi's optional reasoning-drop notices also cover Codex Conversion.
-- Fixed native compaction replay in Code, VM Code and TS Notebook without Responses Lite. Codex compaction is included in Pi's session totals and optional cost notice.
-- Code Mode reports failed tool calls even when the cell handles them. Shell results distinguish automatic completion notices from cases that need `write_stdin`.
-- Heavy system prompt overwrite off keeps Pi's prompt with plain-language Codex guidance. On replaces it with shorter Codex instructions.
-- Updated agent guidance for reusable bindings, omitting decorative backticks in arguments, ordered patch hunks and testing promising findings.
+- Hotfix: Shell guidance now directs agents to resume on the completion report instead of polling with empty `write_stdin` calls.
+- Hotfix: Persistent execution guidance now directs agents to scope one-off work to blocks and use distinct names for retained bindings. Redeclaration errors now suggest using a block or a different name.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 

@@ -43,7 +43,7 @@
     ]
   },
   "peerDependencies": {
-    "@howaboua/pi-codex-conversion": ">=5.1.1",
+    "@howaboua/pi-codex-conversion": ">=5.1.2",
     "@earendil-works/pi-ai": ">=1.6.1",
     "@earendil-works/pi-coding-agent": ">=1.6.1",
     "@earendil-works/pi-tui": ">=1.6.1"
@@ -54,7 +54,7 @@
     }
   },
   "devDependencies": {
-    "@howaboua/pi-codex-conversion": "5.1.1",
+    "@howaboua/pi-codex-conversion": "5.1.2",
     "@earendil-works/pi-ai": "1.6.1",
     "@earendil-works/pi-coding-agent": "1.6.1",
     "@earendil-works/pi-tui": "1.6.1",

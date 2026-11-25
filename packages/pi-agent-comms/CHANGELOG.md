@@ -1,5 +1,9 @@
 # @howaboua/pi-agent-comms
 
+## 0.0.7
+
+- Context-window notices now expand and collapse on click as well as with the keyboard shortcut.
+
 ## 0.0.6
 
 - Requires Pi 1.6.1 or newer.
