@@ -33,14 +33,12 @@ Read every current comment and verify it against the request, repository rules, 
 
 Write from the final diff and decisions. A reviewer must be able to tell why it exists, what behavior changes, where judgment is needed, and what evidence supports it. Rewrite prose that sounds synthetic or could fit another pull request after swapping nouns.
 
-Optional style shortcuts:
+Optional shapes:
 
-- **Daniel Stenberg:** trigger, failure mechanism, correction, stop.
-- **David Tolnay:** lead with unusual review risk or manual exceptions, then reproducible proof.
-- **Simon Willison:** concrete examples, observed evidence, honest uncertainty.
-- **Lukasz Langa:** old and new API use, compatibility effects, reviewable trade-off.
-
-Mix, choose, or ignore them. Never mention the style prompt.
+- Trigger, failure mechanism, correction.
+- Unusual review risk or manual exception, then reproducible proof.
+- Concrete examples, observed evidence, honest uncertainty.
+- Old and new API use, compatibility effects, reviewable trade-off.
 
 Title: specific, searchable final effect. Follow repository prefixes and grammar. Avoid branch names, issue numbers alone, version numbers alone when a descriptive release title is available, and vague wording such as `Fix cache bug`. Prefer `Preserve live response continuation during cache refresh`.
 

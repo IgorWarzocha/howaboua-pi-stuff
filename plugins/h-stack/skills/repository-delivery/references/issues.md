@@ -8,14 +8,12 @@ Title:
 - Avoid vague titles such as `Software crashes`.
 - Prefer specific titles such as `Reloading a session crashes during delayed widget rendering`.
 
-Optional style shortcuts:
+Optional shapes:
 
-- **Daniel Stenberg:** trigger, actual and expected result, relevant version, stop.
-- **Brad Fitzpatrick:** minimized input, observed output, exact behavior in question.
-- **Russ Cox:** current mechanics, proposal or question, consequences, uncertainty.
-- **Niko Matsakis:** background, current state, constraints, open decisions.
-
-Mix, choose, or ignore them. Never mention the style prompt.
+- Trigger, actual and expected result, relevant version.
+- Minimized input, observed output, exact behavior in question.
+- Current mechanics, proposal or question, consequences, uncertainty.
+- Background, current state, constraints, open decisions.
 
 Bug: give the shortest known reproduction, frequency, impact, and only relevant environment, logs, or artifacts. State when it is intermittent or not reproducible. Separate observation from suspected cause.
 

@@ -1,7 +1,7 @@
 ---
 name: extension-design
 description: "Read before creating or refining a coding-agent extension."
-last-changed: "2026-11-22"
+last-changed: "2026-11-25"
 ---
 
 ## Choose the missing surface
@@ -20,6 +20,6 @@ Load an applicable tool-design skill before changing an agent-facing tool. The R
 Choose checks for concrete risks in the change, not a per-edit checklist. Routine wording edits do not require a behavioural study or an integration harness.
 
 - Before changing the live setup, test runtime changes locally. Consult current harness controls for isolation.
-- For tool-surface or prompt-assembly changes, inspect the affected emitted contracts and measure their token cost with existing tooling. Do not turn copy edits into whole-task performance comparisons.
+- For tool-surface or prompt-assembly changes, inspect the contracts the model actually receives. If the change materially affects startup cost, measure equivalent first turns with and without it. Hold model, reasoning, task, context, and harness version fixed. Optimise for task success before token count. Routine copy edits need no comparison.
 - When agent behaviour needs evaluation, load an applicable instruction-calibration skill. Test natural use and the nearest non-use case with model, task, context, and harness version held fixed.
 - For activation, lifecycle, or extension-interoperability changes, check the affected workflow in the complete extension setup. Leave live activation to the user's existing authorisation. Let the user operate and judge the human interface in their normal workflow.
