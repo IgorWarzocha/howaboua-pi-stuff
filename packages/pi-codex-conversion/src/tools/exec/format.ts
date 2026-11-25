@@ -1,10 +1,13 @@
 import type { UnifiedExecResult } from "./session-manager.ts";
 
+export const SHELL_COMPLETION_GUIDANCE =
+	"Pi reports completion when idle. Continue other work or end the turn. Do not use ps, sleep or repeated log reads just to wait for completion or check status.";
+
 export function formatRunningShellGuidance(
 	sessionId: number,
 	nested = false,
 ): string {
-	return `Session ${sessionId} running. Completion reports when idle. Continue work or end turn. Input or interim output: ${nested ? "tools.write_stdin, not wait" : "write_stdin"}.`;
+	return `Session ${sessionId} running. ${SHELL_COMPLETION_GUIDANCE} Input or needed interim output: ${nested ? "tools.write_stdin, not wait" : "write_stdin"}.`;
 }
 
 export function formatUnifiedExecResult(result: UnifiedExecResult): string {

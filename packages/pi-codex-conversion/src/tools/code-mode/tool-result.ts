@@ -20,7 +20,7 @@ export function toCodeModeToolResult(
 	const status = scriptError
 		? `Script error: ${scriptError}`
 		: response.kind === "yielded"
-			? `Exec cell "${response.cellId}" running. Call wait once near completion. No short polling.`
+			? `Exec cell "${response.cellId}" running. Call wait once near expected completion. Do not loop short waits or run a shell sleep.`
 			: response.kind === "terminated"
 				? "Script terminated"
 				: undefined;

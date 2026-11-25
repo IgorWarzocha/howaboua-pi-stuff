@@ -18,7 +18,7 @@ const WRITE_STDIN_PARAMETERS = obj(
 		chars: opt(
 			str({
 				description:
-					"Input requires original exec_command tty=true; omit or empty to poll",
+					"Nonempty input requires tty=true on exec_command. Omit to read output.",
 			}),
 		),
 		yield_time_ms: opt(num({ description: "Wait ms" })),
@@ -137,7 +137,7 @@ export function createWriteStdinTool(
 	const tool: Parameters<ExtensionAPI["registerTool"]>[0] = {
 		name: "write_stdin",
 		label: "write_stdin",
-		description: "Write/poll exec session",
+		description: "Send input or read output from an exec session",
 		...(options.promptSnippet === false
 			? {}
 			: { promptSnippet: "Write to exec session" }),

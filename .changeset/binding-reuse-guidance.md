@@ -11,4 +11,4 @@
 - Fixed Windows npm installs for TS Notebook startup and exact-version `npm:` imports.
 - VM Code shows persistent binding names after context rollover. VM Code and TS Notebook require one-off declarations in a block and explain how to replace retained values without redeclaring them.
 - Code Mode results show nested tool failures even when the cell handles them. `apply_patch` guidance now requires file-ordered, non-overlapping hunks.
-- Shell, Code and TS Notebook status and recovery messages are shorter. Shell results explain that completion reports automatically when idle.
+- Shell, Code and TS Notebook status and recovery messages are shorter. Running shell notices explain that completion reports automatically when idle and that separate status commands and log-check loops are unnecessary.
