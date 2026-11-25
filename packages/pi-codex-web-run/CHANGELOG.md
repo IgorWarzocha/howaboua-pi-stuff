@@ -1,5 +1,9 @@
 # @howaboua/pi-codex-web-run
 
+## 0.0.14
+
+- Shortened Web Run errors for unavailable routes, account access and access challenges.
+
 ## 0.0.13
 
 - Web activity rows distinguish searches, opened pages and links, and in-page finds. Batched and mixed requests show how many actions were requested.

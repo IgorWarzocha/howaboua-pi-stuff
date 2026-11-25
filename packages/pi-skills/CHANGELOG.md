@@ -1,5 +1,26 @@
 # @howaboua/pi-skills
 
+## 0.0.28
+
+- Bundled updates:
+
+  - **@howaboua/pi-skill-code**:
+
+    - Narrowed skill activation: `code-review` applies to reviewing changes, and `codebase-hygiene` applies to changing maintained code.
+    - Updated guidance for focused review, dependency changes, read-only reference checkouts and disposable scratchpads.
+
+  - **@howaboua/pi-skill-foundations**:
+
+    - Added `writing` for prose and interface copy, including telegraphic style, and `non-code-review` for documents, plans and designs.
+    - Narrowed `communication` to conversation, investigation reports and teaching.
+    - Updated `agents-md` and `skill-creator` to add guidance only where it changes behaviour.
+
+  - **@howaboua/pi-skill-harness-and-agent-engineering**:
+
+    - Updated session diagnosis and prompt-cache guidance to verify the live session, trace the first cache miss, and distinguish cache hits from continuation and prewarm.
+    - Updated extension design guidance on when to add tools and how to measure startup cost without sacrificing task success.
+    - Tool design now requires signalling failures through the host's error mechanism.
+
 ## 0.0.27
 
 - Include bundled package updates:

@@ -1,5 +1,19 @@
 # @howaboua/pi-extensions
 
+## 0.0.111
+
+- Bundled updates:
+
+  - **@howaboua/pi-ask**: Shortened Ask replies, steering receipts and invalid-field errors. Errors still list valid fields.
+  - **@howaboua/pi-better-skills-tool**: Shortened the truncated skill output footer to the byte range and continuation command.
+  - **@howaboua/pi-gippity-control**: Shortened voice setup, unsent-task and call-ending messages.
+  - **@howaboua/pi-github-watch**: Shortened watch receipts and notifications. Help explains when automatic updates arrive.
+  - **@howaboua/pi-shepherdr**:
+
+    - Shortened delegation help, agent receipts and recovery messages.
+    - Final worker reports suggest following up on material uncertainties.
+    - Herdr command help distinguishes automatic background exit reports from calls that need `hc wait`.
+
 ## 0.0.110
 
 - Include bundled package updates:

@@ -1,6 +1,6 @@
 {
   "name": "@howaboua/pi-stuff",
-  "version": "0.0.118",
+  "version": "0.0.119",
   "description": "all Howaboua Pi extensions and skills",
   "type": "module",
   "keywords": [
@@ -13,17 +13,17 @@
     "access": "public"
   },
   "dependencies": {
-    "@howaboua/pi-ask": "0.0.22",
-    "@howaboua/pi-better-skills-tool": "0.0.15",
+    "@howaboua/pi-ask": "0.0.23",
+    "@howaboua/pi-better-skills-tool": "0.0.16",
     "@howaboua/pi-cache-hit-predictor": "0.0.1",
-    "@howaboua/pi-gippity-control": "0.0.34",
-    "@howaboua/pi-github-watch": "0.0.9",
+    "@howaboua/pi-gippity-control": "0.0.35",
+    "@howaboua/pi-github-watch": "0.0.10",
     "@howaboua/pi-gpt-switcher": "0.1.7",
-    "@howaboua/pi-shepherdr": "1.0.4",
+    "@howaboua/pi-shepherdr": "1.0.5",
     "@howaboua/pi-skill-chrome-cdp": "0.0.5",
-    "@howaboua/pi-skill-code": "0.0.4",
-    "@howaboua/pi-skill-foundations": "0.0.3",
-    "@howaboua/pi-skill-harness-and-agent-engineering": "0.0.8",
+    "@howaboua/pi-skill-code": "0.0.5",
+    "@howaboua/pi-skill-foundations": "0.0.4",
+    "@howaboua/pi-skill-harness-and-agent-engineering": "0.0.9",
     "@howaboua/pi-suggestions": "0.0.4",
     "@howaboua/pi-unicode-charts": "0.1.6"
   },

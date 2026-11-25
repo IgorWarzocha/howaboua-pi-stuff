@@ -1,5 +1,9 @@
 # @howaboua/pi-chatgpt-sites
 
+## 0.0.7
+
+- Shortened Sites errors. When deployment fails after saving, the error includes the saved version ID for a deploy-only retry.
+
 ## 0.0.6
 
 - Added `site.open` to restore an existing Site's committed source into a new local checkout without publishing.

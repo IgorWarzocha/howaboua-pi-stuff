@@ -1,6 +1,6 @@
 {
   "name": "@howaboua/pi-gippity-control",
-  "version": "0.0.34",
+  "version": "0.0.35",
   "description": "GipPity voice and LAN remote control for any Pi model",
   "keywords": [
     "pi-package",
@@ -53,7 +53,7 @@
     "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'"
   },
   "dependencies": {
-    "@howaboua/pi-browser": "0.0.15",
+    "@howaboua/pi-browser": "0.0.16",
     "proxy-from-env": "2.1.0",
     "selfsigned": "5.5.0",
     "undici": "8.13.1",

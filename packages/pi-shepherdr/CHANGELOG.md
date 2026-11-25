@@ -1,5 +1,11 @@
 # @howaboua/pi-shepherdr
 
+## 1.0.5
+
+- Shortened delegation help, agent receipts and recovery messages.
+- Final worker reports suggest following up on material uncertainties.
+- Herdr command help distinguishes automatic background exit reports from calls that need `hc wait`.
+
 ## 1.0.4
 
 - Shared Notes and Board recovery messages direct users to Agent Comms.

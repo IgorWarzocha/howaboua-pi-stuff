@@ -1,5 +1,9 @@
 # @howaboua/pi-codex-imagegen
 
+## 0.0.18
+
+- Shortened Image Gen errors for OpenAI API, legacy Codex and configured-provider access.
+
 ## 0.0.17
 
 - Image generation settings clarify when Codex uses the current model’s provider and when a separate Codex login or API credentials are needed.

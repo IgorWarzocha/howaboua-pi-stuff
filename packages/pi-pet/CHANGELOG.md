@@ -1,5 +1,9 @@
 # @howaboua/pi-pet
 
+## 0.1.11
+
+- Unknown reaction errors show the exact `pet_show` call to list valid actions.
+
 ## 0.1.10
 
 - The pet authoring guide clarifies reference-image requirements and when generation jobs are complete.

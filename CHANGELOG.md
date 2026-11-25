@@ -18,36 +18,32 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ## Latest package changelogs
 
-### @howaboua/pi-agent-comms — 0.0.5
+### @howaboua/pi-agent-comms — 0.0.6
 
-- Replaces standalone Notes Compaction and Agent Board. Remove the old extensions when switching. Their settings move to `pi-agent-comms.json`; saved data stays in place. Features without prior settings start off.
-- Added `/board viewer` to open the read-only browser viewer directly.
-- Added Conversation and Full rollover tails for notes-only `/compact` and idle rollover. Both keep conversation after the last completed Notes save on the selected branch. Full also keeps complete tool-call groups.
-- Idle rollover with a tail now asks for a checkpoint when no save qualifies, then releases your original prompt and attachments.
-- Settings clarify ranked history search, when pruning runs, how Notes rollovers differ from compaction, and what Board thread consolidation does.
-- Code and Notebook list History alongside Notes. Notes, History and Board use compact help in every prompt mode.
-- Notes help shows which fields list, search, read and write return.
-- Fixed Board replies using the `reply` alias failing Notebook type checks.
+- Requires Pi 1.6.1 or newer.
+- Shortened Board and Notes help and clarified how to continue reads.
+- Board errors name the rejected action or field and distinguish safe retries from writes that may have completed.
+- Notes access and freshness warnings now appear in both text and structured results.
+- `new_context` says when a pending checkpoint or rollover prevented a new request from being queued.
+- Session pruning reports a permission wait to Pi. Cancel remains the default.
 
 [Full changelog](./packages/pi-agent-comms/CHANGELOG.md)
 
-### @howaboua/pi-ask — 0.0.22
+### @howaboua/pi-ask — 0.0.23
 
-- Ask always uses compact question and handoff help, including in standalone installs.
+- Shortened Ask replies, steering receipts and invalid-field errors. Errors still list valid fields.
 
 [Full changelog](./packages/pi-ask/CHANGELOG.md)
 
-### @howaboua/pi-better-skills-tool — 0.0.15
+### @howaboua/pi-better-skills-tool — 0.0.16
 
-- Skills lists trusted repository `.agents/skills` under Session alongside `.pi/skills`, without duplicates. Global `~/.agents/skills` are excluded.
-- Skills always uses compact discovery and reading guidance, including in standalone installs.
+- Shortened the truncated skill output footer to the byte range and continuation command.
 
 [Full changelog](./packages/pi-better-skills-tool/CHANGELOG.md)
 
-### @howaboua/pi-browser — 0.0.15
+### @howaboua/pi-browser — 0.0.16
 
-- Browser settings clarify which listed host runs locally and where to set the Node.js executable for SSH hosts.
-- Browser always uses compact tool help, including in standalone installs.
+- Shortened browser timeout and tab-creation errors. They say what may have happened and what to check before retrying.
 
 [Full changelog](./packages/pi-browser/CHANGELOG.md)
 
@@ -61,35 +57,24 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-chatgpt-sites — 0.0.6
+### @howaboua/pi-chatgpt-sites — 0.0.7
 
-- Added `site.open` to restore an existing Site's committed source into a new local checkout without publishing.
-- Fixed saving source with Sites access tokens or an authenticated Work proxy.
-- Fixed private deployments for accounts without a shared deployment route.
-- Updated the Sites guides for building, access, and connecting Site-hosted MCP tools.
-- Sites always uses compact guide and schema discovery, including in standalone installs.
+- Shortened Sites errors. When deployment fails after saving, the error includes the saved version ID for a deploy-only retry.
 
 [Full changelog](./packages/pi-chatgpt-sites/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 5.1.0
+### @howaboua/pi-codex-conversion — 5.1.1
 
-- Removed Voice only mode. Existing settings follow Provider scope. Use GipPity Control for voice without the Codex adapter.
-- Removed the Extra tools only scope and standalone `apply_patch` and `view_image` switches. Existing Extra tools only settings switch to Codex and configured providers. Both tools remain available through the adapter.
-- Removed Deno Notebook. Existing settings select TS Notebook without importing Deno state. [Recover or remove old notebook files](https://github.com/IgorWarzocha/howaboua-pi-stuff/blob/main/docs/deno-to-ts-notebook.md).
-- Replaced QuickJS Code with VM Code. Existing settings select VM Code, which keeps JavaScript bindings across cells. Select Code for fresh cells. VM Code runs on Linux, macOS and Windows. On Linux with Bun it requires a systemd user session and cgroup v2.
-- Removed the Harness identifier setting. Codex requests always use `codex_cli_rs` as the originator.
-- Replaced Compact tool output and Code / Notebook details with one Tool details setting: Minimal, Compact or Preview. Expand tool rows to see their available source, output and diffs.
-- Heavy system prompt overwrite is now Off or On. On uses the former GPT mode.
-- Older global and trusted project settings are migrated once without overwriting unrelated fields. Legacy Notes continuity notices now point to Agent Comms.
-- Codex switches to HTTP for the session when it detects a WebSocket size limit before text appears. If a size rejection follows visible text, Codex reports the incomplete response without replaying it.
-- Folded shell rows distinguish errors from searches with no matches. Background completion notices collapse to one line, and expanded cells show identical shell output only once.
-- Code and Notebook group exact usage calls. `ALL_TOOLS` lists every public tool available to the cell.
-- Code and Notebook guidance recommends composing related calls in one cell and checking JavaScript syntax before sending. VM Code and TS Notebook explain how to recover from redeclaring a binding.
-- TS Notebook resolves packages and type roots more reliably.
-- Code and Notebook print plain shell output by default. Existing choices are preserved. To opt out, set `notebook.plainCommandOutput` to `false` in `pi-codex-conversion.json`.
-- Auto Reasoning recommends adjusting effort when the work phase changes or a task turns out harder or easier than expected.
-- Codex puts tool instructions before workspace context and directs agents to act on clear requests and work through recoverable blockers.
-- Updated the bundled Codex tools and voice helpers.
+- Requires Pi 1.6.1 or newer.
+- Removed `yield_control()` from VM Code and TS Notebook. Use the `exec` yield timeout and `wait`. Code still supports the helper.
+- VM Code lists retained bindings when a context window changes. At inventory refresh, an idle VM resets at 90% of its memory budget. Automatic and manual `exec` resets clear bindings but preserve all `store()` values.
+- Fixed disabled Pi file and shell tools reappearing after reloads or model switches.
+- Fixed two TS Notebook startup failures on Windows: npm failing to launch and the compiler hanging on its first request. The npm fix also covers exact-version `npm:` imports.
+- Fixed GPT-6.2 losing replayed reasoning after a WebSocket reconnect. Pi's optional reasoning-drop notices also cover Codex Conversion.
+- Fixed native compaction replay in Code, VM Code and TS Notebook without Responses Lite. Codex compaction is included in Pi's session totals and optional cost notice.
+- Code Mode reports failed tool calls even when the cell handles them. Shell results distinguish automatic completion notices from cases that need `write_stdin`.
+- Heavy system prompt overwrite off keeps Pi's prompt with plain-language Codex guidance. On replaces it with shorter Codex instructions.
+- Updated agent guidance for reusable bindings, omitting decorative backticks in arguments, ordered patch hunks and testing promising findings.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -104,43 +89,43 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-codex-guardian/CHANGELOG.md)
 
-### @howaboua/pi-codex-imagegen — 0.0.17
+### @howaboua/pi-codex-imagegen — 0.0.18
 
-- Image generation settings clarify when Codex uses the current model’s provider and when a separate Codex login or API credentials are needed.
-- Image generation always uses compact discovery and tool help, including in standalone installs.
+- Shortened Image Gen errors for OpenAI API, legacy Codex and configured-provider access.
 
 [Full changelog](./packages/pi-codex-imagegen/CHANGELOG.md)
 
-### @howaboua/pi-codex-web-run — 0.0.13
+### @howaboua/pi-codex-web-run — 0.0.14
 
-- Web activity rows distinguish searches, opened pages and links, and in-page finds. Batched and mixed requests show how many actions were requested.
-- Web Run always uses compact search and reference guidance, without requiring Pi Codex Conversion.
+- Shortened Web Run errors for unavailable routes, account access and access challenges.
 
 [Full changelog](./packages/pi-codex-web-run/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.110
+### @howaboua/pi-extensions — 0.0.111
 
-- Include bundled package updates:
+- Bundled updates:
 
-  - @howaboua/pi-ask: Ask always uses compact question and handoff help, including in standalone installs.
-  - @howaboua/pi-better-skills-tool: - Skills lists trusted repository `.agents/skills` under Session alongside `.pi/skills`, without duplicates. Global `~/.agents/skills` are excluded. - Skills always uses compact discovery and reading guidance, including in standalone installs.
-  - @howaboua/pi-gippity-control: - GipPity settings explain how browser access, dropped-call recovery and voice context refresh work. - Bundled voice helpers use updated Rust dependencies.
-  - @howaboua/pi-github-watch: GitHub Watch always uses compact watch help, including in standalone installs.
-  - @howaboua/pi-shepherdr: - Shared Notes and Board recovery messages direct users to Agent Comms. - Shepherdr settings distinguish delegation guidance from starting workers and explain what adding an SSH connection does. - Agent discovery shows and accepts the local Herdr Core name. For remote machines, use the label or ID from `list`, not the hostname. - Agent help uses compact wording and separates terminal commands from Herdr window controls.
-  - @howaboua/pi-unicode-charts: Chart instructions always use the compact format. Pi Codex Conversion is no longer needed to select it.
+  - **@howaboua/pi-ask**: Shortened Ask replies, steering receipts and invalid-field errors. Errors still list valid fields.
+  - **@howaboua/pi-better-skills-tool**: Shortened the truncated skill output footer to the byte range and continuation command.
+  - **@howaboua/pi-gippity-control**: Shortened voice setup, unsent-task and call-ending messages.
+  - **@howaboua/pi-github-watch**: Shortened watch receipts and notifications. Help explains when automatic updates arrive.
+  - **@howaboua/pi-shepherdr**:
+
+    - Shortened delegation help, agent receipts and recovery messages.
+    - Final worker reports suggest following up on material uncertainties.
+    - Herdr command help distinguishes automatic background exit reports from calls that need `hc wait`.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.34
+### @howaboua/pi-gippity-control — 0.0.35
 
-- GipPity settings explain how browser access, dropped-call recovery and voice context refresh work.
-- Bundled voice helpers use updated Rust dependencies.
+- Shortened voice setup, unsent-task and call-ending messages.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
-### @howaboua/pi-github-watch — 0.0.9
+### @howaboua/pi-github-watch — 0.0.10
 
-- GitHub Watch always uses compact watch help, including in standalone installs.
+- Shortened watch receipts and notifications. Help explains when automatic updates arrive.
 
 [Full changelog](./packages/pi-github-watch/CHANGELOG.md)
 
@@ -155,9 +140,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-gpt-switcher/CHANGELOG.md)
 
-### @howaboua/pi-grok-realtime — 0.0.8
+### @howaboua/pi-grok-realtime — 0.0.9
 
-- Grok settings explain how the access selection matches Pi’s active xAI credential, and when voice context summaries and follow-ups are used.
+- Shortened xAI credential errors, voice task receipts and reconnect guidance.
 
 [Full changelog](./packages/pi-grok-realtime/CHANGELOG.md)
 
@@ -167,25 +152,24 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-observatory/CHANGELOG.md)
 
-### @howaboua/pi-pet — 0.1.10
+### @howaboua/pi-pet — 0.1.11
 
-- The pet authoring guide clarifies reference-image requirements and when generation jobs are complete.
+- Unknown reaction errors show the exact `pet_show` call to list valid actions.
 
 [Full changelog](./packages/pi-pet/CHANGELOG.md)
 
-### @howaboua/pi-sandbox — 0.1.7
+### @howaboua/pi-sandbox — 0.1.8
 
-- Sandbox command waits use fewer guest processes to check whether a command has finished.
-- Sandbox help clarifies command wait timeouts and warns against secrets in templates or setup commands.
+- Sandbox help shows default CPU and RAM, resource profiles and service preview options.
+- Shortened error messages for uncertain starts, incomplete templates and services that have not become ready.
 
 [Full changelog](./packages/pi-sandbox/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 1.0.4
+### @howaboua/pi-shepherdr — 1.0.5
 
-- Shared Notes and Board recovery messages direct users to Agent Comms.
-- Shepherdr settings distinguish delegation guidance from starting workers and explain what adding an SSH connection does.
-- Agent discovery shows and accepts the local Herdr Core name. For remote machines, use the label or ID from `list`, not the hostname.
-- Agent help uses compact wording and separates terminal commands from Herdr window controls.
+- Shortened delegation help, agent receipts and recovery messages.
+- Final worker reports suggest following up on material uncertainties.
+- Herdr command help distinguishes automatic background exit reports from calls that need `hc wait`.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -197,21 +181,26 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-chrome-cdp/CHANGELOG.md)
 
-### @howaboua/pi-skill-code — 0.0.4
+### @howaboua/pi-skill-code — 0.0.5
 
-- Removed the manual Codex PR review request template from repository-delivery guidance.
+- Narrowed skill activation: `code-review` applies to reviewing changes, and `codebase-hygiene` applies to changing maintained code.
+- Updated guidance for focused review, dependency changes, read-only reference checkouts and disposable scratchpads.
 
 [Full changelog](./packages/pi-skill-code/CHANGELOG.md)
 
-### @howaboua/pi-skill-foundations — 0.0.3
+### @howaboua/pi-skill-foundations — 0.0.4
 
-- Communication guidance now uses a shorter baseline, rejects stock banter and checks apparent contradictions before conceding a mistake.
+- Added `writing` for prose and interface copy, including telegraphic style, and `non-code-review` for documents, plans and designs.
+- Narrowed `communication` to conversation, investigation reports and teaching.
+- Updated `agents-md` and `skill-creator` to add guidance only where it changes behaviour.
 
 [Full changelog](./packages/pi-skill-foundations/CHANGELOG.md)
 
-### @howaboua/pi-skill-harness-and-agent-engineering — 0.0.8
+### @howaboua/pi-skill-harness-and-agent-engineering — 0.0.9
 
-- Pi extension guidance now recommends native schema builders and validation.
+- Updated session diagnosis and prompt-cache guidance to verify the live session, trace the first cache miss, and distinguish cache hits from continuation and prewarm.
+- Updated extension design guidance on when to add tools and how to measure startup cost without sacrificing task success.
+- Tool design now requires signalling failures through the host's error mechanism.
 
 [Full changelog](./packages/pi-skill-harness-and-agent-engineering/CHANGELOG.md)
 
@@ -221,24 +210,59 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-omarchy-help/CHANGELOG.md)
 
-### @howaboua/pi-skills — 0.0.27
+### @howaboua/pi-skills — 0.0.28
 
-- Include bundled package updates:
+- Bundled updates:
 
-  - @howaboua/pi-skill-harness-and-agent-engineering: Pi extension guidance now recommends native schema builders and validation.
+  - **@howaboua/pi-skill-code**:
+
+    - Narrowed skill activation: `code-review` applies to reviewing changes, and `codebase-hygiene` applies to changing maintained code.
+    - Updated guidance for focused review, dependency changes, read-only reference checkouts and disposable scratchpads.
+
+  - **@howaboua/pi-skill-foundations**:
+
+    - Added `writing` for prose and interface copy, including telegraphic style, and `non-code-review` for documents, plans and designs.
+    - Narrowed `communication` to conversation, investigation reports and teaching.
+    - Updated `agents-md` and `skill-creator` to add guidance only where it changes behaviour.
+
+  - **@howaboua/pi-skill-harness-and-agent-engineering**:
+
+    - Updated session diagnosis and prompt-cache guidance to verify the live session, trace the first cache miss, and distinguish cache hits from continuation and prewarm.
+    - Updated extension design guidance on when to add tools and how to measure startup cost without sacrificing task success.
+    - Tool design now requires signalling failures through the host's error mechanism.
 
 [Full changelog](./packages/pi-skills/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.118
+### @howaboua/pi-stuff — 0.0.119
 
-- Include bundled package updates:
+- Bundled updates:
 
-  - @howaboua/pi-ask: Ask always uses compact question and handoff help, including in standalone installs.
-  - @howaboua/pi-better-skills-tool: - Skills lists trusted repository `.agents/skills` under Session alongside `.pi/skills`, without duplicates. Global `~/.agents/skills` are excluded. - Skills always uses compact discovery and reading guidance, including in standalone installs.
-  - @howaboua/pi-gippity-control: - GipPity settings explain how browser access, dropped-call recovery and voice context refresh work. - Bundled voice helpers use updated Rust dependencies.
-  - @howaboua/pi-github-watch: GitHub Watch always uses compact watch help, including in standalone installs.
-  - @howaboua/pi-shepherdr: - Shared Notes and Board recovery messages direct users to Agent Comms. - Shepherdr settings distinguish delegation guidance from starting workers and explain what adding an SSH connection does. - Agent discovery shows and accepts the local Herdr Core name. For remote machines, use the label or ID from `list`, not the hostname. - Agent help uses compact wording and separates terminal commands from Herdr window controls.
-  - @howaboua/pi-unicode-charts: Chart instructions always use the compact format. Pi Codex Conversion is no longer needed to select it.
+  - **@howaboua/pi-ask**: Shortened Ask replies, steering receipts and invalid-field errors. Errors still list valid fields.
+  - **@howaboua/pi-better-skills-tool**: Shortened the truncated skill output footer to the byte range and continuation command.
+  - **@howaboua/pi-gippity-control**: Shortened voice setup, unsent-task and call-ending messages.
+  - **@howaboua/pi-github-watch**: Shortened watch receipts and notifications. Help explains when automatic updates arrive.
+  - **@howaboua/pi-shepherdr**:
+
+    - Shortened delegation help, agent receipts and recovery messages.
+    - Final worker reports suggest following up on material uncertainties.
+    - Herdr command help distinguishes automatic background exit reports from calls that need `hc wait`.
+
+  - **@howaboua/pi-skill-code**:
+
+    - Narrowed skill activation: `code-review` applies to reviewing changes, and `codebase-hygiene` applies to changing maintained code.
+    - Updated guidance for focused review, dependency changes, read-only reference checkouts and disposable scratchpads.
+
+  - **@howaboua/pi-skill-foundations**:
+
+    - Added `writing` for prose and interface copy, including telegraphic style, and `non-code-review` for documents, plans and designs.
+    - Narrowed `communication` to conversation, investigation reports and teaching.
+    - Updated `agents-md` and `skill-creator` to add guidance only where it changes behaviour.
+
+  - **@howaboua/pi-skill-harness-and-agent-engineering**:
+
+    - Updated session diagnosis and prompt-cache guidance to verify the live session, trace the first cache miss, and distinguish cache hits from continuation and prewarm.
+    - Updated extension design guidance on when to add tools and how to measure startup cost without sacrificing task success.
+    - Tool design now requires signalling failures through the host's error mechanism.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

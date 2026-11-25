@@ -1,5 +1,9 @@
 # @howaboua/pi-github-watch
 
+## 0.0.10
+
+- Shortened watch receipts and notifications. Help explains when automatic updates arrive.
+
 ## 0.0.9
 
 - GitHub Watch always uses compact watch help, including in standalone installs.

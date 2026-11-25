@@ -1,6 +1,6 @@
 {
   "name": "@howaboua/pi-codex-conversion",
-  "version": "5.1.0",
+  "version": "5.1.1",
   "description": "Codex-oriented tool and prompt adapter for pi coding agent",
   "type": "module",
   "repository": {
@@ -139,7 +139,7 @@
   },
   "dependencies": {
     "@earendil-works/pi-schema": "1.6.1",
-    "@howaboua/pi-browser": "0.0.15",
+    "@howaboua/pi-browser": "0.0.16",
     "acorn": "8.19.0",
     "https-proxy-agent": "9.1.0",
     "openai": "7.62.0",

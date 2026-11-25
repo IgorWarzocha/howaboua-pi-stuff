@@ -1,5 +1,9 @@
 # @howaboua/pi-browser
 
+## 0.0.16
+
+- Shortened browser timeout and tab-creation errors. They say what may have happened and what to check before retrying.
+
 ## 0.0.15
 
 - Browser settings clarify which listed host runs locally and where to set the Node.js executable for SSH hosts.

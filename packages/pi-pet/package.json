@@ -1,6 +1,6 @@
 {
   "name": "@howaboua/pi-pet",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Animated companions for GipPity Remote.",
   "license": "MIT",
   "repository": {
@@ -76,10 +76,10 @@
   },
   "packageManager": "bun@1.4.2",
   "peerDependencies": {
-    "@howaboua/pi-gippity-control": ">=0.0.34",
+    "@howaboua/pi-gippity-control": ">=0.0.35",
     "@earendil-works/pi-coding-agent": ">=1.6.1",
     "@earendil-works/pi-tui": ">=1.6.1",
-    "@howaboua/pi-codex-conversion": ">=5.1.0"
+    "@howaboua/pi-codex-conversion": ">=5.1.1"
   },
   "peerDependenciesMeta": {
     "@howaboua/pi-gippity-control": {
@@ -96,7 +96,7 @@
     "electron": "44.10.2",
     "knip": "^6.45.0",
     "typescript": "^7.0.2",
-    "@howaboua/pi-codex-conversion": "5.1.0",
+    "@howaboua/pi-codex-conversion": "5.1.1",
     "oxfmt": "^0.78.0",
     "tsrs": "7.1.0-beta.tsrs5",
     "oxlint": "1.94.0",

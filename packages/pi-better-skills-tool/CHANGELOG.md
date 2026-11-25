@@ -1,5 +1,9 @@
 # @howaboua/pi-better-skills-tool
 
+## 0.0.16
+
+- Shortened the truncated skill output footer to the byte range and continuation command.
+
 ## 0.0.15
 
 - Skills lists trusted repository `.agents/skills` under Session alongside `.pi/skills`, without duplicates. Global `~/.agents/skills` are excluded.
