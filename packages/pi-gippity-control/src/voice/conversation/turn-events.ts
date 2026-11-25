@@ -140,7 +140,7 @@ export class ConversationTurns {
 				try {
 					if (!this.callbacks.rewriteDelegation)
 						throw new Error(
-							"Voice task preparation is unavailable; restart voice",
+							"Voice task preparation unavailable. Restart voice.",
 						);
 					const prepared = await this.callbacks.rewriteDelegation(turn, signal);
 					const { input } = prepared;
@@ -166,7 +166,7 @@ export class ConversationTurns {
 					this.sendContext(
 						{ type: "session" },
 						"speakable",
-						`The voice request could not be prepared and was not sent to Pi. Tell the user explicitly that it failed and they can try again. ${failure.message}`,
+						`Tell the user the request was not sent to Pi and they can try again. ${failure.message}`,
 					);
 					this.callbacks.onDelegationError?.(failure);
 					if (turn.delegationId)
@@ -258,7 +258,7 @@ export class ConversationTurns {
 		for (const turn of this.pendingDelegations) {
 			this.callbacks.onDelegationError?.(
 				new Error(
-					`Voice stopped before this request was sent to Pi: ${turn.input}. Please repeat the request when voice is available.`,
+					`Voice stopped. Repeat this unsent Pi request when voice returns: ${turn.input}`,
 				),
 			);
 		}

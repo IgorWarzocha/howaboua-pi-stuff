@@ -141,6 +141,6 @@ export async function rewriteTaskDelegation(
 		}
 	}
 	throw new Error(
-		`Could not prepare the voice request; nothing was sent to Pi. ${failure instanceof Error ? failure.message : String(failure)}`,
+		`Voice request preparation failed. Nothing sent to Pi. ${failure instanceof Error ? failure.message : String(failure)}`,
 	);
 }

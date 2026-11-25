@@ -91,8 +91,8 @@ export default async function pulses(pi: ExtensionAPI) {
 		if (state.running)
 			throw new Error(
 				state.running.workerId && state.worker?.runner === runner.id
-					? "This pulse already has active work. Use the existing agents tools to inspect or control it."
-					: "A previous run cannot be confirmed by the current worker service, so further runs are blocked. Inspection alone cannot clear it. Follow manual recovery in the Pulses README after checking active work and its outcome.",
+					? "Pulse already active. Inspect or control it with agent tools."
+					: "Current runner cannot confirm prior run. Runs blocked. Check active work and outcome, then follow manual recovery in the Pulses README. Inspection alone does not unblock.",
 			);
 		if (stopped || context?.sessionManager.getSessionId() !== current.owner)
 			throw new Error("The main session changed; no run was requested.");
@@ -148,7 +148,7 @@ export default async function pulses(pi: ExtensionAPI) {
 					runId,
 				});
 				throw new Error(
-					`Pulse did not start: ${error.message} Correct that condition and request this pulse again.`,
+					`Pulse did not start: ${error.message}\nFix the cause, then retry.`,
 					{ cause: error },
 				);
 			}
@@ -157,7 +157,7 @@ export default async function pulses(pi: ExtensionAPI) {
 				runId,
 			});
 			throw new Error(
-				"The run could not be confirmed and remains blocked to avoid duplicate work. Check active agents and the task outcome, then follow manual recovery in the Pulses README. Inspection alone does not clear the block.",
+				"Run unconfirmed. Runs blocked to avoid duplicates. Check active agents and task outcome, then follow manual recovery in the Pulses README. Inspection alone does not unblock.",
 			);
 		}
 	}
@@ -298,11 +298,7 @@ export default async function pulses(pi: ExtensionAPI) {
 				await bind(item.definition, current, false);
 				await reconcile(ctx, current, id);
 				await run(ctx, current, item.definition, false);
-				return (
-					"Requested " +
-					relative(current.repo.root, item.definition.path) +
-					". The result will wake this main agent."
-				);
+				return `Accepted: ${relative(current.repo.root, item.definition.path)}. Result wakes this main agent.`;
 			} finally {
 				finish();
 			}

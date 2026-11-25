@@ -229,7 +229,7 @@ export class GuestServices {
 		while (!(await this.healthy(name, entry))) {
 			if (Date.now() >= deadline)
 				throw new Error(
-					`Service ${name} started but is not responding. Its configured links are not proof of readiness. Read logs, then restart or stop it`,
+					`Service ${name} started but not responding. Links do not confirm readiness. Read logs, then restart or stop`,
 				);
 			await new Promise((accept) => setTimeout(accept, 200));
 		}

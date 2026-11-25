@@ -7,14 +7,14 @@ export function codexLoginDiagnostic(rejected = false): string {
 		const current = readStoredCredential("openai");
 		if (legacy) {
 			if (rejected || (legacy.type === "oauth" && legacy.expires <= Date.now()))
-				return "Legacy Codex login expired or was rejected. Explain to the user that they need to renew their separate OpenAI Codex login.";
-			return "This tool needs a Codex-compatible route. A separate OpenAI Codex login is stored, but unavailable for this request.";
+				return "Legacy OpenAI Codex login expired or was rejected. Ask the user to renew it.";
+			return "Codex-compatible route required. The separate OpenAI Codex login is stored but unavailable for this request.";
 		}
 		if (current?.type === "oauth")
-			return "ChatGPT sign-in does not authorize this tool. Explain to the user that they need a separate legacy OpenAI Codex login.";
-		return "This tool needs a separate OpenAI Codex login. Ask the user to sign in.";
+			return "ChatGPT sign-in cannot authorize this tool. Ask the user for a separate legacy OpenAI Codex sign-in.";
+		return "Ask the user to sign in to OpenAI Codex separately.";
 	} catch {
-		return "Login status could not be read. Ask the user to check their OpenAI Codex login.";
+		return "Cannot read OpenAI Codex login status. Ask the user to check their login.";
 	}
 }
 
@@ -24,7 +24,7 @@ export function codexProviderFailure(error: unknown, legacy = true): Error {
 	if (/timeout|timed out/i.test(message))
 		return new Error("Provider request timed out. Try again later.");
 	if (/quota|rate.limit|\b429\b/i.test(message))
-		return new Error("Provider quota or rate limit reached. Try again later.");
+		return new Error("Provider quota or rate limit hit. Try again later.");
 	if (/server|\b5\d\d\b/i.test(message))
 		return new Error("Provider service failed. Try again later.");
 	if (/network|fetch|connect|socket|dns/i.test(message))
@@ -41,7 +41,7 @@ export function codexProviderFailure(error: unknown, legacy = true): Error {
 							message,
 						),
 					)
-				: "Provider authentication unavailable. Ask the user to check their configured provider access.",
+				: "Provider auth unavailable. Ask the user to check access for the configured provider.",
 		);
 	return new Error("Provider request failed.");
 }

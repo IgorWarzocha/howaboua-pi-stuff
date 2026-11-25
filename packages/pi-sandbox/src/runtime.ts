@@ -110,7 +110,7 @@ export class SandboxRuntime {
 				}
 				console.log(result.output);
 				if (result.exitCode !== 0) {
-					this.startupError = `Setup exited ${result.exitCode}. Read controller logs. No prepared template was published`;
+					this.startupError = `Setup exited ${result.exitCode}. Read controller logs. No prepared template published`;
 					if (prepare) throw new Error(this.startupError);
 				}
 			}
@@ -165,7 +165,7 @@ export class SandboxRuntime {
 		await this.persistStatus();
 	}
 	private requireVm(): VM {
-		if (!this.vm) throw new Error("Sandbox is not running. Use start first");
+		if (!this.vm) throw new Error("Sandbox not running. Use start");
 		return this.vm;
 	}
 	private status() {
@@ -208,7 +208,7 @@ export class SandboxRuntime {
 			this.vm = undefined;
 			this.state = "interrupted";
 			this.recovery =
-				"Checkpoint failed after VM shutdown. Start restores only the last completed checkpoint, or a fresh disk if none exists. Changes since that checkpoint were not saved";
+				"Checkpoint failed after VM shutdown. Start restores only the last completed checkpoint, or boots a fresh disk if none exists. Later changes were not saved";
 			try {
 				await this.persistStatus();
 			} catch (statusError) {
@@ -251,7 +251,7 @@ export class SandboxRuntime {
 		const vm = this.requireVm();
 		if (this.state !== "running")
 			throw new Error(
-				"Sandbox is stopping. Wait for stop to complete, then use start",
+				"Sandbox stopping. Wait for stop to finish, then use start",
 			);
 		switch (action.action) {
 			case "shell": {
@@ -306,7 +306,7 @@ export class SandboxRuntime {
 					10000,
 				);
 				if (result.exitCode !== 0)
-					throw new Error(`Guest file could not be read: ${result.output}`);
+					throw new Error(`Guest read failed: ${result.output}`);
 				return {
 					path: action.path,
 					content: result.output,

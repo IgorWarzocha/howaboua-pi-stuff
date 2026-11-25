@@ -3,7 +3,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 export async function getSitesAuth(ctx: ExtensionContext) {
 	const token = await ctx.modelRegistry.getApiKeyForProvider("openai-codex");
 	const message =
-		"Sites requires an OpenAI Codex login. Ask the user to run /login openai-codex (legacy OpenAI Codex)";
+		"Sites needs login. Ask the user to run /login openai-codex (legacy OpenAI Codex).";
 	if (!token) throw new Error(message);
 	try {
 		const part = token.split(".")[1];

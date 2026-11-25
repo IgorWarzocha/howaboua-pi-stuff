@@ -9,7 +9,7 @@ export function prepareSandboxInput(value: unknown): { input: string } {
 			return { ...value, input: value.input };
 		if (!("input" in value)) return { input: JSON.stringify(value) };
 	}
-	throw new Error("Expected help, object or JSON string");
+	throw new Error("Send help, an action object or a JSON string");
 }
 
 const nameSchema = z.string().regex(/^[a-z][a-z0-9-]{0,39}$/);
@@ -234,7 +234,7 @@ export const actionSchema = z.discriminatedUnion("action", [
 ]);
 export const agentActionSchema = actionSchema.refine(
 	(action) => action.action !== "shell",
-	"Guest terminal handoff is available to the user through /sandbox",
+	"Guest terminal handoff: user-only /sandbox",
 );
 export type Action = z.infer<typeof actionSchema>;
 export const recordSchema = z.strictObject({
@@ -279,17 +279,17 @@ export const HELP = {
 	actions: {
 		list: "kind?: instances (default)|templates (prepared disks)",
 		prepare:
-			"name, config: host YAML path. Run setup and save a reusable disk without starting declared services",
+			"name, config: host YAML path. Run setup, save reusable disk. No declared services started",
 		create:
-			"name, exactly one of config:host YAML path or template:name. Starts services on a fresh independent disk",
+			"name, exactly one of config: host YAML path or template: name. Fresh independent disk; starts services",
 		start:
-			"name. Reopen disk, run resume hooks and services. Running instances are unchanged",
-		stop: "name. Save a disk-only checkpoint and stop the VM",
-		inspect: "name. Check state, assigned CPU/RAM, disk and preview links",
-		exec: "name, cmd, cwd?:workspace-relative, timeoutMs?. A running command returns pid for exec-status or exec-kill",
+			"name. Reopen disk, run resume hooks and services. No change if running",
+		stop: "name. Disk-only checkpoint, then stop VM",
+		inspect: "name. State, assigned CPU/RAM, disk and preview links",
+		exec: "name, cmd, cwd?: workspace-relative, timeoutMs?. If running, use pid with exec-status or exec-kill",
 		"exec-status": "name, pid, timeoutMs?. Return new output",
 		"exec-kill": "name, pid. Stop command process group",
-		read: "name, path: guest absolute path. If truncated, use exec to read the needed lines",
+		read: "name, path: guest absolute path. Truncated → use exec for needed lines",
 		write: "name, path: guest absolute path, content. Parent must exist",
 		services:
 			"name, op: ensure|status|restart|stop, service?: name (omit for all)",
@@ -306,9 +306,9 @@ export const HELP = {
 		"help services": "Guest services and previews",
 	},
 	commandWait:
-		"Timeout ends the wait only. Collect pending output before launching more commands. Handles do not survive a sandbox restart",
+		"Timeout ends wait only. Collect pending output before new commands. Restart invalidates handles",
 	boundaries:
-		"No host mounts or credential forwarding. Outbound HTTP blocked by default. Previews are unauthenticated and local to the VM host. Pi exit leaves sandboxes running",
+		"No host mounts or credential forwarding. Outbound HTTP blocked by default. Previews unauthenticated, local to VM host. Pi exit leaves sandboxes running",
 };
 export const HELP_TOPICS = {
 	config: {
@@ -324,27 +324,26 @@ export const HELP_TOPICS = {
 			},
 		},
 		profiles,
-		resources: "Optional resources: {cpus, memoryGiB} overrides the profile",
+		resources: "resources: {cpus, memoryGiB} overrides profile",
 		disk: "diskGiB is guest capacity, not a host storage quota",
-		image:
-			"Optional image: asset directory relative to YAML. Reuse image from inspect",
+		image: "image: asset directory relative to YAML. Reuse image from inspect",
 		workspace: "Guest absolute path, defaults to /workspace",
-		setup: "setup: guest commands on fresh disk only. Finish within 20 minutes",
+		setup: "setup: guest commands on fresh disk only. 20-minute deadline",
 		resume:
-			"resume: guest commands on every start. If inspect returns resumePid, follow with exec-status",
+			"resume: guest commands on every start. inspect returns resumePid → exec-status",
 		network: "network.allowedHosts: outbound HTTP allowlist, empty by default",
 		requirements:
-			"Guest commands and services require Python 3. Never put secrets in setup or templates",
+			"Guest commands and services require Python 3. No secrets in setup or templates",
 	},
 	services: {
 		config:
-			"Edit .sandbox.yaml in the guest workspace. ensure starts missing services, restart reloads a running service",
+			"Edit guest workspace .sandbox.yaml. ensure starts missing services; restart reloads running service",
 		fields:
 			"command, cwd? (workspace-relative), port? (assigned if omitted), env?, health?, preview?, previews?, platforms?, timeoutMs?",
 		health:
-			"TCP by default. GET path for HTTP readiness, process for liveness only",
+			"Default TCP. GET path for HTTP readiness; process for liveness only",
 		links:
 			"preview:true or {url?,title?,description?}. previews: array of {url,title,description?} or {folder,links}. env may reference ${services.NAME.publicURL}",
-		responses: "Serve preview responses with Content-Length or chunked framing",
+		responses: "Preview responses need Content-Length or chunked framing",
 	},
 };

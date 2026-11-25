@@ -206,8 +206,8 @@ export class ApiLiveTurns {
 			this.unsent(
 				id,
 				at <= after
-					? "The request did not have a new speech interval."
-					: "Too many voice requests are still being prepared.",
+					? "No new speech interval for this request."
+					: "Voice task preparation queue is full.",
 			);
 			return;
 		}
@@ -261,7 +261,7 @@ export class ApiLiveTurns {
 		>;
 		try {
 			if (!this.callbacks.rewriteDelegation)
-				throw new Error("Voice task preparation is unavailable.");
+				throw new Error("Voice task preparation unavailable.");
 			const result = await interruptible(
 				this.callbacks.rewriteDelegation(turn, signal),
 				signal,
@@ -271,7 +271,7 @@ export class ApiLiveTurns {
 			if (!result.input && !result.endCall)
 				throw new Error("Voice task preparation returned no request.");
 			if (Buffer.byteLength(result.input) > MAX_REALTIME_VOICE_INPUT_BYTES)
-				throw new Error("The prepared request was too long to send intact.");
+				throw new Error("Prepared request too long to send intact.");
 			prepared = result;
 		} catch (error) {
 			if (!this.abort.signal.aborted) {
@@ -319,20 +319,17 @@ export class ApiLiveTurns {
 		if (!delegation.lateInput && !this.speech.hasInputAtOrAfter(delegation.at))
 			return false;
 		this.settled(delegation.id);
-		this.unsent(
-			delegation.id,
-			"More user speech arrived before the request could be sent.",
-		);
+		this.unsent(delegation.id, "New speech arrived before submission.");
 		return true;
 	}
 
 	private unsent(id: string, reason: string): void {
-		const message = `${reason} This request was not sent to Pi. If you still want to proceed, please restate the complete request.`;
+		const message = `${reason} Request not sent to Pi. Restate it in full to proceed.`;
 		this.callbacks.onDelegationError?.(new Error(message));
 		this.sendContext(
 			{ type: "delegation", id },
 			"speakable",
-			"Tell the user this request was not sent. If they still want to proceed, ask them to restate the complete request. Do not retry it automatically.",
+			"Tell the user the request was not sent. Ask them to restate it in full if they still want to proceed. Do not auto-retry.",
 		);
 	}
 
@@ -406,7 +403,7 @@ export class ApiLiveTurns {
 		for (let index = 0; index < unsent; index++)
 			this.callbacks.onDelegationError?.(
 				new Error(
-					"Voice stopped before a request was sent to Pi. Please repeat it.",
+					"Voice stopped. Request not sent to Pi. Repeat it to proceed.",
 				),
 			);
 		if (tail.trim()) this.callbacks.onTranscriptTail(tail);

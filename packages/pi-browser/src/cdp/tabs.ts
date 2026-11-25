@@ -175,7 +175,7 @@ export class BrowserTabs {
 				);
 			} catch (error) {
 				throw new Error(
-					`Chrome did not confirm tab creation; a shared tab may exist. Run tabs before retrying: ${errorMessage(error)}`,
+					`Tab may have opened as shared. Run tabs before retrying: ${errorMessage(error)}`,
 				);
 			}
 			if (typeof response["targetId"] !== "string")
@@ -187,7 +187,7 @@ export class BrowserTabs {
 				await this.remember(created);
 			} catch (error) {
 				throw new Error(
-					`Opened tab ${created} but could not save ownership; it remains shared: ${errorMessage(error)}`,
+					`Opened tab ${created}. Ownership save failed. Tab remains shared: ${errorMessage(error)}`,
 				);
 			}
 			return created;

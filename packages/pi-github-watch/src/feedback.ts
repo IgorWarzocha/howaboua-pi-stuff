@@ -151,15 +151,13 @@ export async function threadSnapshot(
 				]),
 			);
 			if (!validator.check(value))
-				throw new Error(
-					"GitHub returned invalid feedback metadata. Retry the watch.",
-				);
+				throw new Error("Invalid GitHub feedback metadata. Retry the watch.");
 			yield value.nodes;
 			const next = value.pageInfo;
 			if (!next.hasNextPage) return;
 			if (!next.endCursor || next.endCursor === cursor)
 				throw new Error(
-					"GitHub returned incomplete feedback metadata. Retry the watch.",
+					"Incomplete GitHub feedback metadata. Retry the watch.",
 				);
 			cursor = next.endCursor;
 		} while (cursor);
@@ -227,7 +225,7 @@ export async function threadSnapshot(
 			if (item.comments.pageInfo.hasNextPage) {
 				if (!item.comments.pageInfo.endCursor)
 					throw new Error(
-						"GitHub returned incomplete review comments. Retry the watch.",
+						"Incomplete GitHub review comments. Retry the watch.",
 					);
 				for await (const more of pages(
 					`query($id:ID!,$cursor:String) { node(id:$id) { ... on PullRequestReviewThread { comments(first:100,after:$cursor) { nodes { ${reviewCommentFields} } ${paging} } } } }`,

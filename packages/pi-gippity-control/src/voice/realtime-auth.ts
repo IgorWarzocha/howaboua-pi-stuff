@@ -38,7 +38,7 @@ async function resolvePublicRealtimeAuth(
 	const search = webSearch && pi ? discoverRealtimeWebSearch(pi) : undefined;
 	if (webSearch && pi && !search)
 		throw new Error(
-			"Voice web search is enabled but Web Run is unavailable. Load pi-codex-web-run or turn off voice web search, then start again.",
+			"Voice web search needs pi-codex-web-run. Load it or disable voice web search, then restart voice.",
 		);
 	const registry: GippityToolRegistry = search
 		? {
@@ -68,7 +68,7 @@ async function resolvePublicRealtimeAuth(
 						Buffer.byteLength(args.query) > 8192 ||
 						Object.keys(args).some((key) => key !== "query")
 					)
-						throw new Error("web_search requires only a nonempty query");
+						throw new Error("web_search takes one nonempty query");
 					const result = await search.run(
 						ctx,
 						{ search_query: [{ q: args.query }] },

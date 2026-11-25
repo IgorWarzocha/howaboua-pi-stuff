@@ -62,7 +62,7 @@ export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 									(issue) =>
 										`${issue.path.join(".") || "input"}: ${issue.message}`,
 								)
-								.join("; ")}. Send help for valid arguments`,
+								.join("; ")}. See help for valid arguments`,
 						);
 					throw agentError(error);
 				}

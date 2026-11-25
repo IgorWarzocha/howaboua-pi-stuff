@@ -85,9 +85,7 @@ export async function saveGeneratedImages(
 				: undefined);
 		if (actual !== mime)
 			throw new Error(
-				"Image generation returned an unexpected format instead of " +
-					format.toUpperCase() +
-					". No output was saved.",
+				`Expected ${format.toUpperCase()} output, got another format. Nothing saved.`,
 			);
 		return image;
 	});

@@ -44,7 +44,7 @@ function registerPetRuntime(pi: ExtensionAPI, runtime: PetRuntime) {
     const requested = parseActionName(action);
     const resolved = catalog.actions[requested] ? requested : catalog.aliases[requested];
     if (!(resolved && catalog.actions[resolved])) {
-      throw new Error(`Unknown pet action: ${requested}. Call pet_show with action "list", then retry.`);
+      throw new Error(`Unknown pet action ${requested}. pet_show({action:"list"}), then retry.`);
     }
     state = {
       schemaVersion: 1,
@@ -64,7 +64,7 @@ function registerPetRuntime(pi: ExtensionAPI, runtime: PetRuntime) {
     promptGuidelines: ["pet_show: sparingly; routine task activity animates automatically"],
     parameters: PetParameters,
     async execute(_toolCallId, params) {
-      if (!checkParameters(params)) throw new Error("Invalid arguments; call pet_show with no arguments for help");
+      if (!checkParameters(params)) throw new Error("Invalid arguments. Help: pet_show({}).");
       if (params.action === undefined || params.action === "list") {
         const actions = Object.keys(catalog.actions).sort().join(", ");
         const aliases = Object.entries(catalog.aliases)

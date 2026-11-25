@@ -10,13 +10,11 @@ export function validateAccess(
 	const model = registry.getAll().find((model) => model.provider === "xai");
 	const status = registry.getProviderAuthStatus("xai");
 	if (!status.configured || !model)
-		throw new Error(
-			"No Pi xAI credential is available. Configure xAI in Pi before selecting access",
-		);
+		throw new Error("No active xAI credential. Configure xAI in Pi first.");
 	const active = registry.isUsingOAuth(model) ? "oauth" : "api_key";
 	if (active !== access)
 		throw new Error(
-			`Selected ${access === "oauth" ? "OAuth" : "API key"} is unavailable: Pi's active xAI credential is ${active === "oauth" ? "OAuth" : "an API key"}. Configure the matching credential in Pi; settings were not changed`,
+			`Selected ${access === "oauth" ? "OAuth" : "API key"}, but Pi's active xAI credential is ${active === "oauth" ? "OAuth" : "an API key"}. Configure a matching credential in Pi. Settings unchanged.`,
 		);
 }
 
@@ -47,12 +45,12 @@ export async function resolveBearer(
 	validateAccess(ctx, access);
 	if (!resolved?.auth.apiKey)
 		throw new Error(
-			"No Pi xAI login is configured. Use /login xai before starting Grok voice",
+			"Pi xAI login unavailable. Use /login xai before starting Grok voice.",
 		);
 	// Pi's canonical OAuth resolver labels its result; the bearer alone has no login type.
 	if ((resolved.source === "OAuth") !== (access === "oauth"))
 		throw new Error(
-			"Pi xAI resolved a different credential type than selected. Configure the matching credential in Pi before starting",
+			"Resolved xAI credential type differs from the selection. Configure a matching credential in Pi before starting Grok voice.",
 		);
 	return resolved.auth.apiKey;
 }

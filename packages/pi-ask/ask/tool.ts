@@ -58,9 +58,7 @@ export function createAskRuntime({
 			const problem = askInputProblem(params);
 			if (problem) throw new Error(problem);
 			if (!askValidator.check(params))
-				throw new Error(
-					"Ask couldn't read these arguments. Call ask({}) for the supported format.",
-				);
+				throw new Error("Invalid arguments. Help: ask({}).");
 			return params;
 		},
 		async execute(
@@ -88,7 +86,7 @@ export function createAskRuntime({
 			const { delivery, handoff, prompts } = normalizeAskInput(params);
 			if (prompts.length === 0) {
 				throw new Error(
-					"Add at least one prompt with a non-empty title. Call ask({}) for the format.",
+					"At least one prompt needs a non-empty title. Help: ask({}).",
 				);
 			}
 			if (!askInComposer && !ctx.hasUI)
@@ -103,7 +101,7 @@ export function createAskRuntime({
 				return {
 					content: [
 						textContent(
-							"Question queued. Continue working; the response will arrive as steering.",
+							"Question queued. Continue working. Reply arrives as steering.",
 						),
 					],
 					details: { kind: "prompt", pending: true, id: toolCallId },

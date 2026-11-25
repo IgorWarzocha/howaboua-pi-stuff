@@ -163,7 +163,7 @@ function boundedOutput(result: SkillReadOutput, request: SkillsRequest) {
 		);
 	const command = formatCommand(request.commands);
 	const footer = (end: number) =>
-		`\n\n---\nIncomplete: bytes ${offset}-${end} of ${bytes.length}. Continue with command:\n${command} --offset ${end}`;
+		`\n\n---\nIncomplete: bytes ${offset}-${end} of ${bytes.length}. Continue:\n${command} --offset ${end}`;
 	let end = offset + MAX_OUTPUT_BYTES - Buffer.byteLength(footer(bytes.length));
 	while (((bytes[end] ?? 0) & 0xc0) === 0x80) end--;
 	return page(bytes.subarray(offset, end).toString("utf8") + footer(end), end);

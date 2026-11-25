@@ -54,12 +54,12 @@ export async function execute(
 	const output = Buffer.concat(chunks).toString("utf8");
 	if (result.exitCode !== 0)
 		throw new Error(
-			"Guest command could not start. Check cwd and that the image includes Python 3",
+			"Guest command could not start. Check cwd and Python 3 in image",
 		);
 	const outcome = commandOutcomeSchema.parse(JSON.parse(result.stderr));
 	if (outcome.state === "timed-out")
 		throw new Error(
-			`Guest command timed out after ${timeoutMs} ms. Its process group was stopped. Inspect files before retrying`,
+			`Guest command timed out after ${timeoutMs} ms. Process group stopped. Inspect files before retrying`,
 		);
 	return { exitCode: outcome.exitCode, output, truncated };
 }

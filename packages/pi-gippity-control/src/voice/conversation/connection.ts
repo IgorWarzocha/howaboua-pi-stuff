@@ -143,11 +143,11 @@ export class ConversationSetup {
 			throw auth.loginFailure();
 		if (status === 403 && auth.officialCodex)
 			throw new Error(
-				"Voice access was denied (HTTP 403). Check account access and any network or browser challenge.",
+				"Voice access denied (HTTP 403). Check account access and network or browser challenges.",
 			);
 		if (status !== 201 && (publicRealtime || apiLive))
 			throw new Error(
-				`${apiLive ? "GPT Live" : "Realtime"} call failed (HTTP ${status}). Check the OpenAI API key, model access and billing, then start voice again.`,
+				`${apiLive ? "GPT Live" : "Realtime"} call failed (HTTP ${status}). Check the selected provider's API key, model access and billing, then restart voice.`,
 			);
 		if (status !== 201)
 			throw new Error(

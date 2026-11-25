@@ -57,7 +57,7 @@ export class ControllerLifecycle {
 				session.playbackSealed
 			) {
 				this.runtime.context?.ui.notify(
-					`Voice ended before speaker playback could be confirmed: ${error instanceof Error ? error.message : String(error)}`,
+					`Voice ended. Speaker playback unconfirmed: ${error instanceof Error ? error.message : String(error)}`,
 					"error",
 				);
 				try {
@@ -75,7 +75,7 @@ export class ControllerLifecycle {
 				session.isEndingCall
 			)
 				this.runtime.context?.ui.notify(
-					`Could not finish ending the call: ${error instanceof Error ? error.message : String(error)}. Use Stop to end it now.`,
+					`Call did not finish closing: ${error instanceof Error ? error.message : String(error)}. Use Stop to end it now.`,
 					"error",
 				);
 		}

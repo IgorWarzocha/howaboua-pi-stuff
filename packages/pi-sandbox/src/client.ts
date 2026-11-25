@@ -35,7 +35,7 @@ async function create(
 		);
 		if (status.state !== "prepared")
 			throw new Error(
-				`Template ${template} is not prepared. Use list with kind templates to inspect preparation before creating an instance`,
+				`Template ${template} not prepared. Check list with kind: templates`,
 			);
 	}
 	const config = source
@@ -47,7 +47,7 @@ async function create(
 	} catch (error) {
 		if (existsError(error, "EEXIST"))
 			throw new Error(
-				`${action.name} already exists. Use inspect or choose a new name`,
+				`${action.name} already exists. Inspect or choose a new name`,
 			);
 		throw error;
 	}
@@ -81,7 +81,7 @@ async function create(
 				? error.message
 				: "No preparation output available");
 		throw new Error(
-			`Template ${action.name} preparation did not complete. Use list with kind templates to check its state. After its controller exits, destroy with kind templates, name ${action.name}, confirm ${action.name}, correct the YAML and prepare again. Preparation log${log.truncated || log.output.length > output.length ? " (earlier output omitted)" : ""}:\n${detail}`,
+			`Template ${action.name} preparation incomplete. Check list with kind: templates. After controller exit, destroy (kind: templates, name: ${action.name}, confirm: ${action.name}), fix YAML, then prepare again. Preparation log${log.truncated || log.output.length > output.length ? " (earlier output omitted)" : ""}:\n${detail}`,
 		);
 	}
 }
@@ -135,7 +135,7 @@ export async function run(
 		if (await reachable(dir, action.name)) await request(dir, action, signal);
 		else if (await controllerAlive(dir))
 			throw new Error(
-				"Sandbox controller is still starting or unavailable. Read its logs and wait before destroying it",
+				"Controller starting or unavailable. Read controller logs and wait before destroy",
 			);
 		await rm(dir, { recursive: true });
 		return { name: action.name, state: "destroyed" };
@@ -143,7 +143,7 @@ export async function run(
 	if (!(await reachable(dir, action.name))) {
 		if (action.action === "inspect" || action.action === "stop")
 			return offline(dir);
-		throw new Error(`${action.name} is not running. Use start first`);
+		throw new Error(`${action.name} not running. Use start`);
 	}
 	return request(dir, action, signal);
 }

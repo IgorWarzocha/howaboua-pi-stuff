@@ -83,7 +83,7 @@ export class CodexRealtimeConversation {
 					this.turns.sendContext(
 						{ type: "session" },
 						"commentary",
-						"The user wants the requested answer before ending the call. When its result arrives, speak the answer and a brief farewell.",
+						"The user wants the answer before ending the call. When the result arrives, speak it, then say a brief farewell.",
 					);
 				} else this.beginEnding(finalOutputObserved);
 			},
@@ -252,7 +252,7 @@ export class CodexRealtimeConversation {
 		if (this.endAfterResult?.active) {
 			this.endAfterResult = undefined;
 			this.appendSpeakableContext(
-				"The requested answer did not complete. Tell the user it could not be finished and the call remains open; they can retry or stop the call.",
+				"Tell the user the answer did not complete. The call stays open. They can retry or stop the call.",
 			);
 		}
 	}
@@ -322,7 +322,7 @@ export class CodexRealtimeConversation {
 					return;
 				}
 				if (this.state !== "active") {
-					finish(new Error("The voice call closed before playback finished"));
+					finish(new Error("Call closed before playback finished"));
 					return;
 				}
 				if (
@@ -423,7 +423,7 @@ export class CodexRealtimeConversation {
 				const wasStarted = this.apiLiveStarted;
 				this.apiLiveStarted = false;
 				if (!this.apiLiveClosing && wasStarted)
-					this.drop(new Error("The voice session ended. Start voice again."));
+					this.drop(new Error("Voice session ended. Restart voice."));
 				return;
 			}
 			if (

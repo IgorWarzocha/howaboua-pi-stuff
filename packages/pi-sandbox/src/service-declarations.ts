@@ -89,9 +89,7 @@ export class ServiceDeclarations {
 					`Unknown service ${name}. Edit ${this.configPath} or use service-start`,
 				);
 			if (!this.eligible(service))
-				throw new Error(
-					`Referenced service ${name} excludes the guest's Linux platform`,
-				);
+				throw new Error(`Referenced service ${name} excludes Linux guests`);
 			visiting.add(name);
 			for (const value of Object.values(service.env))
 				for (const match of value.matchAll(serviceReference)) {
@@ -104,7 +102,7 @@ export class ServiceDeclarations {
 						(!target.preview && !target.previews.length)
 					)
 						throw new Error(
-							`Service ${name} references ${dependency}, which must be declared with a preview`,
+							`Service ${name} references ${dependency}. Declare ${dependency} with a preview`,
 						);
 					visit(dependency);
 				}

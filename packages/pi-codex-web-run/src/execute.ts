@@ -126,11 +126,9 @@ export async function executeCodexWebSearch(
 			(cloudflareChallenge ||
 				response.text.toLowerCase().includes("cloudflare"))
 		)
-			throw new Error(
-				"Web search was blocked by an access challenge. Try again later.",
-			);
+			throw new Error("Access challenge blocked web search. Try again later.");
 		if (response.status === 404 && response.text.includes('"Not Found"'))
-			throw new Error("Web search is unavailable on this route.");
+			throw new Error("Web search unavailable on this route.");
 		if (
 			response.status === 401 ||
 			(response.status === 403 &&
@@ -140,7 +138,7 @@ export async function executeCodexWebSearch(
 				provider.route === "openai-codex" &&
 					provider.authProvider === "openai-codex"
 					? codexLoginDiagnostic(true)
-					: "Web search access was rejected. Ask the user to check access for their configured provider.",
+					: "Web search access rejected. Ask the user to check configured provider access.",
 			);
 		throw new Error("Web search failed: HTTP " + response.status);
 	}
@@ -148,7 +146,7 @@ export async function executeCodexWebSearch(
 	try {
 		parsed = JSON.parse(response.text);
 	} catch {
-		throw new Error("Web search returned an unreadable response. Try again.");
+		throw new Error("Unreadable web search response. Try again.");
 	}
 	const details = normalizeSearchResponse(parsed);
 	const text =

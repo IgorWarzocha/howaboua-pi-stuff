@@ -103,7 +103,7 @@ export function resolveOperation(
 						: "index";
 		throw facadeError(
 			"unknown_operation",
-			`Unknown Sites operation ${resource}.${action}; read sites_documentation({topic: "${topic}"})`,
+			`Unknown Sites action ${resource}.${action}. sites_documentation({topic:"${topic}"})`,
 			topic,
 		);
 	}

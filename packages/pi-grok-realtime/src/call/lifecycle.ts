@@ -203,7 +203,7 @@ export class GrokCall {
 		} catch (resumeError) {
 			if (this.effects.isCurrent() && !this.abort.signal.aborted) {
 				this.ctx.ui.notify(
-					`Grok voice could not resume: ${asError(resumeError).message}. Start a new call to reconnect`,
+					`Grok voice resume failed: ${asError(resumeError).message}. Start a new call to reconnect.`,
 					"error",
 				);
 				await this.effects.stop();

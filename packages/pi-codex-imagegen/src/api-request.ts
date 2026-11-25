@@ -16,11 +16,11 @@ function validateImageSize(size: string, format: OutputFormat): void {
 		Math.max(width / height, height / width) > 3
 	)
 		throw new Error(
-			"Image dimensions must be multiples of 16, at most 3840 per edge, with an aspect ratio between 1:3 and 3:1.",
+			"Image dimensions: multiples of 16, max 3840 per edge, aspect ratio 1:3 to 3:1.",
 		);
 	if (format !== "gif" && (width * height < 655360 || width * height > 8294400))
 		throw new Error(
-			"Still image size must contain 655360 to 8294400 pixels. Use auto or a larger size.",
+			"Still images require 655360 to 8294400 pixels. Use auto or resize within that range.",
 		);
 }
 
@@ -36,7 +36,7 @@ export async function buildOpenAIImageRequest(
 	const background = args.transparent_background ? "transparent" : "opaque";
 	if (background === "transparent" && !["png", "webp"].includes(format))
 		throw new Error(
-			"Transparent output requires PNG or WebP. Choose a compatible output_format or an opaque background.",
+			"Use PNG or WebP for transparency, or choose an opaque background.",
 		);
 	validateImageSize(args.size ?? "auto", format);
 	const editing = Boolean(
@@ -59,7 +59,7 @@ export async function buildOpenAIImageRequest(
 		for (const item of request.body.images) {
 			if (!/^data:image\/(png|jpeg|webp);base64,/.test(item.image_url))
 				throw new Error(
-					"OpenAI API edit inputs must be PNG, JPEG or WebP. Convert GIF inputs before editing.",
+					"OpenAI API edits require PNG, JPEG or WebP inputs. Convert GIFs first.",
 				);
 			if (item.image_url.length > 20 * 1024 * 1024)
 				throw new Error(
