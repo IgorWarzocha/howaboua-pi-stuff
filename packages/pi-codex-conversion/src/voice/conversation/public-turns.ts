@@ -6,9 +6,9 @@ import {
 	type RealtimeHandoffChannel,
 	type RealtimeHandoffTarget,
 } from "./handoff.ts";
-import type { CodexRealtimePeer } from "./peer.ts";
+import type { RealtimePeer } from "./peer.ts";
 import { RealtimePlayback } from "./playback.ts";
-import type { CodexConversationCallbacks } from "./session.ts";
+import type { ConversationCallbacks } from "./session.ts";
 
 export const SEND_TASK_TOOL = {
 	type: "function",
@@ -67,14 +67,14 @@ export class PublicRealtimeTurns {
 	private continuation = false;
 	private quietUntil = 0;
 	private timer: ReturnType<typeof setTimeout> | undefined;
-	private readonly callbacks: CodexConversationCallbacks;
-	private readonly peer: CodexRealtimePeer;
+	private readonly callbacks: ConversationCallbacks;
+	private readonly peer: RealtimePeer;
 	private readonly isActive: () => boolean;
 	private readonly onFailure: (error: Error) => void;
 	private readonly onOutputChanged: () => void;
 	constructor(
-		callbacks: CodexConversationCallbacks,
-		peer: CodexRealtimePeer,
+		callbacks: ConversationCallbacks,
+		peer: RealtimePeer,
 		isActive: () => boolean,
 		onFailure: (error: Error) => void,
 		onOutputChanged: () => void,

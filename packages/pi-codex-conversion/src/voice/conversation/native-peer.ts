@@ -1,18 +1,15 @@
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { VoiceHelperClient, type VoiceHelperEvent } from "../helper.ts";
 import { startRealtimeOffer } from "./helper-offer.ts";
-import type {
-	CodexRealtimePeerEvent,
-	CodexRealtimeWebRtcPeer,
-} from "./peer.ts";
+import type { RealtimePeerEvent, RealtimeWebRtcPeer } from "./peer.ts";
 
-export class NativeCodexRealtimePeer implements CodexRealtimeWebRtcPeer {
+export class NativeRealtimePeer implements RealtimeWebRtcPeer {
 	readonly kind = "webrtc" as const;
 	private readonly helper = new VoiceHelperClient();
 	private playbackEpoch = 0;
 	private speakerSuppressed = false;
 
-	onEvent(listener: (event: CodexRealtimePeerEvent) => void): () => void {
+	onEvent(listener: (event: RealtimePeerEvent) => void): () => void {
 		return this.helper.onEvent((event) => {
 			const peerEvent = toPeerEvent(event);
 			if (peerEvent) listener(peerEvent);
@@ -54,9 +51,7 @@ export class NativeCodexRealtimePeer implements CodexRealtimeWebRtcPeer {
 	}
 }
 
-function toPeerEvent(
-	event: VoiceHelperEvent,
-): CodexRealtimePeerEvent | undefined {
+function toPeerEvent(event: VoiceHelperEvent): RealtimePeerEvent | undefined {
 	if (
 		event.type === "state" ||
 		event.type === "data" ||

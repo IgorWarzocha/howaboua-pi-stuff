@@ -3,8 +3,8 @@ import type { VoiceAudioDiagnostics } from "../helper-protocol.ts";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
-import type { CodexRealtimePeer } from "../conversation/peer.ts";
-import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import type { RealtimePeer } from "../conversation/peer.ts";
+import type { RealtimeConversation } from "../conversation/session.ts";
 import type { RealtimeVoiceEventDetails } from "../conversation/wire.ts";
 import type { CodexDictationSession } from "../dictation/session.ts";
 import { rewriteTaskDelegation } from "../task-delegation.ts";
@@ -19,10 +19,10 @@ interface SessionLifecycle<T> {
 	onStatus(status: string): void;
 }
 
-interface RealtimeSessionLifecycle extends SessionLifecycle<CodexRealtimeConversation> {
-	onEndCall(session: CodexRealtimeConversation): void;
-	onDrop(session: CodexRealtimeConversation, error: Error): void;
-	onTurn(session: CodexRealtimeConversation, turn: RealtimeVoiceTurn): void;
+interface RealtimeSessionLifecycle extends SessionLifecycle<RealtimeConversation> {
+	onEndCall(session: RealtimeConversation): void;
+	onDrop(session: RealtimeConversation, error: Error): void;
+	onTurn(session: RealtimeConversation, turn: RealtimeVoiceTurn): void;
 	onUserTranscript(transcript: string): void;
 	onTranscriptTail(transcript: string): void;
 	onAudioDiagnostics(diagnostics: VoiceAudioDiagnostics): void;
@@ -41,7 +41,7 @@ export async function startControllerConversation(options: {
 	initialItems?: RealtimeInitialMessageItem[] | undefined;
 	inputMuted?: boolean | undefined;
 	greeting?: "fresh" | "contextual" | "handoff" | undefined;
-	peer?: CodexRealtimePeer | undefined;
+	peer?: RealtimePeer | undefined;
 	signal?: AbortSignal | undefined;
 	lifecycle: RealtimeSessionLifecycle;
 }): Promise<void> {
@@ -49,23 +49,20 @@ export async function startControllerConversation(options: {
 		await options.peer?.close();
 		return;
 	}
-	const { CodexRealtimeConversation } =
-		await import("../conversation/session.ts");
+	const { RealtimeConversation } = await import("../conversation/session.ts");
 	if (!options.lifecycle.stillAuthorizing() || options.signal?.aborted) {
 		await options.peer?.close();
 		return;
 	}
 	const realtimePeer =
 		options.peer ??
-		new (
-			await import("../conversation/native-peer.ts")
-		).NativeCodexRealtimePeer();
+		new (await import("../conversation/native-peer.ts")).NativeRealtimePeer();
 	if (!options.lifecycle.stillAuthorizing() || options.signal?.aborted) {
 		await realtimePeer.close();
 		return;
 	}
-	let session!: CodexRealtimeConversation;
-	session = new CodexRealtimeConversation(
+	let session!: RealtimeConversation;
+	session = new RealtimeConversation(
 		{
 			onError: (error) => options.lifecycle.onError(session, error),
 			onDrop: (error) => options.lifecycle.onDrop(session, error),

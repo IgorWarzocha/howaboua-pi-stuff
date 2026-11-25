@@ -7,7 +7,7 @@ import { admitCustomTurn } from "../custom-turn-admission.ts";
 import { trySendCodexDeveloperCustomMessage } from "../developer-messages.ts";
 import { CANCELLED, interruptible } from "./cancellation.ts";
 import { isVoiceContextExcludedMessage } from "./context-visibility.ts";
-import type { CodexRealtimeConversation } from "./conversation/session.ts";
+import type { RealtimeConversation } from "./conversation/session.ts";
 import type { RealtimeVoiceEventDetails } from "./conversation/wire.ts";
 import type { VoiceAudioDiagnostics } from "./helper-protocol.ts";
 import type { LanPlaybackDiagnostics } from "./lan/browser-connections.ts";
@@ -38,7 +38,7 @@ export interface CodexVoiceSessionMessageCallbacks {
 	onDelegation(
 		id: string,
 		input: string,
-		source: CodexRealtimeConversation | undefined,
+		source: RealtimeConversation | undefined,
 	): void;
 	onDelegationFailed(id: string): void;
 	onDeliveryUnavailable(message: string): void;
@@ -123,7 +123,7 @@ export class CodexVoiceSessionMessages {
 
 	voiceTurn(
 		turn: RealtimeVoiceTurn,
-		source?: CodexRealtimeConversation,
+		source?: RealtimeConversation,
 	): Promise<void> {
 		if (!turn.delegationId) {
 			this.pi.appendEntry<RealtimeVoiceMessageDetails>(
@@ -253,7 +253,7 @@ export class CodexVoiceSessionMessages {
 		turn: RealtimeVoiceTurn,
 		generation: number,
 		canDeliver: boolean,
-		source: CodexRealtimeConversation | undefined,
+		source: RealtimeConversation | undefined,
 	): Promise<void> {
 		const ctx = this.context;
 		if (

@@ -1,7 +1,7 @@
 import type { ActiveVoiceGuard } from "../active-owner.ts";
 import type { VoiceControllerRuntime } from "./start.ts";
 import { VOICE_STATUS_KEY, type VoiceSession } from "./support.ts";
-import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import type { RealtimeConversation } from "../conversation/session.ts";
 import type { TransferredVoiceControls } from "../handoff-contract.ts";
 import type { CapturedHandoffAudio } from "../handoff-peer.ts";
 
@@ -21,7 +21,7 @@ interface HandoffCallbacks {
 export class ControllerHandoff {
 	private handoffReservation: AbortController | undefined;
 	private forwardedAudio: TransferredVoiceControls | undefined;
-	private departingSession: CodexRealtimeConversation | undefined;
+	private departingSession: RealtimeConversation | undefined;
 	private removeForwardedEvents: (() => void) | undefined;
 	private readonly runtime: VoiceControllerRuntime;
 	private readonly ownership: ActiveVoiceGuard;
@@ -41,7 +41,7 @@ export class ControllerHandoff {
 	get forwarded(): TransferredVoiceControls | undefined {
 		return this.forwardedAudio;
 	}
-	get departing(): CodexRealtimeConversation | undefined {
+	get departing(): RealtimeConversation | undefined {
 		return this.departingSession;
 	}
 	cancelReservation(): void {
@@ -137,7 +137,7 @@ export class ControllerHandoff {
 					plan?.createPeer() ??
 					new (
 						await import("../conversation/native-peer.ts")
-					).NativeCodexRealtimePeer()
+					).NativeRealtimePeer()
 				);
 			},
 			start: (peer) => peer.start(config),

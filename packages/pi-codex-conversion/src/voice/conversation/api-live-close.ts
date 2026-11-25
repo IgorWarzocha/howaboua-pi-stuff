@@ -1,11 +1,9 @@
-import type { CodexRealtimePeer } from "./peer.ts";
+import type { RealtimePeer } from "./peer.ts";
 
 export class ApiLiveFinalizationError extends Error {}
 
 /** Confirm the API has finalised the call before releasing the transport. */
-export async function closeApiLiveSession(
-	peer: CodexRealtimePeer,
-): Promise<void> {
+export async function closeApiLiveSession(peer: RealtimePeer): Promise<void> {
 	const result = Promise.withResolvers<void>();
 	const removeEvent = peer.onEvent((event) => {
 		if (

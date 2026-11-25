@@ -1,4 +1,4 @@
-import type { CodexRealtimePeer } from "./peer.ts";
+import type { RealtimePeer } from "./peer.ts";
 
 const PLAYBACK_WAIT_MS = 30_000;
 const QUIET_MS = 500;
@@ -21,12 +21,12 @@ interface RefreshInput {
 
 /** Owns observed output completions and waits for the peer's quiet boundary. */
 export class PlaybackSettlement {
-	private readonly peer: CodexRealtimePeer;
+	private readonly peer: RealtimePeer;
 	private readonly state: PlaybackState;
 	private readonly checks = new Set<() => void>();
 	private completed = 0;
 
-	constructor(peer: CodexRealtimePeer, state: PlaybackState) {
+	constructor(peer: RealtimePeer, state: PlaybackState) {
 		this.peer = peer;
 		this.state = state;
 	}

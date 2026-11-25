@@ -23,26 +23,23 @@ import {
 	VOICE_STATUS_KEY,
 	type VoiceState,
 } from "./support.ts";
-import type { CodexRealtimePeer } from "../conversation/peer.ts";
+import type { RealtimePeer } from "../conversation/peer.ts";
 import type { TransferredVoiceControls } from "../handoff-contract.ts";
-import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import type { RealtimeConversation } from "../conversation/session.ts";
 import type { CodexVoiceSessionMessages } from "../session-messages.ts";
 import type { CodexVoiceMode } from "../ui.ts";
 
 export interface RealtimePeerPlan {
-	createPeer(): CodexRealtimePeer;
-	onActive?(session: CodexRealtimeConversation, peer: CodexRealtimePeer): void;
+	createPeer(): RealtimePeer;
+	onActive?(session: RealtimeConversation, peer: RealtimePeer): void;
 	onInactive?(
-		session: CodexRealtimeConversation,
+		session: RealtimeConversation,
 		error: Error,
 		resuming: boolean,
 	): void;
 	onStatus?(status: string): void;
-	onTransferred?(
-		peer: CodexRealtimePeer,
-		controls: TransferredVoiceControls,
-	): void;
-	onTransferEnded?(peer: CodexRealtimePeer, error?: Error): void;
+	onTransferred?(peer: RealtimePeer, controls: TransferredVoiceControls): void;
+	onTransferEnded?(peer: RealtimePeer, error?: Error): void;
 	onStopped?(): void;
 }
 
@@ -114,11 +111,11 @@ export async function startControllerMode(options: {
 	prepareRealtimePrompt(ctx: ExtensionContext): string | undefined;
 	stopCurrent(): Promise<void>;
 	finishCurrentDictation(): Promise<void>;
-	onError(error: Error, session?: CodexRealtimeConversation | undefined): void;
-	onEndCall(session: CodexRealtimeConversation): void;
-	onDrop(session: CodexRealtimeConversation, error: Error): void;
+	onError(error: Error, session?: RealtimeConversation | undefined): void;
+	onEndCall(session: RealtimeConversation): void;
+	onDrop(session: RealtimeConversation, error: Error): void;
 	onStatus(status: string): void;
-}): Promise<CodexRealtimeConversation | undefined> {
+}): Promise<RealtimeConversation | undefined> {
 	const { runtime, signal } = options;
 	if (signal?.aborted) return;
 	const realtimePrompt =

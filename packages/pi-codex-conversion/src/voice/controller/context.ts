@@ -14,7 +14,7 @@ import {
 	type RealtimePeerPlan,
 	type VoiceControllerRuntime,
 } from "./start.ts";
-import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import type { RealtimeConversation } from "../conversation/session.ts";
 
 export interface RealtimeContextRefreshOptions {
 	sourceLeafId?: string | undefined;
@@ -27,7 +27,7 @@ interface RealtimeContextRefreshCallbacks {
 	replace(
 		ctx: ExtensionContext,
 		config: CodexConversionConfig,
-		previous: CodexRealtimeConversation,
+		previous: RealtimeConversation,
 		plan: RealtimePeerPlan | undefined,
 		inputMuted: boolean,
 		prepared: PreparedRealtimeContext,
@@ -143,7 +143,7 @@ export class RealtimeContextRefresh {
 	}
 
 	private isCurrent(
-		session: CodexRealtimeConversation,
+		session: RealtimeConversation,
 		generation: number,
 		abortController: AbortController,
 	): boolean {
@@ -167,7 +167,7 @@ function conversationLeafId(ctx: ExtensionContext): string | undefined {
 interface ContextReplacementCallbacks {
 	prepareRealtimePrompt(ctx: ExtensionContext): string | undefined;
 	renderStatus(status: string): void;
-	fail(error: Error, previous: CodexRealtimeConversation): void;
+	fail(error: Error, previous: RealtimeConversation): void;
 	startReplacement(
 		ctx: ExtensionContext,
 		config: CodexConversionConfig,
@@ -175,7 +175,7 @@ interface ContextReplacementCallbacks {
 		inputMuted: boolean,
 		prepared: PreparedRealtimeContext,
 		signal: AbortSignal,
-	): Promise<CodexRealtimeConversation | undefined>;
+	): Promise<RealtimeConversation | undefined>;
 }
 export async function replaceRealtimeContext({
 	runtime,
@@ -192,7 +192,7 @@ export async function replaceRealtimeContext({
 	callbacks: ContextReplacementCallbacks;
 	ctx: ExtensionContext;
 	config: CodexConversionConfig;
-	previous: CodexRealtimeConversation;
+	previous: RealtimeConversation;
 	plan: RealtimePeerPlan | undefined;
 	inputMuted: boolean;
 	prepared: PreparedRealtimeContext;

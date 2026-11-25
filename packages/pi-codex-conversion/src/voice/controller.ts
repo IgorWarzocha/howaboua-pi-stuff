@@ -29,7 +29,7 @@ import {
 	prepareRealtimeVoicePrompt,
 	type VoiceSession,
 } from "./controller/support.ts";
-import type { CodexRealtimeConversation } from "./conversation/session.ts";
+import type { RealtimeConversation } from "./conversation/session.ts";
 import type { CapturedHandoffAudio } from "./handoff-peer.ts";
 import type { LanPlaybackDiagnostics } from "./lan/browser-connections.ts";
 import type { CodexVoiceSessionMessages } from "./session-messages.ts";
@@ -232,7 +232,7 @@ export class CodexVoiceController {
 		preparedRealtimeContext?: PreparedRealtimeContext,
 		inputMuted = false,
 		alternateVoice?: boolean,
-	): Promise<CodexRealtimeConversation | undefined> {
+	): Promise<RealtimeConversation | undefined> {
 		if (this.handoff.reservation)
 			throw new Error(
 				"A voice transfer is preparing; stop it before starting another call",
@@ -273,7 +273,7 @@ export class CodexVoiceController {
 	}
 
 	async stopConversation(
-		session: CodexRealtimeConversation,
+		session: RealtimeConversation,
 		options?: { announce?: boolean },
 	): Promise<void> {
 		if (this.currentSession() === session) await this.stop(options);
@@ -287,7 +287,7 @@ export class CodexVoiceController {
 	}
 
 	setConversationInputActive(
-		session: CodexRealtimeConversation,
+		session: RealtimeConversation,
 		active: boolean,
 	): void {
 		if (this.currentSession() !== session) return;

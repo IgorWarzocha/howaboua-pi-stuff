@@ -1,7 +1,7 @@
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import {
-	type CodexRealtimePeer,
-	type CodexRealtimePeerEvent,
+	type RealtimePeer,
+	type RealtimePeerEvent,
 	MAX_REALTIME_SDP_BYTES,
 } from "./conversation/peer.ts";
 import type { TransferredVoiceControls } from "./handoff-contract.ts";
@@ -20,13 +20,10 @@ export interface CapturedHandoffAudio {
 	sourceActive(): boolean;
 	bindControls(controls: TransferredVoiceControls): void;
 	release(signal: AbortSignal, beforeStop?: () => Promise<void>): Promise<void>;
-	createPeer(): Promise<CodexRealtimePeer>;
-	start(peer: CodexRealtimePeer): Promise<string>;
-	transferred(
-		peer: CodexRealtimePeer,
-		controls: TransferredVoiceControls,
-	): void;
-	finished(peer: CodexRealtimePeer | undefined, error: Error): void;
+	createPeer(): Promise<RealtimePeer>;
+	start(peer: RealtimePeer): Promise<string>;
+	transferred(peer: RealtimePeer, controls: TransferredVoiceControls): void;
+	finished(peer: RealtimePeer | undefined, error: Error): void;
 }
 
 /** Source-side media owner. The destination never chooses a physical device. */
@@ -35,13 +32,13 @@ export class HandoffAudioHost {
 	private current:
 		| {
 				generation: number;
-				peer: CodexRealtimePeer;
+				peer: RealtimePeer;
 				abort: AbortController;
 				removeEvent(): void;
 				removeExit(): void;
 		  }
 		| undefined;
-	private lastPeer: CodexRealtimePeer | undefined;
+	private lastPeer: RealtimePeer | undefined;
 	private closed = false;
 	private starting = false;
 	private released = false;
@@ -187,11 +184,9 @@ export class HandoffAudioHost {
 }
 
 /** Destination-side peer: call setup/auth and all Pi work remain local here. */
-export class HandoffRemotePeer implements CodexRealtimePeer {
+export class HandoffRemotePeer implements RealtimePeer {
 	readonly kind = "webrtc" as const;
-	private readonly listeners = new Set<
-		(event: CodexRealtimePeerEvent) => void
-	>();
+	private readonly listeners = new Set<(event: RealtimePeerEvent) => void>();
 	private readonly exitListeners = new Set<(error: Error) => void>();
 	private generation: number | undefined;
 	private starting: Promise<string> | undefined;
@@ -204,7 +199,7 @@ export class HandoffRemotePeer implements CodexRealtimePeer {
 		this.link = link;
 	}
 
-	onEvent(listener: (event: CodexRealtimePeerEvent) => void): () => void {
+	onEvent(listener: (event: RealtimePeerEvent) => void): () => void {
 		this.listeners.add(listener);
 		return () => this.listeners.delete(listener);
 	}
@@ -319,7 +314,7 @@ function validSdp(value: unknown): value is string {
 	);
 }
 
-function readPeerEvent(value: unknown): CodexRealtimePeerEvent {
+function readPeerEvent(value: unknown): RealtimePeerEvent {
 	if (isRecord(value)) {
 		if (value["type"] === "playback_activity")
 			return { type: "playback_activity" };
