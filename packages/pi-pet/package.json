@@ -98,7 +98,7 @@
     "typescript": "^7.0.2",
     "@howaboua/pi-codex-conversion": "5.1.0",
     "oxfmt": "^0.78.0",
-    "tsrs": "0.25.0-ts7.1.0-beta",
+    "tsrs": "7.1.0-beta.tsrs5",
     "oxlint": "1.94.0",
     "html-validate": "11.4.0",
     "stylelint": "17.16.0",

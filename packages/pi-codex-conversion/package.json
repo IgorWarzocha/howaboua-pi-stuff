@@ -133,7 +133,7 @@
     "@earendil-works/pi-tui": "1.6.1",
     "@types/node": "26.6.6",
     "@types/ws": "8.18.2",
-    "tsrs": "7.1.0-beta.tsrs4",
+    "tsrs": "7.1.0-beta.tsrs5",
     "tsx": "4.23.15",
     "typescript": "7.0.2"
   },

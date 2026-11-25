@@ -57,7 +57,7 @@
     "partial-json": "0.1.7",
     "proxy-from-env": "2.1.0",
     "stylelint": "17.16.0",
-    "tsrs": "7.1.0-beta.tsrs4",
+    "tsrs": "7.1.0-beta.tsrs5",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
     "web-tree-sitter": "0.27.2"
