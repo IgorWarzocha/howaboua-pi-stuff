@@ -59,7 +59,7 @@ export class AttachmentTarget {
 		const identity = await service.inspectAttachment(ctx, target);
 		if (!identity || !checkIdentity(identity))
 			throw new Error(
-				"Context attachment requires notes-based continuity on both agents",
+				"Context attachment needs Notes continuity in both sessions",
 			);
 		return identity as Static<typeof Identity>;
 	}
@@ -179,15 +179,13 @@ export class AttachmentTarget {
 			!ctx.isIdle() ||
 			ctx.sessionManager.getSessionId() !== plan.targetSessionId
 		)
-			throw new Error(
-				"Target changed or started work during attachment; retry after it settles",
-			);
+			throw new Error("Target changed or started work. Retry attach once idle");
 		const owner = attachmentOwner(ctx);
 		if (owner && detachment(ctx, owner))
 			throw new Error("Attachment was detached; reattachment is unsupported");
 		if (owner && !isDeepStrictEqual(owner, plan))
 			throw new Error(
-				"Target is already attached; another controller or different attachment choices are unsupported",
+				"Target already attached. Cannot change controller or attachment choices",
 			);
 		if (!owner) {
 			const current = await this.inspect(ctx);
@@ -227,9 +225,7 @@ export class AttachmentTarget {
 					(plan.board &&
 						!sameBoard(this.board.binding(ctx), plan.board.previous))
 				)
-					throw new Error(
-						"Target changed during attachment authentication; retry after it settles",
-					);
+					throw new Error("Target changed. Retry attach once idle");
 				this.retainIdentity(ctx);
 			}
 			signal?.throwIfAborted();
@@ -237,9 +233,7 @@ export class AttachmentTarget {
 				!ctx.isIdle() ||
 				ctx.sessionManager.getSessionId() !== plan.targetSessionId
 			)
-				throw new Error(
-					"Target changed during attachment; retry after it settles",
-				);
+				throw new Error("Target changed. Retry attach once idle");
 			if (plan.board)
 				this.board.membership.commitAttachment(
 					ctx,
@@ -277,7 +271,7 @@ export class AttachmentTarget {
 		if (plan.board) await this.board.refresh(ctx);
 		if (ctx.sessionManager.getSessionId() !== plan.targetSessionId)
 			throw new Error(
-				"Target session changed after attachment; resume it and retry",
+				"Target switched sessions after attach. Resume the original target and retry",
 			);
 		return plan;
 	}
@@ -328,9 +322,7 @@ export class AttachmentTarget {
 			ctx.sessionManager.getSessionId() !== plan.targetSessionId ||
 			!isDeepStrictEqual(attachmentOwner(ctx), plan)
 		)
-			throw new Error(
-				"Target changed during detach authentication; retry after it settles",
-			);
+			throw new Error("Target changed. Retry detach once idle");
 		if (requested.board && plan.board && !previous?.board)
 			this.board.membership.detachTarget(
 				ctx,

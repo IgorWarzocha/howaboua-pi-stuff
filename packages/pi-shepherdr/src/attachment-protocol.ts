@@ -132,7 +132,7 @@ export const checkSnapshot = compile(Snapshot).check;
 export type AttachmentPlan = Static<typeof Plan>;
 export type AttachmentRoute = Static<typeof Route>;
 export const ATTACHMENT_CONTEXT_CHANGED =
-	"This attachment no longer matches the session's sharing identity. Request a handoff from the owner.";
+	"Attachment identity changed. Request a handoff from the owner.";
 export const OWNER = "shepherdr-attachment-owner";
 export const ROUTE = "shepherdr-attachment-route";
 export const DETACHED = "shepherdr-attachment-detached";
@@ -204,7 +204,7 @@ export function remapResult(
 			Array.isArray(result.details.externalNotesResponses) &&
 			result.details.externalNotesResponses.length > 0)
 	) {
-		const hint = `Source ${from}, access through ${to}. Use ${to}/notes for note paths and ${to} for history agent_name`;
+		const hint = `Source ${from}: notes at ${to}/notes, history agent_name=${to}`;
 		// Ciphertext paths cannot be remapped. Preserve host-only provenance on the original details.
 		result.details.codexHistoryNotes["attachment_hint"] = hint;
 		return {

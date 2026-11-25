@@ -26,8 +26,8 @@ export function agentVoicePrompt(details: AgentEventDetails): string {
 	if (details.state === "blocked" || details.state === "extension-message") {
 		instruction =
 			details.state === "extension-message"
-				? "Briefly tell the user what this worker reports."
-				: "Briefly tell the user why this monitored worker is blocked and what attention may be required.";
+				? "Briefly relay the worker's report to the user."
+				: "Briefly tell the user what blocked the worker and what may need attention.";
 		if (details.blockedOn?.trim())
 			lines.push(`Reason:\n${details.blockedOn.trim()}`);
 		if (details.extensionMessages)
@@ -37,8 +37,8 @@ export function agentVoicePrompt(details: AgentEventDetails): string {
 	} else {
 		instruction =
 			details.state === "failed"
-				? "Briefly tell the user that this monitored worker failed and include useful detail from its report."
-				: "Briefly tell the user what this monitored worker found or completed; do not merely announce that it finished.";
+				? "Briefly tell the user the worker failed, with useful details."
+				: "Briefly tell the user what the worker found or completed, not just that it finished.";
 		if (details.response?.trim())
 			lines.push(`Report:\n${details.response.trim()}`);
 	}
@@ -73,7 +73,7 @@ export function announcePeerMessage(
 		pi,
 		`pi-shepherdr:${source["host"] ?? "local"}:${source["pane"] ?? "peer"}`,
 		boundedVoicePrompt(
-			`Briefly tell the user the useful update from this peer.\n\nPeer: ${source["host"] ?? "local"} / ${source["name"] || source["pane"] || "unnamed"}\n\nUpdate:\n${message.text.trim()}`,
+			`Briefly relay the peer's useful update to the user.\n\nPeer: ${source["host"] ?? "local"} / ${source["name"] || source["pane"] || "unnamed"}\n\nUpdate:\n${message.text.trim()}`,
 		),
 	);
 }

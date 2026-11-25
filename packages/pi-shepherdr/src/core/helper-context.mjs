@@ -27,7 +27,7 @@ export function helperContext(context, send) {
 				}
 				finish(
 					new Error(
-						"Shared context request cancelled; a write may have completed. Reread before retrying",
+						"Shared context cancelled. Write may have completed; reread before retrying",
 					),
 				);
 			};

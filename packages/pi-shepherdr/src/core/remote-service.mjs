@@ -3,7 +3,7 @@ import { homedir, hostname } from "node:os";
 import { resolve } from "node:path";
 
 const NOTES_UNAVAILABLE =
-	"Saved Notes reads are unavailable. Install Agent Comms alongside Shepherdr on the controller, then reload Pi. Other agent operations remain available.";
+	"Saved Notes unavailable. Install Agent Comms alongside Shepherdr on the controller, then reload Pi.";
 
 /** Operations that need the selected Core's filesystem or authenticated Pi peers. */
 export async function serve(input, send, fail) {

@@ -24,12 +24,12 @@ export function focusArrivalContent(
 	const callable = codeMode ? `tools.agents(${args})` : `agents ${args}`;
 	return {
 		returnFocus,
-		content: `User arrived from ${JSON.stringify(focusOrigin(request))}\nReturn: ${callable}${request.voice ? "\nVoice transfer pending" : ""}${request.handoff ? `\nHandoff from that agent:\n${request.handoff}` : ""}`,
+		content: `User arrived from ${JSON.stringify(focusOrigin(request))}\nReturn: ${callable}${request.voice ? "\nVoice transfer pending" : ""}${request.handoff ? `\nHandoff:\n${request.handoff}` : ""}`,
 	};
 }
 
 export function voiceFocusContinuity(request: FocusRequest): string {
-	return `User transferring voice from ${JSON.stringify(focusOrigin(request))}${request.handoff ? `\nHandoff from that agent:\n${request.handoff}` : ""}`;
+	return `User transferring voice from ${JSON.stringify(focusOrigin(request))}${request.handoff ? `\nHandoff:\n${request.handoff}` : ""}`;
 }
 
 export function voiceFocusReport(
@@ -38,6 +38,6 @@ export function voiceFocusReport(
 	error?: unknown,
 ): string {
 	return error === undefined
-		? `Voice transfer complete (${side}, ${target}); replacement call active`
-		: `Voice transfer failed (${side}, ${target}): ${error instanceof Error ? error.message : String(error)}. Voice availability is not confirmed; inspect the session before retrying`;
+		? `Voice transfer complete (${side}, ${target}): replacement active`
+		: `Voice transfer failed (${side}, ${target}): ${error instanceof Error ? error.message : String(error)}. Voice availability unknown. Inspect the session before retrying`;
 }

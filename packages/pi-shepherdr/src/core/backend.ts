@@ -207,7 +207,7 @@ export class CoreConnection {
 				(result["result"] !== undefined && typeof result["result"] !== "string")
 			)
 				throw new Error(
-					"Remote delivery was not acknowledged; inspect the target before retrying",
+					"Remote delivery unconfirmed. Inspect the target before retrying",
 				);
 			return {
 				command: result["command"],
@@ -243,7 +243,7 @@ export class CoreConnection {
 			);
 			if (typeof result !== "string")
 				throw new Error(
-					"Remote extension reply was not acknowledged; inspect the target before retrying",
+					"Remote extension reply unconfirmed. Inspect the target before retrying",
 				);
 			return result;
 		}

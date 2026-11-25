@@ -51,7 +51,7 @@ export function savedContextLoader(fleet: AgentFleet): SavedSessionLoader {
 				if (!locations.length && unavailable.length)
 					throw Object.assign(
 						new Error(
-							`Saved sessions could not be searched on ${unavailable.join(", ")}. Reconnect those machines and check access to their Pi session storage, then retry.`,
+							`Saved session search unavailable on ${unavailable.join(", ")}. Reconnect and check Pi session storage access, then retry.`,
 						),
 						{ code: "SAVED_SESSION_UNAVAILABLE" },
 					);

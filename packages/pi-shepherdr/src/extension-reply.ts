@@ -29,7 +29,7 @@ export async function dispatchExtensionReply(
 	const result = await claimed;
 	if (typeof result !== "string")
 		throw new Error(
-			"Extension reply handler returned an invalid receipt; inspect the target before retrying",
+			"Invalid extension reply receipt. Inspect the target before retrying",
 		);
 	return result;
 }

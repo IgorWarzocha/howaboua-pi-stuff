@@ -84,14 +84,13 @@ export class SpawnContext {
 					throw new Error("Controller session changed during spawn");
 				if (value === null)
 					return {
-						warning:
-							"Worker relationship marking requires Codex conversion on the target",
+						warning: "Worker relationship needs Codex Conversion on the target",
 					};
 				// Older targets preserve linkage but do not recognise cache affinity.
 				if (cacheAffinityId && isDeepStrictEqual(value, linkage))
 					return {
 						warning:
-							"Worker started without shared cache routing; update Codex Conversion on the target to enable it",
+							"No shared cache routing. Update Codex Conversion on the target",
 					};
 				if (!isDeepStrictEqual(value, relationship))
 					throw new Error(
@@ -119,7 +118,7 @@ export class SpawnContext {
 			)
 		)
 			throw new Error(
-				"Shared context spawn cannot use profile session-selection arguments; use assign for existing agents",
+				"Shared context needs a fresh session. Use assign for existing agents",
 			);
 		const parentFile = ctx.sessionManager.getSessionFile();
 		if (!parentFile)
@@ -153,7 +152,7 @@ export class SpawnContext {
 				);
 				if (value === null)
 					return {
-						warning: "Spawned without shared context: the target needs Notes",
+						warning: "Context not shared. Enable Notes on the target",
 					};
 				if (
 					typeof value !== "object" ||
@@ -168,7 +167,7 @@ export class SpawnContext {
 							value.accountScope !== binding.accountScope))
 				)
 					throw new Error(
-						"Spawned agent did not adopt its shared context identity and storage mode",
+						"Worker did not adopt shared context identity and storage mode",
 					);
 				if (ctx.sessionManager.getSessionId() !== parent.threadId)
 					throw new Error("Controller session changed during spawn");
