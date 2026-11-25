@@ -177,8 +177,8 @@ export function buildCodeModeToolsPrompt(
 					),
 		executionKind !== "code"
 			? prose(
-					"One-off declarations MUST stay inside { ... }. Reserve top-level bindings for reuse across cells. For results you will replace, declare a descriptive let once, then assign without redeclaring.",
-					"One-off declarations MUST stay in { ... }. Top level: cross-cell reuse only. Replaceable result→descriptive let once, then assign without let.",
+					"For one-off work, print the tool result directly or start the cell with a block and use let inside it. Declare at top level only for cross-cell reuse. Give each retained binding a distinct, task-specific name.",
+					"One-off work→print directly or start cell with { ... } and use let inside. Top level→cross-cell reuse only; distinct, task-specific names.",
 				)
 			: undefined,
 		executionKind === "ts"

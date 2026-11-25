@@ -143,7 +143,7 @@ function withScriptErrorRecovery(
 		)
 	)
 		return errorText;
-	return `${errorText}\nRetry: keep one-off declarations and their uses in { ... }. Assign to an existing let. For const or values you need to keep, use a block or fresh name. Verify values before reuse.`;
+	return `${errorText}\nRetry: wrap one-off code in { ... } and prefer let inside the block. For a new persistent binding, pick a different name.`;
 }
 
 function toPiContent(item: RuntimeContentItem):
