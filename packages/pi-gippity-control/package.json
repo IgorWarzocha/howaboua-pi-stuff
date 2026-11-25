@@ -58,17 +58,17 @@
     "selfsigned": "5.5.0",
     "undici": "8.13.1",
     "ws": "8.23.0",
-    "@earendil-works/pi-schema": "1.6.0"
+    "@earendil-works/pi-schema": "1.6.1"
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": ">=1.0.0",
-    "@earendil-works/pi-coding-agent": ">=1.5.0",
-    "@earendil-works/pi-tui": ">=1.0.0"
+    "@earendil-works/pi-ai": ">=1.6.1",
+    "@earendil-works/pi-coding-agent": ">=1.6.1",
+    "@earendil-works/pi-tui": ">=1.6.1"
   },
   "devDependencies": {
-    "@earendil-works/pi-ai": "1.6.0",
-    "@earendil-works/pi-coding-agent": "1.6.0",
-    "@earendil-works/pi-tui": "1.6.0",
+    "@earendil-works/pi-ai": "1.6.1",
+    "@earendil-works/pi-coding-agent": "1.6.1",
+    "@earendil-works/pi-tui": "1.6.1",
     "@types/node": "26.6.6",
     "@types/ws": "8.18.2",
     "typescript": "7.0.2",

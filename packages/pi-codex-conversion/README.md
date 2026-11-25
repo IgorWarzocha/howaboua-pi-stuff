@@ -26,7 +26,7 @@ Install [Web Run](../pi-codex-web-run) or [Imagegen](../pi-codex-imagegen) for w
 pi install npm:@howaboua/pi-codex-conversion
 ```
 
-Requires Pi 1.4.0 or newer and Node.js 22.19 or newer. Native helpers for macOS, Linux and Windows are bundled for x64 and arm64. TS Notebook has [narrower platform support](#code-mode-and-custom-tools).
+Requires the latest Pi release and Node.js 22.19 or newer. Native helpers for macOS, Linux and Windows are bundled for x64 and arm64. TS Notebook has [narrower platform support](#code-mode-and-custom-tools).
 
 Open `/codex` after installation. Codex-like GPT models use **Structured** mode by default.
 
@@ -94,7 +94,7 @@ Press **Ctrl+O** to expand tool output and see the available source, output and 
 
 ### Optional controls
 
-- **Heavy system prompt overwrite:** **on** replaces Pi's default instructions with compact guidance and keeps other extensions' contributions. **Off** keeps Pi's defaults. Pi Codex uses compact wording in both cases.
+- **Heavy system prompt overwrite:** **Off** keeps Pi's default prompt and adds Codex guidance in plain prose. **On** replaces Pi's default instructions with shorter Codex guidance. Both preserve other extensions' contributions.
 - **Current time reminders:** adds periodic time updates for the model. Choose 30 or 60 minutes under General. Off by default.
 - **Auto reasoning:** asks supported GPT-6 models to adjust effort during work, never below your selected level. Your selection returns when the run settles. Off by default. The model can ignore the instruction, so this is not a guarantee of adaptive effort.
 - **Fast Mode:** choose off, priority processing or Ultrafast independently for Astra, Sol, Terra and Luna. Availability depends on the model and account.

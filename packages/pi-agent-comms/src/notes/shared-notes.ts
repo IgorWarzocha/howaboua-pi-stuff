@@ -32,6 +32,8 @@ const memberValidator = compile(Member);
 const parentValidator = compile(Parent);
 const planValidator = compile(Plan);
 const routeValidator = compile(Route);
+const AMBIGUOUS_SAVED_ADDRESS =
+	"Address matches multiple machines. Use a unique attachment alias.";
 
 function records(session: SavedNotesSession, kind: string): unknown[] {
 	return session.entries.flatMap((entry) =>
@@ -199,10 +201,7 @@ async function readSharedSession(
 			)
 				candidates.push(saved);
 		}
-		if (candidates.length > 1)
-			throw new Error(
-				"Saved shared address is ambiguous across machines. Use a unique attached alias, then retry.",
-			);
+		if (candidates.length > 1) throw new Error(AMBIGUOUS_SAVED_ADDRESS);
 		return candidates[0];
 	}
 	async function resolve(
@@ -234,10 +233,7 @@ async function readSharedSession(
 					inside(destination, link.alias))
 			);
 		});
-		if (matching.length > 1)
-			throw new Error(
-				"Saved shared address is ambiguous across machines. Use a unique attached alias, then retry.",
-			);
+		if (matching.length > 1) throw new Error(AMBIGUOUS_SAVED_ADDRESS);
 		for (const route of matching) {
 			const link = route.plan.context;
 			if (route.phase !== "ready" || !link) continue;
@@ -346,7 +342,7 @@ async function readSharedSession(
 					unavailable ??
 					Object.assign(
 						new Error(
-							"This looks like a shortened agent address. Use the complete agent address from the owner and retry.",
+							"Possible shortened agent address. Use the owner's full address.",
 						),
 						{ code: "SAVED_SESSION_UNAVAILABLE" },
 					)
@@ -368,14 +364,11 @@ async function readSharedSession(
 					contextStorageAgentName(child) !== member.agentName)
 			)
 				throw new Error(
-					"This session cannot access the requested saved context. Request an accessible handoff or note path from its owner.",
+					"Saved context inaccessible. Ask its owner for an accessible handoff or note path.",
 				);
 			const candidate = await resolve(saved, destination, query);
 			if (candidate) {
-				if (result)
-					throw new Error(
-						"Saved shared address is ambiguous across machines. Use a unique attached alias, then retry.",
-					);
+				if (result) throw new Error(AMBIGUOUS_SAVED_ADDRESS);
 				result = candidate;
 			}
 		}
@@ -403,10 +396,7 @@ async function readSharedSession(
 				if (!parent || parent.sessionId !== identity.sessionId)
 					throw new Error("Saved shared notes parent identity changed");
 				const candidate = await resolve(saved, destination, query);
-				if (candidate && result)
-					throw new Error(
-						"Saved shared address is ambiguous across machines. Use a unique attached alias, then retry.",
-					);
+				if (candidate && result) throw new Error(AMBIGUOUS_SAVED_ADDRESS);
 				result = candidate ?? result;
 			}
 		}
@@ -431,7 +421,7 @@ async function readSharedSession(
 		)
 			throw Object.assign(
 				new Error(
-					`Saved ${namespace} could not be read on this machine. Request a handoff from the owner, or ask the user to restore access before retrying.`,
+					`Saved ${namespace} unreadable here. Request a handoff or ask the user to restore access.`,
 					{ cause: error },
 				),
 				{ code: "SAVED_SESSION_UNAVAILABLE" },

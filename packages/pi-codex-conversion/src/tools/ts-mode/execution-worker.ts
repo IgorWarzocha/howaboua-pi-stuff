@@ -11,7 +11,6 @@ import type {
 interface WorkerCallbacks {
 	output(items: RuntimeContentItem[]): void;
 	notify(text: string): void;
-	yield(): void;
 	request(
 		operation: "tool" | "import",
 		id: number,
@@ -80,9 +79,6 @@ export class TsExecutionWorker {
 						break;
 					case "notify":
 						active.callbacks.notify(value.text);
-						break;
-					case "yield":
-						active.callbacks.yield();
 						break;
 					case "request": {
 						const request = this.request(value, active.callbacks);
@@ -233,8 +229,6 @@ function assertMessage(value: unknown): asserts value is TsWorkerMessage {
 			"TS execution returned an invalid response; restart the notebook from its durable checkpoint",
 		);
 	switch (value["kind"]) {
-		case "yield":
-			return;
 		case "error":
 			if (typeof value["error"] === "string") return;
 			break;

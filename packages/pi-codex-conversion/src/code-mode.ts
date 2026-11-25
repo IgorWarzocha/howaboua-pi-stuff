@@ -54,7 +54,7 @@ export function adaptToolForCodeMode<
 	},
 ): ProgrammaticCodeModeToolDefinition {
 	if (options.kind === "freeform" && !options.prepareInput) {
-		throw new Error("Freeform Code Mode tools require prepareInput");
+		throw new Error("Freeform nested tools require prepareInput");
 	}
 	const nestedTool = options.toolName
 		? { ...tool, name: codeModeNameForToolIdentity(options.toolName) }

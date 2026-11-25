@@ -6,25 +6,26 @@ import {
 	supportsResponsesLiteModel,
 } from "../../providers/openai-codex/responses-lite-model.ts";
 import {
-	isCodexLikeModel,
+	isDefaultAdapterModel,
 	isCodexTransportContext,
 	isOpenAIResponsesContext,
 	isResponsesContext,
-} from "../prompt/codex-model.ts";
+} from "../prompt/model-support.ts";
 import type { CodexConversionConfig } from "./config.ts";
 import { FAST_MODE_FAMILIES } from "./config-contract.ts";
 import type { ExecutionMode } from "./execution-mode.ts";
 import type { AdapterState } from "./state.ts";
 import {
 	APPLY_PATCH_TOOL_NAME,
-	CODE_MODE_TOOL_NAMES,
+	EXEC_TOOL_NAMES,
 	CORE_ADAPTER_TOOL_NAMES,
-	NOTEBOOK_MODE_TOOL_NAMES,
+	TS_NOTEBOOK_TOOL_NAMES,
 	SHELL_ADAPTER_TOOL_NAMES,
 	VIEW_IMAGE_TOOL_NAME,
 } from "./tool-set.ts";
 
 type RuntimeContext = Pick<ExtensionContext, "model">;
+export type ResponsesFormat = "responses" | "responses-lite";
 
 interface RuntimePlanBase {
 	kind: "inactive" | "normal" | "code" | "ts" | "vm";
@@ -32,7 +33,7 @@ interface RuntimePlanBase {
 	ownedToolNames: string[];
 	configuredProvider: boolean;
 	codexTransport: boolean;
-	effectiveOpenAICodex: boolean;
+	codexOrConfiguredResponses: boolean;
 	nativeCompaction: boolean;
 	nativeReplay: boolean;
 	autoReasoning: boolean;
@@ -42,35 +43,30 @@ export interface InactiveRuntimePlan extends RuntimePlanBase {
 	kind: "inactive";
 	missingToolNames?: string[];
 	toolNames: [];
-	prompt: undefined;
-	transport: undefined;
+	responsesFormat: undefined;
 }
 
 export interface NormalRuntimePlan extends RuntimePlanBase {
 	kind: "normal";
-	prompt: "normal";
-	transport: "responses";
+	responsesFormat: "responses";
 }
 
 export interface CodeRuntimePlan extends RuntimePlanBase {
 	kind: "code";
-	prompt: "code";
-	transport: "responses" | "responses-lite";
+	responsesFormat: ResponsesFormat;
 }
 
 export interface TsRuntimePlan extends RuntimePlanBase {
 	kind: "ts";
-	prompt: "ts";
-	transport: "responses" | "responses-lite";
+	responsesFormat: ResponsesFormat;
 }
 
 export interface VmRuntimePlan extends RuntimePlanBase {
 	kind: "vm";
-	prompt: "vm";
-	transport: "responses" | "responses-lite";
+	responsesFormat: ResponsesFormat;
 }
 
-export type CodexRuntimePlan =
+export type AdapterRuntimePlan =
 	| InactiveRuntimePlan
 	| NormalRuntimePlan
 	| CodeRuntimePlan
@@ -80,7 +76,7 @@ export type CodexRuntimePlan =
 const ALL_ADAPTER_TOOL_NAMES = [
 	"change_reasoning",
 	...CORE_ADAPTER_TOOL_NAMES,
-	...NOTEBOOK_MODE_TOOL_NAMES,
+	...TS_NOTEBOOK_TOOL_NAMES,
 	VIEW_IMAGE_TOOL_NAME,
 ];
 
@@ -126,7 +122,7 @@ function usesResponsesLite(
 		: proxySupportsResponsesLite(ctx, config);
 }
 
-function normalToolNames(
+function structuredToolNames(
 	ctx: RuntimeContext,
 	config: CodexConversionConfig,
 ): string[] {
@@ -160,18 +156,18 @@ export function hasCodexTransportConfigChanged(
 	);
 }
 
-export function resolveCodexRuntimePlan(
+export function resolveAdapterRuntimePlan(
 	ctx: RuntimeContext,
 	config: CodexConversionConfig,
 	executionMode?: ExecutionMode,
-): CodexRuntimePlan {
+): AdapterRuntimePlan {
 	const isConfigured = configuredProvider(ctx, config);
 	const codexTransport = isCodexTransportContext(ctx);
-	const effectiveOpenAICodex = codexTransport || isConfigured;
+	const codexOrConfiguredResponses = codexTransport || isConfigured;
 	const ownedToolNames = [
 		"change_reasoning",
 		...SHELL_ADAPTER_TOOL_NAMES,
-		...NOTEBOOK_MODE_TOOL_NAMES,
+		...TS_NOTEBOOK_TOOL_NAMES,
 		APPLY_PATCH_TOOL_NAME,
 		VIEW_IMAGE_TOOL_NAME,
 	];
@@ -179,7 +175,7 @@ export function resolveCodexRuntimePlan(
 		ownedToolNames,
 		configuredProvider: isConfigured,
 		codexTransport,
-		effectiveOpenAICodex,
+		codexOrConfiguredResponses,
 		nativeCompaction: false,
 		nativeReplay: false,
 		autoReasoning: false,
@@ -187,71 +183,68 @@ export function resolveCodexRuntimePlan(
 	const active =
 		config.scope.allProviders === "on" ||
 		isConfigured ||
-		isCodexLikeModel(ctx.model);
+		isDefaultAdapterModel(ctx.model);
 	if (!active)
 		return {
 			...base,
 			kind: "inactive",
 			toolNames: [],
-			prompt: undefined,
-			transport: undefined,
+			responsesFormat: undefined,
 		};
-	base.nativeReplay = effectiveOpenAICodex;
+	base.nativeReplay = codexOrConfiguredResponses;
 	const nativeCompaction =
-		effectiveOpenAICodex && nativeCompactionConfigured(config.compaction);
+		codexOrConfiguredResponses && nativeCompactionConfigured(config.compaction);
 	base.autoReasoning =
 		config.tools.autoReasoning && supportsCodexReasoningUpdates(ctx.model);
 	const configuredExecutionMode = executionMode ?? config.executionMode;
-	const requestedCodeMode =
+	if (
 		configuredExecutionMode === "code" ||
 		configuredExecutionMode === "ts" ||
 		configuredExecutionMode === "vm"
-			? configuredExecutionMode
-			: undefined;
-	if (requestedCodeMode) {
-		const transport: "responses-lite" | "responses" = usesResponsesLite(
-			ctx,
-			config,
-		)
+	) {
+		const responsesFormat: ResponsesFormat = usesResponsesLite(ctx, config)
 			? "responses-lite"
 			: "responses";
-		if (requestedCodeMode === "ts") {
-			const statefulPlan = {
+		if (configuredExecutionMode === "ts") {
+			const tsNotebookPlan = {
 				...base,
-				toolNames: [...NOTEBOOK_MODE_TOOL_NAMES],
-				transport,
+				toolNames: [...TS_NOTEBOOK_TOOL_NAMES],
+				responsesFormat,
 				nativeCompaction,
 			};
-			return { ...statefulPlan, kind: "ts", prompt: "ts" };
+			return { ...tsNotebookPlan, kind: "ts" };
 		}
-		const codePlan = {
+		const execPlan = {
 			...base,
-			toolNames: [...CODE_MODE_TOOL_NAMES],
-			transport,
+			toolNames: [...EXEC_TOOL_NAMES],
+			responsesFormat,
 			nativeCompaction,
 		};
-		return requestedCodeMode === "vm"
-			? { ...codePlan, kind: "vm", prompt: "vm" }
-			: { ...codePlan, kind: "code", prompt: "code" };
+		return configuredExecutionMode === "vm"
+			? { ...execPlan, kind: "vm" }
+			: { ...execPlan, kind: "code" };
 	}
 	return {
 		...base,
 		kind: "normal",
 		toolNames: [
-			...normalToolNames(ctx, config),
+			...structuredToolNames(ctx, config),
 			...(base.autoReasoning ? ["change_reasoning"] : []),
 		],
-		prompt: "normal",
-		transport: "responses",
+		responsesFormat: "responses",
 		nativeCompaction,
 	};
 }
 
-export function resolveCodexRuntimePlanForState(
+export function resolveAdapterRuntimePlanForState(
 	ctx: RuntimeContext,
 	state: Pick<AdapterState, "config" | "executionMode" | "availableToolNames">,
-): CodexRuntimePlan {
-	const plan = resolveCodexRuntimePlan(ctx, state.config, state.executionMode);
+): AdapterRuntimePlan {
+	const plan = resolveAdapterRuntimePlan(
+		ctx,
+		state.config,
+		state.executionMode,
+	);
 	const missingToolNames =
 		state.availableToolNames === undefined
 			? []
@@ -264,8 +257,7 @@ export function resolveCodexRuntimePlanForState(
 		kind: "inactive",
 		toolNames: [],
 		missingToolNames,
-		prompt: undefined,
-		transport: undefined,
+		responsesFormat: undefined,
 		nativeCompaction: false,
 		nativeReplay: false,
 		autoReasoning: false,
@@ -273,7 +265,7 @@ export function resolveCodexRuntimePlanForState(
 }
 
 export function isAdapterRuntime(
-	plan: CodexRuntimePlan,
+	plan: AdapterRuntimePlan,
 ): plan is NormalRuntimePlan | CodeRuntimePlan | TsRuntimePlan | VmRuntimePlan {
 	return (
 		plan.kind === "normal" ||
@@ -283,8 +275,8 @@ export function isAdapterRuntime(
 	);
 }
 
-export function isCodeModeRuntime(
-	plan: CodexRuntimePlan,
+export function usesExecTools(
+	plan: AdapterRuntimePlan,
 ): plan is CodeRuntimePlan | TsRuntimePlan | VmRuntimePlan {
 	return plan.kind === "code" || plan.kind === "ts" || plan.kind === "vm";
 }

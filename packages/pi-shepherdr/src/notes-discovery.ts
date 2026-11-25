@@ -5,7 +5,7 @@ import type {
 import type { ContextSharingService } from "@howaboua/pi-agent-comms/context-sharing";
 
 export const NOTES_UNAVAILABLE =
-	"Enable Notes in Agent Comms on both sessions, then reload Pi. Other agent operations remain available.";
+	"Enable Notes in Agent Comms in both sessions, then reload Pi.";
 
 /** Notes' public v1 broker, shared with released Notes Compaction. */
 export function connectNotesContextSharing(
@@ -41,7 +41,7 @@ export function connectNotesContextSharing(
 				)
 			) {
 				failure = new Error(
-					"Shared Notes could not connect. Update their extension and reload Pi. Other agent operations remain available.",
+					"Shared Notes unavailable. Update the Notes extension and reload Pi.",
 				);
 				context?.ui.notify(failure.message, "error");
 				throw failure;

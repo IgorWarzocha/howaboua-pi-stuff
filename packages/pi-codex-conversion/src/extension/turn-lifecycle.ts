@@ -7,20 +7,16 @@ import type {
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import {
 	isAdapterRuntime,
-	isCodeModeRuntime,
-	resolveCodexRuntimePlanForState,
+	usesExecTools,
+	resolveAdapterRuntimePlanForState,
 } from "../adapter/activation/runtime-plan.ts";
 import { supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
-import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
-import {
-	prepareCodexSystemPrompt,
-	resolvePromptSkills,
-} from "../prompt/build-system-prompt.ts";
+import { prepareCodexSystemPrompt } from "../prompt/build-system-prompt.ts";
 import { projectCodeModeMcpSections } from "../prompt/mcp-server-section.ts";
 import { orderProjectContextLast } from "../prompt/project-context-order.ts";
 import {
-	CODE_MODE_TOOL_NAMES,
-	NOTEBOOK_MODE_TOOL_NAMES,
+	EXEC_TOOL_NAMES,
+	TS_NOTEBOOK_TOOL_NAMES,
 } from "../adapter/activation/tool-set.ts";
 import { getPiCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
@@ -35,7 +31,7 @@ import type { createCodexReserveController } from "../codex-usage/reserve.ts";
 import { recordCurrentTimeReminder } from "../adapter/current-time-reminder.ts";
 import { recordCodexContextBriefings } from "../context-briefings.ts";
 import { recordCodeModeToolkit } from "../adapter/code-mode/toolkit-updates.ts";
-import { recordNotebookStatus } from "../adapter/notebook-status.ts";
+import { recordBindingStatus } from "../adapter/binding-status.ts";
 import { captureNativeCompactionContext } from "../adapter/replay/context.ts";
 import type {
 	ExtensionHandler,
@@ -62,26 +58,17 @@ export function createCodexTurnLifecycle(
 	shells: CodexShellLifecycle,
 ) {
 	const { state } = runtime;
-	const refreshNotebookStatus = (
+	const refreshBindingStatus = (
 		ctx: ExtensionContext,
-		messages?: readonly AgentMessage[],
-		selectedTools = pi.getActiveTools(),
+		messages: readonly AgentMessage[],
 	): Promise<boolean> => {
-		const kind = resolveCodexRuntimePlanForState(ctx, state).kind;
-		if (
-			kind !== "ts" ||
-			!["exec", "wait", "notebook"].every((name) =>
-				selectedTools.includes(name),
-			)
-		)
+		const kind = resolveAdapterRuntimePlanForState(ctx, state).kind;
+		if (kind !== "ts" && kind !== "vm") return Promise.resolve(false);
+		const required = kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES;
+		const selectedTools = pi.getActiveTools();
+		if (!required.every((name) => selectedTools.includes(name)))
 			return Promise.resolve(false);
-		return recordNotebookStatus(
-			pi,
-			ctx,
-			state,
-			messages ?? runtime.projectContextMessages(ctx),
-			codeMode,
-		);
+		return recordBindingStatus(pi, ctx, state, kind, messages, codeMode);
 	};
 
 	return {
@@ -99,28 +86,19 @@ export function createCodexTurnLifecycle(
 			await reserve.beforeTurn(ctx);
 			runtime.autoReasoning.begin(ctx);
 			const plan = syncAdapter(pi, ctx, state);
-			if (plan.kind !== "ts") state.notebookStatusMessageId = undefined;
+			if (plan.kind !== state.bindingStatus?.kind)
+				state.bindingStatus = undefined;
 			if (!isAdapterRuntime(plan)) {
 				state.preparedPrompt = undefined;
 				return undefined;
 			}
 			recordCodexReasoningUpdate(pi, ctx, runtime.projectContextMessages(ctx));
-			const skills = resolvePromptSkills(
-				event.systemPromptOptions?.skills,
-				hasNoSkillsFlag() ? [] : state.promptSkills,
-			);
 			prepareCodexSystemPrompt(event.systemPromptOptions, {
-				skills,
 				shell: getPiCodexRuntimeShell(ctx),
-				mode: plan.prompt ?? "normal",
+				executionMode: plan.kind,
 				heavySystemPromptOverwrite:
 					state.config.prompt.heavySystemPromptOverwrite,
 			});
-			await refreshNotebookStatus(
-				ctx,
-				runtime.projectContextMessages(ctx),
-				event.systemPromptOptions.selectedTools,
-			);
 			return undefined;
 		},
 		agentStarted: async (_event, ctx) => {
@@ -144,7 +122,7 @@ export function createCodexTurnLifecycle(
 			if (!quotaExhausted) runtime.armCacheKeepalive(ctx);
 		},
 		contextWithSystem: async (event, ctx) => {
-			const plan = resolveCodexRuntimePlanForState(ctx, state);
+			const plan = resolveAdapterRuntimePlanForState(ctx, state);
 			try {
 				captureNativeCompactionContext(event.messages, ctx, state);
 				await recordCodexContextBriefings(
@@ -158,10 +136,8 @@ export function createCodexTurnLifecycle(
 				throw error;
 			}
 			let messages = runtime.projectContextMessages(ctx, event.messages);
-			if (await refreshNotebookStatus(ctx, messages))
-				messages = runtime.projectContextMessages(ctx, event.messages);
 			if (
-				isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx, state)) &&
+				usesExecTools(resolveAdapterRuntimePlanForState(ctx, state)) &&
 				recordCodeModeToolkit(
 					pi,
 					ctx,
@@ -170,6 +146,9 @@ export function createCodexTurnLifecycle(
 					codeMode.getPromptTools(ctx),
 				)
 			)
+				messages = runtime.projectContextMessages(ctx, event.messages);
+			// Keep the stable toolkit before each new inventory without relocating sent history.
+			if (await refreshBindingStatus(ctx, messages))
 				messages = runtime.projectContextMessages(ctx, event.messages);
 			const developerMessages = supportsCodexDeveloperMessages(ctx, state);
 			if (
@@ -186,11 +165,11 @@ export function createCodexTurnLifecycle(
 			if (shells.recordBriefing(ctx, messages))
 				messages = runtime.projectContextMessages(ctx, event.messages);
 			const required =
-				plan.kind === "ts" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
+				plan.kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES;
 			try {
 				messages = projectCodeModeMcpSections(
 					messages,
-					isCodeModeRuntime(plan) &&
+					usesExecTools(plan) &&
 						required.every((name) => pi.getActiveTools().includes(name)),
 				);
 			} catch (error) {
@@ -213,13 +192,7 @@ export function createCodexTurnLifecycle(
 				),
 			};
 		},
-		refreshNotebookStatus,
 	} satisfies {
-		refreshNotebookStatus: (
-			ctx: ExtensionContext,
-			messages?: readonly AgentMessage[],
-			selectedTools?: string[],
-		) => Promise<boolean>;
 		input: ExtensionHandler<InputEvent, InputEventResult>;
 		beforeAgentStart: ExtensionHandler<
 			BeforeAgentStartEvent,

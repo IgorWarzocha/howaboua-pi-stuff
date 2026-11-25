@@ -9,7 +9,7 @@ import {
 	isCodexDeveloperMessageDetails,
 	type CodexDeveloperMessageDetails,
 } from "../../developer-messages.ts";
-import { formatCodeModeToolHelp } from "../../tools/code-mode/custom-tool-prompt.ts";
+import { formatCodeModeToolHelp } from "../../tools/code-mode/execution-prompt.ts";
 import {
 	codeModeGlobalName,
 	translateCodeModeToolReferences,

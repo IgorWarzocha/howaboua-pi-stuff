@@ -16,13 +16,18 @@ import type { LatestNativeCompactionResolution } from "./details-store.ts";
 import { rewriteResponsesPayloadWithNativeReplay } from "../replay/payload-rewrite.ts";
 import { convertResponsesTools } from "../../providers/openai-responses/shared.ts";
 import {
+	omitHiddenToolDeclarations,
 	serializeActiveSessionToResponsesInput,
 	type NativeCompactionRequestOptions,
 	type ResponsesInputItem,
 	type SerializeResponsesMessagesOptions,
 } from "./serializer.ts";
-import { resolveCodexRuntimePlanForState } from "../activation/runtime-plan.ts";
+import {
+	resolveAdapterRuntimePlanForState,
+	type ResponsesFormat,
+} from "../activation/runtime-plan.ts";
 import type { AdapterState } from "../activation/state.ts";
+import { hiddenPiReplacementToolNames } from "../activation/tool-set.ts";
 import { resolveFastModeServiceTier } from "../activation/fast-mode.ts";
 import { getActiveToolsInActiveOrder } from "../active-tools.ts";
 import { resolveCanonicalCompactionPromptInput } from "../../providers/openai-codex/session-continuity.ts";
@@ -35,13 +40,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-function buildCompactionTools(
+function getCompactionTools(
 	pi: ExtensionAPI,
-	codeMode: boolean,
-): unknown[] | undefined {
-	const tools = getActiveToolsInActiveOrder(pi, codeMode);
-	if (tools.length === 0) return undefined;
-	return convertResponsesTools(tools, { strict: false });
+	state: AdapterState,
+	usesExecTools: boolean,
+) {
+	const hidden = hiddenPiReplacementToolNames(
+		state.appliedRuntimeKind,
+		pi.getActiveTools(),
+	);
+	return getActiveToolsInActiveOrder(pi, usesExecTools).filter(
+		({ name }) => !hidden.includes(name),
+	);
 }
 
 function buildCompactionReasoning(
@@ -66,7 +76,7 @@ function buildCompactionReasoning(
 		compactionTargetModel.thinkingLevelMap?.[clampedLevel] ?? clampedLevel;
 	const effort =
 		typeof rawEffort === "string" &&
-		resolveCodexRuntimePlanForState(ctx, state).effectiveOpenAICodex
+		resolveAdapterRuntimePlanForState(ctx, state).codexOrConfiguredResponses
 			? clampCodexReasoningEffort(compactionTargetModel.id, rawEffort)
 			: rawEffort;
 	return effort === null ? undefined : { effort, summary: "auto" };
@@ -101,10 +111,10 @@ export function buildCompactionRequestOptions(
 	ctx: ExtensionContext,
 	state: AdapterState,
 	compactionTargetModel: Model<Api>,
-	codeMode: boolean,
+	usesExecTools: boolean,
 	branchEntries: SessionEntry[],
 ): NativeCompactionRequestOptions {
-	const tools = buildCompactionTools(pi, codeMode);
+	const tools = getCompactionTools(pi, state, usesExecTools);
 	const reasoning = buildCompactionReasoning(
 		pi,
 		ctx,
@@ -112,11 +122,11 @@ export function buildCompactionRequestOptions(
 		compactionTargetModel,
 		branchEntries,
 	);
-	const effectiveOpenAICodex = resolveCodexRuntimePlanForState(
+	const codexOrConfiguredResponses = resolveAdapterRuntimePlanForState(
 		{ model: compactionTargetModel },
 		state,
-	).effectiveOpenAICodex;
-	const serviceTier = effectiveOpenAICodex
+	).codexOrConfiguredResponses;
+	const serviceTier = codexOrConfiguredResponses
 		? resolveFastModeServiceTier(
 				state.config.openai.fast,
 				compactionTargetModel.id,
@@ -129,7 +139,9 @@ export function buildCompactionRequestOptions(
 		),
 		...(serviceTier ? { service_tier: serviceTier } : {}),
 		text: { verbosity: state.config.openai.verbosity },
-		...(tools ? { tools } : {}),
+		...(tools.length
+			? { tools: convertResponsesTools(tools, { strict: false }) }
+			: {}),
 		...(reasoning ? { reasoning } : {}),
 	};
 }
@@ -139,11 +151,15 @@ export function buildCompactionTranscript(
 	ctx: ExtensionContext,
 	state: AdapterState,
 	runtime: { provider: string; api: string; model: string; baseUrl: string },
-	transport: "responses" | "responses-lite",
-	codeMode: boolean,
+	responsesFormat: ResponsesFormat,
+	usesExecTools: boolean,
 	branchEntries: SessionEntry[],
 ): TranscriptContext {
 	const prepared = state.preparedPrompt;
+	const hidden = hiddenPiReplacementToolNames(
+		state.appliedRuntimeKind,
+		pi.getActiveTools(),
+	);
 	if (
 		prepared?.sessionId === ctx.sessionManager.getSessionId() &&
 		prepared.provider === runtime.provider &&
@@ -151,11 +167,16 @@ export function buildCompactionTranscript(
 		prepared.model === runtime.model &&
 		prepared.baseUrl === runtime.baseUrl &&
 		prepared.executionMode === state.executionMode &&
-		prepared.transport === transport
+		prepared.responsesFormat === responsesFormat
 	) {
 		return normalizeContext({
 			messages: [
-				orderProjectContextLast(structuredClone(prepared.systemMessage)),
+				orderProjectContextLast(
+					omitHiddenToolDeclarations(
+						structuredClone(prepared.systemMessage),
+						hidden,
+					),
+				),
 			],
 		});
 	}
@@ -164,8 +185,12 @@ export function buildCompactionTranscript(
 		projectCodexDeveloperHistory(branchEntries),
 	);
 	if (current)
-		return normalizeContext({ messages: [orderProjectContextLast(current)] });
-	const tools = getActiveToolsInActiveOrder(pi, codeMode);
+		return normalizeContext({
+			messages: [
+				orderProjectContextLast(omitHiddenToolDeclarations(current, hidden)),
+			],
+		});
+	const tools = getCompactionTools(pi, state, usesExecTools);
 	return normalizeContext({
 		systemPrompt: ctx.getSystemPrompt(),
 		messages: [],
@@ -210,18 +235,19 @@ export function buildNativeCompactionInput(args: {
 }
 
 export async function resolveCanonicalCompactionReplay(args: {
-	codeMode: boolean;
+	responsesFormat: ResponsesFormat;
 	sessionId: string;
 	model: string;
 	identity?: { url: string; accountId: string } | undefined;
 	reconstructedInput: readonly ResponsesInputItem[];
 }) {
-	const reconstructedInput = args.codeMode
-		? await prepareResponsesLiteConversationInput(
-				args.reconstructedInput,
-				args.sessionId,
-			)
-		: args.reconstructedInput;
+	const reconstructedInput =
+		args.responsesFormat === "responses-lite"
+			? await prepareResponsesLiteConversationInput(
+					args.reconstructedInput,
+					args.sessionId,
+				)
+			: args.reconstructedInput;
 	return resolveCanonicalCompactionPromptInput(
 		args.sessionId,
 		args.model,

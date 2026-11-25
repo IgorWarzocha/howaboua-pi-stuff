@@ -22,6 +22,7 @@ interface CodeModeResultDetails {
 	cellId?: string | undefined;
 	status?: "running" | "yielded" | "terminated" | "result" | undefined;
 	statusPrefix?: boolean | undefined;
+	nestedFailureSummary?: boolean | undefined;
 	deliveryPending?: boolean | undefined;
 	notification?: boolean | undefined;
 	traces?: RuntimeToolTrace[] | undefined;
@@ -94,6 +95,12 @@ function renderCodeModeResult(
 	const textBlocks = content
 		.filter((item) => item.type === "text" && typeof item.text === "string")
 		.map((item) => item.text ?? "");
+	const nestedFailure = details.nestedFailureSummary
+		? textBlocks[0]
+		: undefined;
+	const outputBlocks = details.nestedFailureSummary
+		? textBlocks.slice(1)
+		: textBlocks;
 	const scriptErrorRenderedByTrace = Boolean(
 		details.scriptError &&
 		details.traces?.some(
@@ -120,13 +127,13 @@ function renderCodeModeResult(
 		!details.scriptError &&
 		!details.notification;
 	const renderOutput = (visibleTraceText: ReadonlySet<string>) => {
-		const text = textBlocks
+		const text = outputBlocks
 			.filter((block) => !visibleTraceText.has(block))
 			.join("\n");
 		const outputText = [text, status].filter(Boolean).join("\n");
-		if (!outputText) return undefined;
+		if (!nestedFailure && !outputText) return undefined;
 		const renderedText = theme.fg(tone, outputText);
-		const displayText = hidePreview
+		const body = hidePreview
 			? [
 					previewText(text ? theme.fg(tone, text) : "", theme, true, context),
 					status ? theme.fg(tone, status) : "",
@@ -136,6 +143,12 @@ function renderCodeModeResult(
 			: options.expanded || options.isPartial
 				? renderedText
 				: previewText(renderedText, theme, false, context);
+		const displayText = [
+			nestedFailure ? theme.fg("error", nestedFailure) : "",
+			body,
+		]
+			.filter(Boolean)
+			.join("\n");
 		return renderTextAndImages(displayText, [], theme);
 	};
 	return renderTraceAndOutput(

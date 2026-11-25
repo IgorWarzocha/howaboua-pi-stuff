@@ -73,7 +73,6 @@
 				"src/agent-relationship.ts",
 				"src/compaction.ts",
 				"src/developer-messages.ts",
-				"src/prompt-mode.ts",
 				"src/apply-patch-display.ts",
 				"src/realtime-voice.ts",
 				"src/host-settings.ts",

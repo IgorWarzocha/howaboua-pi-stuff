@@ -91,23 +91,22 @@ function parseChangeset(text) {
 	return { packages, body: match[2].trim() };
 }
 
-function cleanBody(body) {
-	return body
-		.replace(/^#+\s+/gm, "")
-		.replace(/\s+/g, " ")
-		.trim()
-		.replace(/\.$/, "");
+function formatBundledChange({ name, body }) {
+	const label = `- **${name}**`;
+	if (!body) return `${label}: Updated bundled package.`;
+	if (!body.includes("\n") && !body.startsWith("- "))
+		return `${label}: ${/[.!?]$/.test(body) ? body : `${body}.`}`;
+	const nested = body
+		.split("\n")
+		.map((line) => (line ? `  ${line}` : ""))
+		.join("\n");
+	return `${label}:\n\n${nested}`;
 }
 
 function writeAggregateChangeset(filename, packages, includedChanges) {
 	const frontmatter = packages.map((name) => `"${name}": patch`).join("\n");
-	const bullets = includedChanges
-		.map(
-			({ name, body }) =>
-				`- ${name}: ${cleanBody(body) || "Updated bundled package"}.`,
-		)
-		.join("\n");
-	const content = `---\n${frontmatter}\n---\n\nInclude bundled package updates:\n\n${bullets}\n`;
+	const bullets = includedChanges.map(formatBundledChange).join("\n");
+	const content = `---\n${frontmatter}\n---\n\nBundled updates:\n\n${bullets}\n`;
 	writeFileSync(join(changesetDir, filename), content);
 	console.log(`Wrote ${filename} for ${packages.join(", ")}.`);
 }

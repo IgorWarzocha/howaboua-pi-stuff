@@ -1,8 +1,8 @@
-Write for the user. A developer tool still has users, and its README is part of the product. Save the codebase tour for contributor or internal documentation.
+Present the product through what users can do with it. A developer tool still has users, and its README should make the purpose, appeal, and useful features visible before asking anyone to install it. Save the codebase tour for contributor or internal documentation.
 
 A README should let the reader understand the offer, recognise whether it fits, reach a real result, operate normally, and recover from likely failure. Put the common path and defaults before advanced configuration, migration, limitations, and troubleshooting. Link deeper references instead of swallowing them all.
 
-Earn claims through mechanisms, commands, behaviour, visible results, or removed friction. State major requirements, deliberate exclusions, trust boundaries, permissions, and failure modes early enough to affect the decision. Own recommendations as product judgment or lived experience. Let humour expose a trade-off, boundary, or warning rather than decorate the page.
+Choose features that explain why someone would want the product. Earn claims through mechanisms, commands, behaviour, visible results, or removed friction. State major requirements, deliberate exclusions, trust boundaries, permissions, and failure modes early enough to affect the decision. Own recommendations as product judgment or lived experience. Let humour expose a trade-off, boundary, or warning rather than decorate the page.
 
 Warm framing and crisp procedure can coexist. Product voice belongs in openings, recommendations, transitions, and warnings. Commands, settings, and recovery steps must remain literal enough to follow without interpreting a mood.
 

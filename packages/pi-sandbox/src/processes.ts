@@ -120,7 +120,7 @@ export class GuestProcesses {
 			}
 			if (Date.now() >= deadline)
 				throw new Error(
-					"Guest command did not start. Check its working directory and image Python installation",
+					"Guest command did not start. Check cwd and image Python 3",
 				);
 			await new Promise((accept) => setTimeout(accept, 50));
 		}
@@ -169,7 +169,7 @@ export class GuestProcesses {
 		const command = this.commands.get(pid);
 		if (!command)
 			throw new Error(
-				"Unknown or expired command handle. Completed status is bounded; handles do not survive stop or controller restart",
+				"Unknown or expired command handle. Completed status is bounded. Stop or controller restart invalidates handles",
 			);
 		// Only short probes and output consumption share the cursor, never waits.
 		if (command.final)
@@ -178,7 +178,7 @@ export class GuestProcesses {
 		while (true) {
 			if (this.commands.get(pid) !== command)
 				throw new Error(
-					"Command status expired. Completed handles retain status for 128 commands",
+					"Command status expired. Status retained for 128 completed commands",
 				);
 			const probe = command.cursor
 				.catch(() => {})
@@ -196,7 +196,7 @@ export class GuestProcesses {
 			.then(async () => {
 				if (this.commands.get(pid) !== command)
 					throw new Error(
-						"Command status expired. Completed handles retain status for 128 commands",
+						"Command status expired. Status retained for 128 completed commands",
 					);
 				if (command.final)
 					return { pid, running: false, output: "", ...command.final };

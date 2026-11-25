@@ -20,10 +20,12 @@ Cursor discovers the skills from `skills/`. The only command is `/tune-comms`.
 | `codebase-hygiene` | Working on maintained code. Language, testing, refactoring, and dependency references live beside the skill |
 | `repository-delivery` | Commits, GitHub issues, and pull requests, with references for issues and pull requests |
 | `communication` | The source `/tune-comms` reads. It is not an always-on skill |
+| `writing` | Drafting and editing prose, interface copy, and technical documentation |
+| `non-code-review` | Reviewing documents, plans, proposals, and designs |
 
 ## Tune the voice
 
-`/tune-comms` reads `skills/communication/` and writes a durable voice for the repository you are in.
+`/tune-comms` reads the plugin's communication and writing guidance and writes a durable voice for the repository you are in.
 
 It infers what that repository is about. A games catalogue repo would tune toward a gaming voice using these principles, not a generic assistant voice. The command uses a domain reference only when one already belongs to that subject. It does not invent a gaming file.
 

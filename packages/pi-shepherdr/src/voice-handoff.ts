@@ -46,7 +46,7 @@ export function activeVoiceService(pi: ExtensionAPI): VoiceService {
 	const active = voiceServices(pi).filter((service) => service.status().active);
 	if (active.length !== 1 || active[0]!.status().busy)
 		throw new Error(
-			"Voice transfer needs exactly one active, available voice provider in the source session; use voice:false for text-only focus",
+			"Voice transfer needs one active, available source provider. Text-only focus: voice:false",
 		);
 	return active[0]!;
 }
@@ -141,7 +141,7 @@ export function registerVoiceFocusReceiver(
 			.sort((a, b) => b.priority - a.priority)[0];
 		if (!service)
 			throw new Error(
-				"Destination has no available voice provider compatible with the current call; choose another session or use voice:false for text-only focus",
+				"No compatible voice provider available at destination. Choose another session or use voice:false for text-only focus",
 			);
 		// arrive reserves synchronously; do not await replacement startup or source
 		// settlement during admission. Attach rejection handling immediately.

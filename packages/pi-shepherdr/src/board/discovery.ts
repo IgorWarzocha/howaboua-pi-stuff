@@ -18,7 +18,7 @@ export function discoverBoard(
 				if (!claim || typeof claim !== "object" || !("runtime" in claim)) {
 					failed(
 						new Error(
-							"Shared boards could not connect. Update their extension and reload Pi. Other agent operations remain available.",
+							"Shared Board unavailable. Update Agent Comms and reload Pi.",
 						),
 					);
 					return;
@@ -46,7 +46,7 @@ export function discoverBoard(
 							!(runtime.active instanceof Map)
 						) {
 							throw new Error(
-								"Shared boards could not connect. Update their extension and reload Pi. Other agent operations remain available.",
+								"Shared Board unavailable. Update Agent Comms and reload Pi.",
 							);
 						}
 						attach(runtime as BoardRuntime);

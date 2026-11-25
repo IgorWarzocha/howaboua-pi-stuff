@@ -57,7 +57,7 @@ function unknownField(
 	const field = Object.keys(value).find((key) => !fields.includes(key));
 	return field === undefined
 		? undefined
-		: `Ask doesn't recognise ${path}${field}. Use ${fields.join(", ")}; call ask({}) for the supported format.`;
+		: `Unknown field ${path}${field}. Valid: ${fields.join(", ")}. Help: ask({}).`;
 }
 
 /** Why a tool call would lose input to normalization, so a misnamed field fails instead of vanishing. */
@@ -70,7 +70,7 @@ export function askInputProblem(params: unknown): string | undefined {
 		if (!isRecord(prompt)) continue;
 		const path = `prompts[${index}]`;
 		const field = unknownField(prompt, PROMPT_FIELDS, `${path}.`);
-		if (field) return `${field}; choices: [${CHOICE_SHAPE}]`;
+		if (field) return `${field} Choices: [${CHOICE_SHAPE}]`;
 		if (!Array.isArray(prompt["choices"])) continue;
 		for (const [choiceIndex, choice] of prompt["choices"].entries()) {
 			const choicePath = `${path}.choices[${choiceIndex}]`;

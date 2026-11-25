@@ -14,7 +14,7 @@ import {
 } from "../../adapter/activation/cache-keepalive.ts";
 import {
 	isAdapterRuntime,
-	resolveCodexRuntimePlanForState,
+	resolveAdapterRuntimePlanForState,
 } from "../../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../../adapter/activation/state.ts";
 import { rewriteCodexProviderHeaders } from "../../adapter/provider-request.ts";
@@ -111,7 +111,7 @@ export function createCodexExtensionTransport(
 		const model = ctx.model;
 		const config = structuredClone(state.config);
 		const executionMode = state.executionMode;
-		const runtimePlan = resolveCodexRuntimePlanForState(ctx, {
+		const runtimePlan = resolveAdapterRuntimePlanForState(ctx, {
 			...state,
 			config,
 			executionMode,
@@ -348,7 +348,7 @@ export function createCodexExtensionTransport(
 				options.cacheRetention === "none"
 			)
 				return;
-			const plan = resolveCodexRuntimePlanForState(ctx, state);
+			const plan = resolveAdapterRuntimePlanForState(ctx, state);
 			if (!isAdapterRuntime(plan)) return;
 			const systemMessage = getCurrentSystemMessage(context.messages);
 			if (systemMessage) {
@@ -359,7 +359,7 @@ export function createCodexExtensionTransport(
 					model: model.id,
 					baseUrl: model.baseUrl.replace(/\/+$/, ""),
 					executionMode: state.executionMode,
-					transport: responsesLite ? "responses-lite" : "responses",
+					responsesFormat: responsesLite ? "responses-lite" : "responses",
 					systemMessage: structuredClone(systemMessage),
 				};
 			}

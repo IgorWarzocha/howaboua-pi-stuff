@@ -15,7 +15,7 @@ Configure credentials in Pi, not this extension. Credentials stay in the host pr
 
 ## Use
 
-Requires Pi 1.0.0 or newer and Node.js 22.19 or newer. Local audio targets Linux, macOS and Windows on x64 and ARM64. Browser audio is independent of the local helper.
+Requires the latest Pi release and Node.js 22.19 or newer. Local audio targets Linux, macOS and Windows on x64 and ARM64. Browser audio is independent of the local helper.
 
 ```sh
 pi install npm:@howaboua/pi-grok-realtime

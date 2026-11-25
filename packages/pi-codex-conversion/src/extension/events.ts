@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import { resolveAdapterRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import {
 	rewriteCodexProviderHeaders,
 	rewriteCodexProviderRequest,
@@ -85,12 +85,7 @@ export function registerCodexEvents(
 		session,
 		shells,
 	);
-	const compaction = createCodexCompactionLifecycle(
-		pi,
-		runtime,
-		codeMode,
-		turn.refreshNotebookStatus,
-	);
+	const compaction = createCodexCompactionLifecycle(pi, runtime, codeMode);
 	pi.events.on(REALTIME_VOICE_PROMPT_CHANNEL, (value) => {
 		const report = parseRealtimeVoicePrompt(value);
 		if (report) runtime.voice.setPrompt(report);
@@ -156,9 +151,9 @@ export function registerCodexEvents(
 	});
 	pi.on("agent_settled", turn.agentSettled);
 	pi.on("cache_warming_decision", (_event, ctx) => {
-		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		const plan = resolveAdapterRuntimePlanForState(ctx, state);
 		// These routes cannot honor Pi's one-token cap and must not advance the live response chain.
-		if (plan.codexTransport || plan.transport === "responses-lite")
+		if (plan.codexTransport || plan.responsesFormat === "responses-lite")
 			return { action: "stop" };
 		return undefined;
 	});
@@ -168,6 +163,7 @@ export function registerCodexEvents(
 			event.payload,
 			ctx,
 			state,
+			pi.getActiveTools(),
 			pi.getSettings().images?.blockImages,
 		);
 	});
@@ -178,4 +174,15 @@ export function registerCodexEvents(
 	pi.on("session_compact_failed", compaction.failed);
 	pi.on("session_compact", compaction.compacted);
 	pi.on("context_with_system", turn.contextWithSystem);
+	pi.on("tool_result", (event) => {
+		if (
+			event.toolName === "exec" &&
+			event.details &&
+			typeof event.details === "object" &&
+			"vmReset" in event.details &&
+			event.details.vmReset === true &&
+			state.bindingStatus?.kind === "vm"
+		)
+			state.bindingStatus = undefined;
+	});
 }

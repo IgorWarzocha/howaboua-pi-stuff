@@ -1,7 +1,7 @@
 ---
 name: code-review
-description: "Must apply when reviewing or accepting maintained-code changes."
-last-changed: "2026-08-22"
+description: "Must apply when your task is to review code changes."
+last-changed: "2026-11-22"
 ---
 
 Load an applicable codebase hygiene skill and apply it throughout.
@@ -16,7 +16,7 @@ Never let one concern excuse failure in the other. Treat implementation, tests, 
 ## 1. Establish scope
 
 1. Resolve the intended base. Inspect the full diff and commit range, not only the last commit.
-2. Read the request, acceptance criteria, complete changed files, affected callers, public contracts, tests, configuration, and runtime registration.
+2. Read the request, acceptance criteria, and complete owning units around changed behaviour. Follow affected callers, contracts, tests, configuration, and registration where they establish a material claim. Read complete files for structural changes, cross-cutting state or initialisation, or unresolved ownership.
 3. Trace changed behavior from a real entry point to its result or effect. Confirm tests reach the production path.
 4. Record claimed behavior, missing or partial requirements, unrequested scope, and behavior that must remain stable.
 5. Separate observed requirements, compatibility assumptions, and reviewer inference. Ask only when the distinction changes the verdict.

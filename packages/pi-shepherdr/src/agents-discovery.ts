@@ -36,7 +36,8 @@ export async function agentsHelp(
 			help: "",
 			list: "machine?",
 			find: "query? status? machine?",
-			focus: "target machine? voice? handoff?",
+			focus:
+				"target machine? voice? handoff? → move to a running session without assigning work",
 			spawn:
 				"agent_type label message name? machine? placement? workspace? cwd? base? blocking?" +
 				(boardAvailable ? " board_thread_id?" : ""),
@@ -50,9 +51,7 @@ export async function agentsHelp(
 			reply: "target extension id message machine?",
 		},
 		rules: {
-			peers:
-				"Existing sessions may be independent peers; send/watch leave Notes/Board access unchanged",
-			read: "latest(default)=last reply+pending extension messages; visible=current TUI screen; recent=TUI scrollback, lines default 40. Findings→returned Notes path if shared Notes available",
+			read: "latest (default): last reply and pending extension messages. visible: screen. recent: scrollback. Use returned Notes path for shared findings",
 			reply:
 				"MUST use extension report/read template via reply, not send. Returns on acceptance without waiting for resumed work",
 			machine:
@@ -60,7 +59,6 @@ export async function agentsHelp(
 			target: "target=Pi session reference or terminal; /root=live spawn root",
 			resume:
 				"send/assign to owned closed worker→resume saved session; restore reporting unless unwatched",
-			label: "Short Pi session name; app tabs use default names",
 			placement:
 				"terminal (default), new_tab, new_workspace; new_tab needs space ID",
 			...(boardAvailable
@@ -70,34 +68,28 @@ export async function agentsHelp(
 				: {}),
 			send: "Wakes idle agents; only concrete blocker, ownership conflict or actionable handoff. Skip acknowledgements, status-only updates and standby reminders",
 			assign:
-				"Delegate/update work; active update shares pending result and preserves existing wait",
-			focus:
-				"Running session; passive arrival+return call, no task/watch. voice:true→async active mic transfer; handoff=context; remote focus stays on target host",
+				"Delegate or redirect work. Updating an active task keeps its existing wait",
+			focus: "voice:true transfers the mic. handoff supplies arrival context",
 			sharing: boardAvailable
 				? "attach/detach require idle target. Select scope: context:true for Notes/history, board:true for board membership, or both"
 				: "attach/detach require idle target + context:true for Notes/history; boards unavailable",
-			attach: "Changes sharing only, without assigning or watching",
 			detach: "Counterpart checkpoints remain read-only",
 			blocking:
 				"spawn/assign default→return on dispatch; blocking:true→wait; profile overrides spawn. Reports automatic→other work/end turn; MUST NOT poll",
-			share_context:
-				"Profile false→isolated notes/history; otherwise→controller sharing setting",
 			watch: "Delegation/watch→report subsequent work UNTIL unwatch/close",
-			prompt:
-				"Task + done criteria + needed context. Give real constraints; let the worker choose how. Assign shared work once. Redirecting? Keep the original task covered",
 			slash:
-				"Leading /→target command/skill/template; bypasses task waits even via assign/spawn; blocked→choices. Close Pi+terminal via send /quit directly; no advance message, wait/watch or resume",
+				"Leading / runs a target command without waiting for task completion. Close a finished worker with send /quit",
 			reuse:
 				"Keep each agent until task verified complete; corrections→same agent; then close. Unrelated task→new agent; reviews independent",
 			...(profiles.has("general")
-				? {
-						general: "Only when requested/orchestrating",
-					}
+				? { general: "Only when requested or orchestrating" }
 				: {}),
 		},
 		profiles: describeProfiles(profiles),
 		advanced: {
 			core: "Non-agent processes, persistent terminals, remote machines→read hc --skill",
+			core_background:
+				"hc run --bg → parent exit note unless notes off or --no-notify. Other work or end turn. No sleep, hc get/read loops or log checks for exit. hc wait only if exit/readiness blocks progress or needed result won't arrive by note.",
 			app: "Change what the user sees (spaces/tabs/panes)→herdr-app --skill",
 		},
 	};

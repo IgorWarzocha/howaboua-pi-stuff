@@ -12,6 +12,9 @@ import {
 	unsafe,
 } from "@earendil-works/pi-schema";
 
+export const PROTECTED_NOTES_UNAVAILABLE =
+	"Protected notes unavailable here. Ask the user for a compatible Codex session.";
+
 const OPTIONAL_STRING = opt(str());
 const OPTIONAL_BOOLEAN = opt(bool());
 const MATCH = obj({ line_number: int(), line: str() }, { open: true });
@@ -69,7 +72,6 @@ const NOTES_RESULT_SCHEMA = obj(
 		writes: OPTIONAL_STRING,
 		paths: OPTIONAL_STRING,
 		ranges: OPTIONAL_STRING,
-		defaults: OPTIONAL_STRING,
 	},
 	{ open: false },
 );
@@ -77,12 +79,13 @@ const NOTES_RESULT_SCHEMA = obj(
 const notesResultSchemaValidator = compile(NOTES_RESULT_SCHEMA);
 
 /** One canonical payload for native text and every programmatic caller. */
-export function noteResult(payload: unknown): AgentToolResult<unknown> {
+export function noteResult(
+	payload: unknown,
+	additionalWarning?: string,
+): AgentToolResult<unknown> {
 	if (!notesResultSchemaValidator.check(payload))
-		throw new Error(
-			"Notes returned invalid data. Read the note before retrying a write.",
-		);
-	// Keep recovery warnings, but omit sharing and storage bookkeeping.
+		throw new Error("Invalid Notes result. Reread before retrying a write.");
+	// Keep access and freshness warnings, but omit redundant storage bookkeeping.
 	const {
 		read_only: _readOnly,
 		warning,
@@ -90,8 +93,12 @@ export function noteResult(payload: unknown): AgentToolResult<unknown> {
 		captured_at: _capturedAt,
 		...visible
 	} = payload;
-	if (warning !== undefined)
-		visible.warnings = [...(visible.warnings ?? []), warning];
+	if (warning !== undefined || additionalWarning !== undefined)
+		visible.warnings = [
+			...(visible.warnings ?? []),
+			...(warning === undefined ? [] : [warning]),
+			...(additionalWarning === undefined ? [] : [additionalWarning]),
+		];
 	if (visible.file)
 		visible.file = {
 			path: visible.file.path,
@@ -111,9 +118,12 @@ export function noteResult(payload: unknown): AgentToolResult<unknown> {
 				...(append_only === undefined ? {} : { append_only }),
 			}),
 		);
+	const canonical = Object.fromEntries(
+		Object.entries(visible).filter(([, value]) => value !== undefined),
+	);
 	return {
-		content: [{ type: "text", text: JSON.stringify(visible) }],
-		structuredContent: visible,
+		content: [{ type: "text", text: JSON.stringify(canonical) }],
+		structuredContent: canonical,
 		details: {},
 	};
 }

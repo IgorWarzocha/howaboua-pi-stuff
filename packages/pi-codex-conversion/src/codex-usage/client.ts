@@ -5,7 +5,7 @@ import {
 	isCanonicalCodexBaseUrl,
 	isCanonicalCodexSubscriptionModel,
 	isStandardCodexSubscriptionModel,
-} from "../adapter/prompt/codex-model.ts";
+} from "../adapter/prompt/model-support.ts";
 import {
 	DEFAULT_CODEX_BASE_URL,
 	JWT_CLAIM_PATH,

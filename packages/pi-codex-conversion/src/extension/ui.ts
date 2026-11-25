@@ -16,16 +16,16 @@ import {
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import {
 	isAdapterRuntime,
-	resolveCodexRuntimePlanForState,
+	resolveAdapterRuntimePlanForState,
 } from "../adapter/activation/runtime-plan.ts";
 import {
 	CODEX_TOOLKIT_UPDATE_TYPE,
 	readToolkitUpdate,
 } from "../adapter/code-mode/toolkit-updates.ts";
 import {
-	CODEX_NOTEBOOK_STATUS_TYPE,
-	readNotebookStatus,
-} from "../adapter/notebook-status.ts";
+	BINDING_STATUS_TYPES,
+	readBindingStatus,
+} from "../adapter/binding-status.ts";
 import {
 	NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
 	NATIVE_COMPACTION_DISPLAY_TEXT,
@@ -154,20 +154,21 @@ export function registerCodexUi(
 			);
 		},
 	);
-	pi.registerEntryRenderer(
-		CODEX_NOTEBOOK_STATUS_TYPE,
-		(entry, { expanded, keyHint }, theme) => {
-			const status = readNotebookStatus(entry.data);
-			return renderNotice(
-				entry,
-				status.title,
-				status.content,
-				expanded,
-				theme,
-				keyHint,
-			);
-		},
-	);
+	for (const customType of Object.values(BINDING_STATUS_TYPES))
+		pi.registerEntryRenderer(
+			customType,
+			(entry, { expanded, keyHint }, theme) => {
+				const status = readBindingStatus(entry.data);
+				return renderNotice(
+					entry,
+					status.title,
+					status.content,
+					expanded,
+					theme,
+					keyHint,
+				);
+			},
+		);
 	const renderNativeCompaction = (
 		content: string,
 		kind: NativeCompactionDisplayEntry["kind"],
@@ -240,11 +241,13 @@ export function registerCodexUi(
 			runtime.state.usageStatus = undefined;
 			return;
 		}
-		if (!isAdapterRuntime(resolveCodexRuntimePlanForState(ctx, runtime.state)))
+		if (
+			!isAdapterRuntime(resolveAdapterRuntimePlanForState(ctx, runtime.state))
+		)
 			return;
 		const usageStatus = await fetchCodexUsageStatus(ctx);
 		if (generation !== usageGeneration) return;
-		const plan = resolveCodexRuntimePlanForState(ctx, runtime.state);
+		const plan = resolveAdapterRuntimePlanForState(ctx, runtime.state);
 		if (
 			!ctx.hasUI ||
 			!runtime.state.config.ui.statusLine ||

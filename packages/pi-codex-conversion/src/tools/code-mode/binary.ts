@@ -33,7 +33,7 @@ export function codeModeHostBinaryPath(
 	const cached = codeModeHostCachePath(name, runtime);
 	if (existsSync(cached)) return cached;
 	throw new Error(
-		`No code-mode host binary for ${runtime.platform}-${runtime.arch}. Reinstall the package to download the supported runtime.`,
+		`No Code host for ${runtime.platform}-${runtime.arch}. Reinstall the package to download the supported runtime.`,
 	);
 }
 

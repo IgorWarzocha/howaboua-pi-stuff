@@ -142,7 +142,7 @@ export async function requestContext(path, request, signal) {
 			finish(
 				new Error(
 					attempted
-						? "Shared context response was lost; a write may have completed. Reread the note before retrying"
+						? "Shared context response lost. Write may have completed; reread the note before retrying"
 						: "Shared context owner is unavailable; resume it and reconnect its machine",
 				),
 			);

@@ -6,10 +6,7 @@ import type { API } from "tsrs/async";
 import type { TsRuntime } from "./runtime.ts";
 import type { TsCompiler } from "./compiler.ts";
 import { resolveTsSource, withTsImportApi } from "./imports-api.ts";
-import {
-	cacheExactNpmImport,
-	runImportCommand,
-} from "../code-mode/npm-cache.ts";
+import { cacheExactNpmImport, runImportCommand } from "./npm-cache.ts";
 import { compileTsImportSource } from "./imports-source.ts";
 
 export interface TsImportOptions {
@@ -50,7 +47,7 @@ async function importLocation(
 		!specifier.startsWith("file:")
 	) {
 		throw new Error(
-			`Unsupported import ${specifier}. Use node:, an installed package, an exact npm: import, or a local file.`,
+			`Unsupported import ${specifier}. Use node:, an installed package, an exact-version npm: specifier or a local file.`,
 		);
 	}
 	return { cwd: resolve(options.cwd), bare: specifier };

@@ -1,4 +1,5 @@
 import { parentPort } from "node:worker_threads";
+import { getHeapSpaceStatistics } from "node:v8";
 import { createContext, runInContext, Script, SourceTextModule } from "node:vm";
 import { contentOutputFactorySource } from "../code-mode/content-output.ts";
 import { planVmCell, type VmBindings } from "./await-cell.ts";
@@ -31,6 +32,7 @@ const control = factory((kind: unknown, payload: unknown) => {
 	}
 }) as VmControl;
 const exported = new Map<string, string>();
+const scriptLexical = new Set<string>();
 let cells = 0;
 const IDENTIFIER = /^[$_\p{ID_Start}][$_\u200C\u200D\p{ID_Continue}]*$/u;
 runInContext(
@@ -38,6 +40,7 @@ runInContext(
 	context,
 	{ filename: "vm-code-content.js" },
 );
+const initialGlobals = new Set(Object.getOwnPropertyNames(context));
 
 let active: number | undefined;
 let outputChars = 0;
@@ -52,10 +55,6 @@ const calls = new Map<number, Promise<void>>();
 
 function send(message: VmMessage): void {
 	parentPort?.postMessage(message);
-}
-function memory(): VmOutcome["memory"] {
-	const usage = process.memoryUsage();
-	return { heapUsed: usage.heapUsed, rss: usage.rss };
 }
 function record(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
@@ -147,9 +146,6 @@ function bridge(kind: string, value: string): void {
 		case "notify":
 			send({ run: active, kind: "notify", text: value });
 			break;
-		case "yield":
-			send({ run: active, kind: "yield" });
-			break;
 		default:
 			throw new Error("Unknown Code operation");
 	}
@@ -196,7 +192,7 @@ function emit(kind: "text" | "image", value: string): void {
 	});
 }
 
-function finish(outcome: Omit<VmOutcome, "memory">): void {
+function finish(outcome: VmOutcome): void {
 	if (active === undefined) return;
 	const run = active;
 	if (resolvers.size) send({ run, kind: "cancel" });
@@ -204,7 +200,7 @@ function finish(outcome: Omit<VmOutcome, "memory">): void {
 	failure = undefined;
 	resolvers.clear();
 	calls.clear();
-	send({ run, kind: "done", outcome: { ...outcome, memory: memory() } });
+	send({ run, kind: "done", outcome });
 }
 
 function flushGuest(): void {
@@ -212,7 +208,11 @@ function flushGuest(): void {
 	runInContext("void 0", context);
 }
 
-function runScript(source: string, parseError?: unknown): unknown {
+function runScript(
+	source: string,
+	bindings: VmBindings,
+	parseError?: unknown,
+): unknown {
 	let script: Script;
 	try {
 		script = new Script(source, { filename: "vm-code-cell.js" });
@@ -220,7 +220,15 @@ function runScript(source: string, parseError?: unknown): unknown {
 		// A plain script reports the first await, hiding the actual syntax error.
 		throw parseError ?? error;
 	}
+	for (const name of bindings.lexical) scriptLexical.add(name);
 	return script.runInContext(context);
+}
+
+function bindingNames(): string[] {
+	const names = new Set(scriptLexical);
+	for (const name of Object.getOwnPropertyNames(context))
+		if (!initialGlobals.has(name) && IDENTIFIER.test(name)) names.add(name);
+	return [...names].sort();
 }
 
 function thrown(error: unknown): { name: string; message: string } {
@@ -371,7 +379,7 @@ async function run(
 		rejectConflicts(planned.bindings);
 		if (planned.awaited) await runModule(planned.source);
 		else {
-			runScript(planned.source, planned.parseError);
+			runScript(planned.source, planned.bindings, planned.parseError);
 			await quiescent();
 		}
 		if (failure) {
@@ -409,8 +417,28 @@ function reply(message: Extract<VmCommand, { kind: "reply" }>): void {
 }
 
 parentPort?.on("message", (message: VmCommand) => {
-	if (message.kind === "sample") {
-		send({ kind: "sample", memory: memory() });
+	if (message.kind === "bindings") {
+		// Node limits old generation in this worker; Bun's supervisor measures its process.
+		const memoryUsedBytes = process.versions["bun"]
+			? undefined
+			: getHeapSpaceStatistics().reduce(
+					(total, space) =>
+						space.space_name === "old_space" ||
+						space.space_name === "large_object_space"
+							? total + space.space_used_size
+							: total,
+					0,
+				);
+		send({
+			kind: "bindings",
+			id: message.id,
+			names: bindingNames(),
+			...(memoryUsedBytes === undefined ? {} : { memoryUsedBytes }),
+		});
+		return;
+	}
+	if (message.kind === "heapSample") {
+		send({ kind: "heapSample", heapUsedBytes: process.memoryUsage().heapUsed });
 		return;
 	}
 	if (message.kind === "run")

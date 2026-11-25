@@ -2,7 +2,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { isCanonicalCodexSubscriptionModel } from "../adapter/prompt/codex-model.ts";
+import { isCanonicalCodexSubscriptionModel } from "../adapter/prompt/model-support.ts";
 import { isTerminalRateLimitError } from "../providers/openai-codex/errors.ts";
 import { fetchCodexReserveStatus } from "./client.ts";
 import { CODEX_RESERVE_MODEL } from "./reserve-policy.ts";

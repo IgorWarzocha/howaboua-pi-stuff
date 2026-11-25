@@ -6,7 +6,7 @@ import {
 	VOICE_STATUS_KEY,
 	voiceModeForState,
 } from "./support.ts";
-import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import type { RealtimeConversation } from "../conversation/session.ts";
 import { ApiLiveFinalizationError } from "../conversation/api-live-close.ts";
 import type { CodexVoiceSessionMessages } from "../session-messages.ts";
 import { formatVoiceAudioError } from "../setup.ts";
@@ -40,7 +40,7 @@ export class ControllerLifecycle {
 		this.handoff = handoff;
 		this.callbacks = callbacks;
 	}
-	async endCall(session: CodexRealtimeConversation): Promise<void> {
+	async endCall(session: RealtimeConversation): Promise<void> {
 		this.callbacks.cancelRefresh();
 		try {
 			await session.waitForFinalPlayback();
@@ -166,10 +166,7 @@ export class ControllerLifecycle {
 		this.messages.voiceStopped(endedMode);
 	}
 
-	fail(
-		error: Error,
-		failedSession?: CodexRealtimeConversation | undefined,
-	): void {
+	fail(error: Error, failedSession?: RealtimeConversation | undefined): void {
 		this.callbacks.cancelRefresh();
 		if (
 			this.runtime.state.type === "idle" ||

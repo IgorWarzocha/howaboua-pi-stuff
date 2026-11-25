@@ -1,16 +1,17 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { ProviderHeaders } from "@earendil-works/pi-ai";
-import { isResponsesContext } from "./prompt/codex-model.ts";
+import { isResponsesContext } from "./prompt/model-support.ts";
 import { applyCodexRequestOptions } from "./request-options.ts";
 import type { AdapterState } from "./activation/state.ts";
 import {
 	isAdapterRuntime,
-	resolveCodexRuntimePlanForState,
+	resolveAdapterRuntimePlanForState,
 } from "./activation/runtime-plan.ts";
 import {
 	injectPendingNativeWindowIntoPiCompactionRequest,
 	rewriteCodexCompactedProviderRequest,
 } from "./compaction/provider-replay.ts";
+import { hiddenPiReplacementToolNames } from "./activation/tool-set.ts";
 import {
 	applyResponsesLiteRequest,
 	RESPONSES_LITE_HEADER,
@@ -26,10 +27,10 @@ function prepareCodexProviderRequest(
 	ctx: ExtensionContext,
 	state: AdapterState,
 ) {
-	const plan = resolveCodexRuntimePlanForState(ctx, state);
+	const plan = resolveAdapterRuntimePlanForState(ctx, state);
 	if (
 		!isAdapterRuntime(plan) ||
-		(!plan.effectiveOpenAICodex && !isResponsesContext(ctx))
+		(!plan.codexOrConfiguredResponses && !isResponsesContext(ctx))
 	) {
 		return undefined;
 	}
@@ -37,7 +38,7 @@ function prepareCodexProviderRequest(
 		plan,
 		configuredPayload: applyCodexRequestOptions(payload, state.config, {
 			modelId: ctx.model?.id,
-			serviceTier: plan.effectiveOpenAICodex,
+			serviceTier: plan.codexOrConfiguredResponses,
 			verbosity: true,
 		}),
 	};
@@ -47,7 +48,7 @@ export function supportsCodexDeveloperMessages(
 	ctx: Pick<ExtensionContext, "model">,
 	state: AdapterState,
 ): boolean {
-	const plan = resolveCodexRuntimePlanForState(ctx, state);
+	const plan = resolveAdapterRuntimePlanForState(ctx, state);
 	return isAdapterRuntime(plan) && isResponsesContext(ctx);
 }
 
@@ -65,11 +66,11 @@ export function rewriteCodexProviderHeaders(
 	ctx: ExtensionContext,
 	state: AdapterState,
 ): void {
-	const plan = resolveCodexRuntimePlanForState(ctx, state);
-	if (plan.transport === "responses-lite") {
+	const plan = resolveAdapterRuntimePlanForState(ctx, state);
+	if (plan.responsesFormat === "responses-lite") {
 		headers[RESPONSES_LITE_HEADER] = "true";
 	}
-	if (isAdapterRuntime(plan) && plan.effectiveOpenAICodex)
+	if (isAdapterRuntime(plan) && plan.codexOrConfiguredResponses)
 		rewriteRelationshipHeaders(headers, ctx);
 }
 
@@ -77,6 +78,7 @@ export async function rewriteCodexProviderRequest(
 	payload: unknown,
 	ctx: ExtensionContext,
 	state: AdapterState,
+	activeTools: readonly string[],
 	blockImages = false,
 ): Promise<unknown | undefined> {
 	const prepared = prepareCodexProviderRequest(payload, ctx, state);
@@ -100,14 +102,15 @@ export async function rewriteCodexProviderRequest(
 				rewrittenPayload,
 				ctx,
 				state,
+				hiddenPiReplacementToolNames(state.appliedRuntimeKind, activeTools),
 			)) ??
 			rewrittenPayload;
 	}
 	const finalPayload = applyCodexRuntimePayload(
 		rewrittenPayload,
-		plan.transport === "responses-lite",
+		plan.responsesFormat === "responses-lite",
 	);
-	return plan.effectiveOpenAICodex
+	return plan.codexOrConfiguredResponses
 		? rewriteRelationshipPayload(finalPayload, ctx)
 		: finalPayload;
 }

@@ -113,7 +113,7 @@ export class BoardStore {
 		const post = this.post(board, id);
 		if (post.thread_id !== id)
 			throw new Error(
-				`thread_id points to a reply. Use root thread_id ${post.thread_id}.`,
+				`Reply ID supplied. Use root thread_id ${post.thread_id}.`,
 			);
 		return post;
 	}
@@ -159,7 +159,7 @@ export class BoardStore {
 			const result = write
 				? this.mutate(scope, params, requestId)
 				: { value: queryBoard(this, scope.boardId, params), recipients: [] };
-			if (write) serializeBoardResult(result.value);
+			if (write) serializeBoardResult(result.value, true);
 			this.db.exec("COMMIT");
 			return result;
 		} catch (error) {
@@ -322,9 +322,7 @@ export class BoardStore {
 				params.action === "post" &&
 				this.threadStatus(board, root).status !== "open"
 			)
-				throw new Error(
-					"Thread is closed. The parent session must reopen it before replies.",
-				);
+				throw new Error("Thread closed. Parent must reopen it before replies.");
 		} else if (params.new_channel_name !== undefined) {
 			channel = params.new_channel_name;
 			this.ensureBoard(scope, now);

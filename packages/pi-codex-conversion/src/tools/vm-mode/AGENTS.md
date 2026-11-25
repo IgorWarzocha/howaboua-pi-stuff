@@ -2,8 +2,10 @@
 - Guest-visible objects/functions/accessors from guest realm. Host callback private in prelude closure; primitives only across it, including error data. Construct guest errors. Host functions/errors expose worker `Function` despite disabled guest string generation.
 - No top-level `await`: unchanged. Awaited cell: one module, cell-wide `let`/`const`/`class`, normal closures across awaits. Publish each declarator after initialiser, before next. Later rejection keeps earlier value; throw before init never publishes. No `const` weakening, dead-zone getter or split evaluator.
 - Reject lexical redeclaration/same-cell conflicts before effects. Predeclare `var`; bare redeclaration preserves value, awaited branch uses outer binding. Block lexicals stay local.
+- Binding inventory records native script declarations after compilation and enumerates live guest globals. Include partial failures; never execute guest getters, retain values or scan session history.
 - Failed cell: cancel tools, reject guest promises, flush callbacks before next exec. Don't await host calls. Callbacks cannot emit/invoke tools for later cells.
 - No Node REPL (host loader allows `import("node:fs")`) or `importModuleDynamically`. `tools.<name>` via `CodeModeDelegateRuntime` only. No bare globals, `$`, `edit`, `searchTools`, `describeTool`.
 - Script error keeps context. Stall, abort, memory limit, terminate or conversation change kill worker. Report dropped bindings; next exec creates context.
+- Manual and critical-pressure resets replace only idle workers and retain the entire bounded JSON store. Hard teardown clears both. Sample only with binding inventory using Node old generation, Bun cgroup usage or watchdog RSS. Report resets in the new inventory, not stale binding names. One warning per worker.
 - Hard stop: Node worker, Bun separate process (ignores worker `resourceLimits`). Verify Linux cgroup memory/swap before evaluator; no polling fallback. macOS/Windows RSS watchdog best-effort. IPC/watchdog off evaluator thread.
 - `limits.ts`: Node heap/Bun process budgets, not Notebook 4096 MiB. `store` caps separate.

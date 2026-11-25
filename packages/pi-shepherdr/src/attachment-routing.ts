@@ -69,7 +69,7 @@ export class AttachmentRouting {
 			if (link.target.storage === "remote") {
 				if (child.detached?.context && !this.notes.canRead(next))
 					throw new Error(
-						"Detached counterpart checkpoints are read-only; native history is unchanged",
+						"Detached checkpoints are read-only. Native history unchanged",
 					);
 				result = await this.notes.remote(
 					ctx,
@@ -136,7 +136,7 @@ export class AttachmentRouting {
 			if (link.controller.storage === "remote") {
 				if (detached && !this.notes.canRead(next))
 					throw new Error(
-						"Detached counterpart checkpoints are read-only; native history is unchanged",
+						"Detached checkpoints are read-only. Native history unchanged",
 					);
 				result = await this.notes.remote(
 					ctx,

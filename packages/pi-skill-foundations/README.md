@@ -1,6 +1,12 @@
 # @howaboua/pi-skill-foundations
 
-Portable Pi foundations for the rules and judgment that should survive across projects.
+Give Pi reusable guidance for writing, reviewing non-code work, reporting findings, and maintaining agent instructions across projects.
+
+- `agents-md` keeps repository guidance scoped and separate from user documentation.
+- `communication` calibrates conversational voice, reports investigation findings, and teaches worked lessons.
+- `non-code-review` identifies what matters in a document, plan, proposal, or design.
+- `skill-creator` turns durable lessons into reusable skills without baking in one-off instructions.
+- `writing` covers prose, interface copy, technical documentation, and telegraphic instructions.
 
 ## Install
 
@@ -8,10 +14,4 @@ Portable Pi foundations for the rules and judgment that should survive across pr
 pi install npm:@howaboua/pi-skill-foundations
 ```
 
-Pi discovers these skills after installation:
-
-- `agents-md` keeps repository guidance scoped, concise, and separate from user documentation.
-- `communication` keeps investigation findings, reviews, teaching, and writing direct and specific.
-- `skill-creator` designs and maintains reusable skills without turning one-off instructions into permanent packages.
-
-Install this package when you want those foundations available in every project.
+Pi discovers these skills after installation. Invoke one directly with `/skill:<name>`, for example `/skill:writing`.

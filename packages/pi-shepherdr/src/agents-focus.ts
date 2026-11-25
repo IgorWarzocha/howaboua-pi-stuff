@@ -37,7 +37,7 @@ export async function focusAgent(
 	const source = await getCurrentPane(local.client);
 	const sessionFile = sessionPath(source);
 	if (!sessionFile)
-		throw new Error("Focus requires a saved source session for returning");
+		throw new Error("Focus return needs a saved source session");
 	const panel = await resolvePiAgent(
 		runtime.client,
 		target,
@@ -48,9 +48,7 @@ export async function focusAgent(
 		panel.launch_pending ||
 		panel.interactive_ready === false
 	)
-		throw new Error(
-			"Target session is not running and ready; choose an existing running session",
-		);
+		throw new Error("Target not ready. Choose a running session");
 	const request: FocusRequest = {
 		source: {
 			...(await local.client.machineIdentity()),
@@ -126,7 +124,7 @@ export function readFocus(value: unknown): FocusRequest {
 		throw new Error("Invalid focus agent");
 	if (source["backend"] !== "core")
 		throw new Error(
-			"Focus return requires a Core session; focus again from the source session",
+			"Focus return needs Core. Focus again from the source session",
 		);
 	if ("handoff" in value && typeof value.handoff !== "string")
 		throw new Error("Invalid focus handoff");
@@ -173,7 +171,7 @@ export async function acceptFocus(
 	}
 	if (!routes.length)
 		throw new Error(
-			"No live return route from the destination; ask the user to connect the source machine in the destination's /herdr panel, then retry",
+			"No return route. Ask the user to connect the source machine in the destination's /herdr panel, then retry",
 		);
 	const machine = routes.includes("local") ? "local" : routes[0]!;
 	const tools = pi.getActiveTools();
@@ -207,7 +205,7 @@ export async function acceptFocus(
 		if (isDispatchRejected(error)) throw error;
 		throw Object.assign(
 			new Error(
-				`Focus was not confirmed; inspect the destination before retrying: ${String(error)}`,
+				`Focus unconfirmed. Inspect the destination before retrying: ${String(error)}`,
 			),
 			{ focusChanged: true },
 		);
@@ -231,7 +229,7 @@ export async function acceptFocus(
 	} catch (error) {
 		throw Object.assign(
 			new Error(
-				`Session focused, but arrival could not be saved; inspect the destination before retrying: ${String(error)}`,
+				`Session focused; arrival not saved. Inspect the destination before retrying: ${String(error)}`,
 			),
 			{ focusChanged: true },
 		);

@@ -10,7 +10,7 @@ import {
 	assertJsonPost,
 } from "./http-protocol.ts";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { LanVoiceSettingsError } from "./settings-contract.ts";
+import { VoiceSettingsError } from "../settings-error.ts";
 import type { LanVoiceBrowserClients } from "./browser-clients.ts";
 import type { LanVoiceActivity } from "./activity.ts";
 import { getLanVoiceAppAsset } from "./app-assets.ts";
@@ -119,7 +119,7 @@ export async function handleLanVoiceHttpRequest(
 			try {
 				sendJson(response, 200, handlers.configureSettings(body));
 			} catch (error) {
-				if (error instanceof LanVoiceSettingsError)
+				if (error instanceof VoiceSettingsError)
 					throw new LanVoiceRequestError(400, error.message);
 				throw error;
 			}

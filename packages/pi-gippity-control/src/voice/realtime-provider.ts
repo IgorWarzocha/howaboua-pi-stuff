@@ -12,12 +12,12 @@ export async function resolveRealtimeProvider(
 }> {
 	if (!normalizeVoiceApiProvider(name))
 		throw new Error(
-			"Enter a nonempty API provider name in voice settings (at most 512 bytes, no surrounding whitespace or control characters).",
+			"Voice settings need an API provider name: 1 to 512 bytes, no surrounding whitespace or control characters.",
 		);
 	const registry = ctx.modelRegistry;
 	const provider = registry.getProvider(name);
 	const authError =
-		"API voice requires an API key for the provider named in voice settings. Configure that provider in Pi, or change the name. ChatGPT and OAuth logins cannot be used.";
+		"API voice needs an API key, not a ChatGPT or other OAuth login. Configure the selected provider in Pi or choose another in voice settings.";
 	let auth;
 	try {
 		auth = await registry.getProviderAuth(name);
@@ -31,7 +31,7 @@ export async function resolveRealtimeProvider(
 	)
 		throw new Error(authError);
 	const routeError =
-		"API voice requires a valid HTTP or HTTPS base URL for the selected provider. Configure its endpoint in Pi without URL credentials, query or fragment, then start again.";
+		"API voice needs an HTTP or HTTPS base URL without credentials, query or fragment. Set it for the selected provider in Pi, then restart voice.";
 	// Pi's resolved auth endpoint overrides the provider endpoint. Chat model
 	// overrides do not apply: voice selects a provider, not a chat model.
 	const route = auth.auth.baseUrl ?? provider.baseUrl;
@@ -54,7 +54,7 @@ export async function resolveRealtimeProvider(
 		throw new Error(routeError);
 	const baseUrl = url.href.replace(/\/+$/, "");
 	const headerError =
-		"Voice could not use the selected provider's API headers. Configure valid headers matching its API key in Pi, then start again.";
+		"Invalid API headers for the selected provider. Fix headers to match its API key in Pi, then restart voice.";
 	const key = auth.auth.apiKey;
 	const makeHeaders = (values: typeof auth.auth.headers) => {
 		const headers = new Headers();

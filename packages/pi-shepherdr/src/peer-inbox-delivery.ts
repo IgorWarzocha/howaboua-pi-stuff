@@ -164,7 +164,7 @@ export class PeerInboxDelivery {
 			reply({
 				ok: false,
 				rejected: !submitted,
-				error: `${submitted ? "Peer delivery failed; inspect the target before retrying" : "Peer delivery rejected"}: ${error instanceof Error ? error.message : String(error)}`,
+				error: `${submitted ? "Peer delivery unconfirmed. Inspect the target before retrying" : "Peer delivery rejected"}: ${error instanceof Error ? error.message : String(error)}`,
 			});
 		}
 	}

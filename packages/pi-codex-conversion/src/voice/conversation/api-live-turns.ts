@@ -12,9 +12,9 @@ import {
 	type RealtimeHandoffChannel,
 	type RealtimeHandoffTarget,
 } from "./handoff.ts";
-import type { CodexRealtimePeer } from "./peer.ts";
+import type { RealtimePeer } from "./peer.ts";
 import { RealtimePlayback } from "./playback.ts";
-import type { CodexConversationCallbacks } from "./session.ts";
+import type { ConversationCallbacks } from "./session.ts";
 import { remoteError, utf8Chunks } from "./wire.ts";
 
 const PREPARATION_TIMEOUT_MS = 45_000;
@@ -64,14 +64,14 @@ export class ApiLiveTurns {
 	private idle = Promise.withResolvers<void>();
 	private preparation = Promise.resolve();
 	private finishing = false;
-	private readonly callbacks: CodexConversationCallbacks;
-	private readonly peer: CodexRealtimePeer;
+	private readonly callbacks: ConversationCallbacks;
+	private readonly peer: RealtimePeer;
 	private readonly isActive: () => boolean;
 	private readonly onFailure: (error: Error) => void;
 
 	constructor(
-		callbacks: CodexConversationCallbacks,
-		peer: CodexRealtimePeer,
+		callbacks: ConversationCallbacks,
+		peer: RealtimePeer,
 		isActive: () => boolean,
 		onFailure: (error: Error) => void,
 		lifecycle: ApiLiveLifecycle = {},
@@ -257,7 +257,7 @@ export class ApiLiveTurns {
 			AbortSignal.timeout(PREPARATION_TIMEOUT_MS),
 		]);
 		let prepared: Awaited<
-			ReturnType<NonNullable<CodexConversationCallbacks["rewriteDelegation"]>>
+			ReturnType<NonNullable<ConversationCallbacks["rewriteDelegation"]>>
 		>;
 		try {
 			if (!this.callbacks.rewriteDelegation)

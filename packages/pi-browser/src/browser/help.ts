@@ -25,7 +25,7 @@ export function browserHelp(
 			type: "ref_id text id?; id focuses",
 			fill: "ref_id id|selector value; replace/clear text, select option value/label, boolean checks/unchecks",
 			press: "ref_id key; focused element, e.g. Enter or Control+a",
-			wait: "ref_id selector|text|url_includes timeout_ms?; DOM presence or substring, default 10000ms",
+			wait: "ref_id selector|text|url_includes timeout_ms?; DOM presence or substring",
 			screenshot: "ref_id id?|selector?; brings tab to foreground -> file",
 			navigate: "ref_id url",
 			html: "ref_id id?|selector?",

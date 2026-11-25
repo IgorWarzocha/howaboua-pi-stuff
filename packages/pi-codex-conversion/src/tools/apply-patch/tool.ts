@@ -35,7 +35,7 @@ const APPLY_PATCH_PARAMETERS = obj(
 	{
 		input: str({
 			description:
-				"*** Begin Patch / *** End Patch; Add/Update/Delete File sections. *** Move to: path immediately follows its Update File header; requires a nonempty @@ hunk (one unchanged context line for pure moves). Hunks follow file order; indentation is literal",
+				"*** Begin Patch / *** End Patch; Add/Update/Delete File sections. *** Move to: path immediately follows its Update File header; requires a nonempty @@ hunk (one unchanged context line for pure moves). Hunks MUST follow file order and MUST NOT overlap, including context; merge overlapping hunks. Indentation is literal",
 		}),
 	},
 	{ open: true },
@@ -171,12 +171,11 @@ function buildPartialFailureMessage(
 		lines.push(
 			`Failed file${failedFiles.length === 1 ? "" : "s"}: ${failedFiles.join(", ")}`,
 		);
-		lines.push(`Recovery: MUST read ${failedFiles.join(", ")} before retrying`);
+		lines.push("MUST read failed files before retrying.");
 	}
 	if (appliedFiles.length > 0) {
-		lines.push("Earlier file actions in this patch were already applied");
 		lines.push(
-			"Recovery: MUST NOT reread other files from this patch unless a specific dependency requires it",
+			"Earlier file actions applied. MUST NOT reread other patch files unless a dependency requires it.",
 		);
 	}
 	return lines.join("\n");
@@ -412,13 +411,6 @@ export function createApplyPatchTool(
 		renderCall: options.renderCall ?? defaultRenderCall,
 		renderResult: options.renderResult ?? defaultRenderResult,
 	} satisfies ApplyPatchToolDefinition;
-}
-
-export function registerApplyPatchTool(
-	pi: ExtensionAPI,
-	options: ApplyPatchToolOptions = {},
-): void {
-	pi.registerTool(createApplyPatchTool(options));
 }
 
 export function registerApplyPatchResultEvent(pi: ExtensionAPI): void {

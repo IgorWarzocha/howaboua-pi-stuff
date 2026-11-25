@@ -33,12 +33,12 @@ Read every current comment and verify it against the request, repository rules, 
 
 Write from the final diff and decisions. A reviewer must be able to tell why it exists, what behavior changes, where judgment is needed, and what evidence supports it. Rewrite prose that sounds synthetic or could fit another pull request after swapping nouns.
 
-Optional shapes. Mix, choose, or ignore them. Do not attribute a shape to a person.
+Optional shapes:
 
-- Trigger, failure mechanism, correction, then stop.
-- Lead with unusual review risk or a manual exception, then reproducible proof.
-- Concrete examples, observed evidence, and honest uncertainty.
-- Old and new API use, compatibility effects, and the reviewable trade-off.
+- Trigger, failure mechanism, correction.
+- Unusual review risk or manual exception, then reproducible proof.
+- Concrete examples, observed evidence, honest uncertainty.
+- Old and new API use, compatibility effects, reviewable trade-off.
 
 Title: specific, searchable final effect. Follow repository prefixes and grammar. Avoid branch names, issue numbers alone, version numbers alone when a descriptive release title is available, and vague wording such as `Fix cache bug`. Prefer `Preserve live response continuation during cache refresh`.
 

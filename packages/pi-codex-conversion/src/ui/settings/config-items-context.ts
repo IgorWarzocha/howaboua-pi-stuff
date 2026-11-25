@@ -6,7 +6,7 @@ import {
 } from "../../adapter/activation/config.ts";
 import {
 	isAdapterRuntime,
-	resolveCodexRuntimePlan,
+	resolveAdapterRuntimePlan,
 } from "../../adapter/activation/runtime-plan.ts";
 import { type ConfigSetting, setting } from "./config-items-shared.ts";
 
@@ -20,8 +20,8 @@ export function buildContextSettings(
 	config: CodexConversionConfig,
 	ctx: Pick<ExtensionContext, "model">,
 ): ConfigSetting[] {
-	const plan = resolveCodexRuntimePlan(ctx, config);
-	const supportsV2 = isAdapterRuntime(plan) && plan.effectiveOpenAICodex;
+	const plan = resolveAdapterRuntimePlan(ctx, config);
+	const supportsV2 = isAdapterRuntime(plan) && plan.codexOrConfiguredResponses;
 	const { method, v2UserMessageRetention } = config.compaction;
 	return [
 		setting(

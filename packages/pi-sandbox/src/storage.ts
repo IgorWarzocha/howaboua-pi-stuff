@@ -47,7 +47,7 @@ export async function readRecord(dir: string): Promise<SandboxRecord> {
 export async function loadConfig(path: string): Promise<SandboxConfig> {
 	if ((await stat(path)).size > 1048576)
 		throw new Error(
-			"Environment YAML exceeds 1 MiB. Use guest files for large setup scripts",
+			"YAML exceeds 1 MiB. Use guest files for large setup scripts",
 		);
 	const document = parseDocument(await readFile(path, "utf8"), {
 		uniqueKeys: true,
@@ -62,7 +62,7 @@ export async function privateDirectory(path: string): Promise<void> {
 	await mkdir(path, { recursive: true, mode: 0o700 });
 	if ((await stat(path)).mode & 0o077)
 		throw new Error(
-			"Sandbox state requires a private directory. Ask the user to choose a private PI_SANDBOX_HOME directory",
+			"Sandbox state not private. Ask the user for a private PI_SANDBOX_HOME directory",
 		);
 }
 
@@ -111,22 +111,20 @@ export function agentError(error: unknown): unknown {
 				: undefined;
 	const recovery: Record<string, string> = {
 		ENOENT:
-			"A required sandbox file or program is missing. Check the supplied config or instance name, then retry",
-		EACCES: "Sandbox access was denied. Ask the user to check file permissions",
+			"Sandbox file or program missing. Check config or instance name before retrying",
+		EACCES: "Sandbox access denied. Ask the user to check file permissions",
 		EPERM:
-			"Sandbox operation was not permitted. Ask the user to check host permissions",
-		ENOSPC:
-			"The host has no space for sandbox data. Ask the user to free disk space before retrying",
+			"Sandbox operation not permitted. Ask the user to check host permissions",
+		ENOSPC: "Host disk full. Ask the user to free space before retrying",
 		EROFS:
-			"Sandbox storage is read-only. Ask the user to check the storage location",
+			"Sandbox storage read-only. Ask the user to check the storage location",
 		EADDRINUSE:
-			"A sandbox listening address is occupied. Inspect running instances before retrying",
+			"Sandbox listening address in use. Inspect running instances before retrying",
 		ECONNREFUSED:
-			"Sandbox controller is unavailable. Use inspect and controller logs before retrying",
-		ECONNRESET:
-			"Sandbox connection was interrupted. Use inspect before retrying",
+			"Controller unavailable. Use inspect and controller logs before retrying",
+		ECONNRESET: "Sandbox connection interrupted. Use inspect before retrying",
 		ABORT_ERR:
-			"Sandbox wait was cancelled. Cancellation does not stop the controller or guest work. Use inspect or exec-status",
+			"Sandbox wait cancelled. Does not stop controller or guest work. Use inspect or exec-status",
 	};
 	return typeof code === "string" && recovery[code]
 		? new Error(recovery[code])

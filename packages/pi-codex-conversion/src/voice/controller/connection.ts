@@ -12,7 +12,7 @@ import {
 } from "./start.ts";
 import { resumeDroppedConversation } from "./reconnect.ts";
 import { currentVoiceSession } from "./support.ts";
-import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import type { RealtimeConversation } from "../conversation/session.ts";
 import type { CodexVoiceSessionMessages } from "../session-messages.ts";
 import type { CodexVoiceMode } from "../ui.ts";
 import type { ControllerHandoff } from "./handoff.ts";
@@ -63,7 +63,7 @@ export class ControllerConnection {
 		inputMuted = false,
 		preparedRealtimeContext?: PreparedRealtimeContext,
 		alternateVoice?: boolean,
-	): Promise<CodexRealtimeConversation | undefined> {
+	): Promise<RealtimeConversation | undefined> {
 		return this.ownership.start(async () => {
 			const session = await startControllerMode({
 				pi: this.pi,
@@ -102,7 +102,7 @@ export class ControllerConnection {
 		});
 	}
 
-	drop(session: CodexRealtimeConversation, error: Error): void {
+	drop(session: RealtimeConversation, error: Error): void {
 		this.callbacks.cancelRefresh();
 		resumeDroppedConversation({
 			runtime: this.runtime,

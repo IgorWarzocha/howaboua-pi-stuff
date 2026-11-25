@@ -6,13 +6,12 @@ import { readEffectiveCodexConversionConfig } from "../adapter/activation/config
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import { supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
 import { onCodeModeExtensionToolsRefresh } from "../code-mode-extension-tools.ts";
-import { extractPiPromptSkills } from "../prompt/build-system-prompt.ts";
 import type { CodeModeProxyProviderRegistration } from "../providers/code-mode-proxy-provider.ts";
 import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.ts";
 import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { initializeBashParser } from "../shell/bash.ts";
-import { appendNotebookTreeEpoch } from "../tools/code-mode/session-identity.ts";
+import { appendExecutionTreeEpoch } from "../tools/code-mode/session-identity.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
@@ -72,7 +71,7 @@ export function createCodexSessionLifecycle(
 	return {
 		start: async (event, ctx) => {
 			activate(ctx);
-			state.notebookStatusMessageId = undefined;
+			state.bindingStatus = undefined;
 			ui.invalidateUsageStatus();
 			await runtime.lanVoice.stop(ctx);
 			runtime.voice.resetContextAnnouncements();
@@ -89,7 +88,6 @@ export function createCodexSessionLifecycle(
 			});
 			state.executionMode = state.config.executionMode;
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
-			state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 			sessions.setBaseEnv(runtime.execEnv());
 			tracker.clear();
 			clearApplyPatchRenderState();
@@ -98,7 +96,7 @@ export function createCodexSessionLifecycle(
 			// A fresh worker may adopt its family before its first prepared turn.
 			await runtime.configureDiagnostics(ctx);
 			void ui.refreshUsageStatus(ctx);
-			prepareCodeModeHost(codeMode, ctx);
+			prepareExecutionHost(codeMode, ctx);
 			if (event.reason === "startup") await maybeWarnLocalCheckoutVersion(ctx);
 		},
 		modelSelected: async (_event, ctx) => {
@@ -107,13 +105,12 @@ export function createCodexSessionLifecycle(
 			ui.invalidateUsageStatus();
 			runtime.resetTransport(ctx.sessionManager.getSessionId());
 			state.cwd = ctx.cwd;
-			state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 			syncAdapter(pi, ctx, state);
 			// Keep existing window state, but leave initial creation to the first prepared turn.
 			await runtime.configureDiagnostics(ctx);
 			void ui.refreshUsageStatus(ctx);
-			prepareCodeModeHost(codeMode, ctx);
+			prepareExecutionHost(codeMode, ctx);
 		},
 		tree: async (event, ctx) => {
 			activate(ctx);
@@ -121,17 +118,17 @@ export function createCodexSessionLifecycle(
 				runtime.voice.resetVoiceBranch(ctx);
 			runtime.resetTransport(ctx.sessionManager.getSessionId());
 			// Internal rollover preserves the admission that requested it.
-			state.notebookStatusMessageId = undefined;
+			state.bindingStatus = undefined;
 			const stateful =
 				state.executionMode === "ts" || state.executionMode === "vm";
-			if (stateful) appendNotebookTreeEpoch(pi);
+			if (stateful) appendExecutionTreeEpoch(pi);
 			await codeMode.shutdownHost();
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 			// Pi restored the branch's tool loadout, not its execution-mode setting.
 			// Reapply the current mode while retaining non-adapter tool selections.
 			delete state.appliedRuntimeKind;
 			syncAdapter(pi, ctx, state);
-			prepareCodeModeHost(codeMode, ctx);
+			prepareExecutionHost(codeMode, ctx);
 			if (stateful) {
 				ctx.ui.notify(
 					`${state.executionMode === "vm" ? "VM Code bindings" : "TS Notebook state"} reset after conversation-tree navigation`,
@@ -186,14 +183,14 @@ function isAbortError(error: unknown): boolean {
 	);
 }
 
-export function prepareCodeModeHost(
+export function prepareExecutionHost(
 	codeMode: CodeModeRegistration,
 	ctx: ExtensionContext,
 ): void {
 	void codeMode.prepare(ctx)?.catch((error: unknown) => {
 		if (isAbortError(error)) return;
 		ctx.ui.notify(
-			`Code Mode host setup failed: ${error instanceof Error ? error.message : String(error)}`,
+			`Execution host setup failed: ${error instanceof Error ? error.message : String(error)}`,
 			"error",
 		);
 	});

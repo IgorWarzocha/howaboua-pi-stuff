@@ -1,9 +1,10 @@
 import {
-	DEFAULT_CODE_MODE_OUTPUT_TOKENS,
-	MAX_CODE_MODE_OUTPUT_TOKENS,
-} from "./host-protocol.js";
+	DEFAULT_EXEC_OUTPUT_TOKENS,
+	MAX_EXEC_OUTPUT_TOKENS,
+} from "./exec-contract.ts";
 import { referenceEmittedTraceImages } from "./trace-images.js";
 import type { RuntimeContentItem, RuntimeResponse } from "./types.js";
+import { formatRunningShellGuidance } from "../exec/format.ts";
 
 const MAX_OUTPUT_IMAGE_COUNT = 4;
 const MAX_OUTPUT_IMAGE_CHARS = 16 * 1024 * 1024;
@@ -19,23 +20,27 @@ export function toCodeModeToolResult(
 	const status = scriptError
 		? `Script error: ${scriptError}`
 		: response.kind === "yielded"
-			? `Still running (exec cell "${response.cellId}"). Use wait once near expected completion; avoid short polling`
+			? `Exec cell "${response.cellId}" running. Call wait once near expected completion. Do not loop short waits or run a shell sleep.`
 			: response.kind === "terminated"
 				? "Script terminated"
 				: undefined;
 	const output = boundedCodeModeContent(response.contentItems);
+	const nestedFailures = summarizeNestedFailures(response, scriptError);
 	const outputTokens = Math.min(
-		MAX_CODE_MODE_OUTPUT_TOKENS,
+		MAX_EXEC_OUTPUT_TOKENS,
 		Math.max(
 			1,
-			maxTokens ?? response.maxOutputTokens ?? DEFAULT_CODE_MODE_OUTPUT_TOKENS,
+			maxTokens ?? response.maxOutputTokens ?? DEFAULT_EXEC_OUTPUT_TOKENS,
 		),
 	);
 	const content = [
 		...(status ? [{ type: "text" as const, text: status }] : []),
+		...(nestedFailures
+			? [{ type: "text" as const, text: nestedFailures }]
+			: []),
 		...(response.execSessionIds ?? []).map((sessionId) => ({
 			type: "text" as const,
-			text: formatRunningExecSessionGuidance(sessionId),
+			text: formatRunningShellGuidance(sessionId, true),
 		})),
 		...truncateTextContent(output, outputTokens * 4),
 	];
@@ -58,6 +63,8 @@ export function toCodeModeToolResult(
 					}
 				: {}),
 			status: response.kind,
+			...(response.vmReset ? { vmReset: true } : {}),
+			...(nestedFailures ? { nestedFailureSummary: true } : {}),
 			...(response.opaqueDeliveryId
 				? { opaqueDeliveryId: response.opaqueDeliveryId }
 				: {}),
@@ -76,6 +83,26 @@ export function toCodeModeToolResult(
 			...(scriptError ? { scriptError } : {}),
 		},
 	};
+}
+
+function summarizeNestedFailures(
+	response: RuntimeResponse,
+	scriptError: string | undefined,
+): string | undefined {
+	const groups = (response.nestedFailures ?? []).filter(
+		(failure) => failure.count > 1 || !scriptError?.includes(failure.error),
+	);
+	const lines = groups.map(
+		({ name, error, count }) =>
+			`- ${name}${count > 1 ? ` (${count} calls)` : ""}: ${error}`,
+	);
+	const omitted = response.omittedNestedFailures ?? 0;
+	if (omitted)
+		lines.push(
+			`- ${omitted} more failed call${omitted === 1 ? "" : "s"} omitted`,
+		);
+	if (lines.length === 0) return undefined;
+	return `Nested tool failures (the cell may have handled them):\n${lines.join("\n")}`;
 }
 
 export function boundedCodeModeContent(items: RuntimeContentItem[]) {
@@ -116,11 +143,7 @@ function withScriptErrorRecovery(
 		)
 	)
 		return errorText;
-	return `${errorText}\nRetry: wrap one-off const/let and their uses in { ... }. Need a new persistent binding? Use a fresh name. Reuse an existing binding only after verifying its value`;
-}
-
-export function formatRunningExecSessionGuidance(sessionId: number): string {
-	return `Session ${sessionId} still running. Resume near completion with tools.write_stdin and an appropriate yield_time_ms; do not use wait`;
+	return `${errorText}\nRetry: keep one-off declarations and their uses in { ... }. Assign to an existing let. For const or values you need to keep, use a block or fresh name. Verify values before reuse.`;
 }
 
 function toPiContent(item: RuntimeContentItem):

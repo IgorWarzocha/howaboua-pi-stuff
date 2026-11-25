@@ -2,7 +2,7 @@
 
 Review or block pending Pi tool calls that match your explicit rules. Rules name an exact tool and optionally match its arguments with regexes. There are no default rules. Without configuration, every call passes through with no reviews or blocks. Native Pi and nested Code Mode and Notebook Mode calls use the same rules.
 
-Guardian turns on when installed. Reviews require Pi 1.0.4 or later, ChatGPT OAuth sign-in, and a current parent response using the Codex Responses API at the canonical ChatGPT endpoint. Matching review calls are blocked on other models or unverified parent responses. Matching block calls never contact the reviewer and need no Codex parent. Unmatched calls need no parent. With rules loaded, Code Mode and Notebook Mode additionally require Pi Codex Conversion 3.0.46 or later.
+Guardian turns on when installed. Reviews require the latest Pi release, ChatGPT OAuth sign-in, and a current parent response using the Codex Responses API at the canonical ChatGPT endpoint. Matching review calls are blocked on other models or unverified parent responses. Matching block calls never contact the reviewer and need no Codex parent. Unmatched calls need no parent. With rules loaded, Code Mode and Notebook Mode additionally require Pi Codex Conversion 3.0.46 or later.
 
 ## Install
 

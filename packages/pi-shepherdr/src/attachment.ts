@@ -61,9 +61,7 @@ export class AgentAttachment {
 		if (runtime.local && sessionFile === controllerFile)
 			throw new Error("Cannot attach this session to itself");
 		if (attachmentOwner(ctx))
-			throw new Error(
-				"An attached agent cannot attach another controller; use its existing controller",
-			);
+			throw new Error("This agent is attached. Use its controller");
 		const context = params.context === true;
 		const useBoard = params.board === true;
 		const controllerContext = context
@@ -83,7 +81,7 @@ export class AgentAttachment {
 					!isDeepStrictEqual(this.board.binding(ctx), controllerBoard))
 			)
 				throw new Error(
-					"Controller changed during attachment; resume the original session and retry",
+					"Controller changed. Resume the original session and retry attach",
 				);
 		};
 		const prior = attachmentRoutes(ctx).find(
@@ -96,9 +94,7 @@ export class AgentAttachment {
 			prior &&
 			(!!prior.plan.context !== context || !!prior.plan.board !== useBoard)
 		)
-			throw new Error(
-				"Target has different attachment choices; changing an attachment is unsupported",
-			);
+			throw new Error("Cannot change the target's attachment choices");
 		let route = prior;
 		await runtime.prepareSharing();
 		await check();
@@ -111,7 +107,7 @@ export class AgentAttachment {
 			await check();
 			if (!checkSnapshot(snapshot))
 				throw new Error(
-					"Target does not support attachment; update and reload Shepherdr",
+					"Attachment unsupported on target. Update and reload Shepherdr",
 				);
 			const current = snapshot as Static<typeof Snapshot>;
 			if (context && !current.context)
@@ -190,7 +186,7 @@ export class AgentAttachment {
 				this.pi.appendEntry(ROUTE, { ...route, phase: "ready" });
 		} catch (error) {
 			throw new Error(
-				`Attachment incomplete; the target may already be attached. Retry attach with the same controller, target and choices after both sessions settle. ${String(error)}`,
+				`Attach incomplete; target may already be attached. Once both sessions settle, retry with the same controller, target and choices. ${String(error)}`,
 				{ cause: error },
 			);
 		}
@@ -218,7 +214,7 @@ export class AgentAttachment {
 		);
 		if (!route || route.phase !== "ready")
 			throw new Error(
-				"No completed attachment for this target in this controller session",
+				"This controller has no completed attachment for the target",
 			);
 		const { plan } = route;
 		if ((params.context && !plan.context) || (params.board && !plan.board))
@@ -315,7 +311,7 @@ export class AgentAttachment {
 			await check(false);
 		} catch (error) {
 			throw new Error(
-				`Detach incomplete; retry from the same controller and target with the same choices. ${String(error)}`,
+				`Detach incomplete. Retry with the same controller, target and choices. ${String(error)}`,
 				{ cause: error },
 			);
 		}

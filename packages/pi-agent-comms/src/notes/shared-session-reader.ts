@@ -103,7 +103,7 @@ export function createSharedSessionReader(
 			}
 			if (saved) {
 				if (!sameOwner(savedNotesIdentity(saved), identity))
-					throw new Error("Saved shared notes belong to a different session");
+					throw new Error("Saved notes belong to a different session");
 				return resolve(saved, destination, query);
 			}
 		}
@@ -138,8 +138,8 @@ export function createSharedSessionReader(
 			read_only: true,
 			captured_at: minuteTimestamp(retained.timestamp),
 			warning: detached
-				? "Read-only notes captured when sharing ended; later changes are not included"
-				: "The latest notes are unavailable; this read-only copy may be outdated",
+				? "Read-only snapshot from detachment. No later changes."
+				: "Saved notes unavailable. Read-only snapshot may be outdated.",
 		};
 	}
 	return { read, reference };

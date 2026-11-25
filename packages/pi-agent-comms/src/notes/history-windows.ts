@@ -91,11 +91,11 @@ export async function historyWindows(
 	const archive = buildTreeArchiveIndex(allEntries, entries);
 	if (archive.invalidManifest)
 		throw new Error(
-			"Saved history could not be read. Open an intact copy of the source session.",
+			"Saved history unreadable. Open an intact copy of the source session.",
 		);
 	if (archive.archives.some((item) => !item.entries))
 		throw new Error(
-			"Archived history is unavailable in this session copy. Resume the source session.",
+			"Archived history missing from this copy. Resume the source session.",
 		);
 	const seen = new Set<string>();
 	entries = [

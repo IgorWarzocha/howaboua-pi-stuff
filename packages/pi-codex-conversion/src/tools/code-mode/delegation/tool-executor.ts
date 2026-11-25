@@ -98,7 +98,7 @@ export class DelegateToolExecutor {
 									context.opaqueContextGeneration
 							)
 								throw new Error(
-									"Remote operation executed but result delivery was cancelled; check completed results before retrying",
+									"Remote operation executed; delivery cancelled. Check completed results before retrying.",
 								);
 							this.results.captureOpaqueResult(cellId, output, images);
 						},
@@ -134,6 +134,10 @@ export class DelegateToolExecutor {
 					this.renderStore.captureResult(trace.id, result);
 				trace.result = this.traces.captureResult(cellId, trace, result);
 				emitTrace();
+			},
+			reportNestedFailure: (error) => {
+				if (this.cells.context(cellId))
+					this.results.recordFailure(cellId, tool.name, error);
 			},
 			refreshTrace: emitTrace,
 		};

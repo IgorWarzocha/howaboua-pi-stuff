@@ -15,7 +15,6 @@ import type { BoardTurns } from "./turns.js";
 export class BoardOwner {
 	private readonly getTurns: () => BoardTurns;
 	private readonly getSummarizer: () => BoardSummarizer;
-	private readonly adapterOrUndefined: () => BoardAdapter | undefined;
 	private readonly adapter: () => BoardAdapter;
 	private readonly notify: (
 		ctx: ExtensionContext,
@@ -25,7 +24,6 @@ export class BoardOwner {
 	constructor(
 		turns: () => BoardTurns,
 		summarizer: () => BoardSummarizer,
-		adapterOrUndefined: () => BoardAdapter | undefined,
 		adapter: () => BoardAdapter,
 		notify: (
 			ctx: ExtensionContext,
@@ -35,7 +33,6 @@ export class BoardOwner {
 	) {
 		this.getTurns = turns;
 		this.getSummarizer = summarizer;
-		this.adapterOrUndefined = adapterOrUndefined;
 		this.adapter = adapter;
 		this.notify = notify;
 	}
@@ -77,18 +74,7 @@ export class BoardOwner {
 		if (request.operation !== "board-call")
 			throw new Error("Invalid board owner operation");
 		const params = parseBoardRequest(request.params);
-		if (params.action === "help")
-			return {
-				...boardHelp,
-				rules: this.adapterOrUndefined()
-					? boardHelp.rules
-					: {
-							...boardHelp.rules,
-							agents:
-								"Agent reference /<Pi session ID>; notices require registered members",
-						},
-				enabled: own.enabled,
-			};
+		if (params.action === "help") return { ...boardHelp, enabled: own.enabled };
 		if (!own.enabled)
 			throw new Error("Board is off; the user can enable it with /board on");
 		const prepared: BoardParams =

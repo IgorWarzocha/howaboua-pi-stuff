@@ -29,8 +29,8 @@ interface PresentAskOptions {
 function steerResponse(prompts: AskPrompt[], responses: unknown): string {
 	const normalized = normalizeResponses(prompts, responses);
 	return normalized
-		? `Response to your earlier ask:\n${summarizeResponses(prompts, normalized)}`
-		: `I dismissed your earlier ask: ${prompts.map((prompt) => prompt.title).join("; ")}`;
+		? `Earlier ask response:\n${summarizeResponses(prompts, normalized)}`
+		: `User dismissed earlier ask: ${prompts.map((prompt) => prompt.title).join("; ")}`;
 }
 
 export function createAskCoordinator({
@@ -175,12 +175,7 @@ export function createAskCoordinator({
 					if (requestGeneration !== generation || sessionAbort.signal.aborted)
 						return;
 					const message = notifyFailure(ctx, error);
-					if (
-						deliver(
-							ctx,
-							`The asynchronous ask failed before I could answer: ${message}`,
-						)
-					) {
+					if (deliver(ctx, `Steering ask failed before answer: ${message}`)) {
 						const saved = close(ctx, request.id);
 						requests.complete(
 							request.id,

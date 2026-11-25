@@ -10,7 +10,7 @@ pi install npm:@howaboua/pi-skills
 
 ## Included skills
 
-- Foundations: `agents-md`, `communication`, `skill-creator`
+- Foundations: `agents-md`, `communication`, `non-code-review`, `skill-creator`, `writing`
 - Code: `codebase-hygiene`, `code-review`, `project-reference-research`, `repository-delivery`, `scratchpad`
 - Harness and agent engineering: `agent-session-diagnostics`, `agent-tool-design`, `extension-design`, `harness-checklist`, `instruction-calibration`, `prompt-caching`
 - Browser control: `chrome-cdp`

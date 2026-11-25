@@ -185,7 +185,7 @@ export async function sendPeerExtensionReply(request, expected, reply) {
 	);
 	if (typeof receipt.result !== "string")
 		throw deliveryError(
-			"Extension reply was not acknowledged; inspect the target before retrying",
+			"Extension reply unconfirmed. Inspect the target before retrying",
 			false,
 		);
 	return receipt.result;
@@ -218,7 +218,7 @@ export async function resolvePeerReceiver(request, expected) {
 			expected.agent_session.value !== sessionFile)
 	) {
 		throw deliveryError(
-			"Target Pi session changed or is not ready; resolve the target again",
+			"Target Pi session changed or isn't ready. Resolve it again",
 			true,
 		);
 	}
@@ -230,7 +230,7 @@ export async function resolvePeerReceiver(request, expected) {
 	} catch (error) {
 		throw deliveryError(
 			isMissing(error)
-				? "Target has no native Shepherdr receiver; update and reload Shepherdr in the target Pi session"
+				? "No target receiver. Update and reload Shepherdr in the target Pi session"
 				: `Could not read target Shepherdr receiver: ${error instanceof Error ? error.message : String(error)}`,
 			true,
 		);
@@ -299,7 +299,7 @@ function deliverPeerFrame(
 			finish(
 				deliveryError(
 					attempted
-						? "Peer delivery was not acknowledged; inspect the target before retrying"
+						? "Peer delivery unconfirmed. Inspect the target before retrying"
 						: "Target Shepherdr receiver is unavailable; reload the target Pi session",
 					!attempted,
 				),
@@ -317,7 +317,7 @@ function deliverPeerFrame(
 				(error) =>
 					finish(
 						deliveryError(
-							`Pi shut down, but its pane could not be closed: ${error instanceof Error ? error.message : String(error)}`,
+							`Pi exited; pane close failed: ${error instanceof Error ? error.message : String(error)}`,
 							false,
 						),
 					),

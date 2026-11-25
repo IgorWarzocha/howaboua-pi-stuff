@@ -60,10 +60,10 @@
     "check": "bun run lint"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=1.5.0",
-    "@earendil-works/pi-tui": ">=1.5.0"
+    "@earendil-works/pi-coding-agent": ">=1.6.1",
+    "@earendil-works/pi-tui": ">=1.6.1"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "1.6.0"
+    "@earendil-works/pi-coding-agent": "1.6.1"
   }
 }

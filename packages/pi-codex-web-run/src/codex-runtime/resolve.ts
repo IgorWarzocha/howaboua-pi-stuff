@@ -78,7 +78,7 @@ function extractAccountId(token: string, legacy: boolean): string {
 		throw new Error(
 			legacy
 				? codexLoginDiagnostic(true)
-				: "Account identity unavailable. Ask the user to check their provider access.",
+				: "Account identity unavailable. Ask the user to check configured provider access.",
 		);
 	}
 }
@@ -126,8 +126,7 @@ function resolveConfiguredResponsesUrl(
 	modelBaseUrl: string | undefined,
 ): string {
 	const base = modelBaseUrl?.trim().replace(/\/+$/, "");
-	if (!base)
-		throw new Error("Configured Responses provider is missing a base URL");
+	if (!base) throw new Error("Configured Responses provider has no base URL");
 	return base.endsWith("/responses") ? base : base + "/responses";
 }
 
@@ -167,13 +166,13 @@ export async function resolveCodexToolProvider(
 		throw new Error(
 			isOpenAICodexModel(model)
 				? codexLoginDiagnostic()
-				: "Provider authentication unavailable. Ask the user to check their configured provider access.",
+				: "Provider auth unavailable. Ask the user to check access for the configured provider.",
 		);
 	const baseUrl = codexTransport
 		? resolveCodexApiProviderBaseUrl(resolvedBaseUrl)
 		: resolvedBaseUrl?.trim().replace(/\/+$/, "");
 	if (!baseUrl)
-		throw new Error("Configured Responses provider is missing a base URL");
+		throw new Error("Configured Responses provider has no base URL");
 	const responsesUrl = codexTransport
 		? resolveCodexResponsesUrl(baseUrl)
 		: resolveConfiguredResponsesUrl(baseUrl);

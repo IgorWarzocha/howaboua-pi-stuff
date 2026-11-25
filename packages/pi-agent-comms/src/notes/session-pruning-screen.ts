@@ -1,10 +1,8 @@
 import {
 	type ExtensionContext,
-	getSelectListTheme,
 	getSettingsListTheme,
 } from "@earendil-works/pi-coding-agent";
 import {
-	SelectList,
 	SettingsList,
 	truncateToWidth,
 	wrapTextWithAnsi,
@@ -32,41 +30,25 @@ export async function openSessionPruningSettings(
 	options: SessionPruningSettings,
 ): Promise<void> {
 	await ctx.ui.custom<void>((tui, theme, _kb, done) => {
-		type State =
-			| { kind: "idle" }
-			| { kind: "busy"; message: string }
-			| {
-					kind: "confirm";
-					title: string;
-					message: string;
-					choices: SelectList;
-			  };
-		let state: State = { kind: "idle" };
+		let progressMessage: string | undefined;
 		const progress = (message: string) => {
-			state = { kind: "busy", message };
+			progressMessage = message;
 			tui.requestRender();
 		};
-		const confirm: SessionPruningInteraction["confirm"] = (title, message) =>
-			new Promise((resolve) => {
-				const choices = new SelectList(
-					[
-						{ value: "no", label: "Cancel" },
-						{ value: "yes", label: "Prune permanently" },
-					],
-					2,
-					getSelectListTheme(),
-				);
-				const finish = (approved: boolean) => {
-					progress(
-						approved ? "Pruning session history…" : "Cancelling preview…",
-					);
-					resolve(approved);
-				};
-				choices.onSelect = (item) => finish(item.value === "yes");
-				choices.onCancel = () => finish(false);
-				state = { kind: "confirm", title, message, choices };
-				tui.requestRender();
-			});
+		const confirm: SessionPruningInteraction["confirm"] = async (
+			title,
+			message,
+		) => {
+			const prune = "Prune permanently";
+			const choice = await ctx.ui.select(
+				`${title}\n${message}`,
+				["Cancel", prune],
+				{ blockedKind: "permission" },
+			);
+			const approved = choice === prune;
+			progress(approved ? "Pruning session history…" : "Cancelling preview…");
+			return approved;
+		};
 		const run = async () => {
 			progress("Waiting for the current turn to finish…");
 			try {
@@ -77,7 +59,7 @@ export async function openSessionPruningSettings(
 					"error",
 				);
 			} finally {
-				state = { kind: "idle" };
+				progressMessage = undefined;
 				list.updateValue("run", "select…");
 				tui.requestRender();
 			}
@@ -164,25 +146,14 @@ export async function openSessionPruningSettings(
 					"",
 					...wrap(RESTART_NOTICE),
 					"",
-					...(state.kind === "confirm"
-						? [
-								...wrap(theme.bold(state.title)),
-								...wrap(state.message),
-								"",
-								...state.choices.render(width),
-							]
-						: list.render(width).slice(0, -2)),
+					...list.render(width).slice(0, -2),
 					"",
 					...wrap(
-						state.kind === "busy"
-							? state.message
-							: state.kind === "confirm"
-								? "↑/↓ select · Enter confirm · Esc cancel"
-								: "↑/↓ select · Enter/Space change · Esc back",
+						progressMessage ?? "↑/↓ select · Enter/Space change · Esc back",
 					).map((line) =>
-						theme.fg(state.kind === "busy" ? "accent" : "dim", line),
+						theme.fg(progressMessage !== undefined ? "accent" : "dim", line),
 					),
-					...(state.kind === "busy"
+					...(progressMessage !== undefined
 						? wrap("Please wait; settings and closing are paused.").map(
 								(line) => theme.fg("dim", line),
 							)
@@ -190,13 +161,9 @@ export async function openSessionPruningSettings(
 					rule,
 				].map((line) => truncateToWidth(line, width, ""));
 			},
-			invalidate: () => {
-				list.invalidate();
-				if (state.kind === "confirm") state.choices.invalidate();
-			},
+			invalidate: () => list.invalidate(),
 			handleInput: (data) => {
-				if (state.kind === "idle") list.handleInput(data);
-				else if (state.kind === "confirm") state.choices.handleInput(data);
+				if (progressMessage === undefined) list.handleInput(data);
 				tui.requestRender();
 			},
 		};

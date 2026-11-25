@@ -81,12 +81,12 @@ export async function controllerAlive(dir: string): Promise<boolean> {
 			pid = typeof saved === "number" ? saved : saved?.pid;
 		} catch {
 			throw new Error(
-				"Sandbox controller identity is invalid. Inspect its logs before retrying",
+				"Invalid controller identity. Read controller logs before retrying",
 			);
 		}
 		if (!Number.isSafeInteger(pid) || pid <= 0)
 			throw new Error(
-				"Sandbox controller identity is invalid. Inspect its logs before retrying",
+				"Invalid controller identity. Read controller logs before retrying",
 			);
 		try {
 			process.kill(pid, 0);
@@ -110,11 +110,11 @@ export async function launch(
 		return request(dir, { action: "inspect", name }, signal);
 	if (await controllerAlive(dir))
 		throw new Error(
-			"Sandbox controller is still starting or unavailable. Read controller logs before retrying",
+			"Controller starting or unavailable. Read controller logs before retrying",
 		);
 	if (Buffer.byteLength(join(dir, "control.sock")) >= 104)
 		throw new Error(
-			"Sandbox state path is too long for a local control socket. Ask the user to choose a shorter private PI_SANDBOX_HOME path",
+			"Sandbox state path too long for control socket. Ask the user for a shorter private PI_SANDBOX_HOME",
 		);
 	let nodeVersion: string;
 	try {
@@ -124,19 +124,19 @@ export async function launch(
 		}).trim();
 	} catch {
 		throw new Error(
-			"Starting a sandbox requires Node.js 24 or newer on PATH. Install Node.js, then retry start",
+			"Node.js 24+ required on PATH. Install it, then retry start",
 		);
 	}
 	if (Number(nodeVersion.match(/^v(\d+)\./)?.[1] ?? 0) < 24)
 		throw new Error(
-			`Node.js 24 or newer is required, found ${nodeVersion}. Update Node.js, then retry start`,
+			`Node.js 24+ required; found ${nodeVersion}. Update Node.js, then retry start`,
 		);
 	const daemonPath = fileURLToPath(
 		new URL("../dist/daemon.js", import.meta.url),
 	);
 	if (!existsSync(daemonPath))
 		throw new Error(
-			"Sandbox controller is unavailable. Reinstall the package or build the source checkout, then retry start",
+			"Sandbox controller missing. Reinstall the package or build the checkout, then retry start",
 		);
 	const lock = join(dir, "launch.lock");
 	try {
@@ -147,28 +147,22 @@ export async function launch(
 		try {
 			await mkdir(recovery, { mode: 0o700 });
 		} catch {
-			throw new Error(
-				"Sandbox start or recovery is already in progress. Retry inspect shortly",
-			);
+			throw new Error("Start or recovery in progress. Retry inspect shortly");
 		}
 		try {
 			const owner = Number(await readFile(join(lock, "owner"), "utf8"));
 			if (!Number.isSafeInteger(owner) || owner <= 0)
 				throw new Error(
-					"Sandbox start ownership is unavailable. Read controller logs before retrying",
+					"Start ownership unknown. Read controller logs before retrying",
 				);
 			try {
 				process.kill(owner, 0);
-				throw new Error(
-					"Sandbox start is already in progress. Retry inspect shortly",
-				);
+				throw new Error("Start in progress. Retry inspect shortly");
 			} catch (ownerError) {
 				if (!existsError(ownerError, "ESRCH")) throw ownerError;
 			}
 			if (await controllerAlive(dir))
-				throw new Error(
-					"Sandbox controller is still starting. Retry inspect shortly",
-				);
+				throw new Error("Controller still starting. Retry inspect shortly");
 			await rm(lock, { recursive: true });
 			await mkdir(lock, { mode: 0o700 });
 		} finally {
@@ -195,7 +189,7 @@ export async function launch(
 		});
 		child.on("exit", (code) => {
 			failure = new Error(
-				`Sandbox controller exited (${code}). Inspect controller logs before retrying`,
+				`Controller exited (${code}). Read controller logs before retrying`,
 			);
 		});
 		child.unref();
@@ -208,22 +202,18 @@ export async function launch(
 			if (status.state === "failed" || failure)
 				throw (
 					failure ??
-					new Error(
-						"Sandbox start failed. Read controller logs before retrying start",
-					)
+					new Error("Start failed. Read controller logs before retrying")
 				);
 			if (await reachable(dir, name, signal)) {
 				const result = await request(dir, { action: "inspect", name }, signal);
 				const inspect = inspectionSchema.parse(result);
 				if (inspect.status.startupError)
-					throw new Error(
-						`${name} is running, but ${inspect.status.startupError}`,
-					);
+					throw new Error(`${name} running. ${inspect.status.startupError}`);
 				return result;
 			}
 		}
 		throw new Error(
-			"Sandbox start has not completed. Use inspect or logs before retrying",
+			"Start not yet complete. Use inspect or logs before retrying",
 		);
 	} finally {
 		await rm(lock, { recursive: true, force: true });
@@ -235,7 +225,7 @@ export async function offline(dir: string): Promise<unknown> {
 		name: record.name,
 		state: "interrupted",
 		recovery:
-			"Use start. Only the last completed stop is preserved after a controller crash",
+			"After a controller crash, start restores only the last completed disk checkpoint",
 	});
 	try {
 		status = statusSchema.parse(
@@ -251,8 +241,8 @@ export async function offline(dir: string): Promise<unknown> {
 			state: alive ? "unavailable" : "interrupted",
 			previews: {},
 			recovery: alive
-				? "Controller is starting or unavailable. Read controller logs and retry inspect"
-				: "Controller exited without completing stop. Start restores only the last completed disk checkpoint",
+				? "Controller starting or unavailable. Read controller logs and retry inspect"
+				: "Controller exited before stop completed. Start restores only the last completed disk checkpoint",
 		};
 	}
 	return {

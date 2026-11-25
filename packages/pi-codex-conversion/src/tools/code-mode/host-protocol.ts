@@ -1,4 +1,4 @@
-import { formatCodeModeToolHelp } from "./custom-tool-prompt.js";
+import { formatCodeModeToolHelp } from "./execution-prompt.js";
 import {
 	codeModeNameForToolIdentity,
 	resolveCodeModeToolIdentity,
@@ -9,10 +9,6 @@ import type {
 	RuntimeContentItem,
 	RuntimeResponse,
 } from "./types.js";
-
-export const MAX_CODE_MODE_OUTPUT_TOKENS = 100_000;
-export const DEFAULT_CODE_MODE_OUTPUT_TOKENS = 10_000;
-export const DEFAULT_CODE_MODE_EXEC_YIELD_MS = 30_000;
 
 export function toWireToolDefinition(tool: CodeModeToolDefinition) {
 	if (
@@ -46,56 +42,6 @@ export function isCustomToolDefinition(
 	tool: CodeModeToolDefinition,
 ): tool is CustomToolDefinition {
 	return "command" in tool;
-}
-
-export function parseExecSource(
-	source: string,
-	features: { allowIsolated?: boolean } = {},
-): {
-	code: string;
-	yieldTimeMs: number | null;
-	maxOutputTokens: number | null;
-	isolated: boolean;
-} {
-	if (!source.trim())
-		throw new Error("exec requires non-empty JavaScript source");
-	const [first, ...rest] = source.split("\n");
-	const trimmed = first?.trimStart() ?? "";
-	if (!trimmed.startsWith("// @exec:"))
-		return {
-			code: source,
-			yieldTimeMs: null,
-			maxOutputTokens: null,
-			isolated: false,
-		};
-	if (rest.join("\n").trim() === "")
-		throw new Error("exec pragma must be followed by JavaScript source");
-	const options = JSON.parse(
-		trimmed.slice("// @exec:".length).trim(),
-	) as Record<string, unknown>;
-	for (const key of Object.keys(options))
-		if (
-			key !== "yield_time_ms" &&
-			key !== "max_output_tokens" &&
-			!(features.allowIsolated && key === "isolated")
-		)
-			throw new Error(`Unsupported exec pragma field: ${key}`);
-	if (
-		options["isolated"] !== undefined &&
-		typeof options["isolated"] !== "boolean"
-	)
-		throw new Error("isolated must be a boolean");
-	return {
-		code: rest.join("\n"),
-		isolated: options["isolated"] === true,
-		yieldTimeMs: parseInteger(options["yield_time_ms"], "yield_time_ms"),
-		maxOutputTokens: parseInteger(
-			options["max_output_tokens"],
-			"max_output_tokens",
-			1,
-			MAX_CODE_MODE_OUTPUT_TOKENS,
-		),
-	};
 }
 
 export function parseRuntimeResponse(value: unknown): RuntimeResponse {
@@ -167,24 +113,6 @@ function isImageDetail(
 		value === "high" ||
 		value === "original"
 	);
-}
-
-function parseInteger(
-	value: unknown,
-	name: string,
-	minimum = 0,
-	maximum = Number.MAX_SAFE_INTEGER,
-): number | null {
-	if (value === undefined) return null;
-	if (
-		!Number.isSafeInteger(value) ||
-		Number(value) < minimum ||
-		Number(value) > maximum
-	)
-		throw new Error(
-			`${name} must be a safe integer from ${minimum} to ${maximum}`,
-		);
-	return Number(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

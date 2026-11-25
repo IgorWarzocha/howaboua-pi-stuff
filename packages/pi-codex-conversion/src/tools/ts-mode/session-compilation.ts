@@ -4,11 +4,11 @@ import { rm } from "node:fs/promises";
 import {
 	formatCodeModeToolHelp,
 	isCodeModeToolListed,
-} from "../code-mode/custom-tool-prompt.ts";
+} from "../code-mode/execution-prompt.ts";
 import { commandOutputFormatterSource } from "../code-mode/command-output.ts";
 import { codeModeGlobalName } from "../code-mode/tool-identity.ts";
 import type { CodeModeToolDefinition } from "../code-mode/types.ts";
-import type { NotebookRuntimeOptions } from "../code-mode/shared-runtime.ts";
+import type { ExecutionClientOptions } from "../execution/runtime.ts";
 import { TsCompiler } from "./compiler.ts";
 import { loadTsRuntime, type TsRuntime } from "./runtime.ts";
 import {
@@ -22,13 +22,13 @@ import { tsGlobalDeclarations, type TsWorkerInput } from "./worker-protocol.ts";
 
 /** Session compiler and import authority; resetting the heap does not close the compiler. */
 export class TsSessionCompilation {
-	private readonly options: NotebookRuntimeOptions;
+	private readonly options: ExecutionClientOptions;
 	private readonly importOptions: TsImportOptions;
 	private readonly liveSourceModules = new Map<string, string>();
 	private compiler: TsCompiler | undefined;
 	private runtime: TsRuntime | undefined;
 
-	constructor(options: NotebookRuntimeOptions) {
+	constructor(options: ExecutionClientOptions) {
 		this.options = options;
 		this.importOptions = {
 			cwd: process.cwd(),
@@ -137,7 +137,6 @@ export class TsSessionCompilation {
 					"load",
 					"ALL_TOOLS",
 					"exit",
-					"yield_control",
 				].includes(binding.name)
 			)
 				throw new Error(
@@ -226,7 +225,7 @@ export class TsSessionCompilation {
 	}
 	private compilerFailure(cause: unknown): Error {
 		return new Error(
-			"The TS compiler is unavailable. Check that this platform supports TS and npm includes optional dependencies, then call notebook restart. Code remains available.",
+			"TS compiler unavailable. Check platform support and npm optional dependencies, then use notebook restart. Code remains available.",
 			{ cause },
 		);
 	}

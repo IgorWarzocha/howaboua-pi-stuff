@@ -129,29 +129,27 @@ export function createModelRoles(
 	): Promise<ModelRoleHandoff> {
 		load();
 		if (configError)
-			throw new Error(
-				"Roles are unavailable. Continue here and ask the user to check /roles.",
-			);
+			throw new Error("Roles unavailable. Ask the user to check /roles.");
 		const role = config.roles.find((candidate) => candidate.id === id);
 		if (!role)
 			throw new Error(
-				`Unknown role ${JSON.stringify(id)}. Use a configured role or omit role to keep your current role.`,
+				`Unknown role ${JSON.stringify(id)}. Use a configured ID or omit role.`,
 			);
 		const model = ctx.modelRegistry.find(role.provider, role.model);
 		if (!model)
 			throw new Error(
-				`Role ${id} is unavailable. Continue here and ask the user to check its model in /roles.`,
+				`Role ${id} unavailable. Ask the user to check its model in /roles.`,
 			);
 		if (!lifecycle.active || !modelIsActive(activation.settings, model))
 			throw new Error(
-				`Notes must be active for this session and role ${id}. Ask the user to check /notes before switching.`,
+				`Notes must be active here and for role ${id}. Ask the user to check /notes.`,
 			);
 		const session = ctx.sessionManager.getSessionId();
 		const source = ctx.model;
 		const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 		if (!auth.ok)
 			throw new Error(
-				`Role ${id} has no usable provider access. Continue here and ask the user to check its login or API configuration.`,
+				`Role ${id} has no provider access. Ask the user to check login or API settings.`,
 			);
 		return {
 			id,
@@ -166,7 +164,7 @@ export function createModelRoles(
 					!modelIsActive(activation.settings, model)
 				)
 					throw new Error(
-						"The session or model settings changed. Continue here and request a new role handoff if still needed.",
+						"Session or model changed. Request the role again if still needed.",
 					);
 				if (source?.provider !== model.provider || source?.id !== model.id) {
 					if (!(await pi.setModel(model)))

@@ -4,7 +4,7 @@ import { Container, Text } from "@earendil-works/pi-tui";
 import {
 	renderExecOutcome,
 	renderWriteStdinCall,
-} from "../../ui/tool-rendering/codex-rendering.ts";
+} from "../../ui/tool-rendering/exec-rendering.ts";
 import type {
 	ExecSessionManager,
 	UnifiedExecResult,
@@ -18,7 +18,7 @@ const WRITE_STDIN_PARAMETERS = obj(
 		chars: opt(
 			str({
 				description:
-					"Input requires original exec_command tty=true; omit or empty to poll",
+					"Nonempty input requires tty=true on exec_command. Omit to read output.",
 			}),
 		),
 		yield_time_ms: opt(num({ description: "Wait ms" })),
@@ -46,9 +46,11 @@ function parseFormattedExecTranscript(text: string): FormattedExecTranscript {
 	const output =
 		markerIndex !== -1 ? text.slice(markerIndex + marker.length) : text;
 	const metadata = markerIndex !== -1 ? text.slice(0, markerIndex) : text;
-	const sessionMatch = metadata.match(
-		/(?:Process running with session ID|Call write_stdin\(\{ session_id:) (\d+)(?: \}\))?/,
-	);
+	const sessionMatch =
+		metadata.match(/^Session (\d+) running\./m) ??
+		metadata.match(
+			/(?:Process running with session ID|Call write_stdin\(\{ session_id:) (\d+)(?: \}\))?/,
+		);
 	const exitCodeMatch =
 		markerIndex === -1
 			? null
@@ -135,7 +137,7 @@ export function createWriteStdinTool(
 	const tool: Parameters<ExtensionAPI["registerTool"]>[0] = {
 		name: "write_stdin",
 		label: "write_stdin",
-		description: "Write/poll exec session",
+		description: "Send input or read output from an exec session",
 		...(options.promptSnippet === false
 			? {}
 			: { promptSnippet: "Write to exec session" }),
@@ -222,15 +224,4 @@ export function createWriteStdinTool(
 		},
 	};
 	return tool;
-}
-
-export function registerWriteStdinTool(
-	pi: ExtensionAPI,
-	sessions: ExecSessionManager,
-	options: {
-		promptSnippet?: boolean | undefined;
-		showOutputWhenCollapsed?: boolean | undefined;
-	} = {},
-): void {
-	pi.registerTool(createWriteStdinTool(sessions, options) as any);
 }

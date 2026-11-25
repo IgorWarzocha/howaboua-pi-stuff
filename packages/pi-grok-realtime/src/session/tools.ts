@@ -38,7 +38,7 @@ export class GrokSessionTools {
 		if (!this.acceptsResponse(responseId)) return;
 		const callId = textField(event, "call_id");
 		if (!callId) {
-			this.onFailure(new Error("Grok returned an invalid tool call ID"));
+			this.onFailure(new Error("Invalid Grok tool call ID"));
 			return;
 		}
 		if (this.calls.has(callId)) return;
@@ -67,18 +67,18 @@ export class GrokSessionTools {
 			const args = record(JSON.parse(argumentsText));
 			if (event["name"] === "end_the_call") {
 				if (Object.keys(args).length)
-					throw new Error("End call takes no arguments");
+					throw new Error("end_the_call takes no arguments");
 				this.onEnding();
 				output = { hangUp: true };
 			} else if (event["name"] === "stay_quiet") {
 				if (Object.keys(args).length)
-					throw new Error("Stay quiet takes no arguments");
+					throw new Error("stay_quiet takes no arguments");
 				quiet = true;
 				output = { quiet: true };
 			} else if (event["name"] === "send_task") {
 				const request = textField(args, "request")?.trim();
 				if (!request || Object.keys(args).some((key) => key !== "request"))
-					throw new Error("Task must contain a nonempty request");
+					throw new Error("send_task takes one nonempty request");
 				this.callbacks.task(callId, request);
 				output = { accepted: true };
 			} else {
@@ -89,8 +89,7 @@ export class GrokSessionTools {
 			}
 		} catch (error) {
 			output = {
-				error:
-					error instanceof Error ? error.message : "Task could not be accepted",
+				error: error instanceof Error ? error.message : "Task not accepted",
 			};
 		}
 		this.pendingTools--;

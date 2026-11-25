@@ -29,7 +29,7 @@ export async function closeApiLiveSession(
 		await result.promise;
 	} catch (error) {
 		throw new ApiLiveFinalizationError(
-			`Voice ended, but final usage could not be confirmed. ${error instanceof Error ? error.message : String(error)}`,
+			`Voice ended. Final usage unconfirmed: ${error instanceof Error ? error.message : String(error)}`,
 		);
 	} finally {
 		clearTimeout(timeout);

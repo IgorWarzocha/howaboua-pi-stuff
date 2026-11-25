@@ -1,3 +1,4 @@
+import { DEFAULT_EXEC_YIELD_MS, parseExecSource } from "./exec-contract.ts";
 import { withCommandOutput } from "./command-output.js";
 import { withContentOutput } from "./content-output.js";
 import { withMissingMcpToolRecovery } from "./mcp-tool-recovery.js";
@@ -10,9 +11,7 @@ import {
 	toError,
 } from "./host-operation.js";
 import {
-	DEFAULT_CODE_MODE_EXEC_YIELD_MS,
 	executionCellId,
-	parseExecSource,
 	parseRuntimeResponse,
 	toWireToolDefinition,
 } from "./host-protocol.js";
@@ -74,9 +73,7 @@ export class CodeModeHostClient {
 		throwIfAborted(signal);
 		const { code, yieldTimeMs, maxOutputTokens } = parseExecSource(source);
 		const effectiveYieldTimeMs =
-			directToolYieldTime(code, tools) ??
-			yieldTimeMs ??
-			DEFAULT_CODE_MODE_EXEC_YIELD_MS;
+			directToolYieldTime(code, tools) ?? yieldTimeMs ?? DEFAULT_EXEC_YIELD_MS;
 		const id = this.session.nextRequestId();
 		const initial = this.session.expectInitial(id);
 		void initial.catch(() => undefined);

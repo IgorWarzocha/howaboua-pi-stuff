@@ -1,15 +1,15 @@
 import { closeApiLiveSession } from "./api-live-close.ts";
-import type { CodexRealtimePeer } from "./peer.ts";
+import type { RealtimePeer } from "./peer.ts";
 
 /** Owns the API Live start and final-usage handshake, not the peer's lifetime. */
 export class ApiLiveSessionHandshake {
-	private readonly peer: CodexRealtimePeer;
+	private readonly peer: RealtimePeer;
 	private started = false;
 	private closing = false;
 	private finalization: Promise<void> | undefined;
 	private finalizationError: unknown;
 
-	constructor(peer: CodexRealtimePeer) {
+	constructor(peer: RealtimePeer) {
 		this.peer = peer;
 	}
 

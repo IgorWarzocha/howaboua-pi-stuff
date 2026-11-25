@@ -45,7 +45,7 @@ export async function registerNotesToolIntegrations(
 					!context.toolCallId
 				)
 					throw new Error(
-						"Context rollover is unavailable in this call. Save notes and call new_context directly.",
+						"Rollover unavailable in this call. Save notes, then call new_context directly.",
 					);
 				const output = await requestContext(
 					context.toolCallId,

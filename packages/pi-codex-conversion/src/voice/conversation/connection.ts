@@ -4,12 +4,12 @@ import type { CodexVoiceAuth } from "../auth.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
 import {
 	buildApiLiveCallRequest,
-	buildRealtimeCallRequest,
+	buildCodexLiveCallRequest,
 	parseApiLiveAnswer,
 	type RealtimeCallSetup,
 	setupRealtimeCall,
 } from "./call-setup.ts";
-import type { CodexRealtimePeer } from "./peer.ts";
+import type { RealtimePeer } from "./peer.ts";
 import {
 	PUBLIC_REALTIME_INSTRUCTIONS,
 	SEND_TASK_TOOL,
@@ -24,13 +24,13 @@ export class ConversationSetup {
 	private setupAbortController: AbortController | undefined;
 	private peerReady: ReturnType<typeof Promise.withResolvers<void>> | undefined;
 	private callSetup: RealtimeCallSetup = setupRealtimeCall;
-	private readonly peer: CodexRealtimePeer;
+	private readonly peer: RealtimePeer;
 	private readonly isStarting: () => boolean;
 	private readonly isActive: () => boolean;
 	private readonly onActive: (muted: boolean) => void;
 	private readonly onStatus: (status: string) => void;
 	constructor(
-		peer: CodexRealtimePeer,
+		peer: RealtimePeer,
 		isStarting: () => boolean,
 		isActive: () => boolean,
 		onActive: (muted: boolean) => void,
@@ -123,7 +123,7 @@ export class ConversationSetup {
 			);
 		else
 			requestBody = JSON.stringify(
-				buildRealtimeCallRequest(sdp, config, instructions, initialItems),
+				buildCodexLiveCallRequest(sdp, config, instructions, initialItems),
 			);
 		let status: number;
 		let answer: string;

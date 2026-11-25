@@ -112,7 +112,7 @@ export async function spawnAgent(
 		if (boardThreadId !== undefined)
 			attributedMessage.context = [
 				attributedMessage.context,
-				`Read shared board thread with board({action:"read_thread",thread_id:${JSON.stringify(boardThreadId)}}) for task context. To follow ongoing peer findings, subscribe to that thread for replies.`,
+				`Task context: board({action:"read_thread",thread_id:${JSON.stringify(boardThreadId)}}). Subscribe to the thread to follow replies.`,
 			]
 				.filter(Boolean)
 				.join("\n\n");
@@ -134,9 +134,7 @@ export async function spawnAgent(
 				: await sharedContext.spawns.prepare(ctx, runtime, agentArgs);
 		const boardBinding = await board.prepare(ctx, runtime, name, agentArgs);
 		if (boardThreadId !== undefined && !boardBinding)
-			throw new Error(
-				"Board thread context requires shared Board to be enabled before spawning",
-			);
+			throw new Error("Enable shared Board before spawning with a thread");
 		const started = await startAgent(
 			runtime.client,
 			startParams,
@@ -164,7 +162,7 @@ export async function spawnAgent(
 			boardShared = await boardBinding?.accept(started.agent);
 			if (boardThreadId !== undefined && !boardShared?.agentName)
 				throw new Error(
-					"Worker cannot read the requested thread. Enable Board in Agent Comms on the target, then reload Pi",
+					"Worker cannot read the thread. Enable Board in Agent Comms on the target and reload Pi",
 				);
 			shared = await sharing?.accept(started.agent);
 			attributedMessage.context += `\n${await sharedContext.peerReplyContext(ctx, runtime, started.agent, signal)}`;
@@ -186,7 +184,7 @@ export async function spawnAgent(
 						await recordSpawn(started.agent, agentArgs, agentName, startParams);
 					} catch {
 						ownershipWarning =
-							"Submitted, but saved worker ownership could not be recorded. Automatic resume is unavailable; use its current target and do not resend the task";
+							"Submitted. Ownership not saved; no automatic resume. Use the current target. Do not resend";
 					}
 					return receipt;
 				},
@@ -205,7 +203,7 @@ export async function spawnAgent(
 				} catch (ownershipError) {
 					throw new AggregateError(
 						[error, ownershipError],
-						"Worker delivery is unconfirmed and its ownership could not be saved. Inspect the target before sending the task again",
+						`Worker delivery unconfirmed; ownership not saved. Inspect ${runtime.machine}/${started.id} before resending`,
 					);
 				}
 			}
@@ -232,7 +230,7 @@ export async function spawnAgent(
 								target: started.id,
 								name,
 								status: "working",
-								next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or use timers/extra Promises for reports",
+								next: "Completion and blockers reported automatically. No polling, timers or wait Promises",
 							}),
 				agent: agentName,
 				...(boardBinding || sharing

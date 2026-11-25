@@ -13,9 +13,13 @@ import type {
 } from "./collector.js";
 import type { SettlementLifecycle } from "./index.js";
 
+const REPORT_FOLLOW_UP =
+	"If something important is still unclear, you can ask the agent to follow up.";
+
 export interface ClaimedSettlement extends CollectedSettlement {
 	blockedMessage?: string;
 	record: MonitoredAgent;
+	reportFollowUp?: string;
 }
 
 interface SettlementWaiter {
@@ -124,6 +128,12 @@ export class SettlementDelivery {
 		blockedMessage: string | undefined,
 		reply: LatestAssistant | undefined,
 	): void {
+		const reportFollowUp =
+			settlement.status !== "blocked" &&
+			reply?.text.trim() &&
+			(!reply.stopReason || reply.stopReason === "stop")
+				? { reportFollowUp: REPORT_FOLLOW_UP }
+				: {};
 		const claim = attemptId ? this.claims.get(attemptId) : undefined;
 		if (claim && attemptId) {
 			this.claims.delete(attemptId);
@@ -137,6 +147,7 @@ export class SettlementDelivery {
 			} = settlement;
 			claim.waiter.resolve({
 				...claimedSettlement,
+				...reportFollowUp,
 				record,
 				...(blockedMessage ? { blockedMessage } : {}),
 				...(reply ? { reply } : {}),
@@ -157,6 +168,7 @@ export class SettlementDelivery {
 		injectAgentEvent(this.pi, lifecycle.context, {
 			agent: settlement.agent,
 			agentToolName: "agents",
+			...reportFollowUp,
 			...(settlement.extensionMessages
 				? { extensionMessages: settlement.extensionMessages }
 				: {}),

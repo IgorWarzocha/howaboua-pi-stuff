@@ -5,6 +5,7 @@ import { run } from "./src/client.ts";
 import {
 	agentActionSchema,
 	HELP,
+	HELP_TOPICS,
 	prepareSandboxInput,
 } from "./src/contracts.ts";
 import { agentError } from "./src/storage.ts";
@@ -26,8 +27,14 @@ export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 			ctx: { cwd: string },
 		) {
 			let result: unknown;
-			if (input.trim() === "help") result = HELP;
-			else {
+			const request = input.trim();
+			if (request === "help") result = HELP;
+			else if (request.startsWith("help ")) {
+				const topic = request.slice(5).trim();
+				if (topic !== "config" && topic !== "services")
+					throw new Error("Use help, help config or help services");
+				result = HELP_TOPICS[topic];
+			} else {
 				let action: unknown;
 				try {
 					action = JSON.parse(input);
@@ -55,7 +62,7 @@ export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 									(issue) =>
 										`${issue.path.join(".") || "input"}: ${issue.message}`,
 								)
-								.join("; ")}. Send help for valid arguments`,
+								.join("; ")}. See help for valid arguments`,
 						);
 					throw agentError(error);
 				}

@@ -50,7 +50,7 @@ function voiceLoginFailure(ctx: ExtensionContext): Error {
 	const legacy = ctx.modelRegistry.getProviderAuthStatus("openai-codex");
 	if (legacy.configured)
 		return new Error(
-			"Voice could not use the OpenAI Codex login. Renew it with /login openai-codex (legacy OpenAI Codex).",
+			"Legacy OpenAI Codex login unavailable for voice. Renew with /login openai-codex.",
 		);
 	const openai = ctx.modelRegistry
 		.getAll()
@@ -58,8 +58,8 @@ function voiceLoginFailure(ctx: ExtensionContext): Error {
 	const signin = openai && ctx.modelRegistry.isUsingOAuth(openai);
 	return new Error(
 		signin
-			? "Voice requires the legacy OpenAI Codex login, not Sign in with ChatGPT. Run /login openai-codex."
-			: "Voice requires an OpenAI Codex login. Run /login openai-codex (legacy OpenAI Codex).",
+			? "ChatGPT sign-in does not authorize Codex voice. Run /login openai-codex for the separate legacy login."
+			: "Codex voice requires a legacy OpenAI Codex login. Run /login openai-codex.",
 	);
 }
 

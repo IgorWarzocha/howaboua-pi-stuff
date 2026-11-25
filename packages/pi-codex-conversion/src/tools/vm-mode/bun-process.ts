@@ -5,7 +5,7 @@ import type { VmCommand, VmMessage, VmProcessMessage } from "./protocol.ts";
 
 const NEXT_STEP = "Start Pi under Node.js or select Code in /codex settings";
 const MEMORY_LIMIT =
-	"VM Code exceeded its process memory budget. Conversation bindings were dropped. The next exec starts fresh";
+	"VM Code exceeded its process memory budget. Conversation bindings dropped. Next exec starts fresh.";
 
 export function startBunVmProcess(
 	heapMiB: number,
@@ -66,13 +66,13 @@ export function startBunVmProcess(
 					: !ready
 						? new Error(
 								linux
-									? `VM Code could not start a memory-limited Bun process. Use a full Bun build with a systemd user session and cgroup v2. ${NEXT_STEP}`
+									? `VM Code could not start a memory-limited Bun process. Requires full Bun, a systemd user session and cgroup v2. ${NEXT_STEP}`
 									: `VM Code could not start its Bun process. Use a full Bun build. ${NEXT_STEP}`,
 								{ cause: fault },
 							)
 						: linux && signal === "SIGKILL" && !stopping && !fault
 							? new Error(
-									"VM Code was killed, possibly by its process memory limit. Conversation bindings were dropped. The next exec starts fresh",
+									"VM Code killed, possibly by its process memory limit. Conversation bindings dropped. Next exec starts fresh.",
 								)
 							: undefined,
 			);

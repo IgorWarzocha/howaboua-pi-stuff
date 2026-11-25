@@ -7,8 +7,8 @@ import { DEFAULT_CODEX_BASE_URL } from "../providers/openai-codex/constants.ts";
 import { extractAccountId } from "../providers/openai-codex/headers.ts";
 import {
 	isCodexTransportModel,
-	isOpenAICodexModel,
-} from "./prompt/codex-model.ts";
+	hasOpenAICodexProviderId,
+} from "./prompt/model-support.ts";
 
 const CONFIGURED_PROVIDER_CHANNEL =
 	"@howaboua/pi-codex-conversion.configured-provider/v1";
@@ -190,7 +190,7 @@ function isResponsesModel(model: ExtensionContext["model"]): boolean {
 function isUsableOpenAICodexModel(
 	model: ExtensionContext["model"],
 ): model is Model<Api> {
-	return isOpenAICodexModel(model) && isResponsesModel(model);
+	return hasOpenAICodexProviderId(model) && isResponsesModel(model);
 }
 
 function resolveOpenAICodexAuthModel(

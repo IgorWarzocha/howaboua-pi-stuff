@@ -31,10 +31,8 @@ interface Watch {
 	nextCheck: number;
 }
 const MINUTE = 60000;
-const AUTOMATIC_UPDATES =
-	"Updates arrive automatically; no polling or gh run watch needed";
 const HELP =
-	"action: watch, status, cancel. watch thread: issue/PR or Actions run URL, owner/repo#123, number for current repo's GitHub origin. status→list; cancel same thread or omit→cancel all offline. Checks every minute; PR first after 7min. Conversation/standalone review changes except authenticated gh account's; PR head changes and existing/updated unresolved threads. PR closed/merged or latest run attempt complete→report+stop; already terminal→report immediately. Fetch bodies/logs separately. Session switch/reload/shutdown→end watches. Check failure→pause; watch again→resume";
+	"Actions: watch, status, cancel. thread: issue/PR or Actions run URL, owner/repo#123, or issue/PR number in current repo. Omit thread to cancel all. Automatic updates: PR head changes, others' feedback, unresolved review threads, run completion. First PR check can take several minutes. Fetch bodies and logs separately. No polling or gh run watch needed. Stops on PR close, run completion or session exit. Check failure pauses; watch again to resume.";
 
 function runResult(
 	run: WorkflowRun,
@@ -45,7 +43,7 @@ function runResult(
 		}
 	>,
 ): string {
-	return `GitHub Actions: ${snapshot.conclusion} (attempt ${snapshot.attempt}) at ${run.url}. Read details with gh run view ${run.number} --repo ${run.repo}.`;
+	return `GitHub Actions: ${run.url} ${snapshot.conclusion} (attempt ${snapshot.attempt}). Details: gh run view ${run.number} --repo ${run.repo}`;
 }
 
 export default async function (pi: ExtensionAPI) {
@@ -134,7 +132,7 @@ export default async function (pi: ExtensionAPI) {
 				try {
 					deliver(
 						pi,
-						`GitHub watch paused: ${watch.thread.url}. Checking or notification delivery failed. Check gh auth status and access to the watched URL; call github_watch watch again to resume.`,
+						`GitHub watch paused: ${watch.thread.url}. Check or delivery failed. Check gh auth status and URL access. Resume: github_watch watch`,
 					);
 				} catch {
 					/* UI remains available when turn delivery fails. */
@@ -156,7 +154,7 @@ export default async function (pi: ExtensionAPI) {
 		async execute(_id, args, signal, _update, ctx) {
 			if (!checkParameters(args))
 				throw new Error(
-					"Invalid arguments; call github_watch with no arguments for help",
+					"Invalid arguments. Call github_watch with no arguments for help.",
 				);
 			const result = (text: string) => ({
 				content: [{ type: "text" as const, text }],
@@ -166,30 +164,25 @@ export default async function (pi: ExtensionAPI) {
 			if (action === "help") return result(HELP);
 			if (action === "status") {
 				if (!watches.size) return result("No active watches.");
-				const current = [...watches.values()];
-				const lines = current.map(
+				const lines = [...watches.values()].map(
 					(w) =>
 						`${w.thread.url} ${w.state}${w.state === "watching" ? `; next check ${new Date(w.nextCheck).toISOString().slice(0, 16)}Z` : "; watch again to resume"}`,
 				);
-				if (current.some((w) => w.state === "watching"))
-					lines.push(AUTOMATIC_UPDATES);
 				return result(lines.join("\n"));
 			}
 			if (action === "cancel" && !args.thread?.trim()) {
 				clear();
-				return result("OK");
+				return result("All watches cancelled.");
 			}
 			if (!args.thread?.trim())
 				throw new Error(
-					"Supply thread: an issue/PR or Actions run URL, owner/repo#123, or an issue/PR number.",
+					"thread required: issue/PR or Actions run URL, owner/repo#123, or issue/PR number.",
 				);
 			const epoch = generation;
 			const client = githubClient(pi, ctx.cwd, signal);
 			const thread = await client.resolve(args.thread);
 			if (generation !== epoch)
-				throw new Error(
-					"Session changed. Start the watch in the current session.",
-				);
+				throw new Error("Session changed. Retry in the current session.");
 			const previous = watches.get(thread.url);
 			if (action === "cancel") {
 				if (previous) {
@@ -202,7 +195,7 @@ export default async function (pi: ExtensionAPI) {
 				);
 			}
 			if (previous?.state === "watching")
-				return result(`${thread.url}: already watching. ${AUTOMATIC_UPDATES}`);
+				return result(`${thread.url}: already watching`);
 			let seen: ThreadSnapshot = {
 				conversation: new Map(),
 				userNotices: new Map(),
@@ -215,11 +208,9 @@ export default async function (pi: ExtensionAPI) {
 			if (thread.kind !== "run" && (!pr || pr.state === "open"))
 				seen = await client.snapshot(thread);
 			if (generation !== epoch || signal?.aborted)
-				throw new Error(
-					"Watch setup interrupted. Retry in the current session.",
-				);
+				throw new Error("Watch setup interrupted. Retry in this session.");
 			if (watches.get(thread.url)?.state === "watching")
-				return result(`${thread.url}: already watching. ${AUTOMATIC_UPDATES}`);
+				return result(`${thread.url}: already watching`);
 			previous?.controller.abort();
 			if (pr && pr.state !== "open") {
 				watches.delete(thread.url);
@@ -227,7 +218,7 @@ export default async function (pi: ExtensionAPI) {
 			}
 			if (thread.kind === "run" && runSnapshot?.completed) {
 				watches.delete(thread.url);
-				return result(`${runResult(thread, runSnapshot)} No watch started.`);
+				return result(`No watch started. ${runResult(thread, runSnapshot)}`);
 			}
 			const watch: Watch = {
 				thread,
@@ -245,7 +236,7 @@ export default async function (pi: ExtensionAPI) {
 			watches.set(thread.url, watch);
 			schedule(watch, ctx, thread.kind === "pr" ? 7 * MINUTE : MINUTE);
 			return result(
-				`${thread.url}: watching; first check ${new Date(watch.nextCheck).toISOString().slice(0, 16)}Z. ${AUTOMATIC_UPDATES}`,
+				`${thread.url}: watching; first check ${new Date(watch.nextCheck).toISOString().slice(0, 16)}Z`,
 			);
 		},
 	});

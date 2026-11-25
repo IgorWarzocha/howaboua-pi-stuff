@@ -28,12 +28,12 @@ function timeoutError(method: string, attempts: number): Error {
 	const seconds = CDP_TIMEOUT_MS / 1_000;
 	if (attempts > 1) {
 		return new Error(
-			`Chrome did not answer ${method} after two ${seconds}s attempts. The tab may be unresponsive or suspended.`,
+			`${method} timed out twice (${seconds}s each). Tab may be unresponsive or suspended.`,
 		);
 	}
 	if (method === "Runtime.evaluate") {
 		return new Error(
-			`Chrome did not answer Runtime.evaluate within ${seconds}s. The expression or awaited promise may still be running; check its effect before retrying.`,
+			`Runtime.evaluate timed out (${seconds}s). Expression or awaited promise may still be running. Check effects before retrying.`,
 		);
 	}
 	return new Error(`Chrome did not answer ${method} within ${seconds}s.`);

@@ -35,6 +35,7 @@ interface AgentEventOptions {
 	operatorPrefix: string;
 	record: MonitoredAgent;
 	reply?: LatestAssistant;
+	reportFollowUp?: string;
 	status: SettledAgentStatus | "extension-message";
 }
 
@@ -48,7 +49,7 @@ function blockedOperatorHint(
 	operatorPrefix: string,
 	paneId: string,
 ): string {
-	return `Inspect first with ${operatorCommand(operatorPrefix, `read ${paneId}`)}; respond through ${agentToolName} with machine=${JSON.stringify(machine)}, or use ${operatorCommand(operatorPrefix, `keys ${paneId} <keys>`)} for interactive controls.`;
+	return `Inspect: ${operatorCommand(operatorPrefix, `read ${paneId}`)}. Respond via ${agentToolName} with machine=${JSON.stringify(machine)}. Interactive controls: ${operatorCommand(operatorPrefix, `keys ${paneId} <keys>`)}.`;
 }
 
 function failedOperatorHint(
@@ -57,7 +58,7 @@ function failedOperatorHint(
 	operatorPrefix: string,
 	paneId: string,
 ): string {
-	return `Inspect with ${operatorCommand(operatorPrefix, `read ${paneId} --lines 80`)} and assess the failure. If this task has not already been retried and one simple corrective prompt could recover it, try once through ${agentToolName} with machine=${JSON.stringify(machine)}. If it fails again or the setup looks broken, stop retrying and tell the user.`;
+	return `Inspect: ${operatorCommand(operatorPrefix, `read ${paneId} --lines 80`)}. If a simple prompt could fix it, retry once via ${agentToolName} with machine=${JSON.stringify(machine)}. Already retried or setup looks broken: stop and tell the user.`;
 }
 
 function agentEvent(options: AgentEventOptions): {
@@ -76,6 +77,7 @@ function agentEvent(options: AgentEventOptions): {
 		operatorPrefix,
 		record,
 		reply,
+		reportFollowUp,
 		status,
 	} = options;
 	const task = activityTask(record.activity);
@@ -132,6 +134,8 @@ function agentEvent(options: AgentEventOptions): {
 		);
 	}
 	if (reply) lines.push(`<response>${xml(reply.text)}</response>`);
+	if (reportFollowUp)
+		lines.push(`<report_follow_up>${xml(reportFollowUp)}</report_follow_up>`);
 	lines.push(`</${tag}>`);
 
 	return {

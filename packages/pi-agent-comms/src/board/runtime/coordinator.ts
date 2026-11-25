@@ -44,7 +44,6 @@ export class BoardRuntime {
 		this.owner = new BoardOwner(
 			() => this.requireEngine().turns,
 			() => this.requireEngine().summarizer,
-			() => this.routing.adapter,
 			() => this.routing.requireAdapter(),
 			(ctx, request, signal) => this.handle(ctx, request, signal),
 		);

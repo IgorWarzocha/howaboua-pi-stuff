@@ -22,7 +22,6 @@ export type TsWorkerCommand =
 export type TsWorkerMessage =
 	| { kind: "output"; items: RuntimeContentItem[] }
 	| { kind: "notify"; text: string }
-	| { kind: "yield" }
 	| {
 			kind: "request";
 			id: number;
@@ -60,7 +59,6 @@ declare function image(value: unknown, detail?: "auto" | "low" | "high" | "origi
 ${contentOccupied ? "" : "declare function content(value: unknown): void;"}
 declare function generatedImage(value: unknown): void;
 declare function notify(value: unknown): void;
-declare function yield_control(): void;
 declare function exit(): never;
 declare function store(key: string, value: unknown): void;
 declare function load<T = unknown>(key: string): T | undefined;

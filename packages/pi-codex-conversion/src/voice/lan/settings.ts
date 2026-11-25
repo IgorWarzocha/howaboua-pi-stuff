@@ -11,7 +11,7 @@ import type { LanVoiceSettings } from "./settings-contract.ts";
 import {
 	createVoiceSettings,
 	type VoiceSettingsDependencies,
-} from "./settings-core.ts";
+} from "../settings.ts";
 export function createLanVoiceSettings(
 	ctx: ExtensionContext,
 	getConfig: () => CodexConversionConfig,

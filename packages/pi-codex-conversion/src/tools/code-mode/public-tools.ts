@@ -13,19 +13,19 @@ import {
 } from "@earendil-works/pi-schema";
 import { getExperimentalToolSampling } from "../tool-sampling.ts";
 import {
-	DEFAULT_CODE_MODE_OUTPUT_TOKENS,
-	MAX_CODE_MODE_OUTPUT_TOKENS,
-} from "./host-protocol.js";
+	DEFAULT_EXEC_OUTPUT_TOKENS,
+	MAX_EXEC_OUTPUT_TOKENS,
+} from "./exec-contract.ts";
 import {
 	EXEC_DESCRIPTION,
 	ISOLATED_EXEC_GUIDANCE,
 	VM_EXEC_DESCRIPTION,
 	WAIT_DESCRIPTION,
-} from "./custom-tool-prompt.js";
+} from "./exec-descriptions.js";
 import { createCodeModeRenderTracker } from "./render-tracker.js";
 import { renderExecCall, renderWaitCall } from "./call-rendering.js";
 import { renderTrackedCodeModeResult } from "./result-rendering.js";
-import type { SharedCodeModeRuntime } from "./shared-runtime.js";
+import type { SharedCodeModeRuntime } from "../execution/runtime.js";
 import { toCodeModeToolResult } from "./tool-result.js";
 import type {
 	CodeModeRenderContext,
@@ -35,7 +35,7 @@ import type {
 import { CODE_MODE_EXEC_CONSTRAINED_SAMPLING } from "./exec-contract.js";
 import { registerCodeModePreflightBroker } from "./nested-tool-preflight.js";
 import { continueExecSessionFromMistakenWait } from "./wait-session-recovery.js";
-import { registerNotebookTool } from "./notebook-tool.ts";
+import { registerNotebookTool } from "../ts-mode/notebook-tool.ts";
 import { PiToolCallScope } from "./pi-tool-call-scope.ts";
 
 const DEFAULT_WAIT_MS = 10_000;
@@ -60,8 +60,8 @@ const WAIT_PARAMETERS = obj(
 		max_tokens: opt(
 			int({
 				minimum: 1,
-				maximum: MAX_CODE_MODE_OUTPUT_TOKENS,
-				default: DEFAULT_CODE_MODE_OUTPUT_TOKENS,
+				maximum: MAX_EXEC_OUTPUT_TOKENS,
+				default: DEFAULT_EXEC_OUTPUT_TOKENS,
 			}),
 		),
 		terminate: opt(bool()),
@@ -280,7 +280,7 @@ function createWaitTool(
 					);
 				if (resumed.missingCell && guard)
 					throw new Error(
-						"Remote cell unavailable; operations may already have executed, so check completed results before retrying",
+						"Remote cell unavailable. Operations may have executed. Check completed results before retrying.",
 					);
 				const response = runtime.deliverOpaqueResponse(resumed, id, guard);
 				const recovered =

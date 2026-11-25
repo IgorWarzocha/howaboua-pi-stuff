@@ -9,7 +9,7 @@ import { ConversationSetup } from "./connection.ts";
 import { ConversationAgentTurn } from "./agent-turn.ts";
 import { ApiLiveSessionHandshake } from "./api-live-session-handshake.ts";
 import { ApiLiveTurns } from "./api-live-turns.ts";
-import type { CodexRealtimePeer, CodexRealtimePeerEvent } from "./peer.ts";
+import type { RealtimePeer, RealtimePeerEvent } from "./peer.ts";
 import { PlaybackSettlement } from "./playback-settlement.ts";
 import { PublicRealtimeTurns } from "./public-turns.ts";
 import { ConversationTurns } from "./turn-events.ts";
@@ -24,7 +24,7 @@ import type { PreparedVoiceTask } from "./end-call.ts";
 
 type ConversationState = "idle" | "starting" | "active" | "failed" | "closed";
 
-export interface CodexConversationCallbacks {
+export interface ConversationCallbacks {
 	onError(error: Error): void;
 	onDrop(error: Error): void;
 	onStatus(status: string): void;
@@ -41,11 +41,11 @@ export interface CodexConversationCallbacks {
 	onEvent?(event: RealtimeVoiceEventDetails): void;
 }
 
-export class CodexRealtimeConversation {
+export class RealtimeConversation {
 	readonly agentTurn: ConversationAgentTurn;
-	private readonly callbacks: CodexConversationCallbacks;
+	private readonly callbacks: ConversationCallbacks;
 	private readonly setup: ConversationSetup;
-	private readonly peer: CodexRealtimePeer;
+	private readonly peer: RealtimePeer;
 	private readonly turns:
 		| ConversationTurns
 		| PublicRealtimeTurns
@@ -61,8 +61,8 @@ export class CodexRealtimeConversation {
 	private inputChanged = Promise.withResolvers<void>();
 
 	constructor(
-		callbacks: CodexConversationCallbacks,
-		peer: CodexRealtimePeer,
+		callbacks: ConversationCallbacks,
+		peer: RealtimePeer,
 		protocol: "codex" | "realtime" | "api-live" = "codex",
 	) {
 		this.callbacks = callbacks;
@@ -79,7 +79,7 @@ export class CodexRealtimeConversation {
 			},
 			(status) => this.callbacks.onStatus(status),
 		);
-		const turnCallbacks: CodexConversationCallbacks = {
+		const turnCallbacks: ConversationCallbacks = {
 			...callbacks,
 			onEndCall: (finalOutputObserved, resultDelegationId) =>
 				this.agentTurn.requestEnd(finalOutputObserved, resultDelegationId),
@@ -275,7 +275,7 @@ export class CodexRealtimeConversation {
 		this.apiLive?.throwIfFailed();
 	}
 
-	private handlePeerEvent(event: CodexRealtimePeerEvent): void {
+	private handlePeerEvent(event: RealtimePeerEvent): void {
 		if (
 			this.state === "idle" ||
 			this.state === "closed" ||

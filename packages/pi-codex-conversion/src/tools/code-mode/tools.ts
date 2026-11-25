@@ -14,7 +14,7 @@ import { registerPublicCodeModeTools } from "./public-tools.js";
 import {
 	SharedCodeModeRuntime,
 	type CodeModeToolProvider,
-} from "./shared-runtime.js";
+} from "../execution/runtime.js";
 import { registerCodeModeEvents } from "./tool-events.js";
 import type { CodeModeToolDefinition, NotebookControlResult } from "./types.ts";
 
@@ -34,6 +34,9 @@ export interface CodeModeRegistration {
 	getTools(ctx?: unknown): CodeModeToolDefinition[];
 	getPromptTools(ctx?: unknown): CodeModeToolDefinition[];
 	notebookStatus(ctx: ExtensionContext): Promise<NotebookControlResult>;
+	vmBindingStatus(
+		ctx: ExtensionContext,
+	): ReturnType<SharedCodeModeRuntime["vmBindingStatus"]>;
 	checkpointNotebook(): Promise<void>;
 	shutdownHost(): Promise<void>;
 	shutdown(): Promise<void>;
@@ -80,7 +83,7 @@ function reportCustomToolErrors(
 	const current = new Map(errors.map((error) => [error.path, error.message]));
 	for (const error of errors) {
 		if (previous.get(error.path) === error.message) continue;
-		ctx.ui.notify(`Code Mode custom tool disabled: ${error.message}`, "error");
+		ctx.ui.notify(`Custom tool disabled: ${error.message}`, "error");
 	}
 	return current;
 }
@@ -118,6 +121,7 @@ export async function registerCodeModeTools(
 		prepare: (ctx) => runtime.prepare(ctx),
 		getTools: (ctx) => runtime.collectTools(ctx),
 		getPromptTools: (ctx) => runtime.collectPromptTools(ctx),
+		vmBindingStatus: (ctx) => runtime.vmBindingStatus(ctx),
 		notebookStatus: (ctx) =>
 			runtime.controlNotebook(
 				{ action: "status", query: "*" },

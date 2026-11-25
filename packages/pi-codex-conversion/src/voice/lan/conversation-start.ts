@@ -4,7 +4,7 @@ import type {
 	RealtimePeerPlan,
 } from "../controller/start.ts";
 import type { CodexVoiceController } from "../controller.ts";
-import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import type { RealtimeConversation } from "../conversation/session.ts";
 import type { LanVoiceActivity } from "./activity.ts";
 import type { LanVoiceBrowserClients } from "./browser-clients.ts";
 import { LanHostRealtimePeer } from "./browser-peer.ts";
@@ -14,7 +14,7 @@ import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 
 export interface LanConversationState {
 	activeConversation?:
-		| { peer: LanHostRealtimePeer; conversation?: CodexRealtimeConversation }
+		| { peer: LanHostRealtimePeer; conversation?: RealtimeConversation }
 		| undefined;
 	conversationStart?:
 		| { abort: AbortController; promise: Promise<void> }

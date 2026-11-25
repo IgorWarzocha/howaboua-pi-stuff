@@ -1,11 +1,14 @@
-- Model-native Codex prompts/tools/transport/context in Pi. Features: model fit, quota efficiency or Pi integration only. Native semantics, cache, continuation intact; document adaptations. Cache noise alone never justifies drift. Review-driven drift from stock Pi needs backend proof or intent. GPT harness only; no universal compatibility, enterprise, UI or Pi fork. Uncommon needs: overrides/extensions/forks.
+- Model-native Codex prompts/tools/transport/context in Pi. Features: model fit, quota efficiency or Pi integration only. GPT harness only; no universal compatibility, enterprise, UI or Pi fork. Uncommon needs → overrides/extensions/forks.
+- Preserve native semantics, cache and continuation. For transport, prefer OpenAI Codex where it serves those contracts better; keep PCC behaviour where it works better in Pi. Compare stock Pi, but SDK sync or cache noise alone does not justify drift. Document consequential differences.
 - Keep healthy initial WebSocket attempt. Retryable connection failure → ≤3 fresh WS retries/5 min → request-local SSE/separate 5 min. 426, advertised send-limit rejection or pre-text 1009 → immediate session-wide SSE. No size-close replay after output.
 - `server_is_overloaded` and `slow_down`: one three-minute WS/SSE budget. Honour HTTP/streamed advice on monotonic deadlines. Beyond budget → fail, even across fallback.
 - Before npm/publish/release/merge, compare `src/providers/openai-codex-custom-provider.ts` to Pi stock `openai-codex-responses`: request, transport, headers, reasoning, tier, retries, termination, touched behaviour.
 - Identity by backend, not name/endpoint. Renamed/proxied `openai-codex-responses` keeps Codex transport, Fast Mode, account isolation. Proxies: policy/monitoring/routing. Env proxies keep ChatGPT contracts; explicit `openai-responses` passthrough limited to backend capabilities.
 - Native compaction only for OpenAI Codex or configured OpenAI/Codex passthrough. V2 requires raw Responses output items, not arbitrary streams. Agent Comms owns Notes/history/window.
 - Nested adapters preserve declared `structuredContent` after protected-output checks. Protected results: opaque receipts, never JS data.
-- Prompt: short, argv-shaped. README: foldable, user-facing, no duplicate APIs/developer setup. Contracts: `../../docs/extension-apis.md`.
+- Heavy system prompt overwrite off: preserve Pi's scaffold, add PCC guidance in plain prose. On: replace the stock scaffold, use telegraphic PCC prose. Keep behaviour separate from runtime mechanics. Preserve foreign prompts and contributions.
+- README: foldable, user-facing, no duplicate APIs/developer setup. Contracts: `../../docs/extension-apis.md`.
+- Display execution modes from `EXECUTION_MODE_LABELS`.
 - Run bundled helpers directly. Rebuild checkout, don't patch npm install. Web/image: TS packages. `tools.customRustBinariesDir`: filename-based helper override, not Code host. Incompatibility errors point there, no loader noise.
 - `src/voice/rust/**` and `scripts/build-voice-helper.mjs`: byte-identical with `pi-gippity-control`; change and changeset together.
 - Native builds: `github_watch` if help supports Actions URLs, else `gh run watch <id> --exit-status` near 10–15 min. No polling loops, background shells or temp logs.

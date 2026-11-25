@@ -6,7 +6,7 @@ import {
 	formatUsageTable,
 	NONSTANDARD_CODEX_USAGE_WARNING,
 } from "../../codex-usage/format.ts";
-import { isStandardCodexSubscriptionModel } from "../../adapter/prompt/codex-model.ts";
+import { isStandardCodexSubscriptionModel } from "../../adapter/prompt/model-support.ts";
 import {
 	captureSpendReport,
 	readSpendReport,

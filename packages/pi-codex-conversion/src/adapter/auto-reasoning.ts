@@ -6,7 +6,7 @@ import type {
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import type { AdapterState } from "./activation/state.ts";
-import { resolveCodexRuntimePlanForState } from "./activation/runtime-plan.ts";
+import { resolveAdapterRuntimePlanForState } from "./activation/runtime-plan.ts";
 import { codexReasoningLane } from "./reasoning-updates.ts";
 import {
 	auxiliaryToolRenderers,
@@ -56,7 +56,7 @@ export function createAutoReasoning(
 		baseline.session === ctx.sessionManager.getSessionId();
 	const begin = (ctx: ExtensionContext) => {
 		if (
-			!resolveCodexRuntimePlanForState(ctx, state).autoReasoning ||
+			!resolveAdapterRuntimePlanForState(ctx, state).autoReasoning ||
 			!ctx.model
 		)
 			return;
@@ -115,7 +115,7 @@ export function createAutoReasoning(
 				_update: unknown,
 				ctx: ExtensionContext,
 			) {
-				if (!resolveCodexRuntimePlanForState(ctx, state).autoReasoning)
+				if (!resolveAdapterRuntimePlanForState(ctx, state).autoReasoning)
 					throw new Error(
 						"Reasoning adjustment is unavailable in this session. Continue with the current reasoning level. Other tools remain available",
 					);

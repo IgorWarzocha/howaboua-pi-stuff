@@ -8,7 +8,7 @@ Suggested next steps in Pi's terminal editor, phrased as requests you can send. 
 pi install npm:@howaboua/pi-suggestions
 ```
 
-Requires Pi 1.5 or later. Included in `pi-extensions` and `pi-stuff`.
+Requires the latest Pi release. Included in `pi-extensions` and `pi-stuff`.
 
 ## Set up
 

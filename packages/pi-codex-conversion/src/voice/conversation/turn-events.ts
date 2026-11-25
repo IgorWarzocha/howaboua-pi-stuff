@@ -7,9 +7,9 @@ import {
 	type RealtimeHandoffChannel,
 	type RealtimeHandoffTarget,
 } from "./handoff.ts";
-import type { CodexRealtimePeer } from "./peer.ts";
+import type { RealtimePeer } from "./peer.ts";
 import { RealtimePlayback } from "./playback.ts";
-import type { CodexConversationCallbacks } from "./session.ts";
+import type { ConversationCallbacks } from "./session.ts";
 import {
 	realtimeEventDetails,
 	realtimeEventIdentity,
@@ -33,13 +33,13 @@ export class ConversationTurns {
 	readonly playback: RealtimePlayback;
 	speakableResponsePending = false;
 	private readonly callId = randomUUID();
-	private readonly callbacks: CodexConversationCallbacks;
-	private readonly peer: CodexRealtimePeer;
+	private readonly callbacks: ConversationCallbacks;
+	private readonly peer: RealtimePeer;
 	private readonly isActive: () => boolean;
 	private readonly onFailure: (error: Error) => void;
 	constructor(
-		callbacks: CodexConversationCallbacks,
-		peer: CodexRealtimePeer,
+		callbacks: ConversationCallbacks,
+		peer: RealtimePeer,
 		isActive: () => boolean,
 		onFailure: (error: Error) => void,
 	) {

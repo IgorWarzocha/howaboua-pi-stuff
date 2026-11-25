@@ -41,12 +41,12 @@
     "@earendil-works/gondolin": "0.14.0",
     "yaml": "2.9.1",
     "zod": "4.6.7",
-    "@earendil-works/pi-schema": "1.6.0"
+    "@earendil-works/pi-schema": "1.6.1"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=1.5.0",
+    "@earendil-works/pi-coding-agent": ">=1.6.1",
     "@howaboua/pi-codex-conversion": ">=5.1.0",
-    "@earendil-works/pi-tui": ">=1.0.0"
+    "@earendil-works/pi-tui": ">=1.6.1"
   },
   "peerDependenciesMeta": {
     "@howaboua/pi-codex-conversion": {
@@ -54,7 +54,7 @@
     }
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "1.6.0",
+    "@earendil-works/pi-coding-agent": "1.6.1",
     "@howaboua/pi-codex-conversion": "5.1.0",
     "@types/node": "26.6.6",
     "typescript": "7.0.2",

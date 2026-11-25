@@ -8,7 +8,7 @@ This is a private, source-only extension. It is not published to npm or included
 
 ## Run from a checkout
 
-Requires Pi 1.3 or newer. Execution needs a compatible worker service. Shepherdr provides one and requires Herdr. Install both packages from this checkout and restart Pi:
+Requires the latest Pi release. Execution needs a compatible worker service. Shepherdr provides one and requires Herdr. Install both packages from this checkout and restart Pi:
 
 ```sh
 pi install /path/to/howaboua-pi-stuff/packages/pi-shepherdr

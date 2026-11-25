@@ -186,7 +186,7 @@ export class GrokTurnSequencer {
 			const code = textField(details, "code");
 			this.fail(
 				new Error(
-					`Grok rejected a voice operation${code ? ` (${code})` : ""}: ${message || "no reason supplied"}. The call has stopped; Pi's reply remains available in this session`,
+					`Grok rejected a voice operation${code ? ` (${code})` : ""}: ${message || "no reason supplied"}. Call stopped. Pi's reply remains in this session.`,
 				),
 			);
 			return;

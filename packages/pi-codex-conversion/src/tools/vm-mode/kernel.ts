@@ -1,18 +1,11 @@
 import { Worker } from "node:worker_threads";
 import type { RuntimeContentItem } from "../code-mode/types.ts";
 import { startBunVmProcess } from "./bun-process.ts";
-import type {
-	VmCommand,
-	VmInput,
-	VmMemory,
-	VmMessage,
-	VmOutcome,
-} from "./protocol.ts";
+import type { VmCommand, VmInput, VmMessage, VmOutcome } from "./protocol.ts";
 
 interface Callbacks {
 	output(items: RuntimeContentItem[]): void;
 	notify(text: string): void;
-	yield(): void;
 	store(key: string, json?: string): void;
 	request(id: number, name: string, value: unknown): Promise<unknown>;
 	cancel(): void;
@@ -22,6 +15,8 @@ interface VmEndpoint {
 	postMessage(command: VmCommand): void;
 	stop(): Promise<void>;
 }
+
+type BindingsSample = Extract<VmMessage, { kind: "bindings" }>;
 
 /** One worker owns one VM context. Stop terminates its worker or capped process. */
 export class VmKernel {
@@ -37,7 +32,12 @@ export class VmKernel {
 		| undefined;
 	private failure: Error | undefined;
 	private stopping: Promise<void> | undefined;
-	private sampleWait: ((memory: VmMemory) => void) | undefined;
+	private heapSample: PromiseWithResolvers<number> | undefined;
+	private readonly bindingWaiters = new Map<
+		number,
+		{ resolve(sample: BindingsSample): void; reject(error: Error): void }
+	>();
+	private nextBindingRequest = 0;
 
 	static create(heapMiB: number): VmKernel {
 		return new VmKernel(heapMiB);
@@ -70,24 +70,44 @@ export class VmKernel {
 		});
 	}
 
-	sample(): Promise<VmMemory> {
+	bindings(): Promise<BindingsSample> {
 		if (this.failure || this.stopping)
 			return Promise.reject(this.failure ?? new Error("VM Code is stopping"));
-		return new Promise((resolve) => {
-			this.sampleWait = resolve;
-			this.endpoint.postMessage({ kind: "sample" });
+		return new Promise((resolve, reject) => {
+			const id = ++this.nextBindingRequest;
+			this.bindingWaiters.set(id, { resolve, reject });
+			this.endpoint.postMessage({ kind: "bindings", id });
 		});
 	}
 
+	/** Separate explicit probe for the benchmark, not part of cell execution. */
+	sampleHeapUsedBytes(): Promise<number> {
+		if (this.failure || this.stopping)
+			return Promise.reject(this.failure ?? new Error("VM Code is stopping"));
+		if (!this.heapSample) {
+			this.heapSample = Promise.withResolvers<number>();
+			this.endpoint.postMessage({ kind: "heapSample" });
+		}
+		return this.heapSample.promise;
+	}
+
 	async stop(): Promise<void> {
+		for (const waiter of this.bindingWaiters.values())
+			waiter.reject(new Error("VM Code is stopping"));
+		this.bindingWaiters.clear();
 		this.stopping ??= this.endpoint.stop();
 		await this.stopping;
 	}
 
 	private deliver(message: VmMessage): void {
-		if (message.kind === "sample") {
-			this.sampleWait?.(message.memory);
-			this.sampleWait = undefined;
+		if (message.kind === "heapSample") {
+			this.heapSample?.resolve(message.heapUsedBytes);
+			this.heapSample = undefined;
+			return;
+		}
+		if (message.kind === "bindings") {
+			this.bindingWaiters.get(message.id)?.resolve(message);
+			this.bindingWaiters.delete(message.id);
 			return;
 		}
 		const active = this.active;
@@ -99,9 +119,6 @@ export class VmKernel {
 					break;
 				case "notify":
 					active.callbacks.notify(message.text);
-					break;
-				case "yield":
-					active.callbacks.yield();
 					break;
 				case "store":
 					active.callbacks.store(message.key, message.json);
@@ -128,7 +145,10 @@ export class VmKernel {
 		this.failure = error;
 		this.active?.reject(error);
 		this.active = undefined;
-		this.sampleWait = undefined;
+		this.heapSample?.reject(error);
+		this.heapSample = undefined;
+		for (const waiter of this.bindingWaiters.values()) waiter.reject(error);
+		this.bindingWaiters.clear();
 	}
 
 	private async request(

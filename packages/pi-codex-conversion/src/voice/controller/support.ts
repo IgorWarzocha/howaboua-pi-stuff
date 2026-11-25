@@ -1,5 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import type { RealtimeConversation } from "../conversation/session.ts";
 import type { CodexDictationSession } from "../dictation/session.ts";
 import {
 	formatCodexVoicePromptSchemaMismatch,
@@ -11,16 +11,16 @@ import type { CodexVoiceMode } from "../ui.ts";
 
 export const VOICE_STATUS_KEY = "codex-voice";
 
-export type VoiceSession = CodexRealtimeConversation | CodexDictationSession;
+export type VoiceSession = RealtimeConversation | CodexDictationSession;
 export type VoiceState =
 	| { type: "idle" }
-	| { type: "reconnecting"; session: CodexRealtimeConversation }
+	| { type: "reconnecting"; session: RealtimeConversation }
 	| { type: "connecting"; mode: "realtime"; phase: "authorizing" }
 	| {
 			type: "connecting";
 			mode: "realtime";
 			phase: "starting";
-			session: CodexRealtimeConversation;
+			session: RealtimeConversation;
 	  }
 	| { type: "connecting"; mode: "dictation"; phase: "authorizing" }
 	| {
@@ -29,7 +29,7 @@ export type VoiceState =
 			phase: "starting";
 			session: CodexDictationSession;
 	  }
-	| { type: "conversation"; session: CodexRealtimeConversation }
+	| { type: "conversation"; session: RealtimeConversation }
 	| { type: "dictation"; session: CodexDictationSession }
 	| { type: "failed"; message: string };
 

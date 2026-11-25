@@ -115,7 +115,7 @@ export class AgentBoard {
 		if (this.failure) throw this.failure;
 		if (!this.runtime)
 			throw new Error(
-				"Shared boards are unavailable. Load Agent Comms and reload Pi. Other agent operations remain available.",
+				"Shared Board unavailable. Load Agent Comms and reload Pi.",
 			);
 		return this.runtime;
 	}
@@ -171,7 +171,7 @@ export class AgentBoard {
 			)
 		)
 			throw new Error(
-				"Board child binding requires a fresh saved Pi session; use assign for existing agents",
+				"Shared Board needs a fresh saved session. Use assign for existing agents",
 			);
 		const file = ctx.sessionManager.getSessionFile();
 		if (!file)
@@ -197,7 +197,7 @@ export class AgentBoard {
 				if (result === null)
 					return {
 						warning:
-							"Spawned without shared Board: enable Board in Agent Comms on the target",
+							"Board not shared. Enable Board in Agent Comms on the target",
 					};
 				const adopted = parseBinding(result);
 				if (

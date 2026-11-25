@@ -62,7 +62,7 @@ async function main(): Promise<void> {
 							error:
 								failure instanceof Error
 									? failure.message
-									: "Sandbox operation failed. Inspect its state and logs before retrying",
+									: "Sandbox operation failed. Inspect state and logs before retrying",
 						}),
 					);
 				}

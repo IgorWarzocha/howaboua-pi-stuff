@@ -38,9 +38,7 @@ export function createQueryExecutor(
 ) {
 	const assertActive = () => {
 		if (!lifecycle.active && !shared)
-			throw new Error(
-				"Notes tools are inactive. Ask the user to check /notes.",
-			);
+			throw new Error("Notes inactive. Ask the user to check /notes.");
 	};
 	async function notes(
 		callId: string,
@@ -227,7 +225,7 @@ export function createQueryExecutor(
 			)
 		)
 			throw new Error(
-				"That agent's history is unavailable here. Omit agent_name to search this session, or request an accessible handoff from its owner.",
+				"Agent history unavailable. Omit agent_name for local history or request an accessible handoff.",
 			);
 		signal?.throwIfAborted();
 		return result(

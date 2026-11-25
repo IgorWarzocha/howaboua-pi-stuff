@@ -128,7 +128,7 @@ export class PublicRealtimeTurns {
 			this.onFailure(
 				new Error(
 					text(error?.["message"], 1000) ??
-						"Realtime call failed. Stop and start voice to retry.",
+						"Realtime call failed. Restart voice.",
 				),
 			);
 		} else if (type === "input_audio_buffer.speech_started") {
@@ -185,7 +185,7 @@ export class PublicRealtimeTurns {
 				this.onFailure(
 					new Error(
 						text(error?.["message"], 1000) ??
-							"Realtime could not produce a response. Check model access and billing, then start voice again.",
+							"Realtime response failed. Check model access and billing, then restart voice.",
 					),
 				);
 				return;
@@ -246,7 +246,7 @@ export class PublicRealtimeTurns {
 			const name = text(call["name"], 64);
 			const raw = text(call["arguments"], 32 * 1024);
 			if (!name || !raw)
-				throw new Error("Voice tool arguments were missing or oversized");
+				throw new Error("Missing or oversized voice tool arguments");
 			const args = record(JSON.parse(raw));
 			if (!args) throw new Error("Voice tool arguments must be an object");
 			if (name === "end_call") {
@@ -256,7 +256,7 @@ export class PublicRealtimeTurns {
 				output = {
 					ending: true,
 					message:
-						"Say your brief farewell now; the call will close after playback. Other work continues independently.",
+						"Say a brief farewell now. Call closes after playback. Other work continues.",
 				};
 			} else if (name === "send_task") {
 				const request = text(args["request"]);
@@ -268,7 +268,7 @@ export class PublicRealtimeTurns {
 					output = {
 						accepted: false,
 						reason:
-							"No new user speech. Wait for the work already submitted; do not retry.",
+							"No new user speech. Wait for submitted work. Do not retry.",
 					};
 					continueResponse = false;
 				} else {
@@ -281,7 +281,7 @@ export class PublicRealtimeTurns {
 				}
 			} else {
 				if (!this.access)
-					throw new Error("Voice tool is unavailable; restart the call");
+					throw new Error("Voice tool unavailable. Restart the call.");
 				output = await this.access.tools.execute(name, args, {
 					ctx: this.access.ctx,
 					signal: this.abort.signal,
@@ -291,7 +291,7 @@ export class PublicRealtimeTurns {
 			const serialized = JSON.stringify(output);
 			if (Buffer.byteLength(serialized) > 32 * 1024)
 				throw new Error(
-					"Voice tool result exceeded 32 KiB; request a narrower result",
+					"Voice tool result exceeds 32 KiB. Request a narrower result.",
 				);
 		} catch (error) {
 			output = {

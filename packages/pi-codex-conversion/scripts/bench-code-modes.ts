@@ -7,12 +7,12 @@ import { fileURLToPath } from "node:url";
 import { ensureCodeModeHostBinary } from "../src/tools/code-mode/binary.ts";
 import { CodeModeHostClient } from "../src/tools/code-mode/host-client.ts";
 import { prepareCodeModeToolInput } from "../src/tools/code-mode/tool-input.ts";
-import type { CodeModeExecutionClient } from "../src/tools/code-mode/shared-runtime.ts";
+import type { CodeModeExecutionClient } from "../src/tools/execution/runtime.ts";
 import type {
 	RuntimeResponse,
 	ToolExecutionContext,
 } from "../src/tools/code-mode/types.ts";
-import { TsCodeModeClient } from "../src/tools/ts-mode/client.ts";
+import { TsNotebookClient } from "../src/tools/ts-mode/client.ts";
 import { VmCodeClient } from "../src/tools/vm-mode/client.ts";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
@@ -196,12 +196,12 @@ async function openMode(
 				tools: [],
 			}),
 		};
-	if (mode === "TS") return { code: new TsCodeModeClient(options) };
+	if (mode === "TS Notebook") return { code: new TsNotebookClient(options) };
 	const vm = new VmCodeClient(options);
-	return { code: vm, workerHeap: async () => (await vm.sample())?.heapUsed };
+	return { code: vm, workerHeap: async () => vm.sampleHeapUsedBytes() };
 }
 
-const MODES = ["Code", "TS", "VM Code"];
+const MODES = ["Code", "TS Notebook", "VM Code"];
 const requested = process.argv[2] === "--mode" ? process.argv[3] : undefined;
 
 if (requested) {

@@ -15,9 +15,7 @@ export async function runCodeModeToolWithHooks(
 	if (context.completion) {
 		try {
 			if (!context.toolCallId || !context.extensionContext)
-				throw new Error(
-					"Code Mode nested tool completion context is unavailable",
-				);
+				throw new Error("Nested tool completion context is unavailable");
 			call = {
 				toolName,
 				input: structuredClone(input),
@@ -30,7 +28,7 @@ export async function runCodeModeToolWithHooks(
 				result: undefined,
 			};
 		} catch (error) {
-			console.error("Code Mode completion snapshot failed", error);
+			console.error("Nested tool completion snapshot failed", error);
 		}
 	}
 	let phase: "preflight" | "execution" = "preflight";
@@ -65,7 +63,7 @@ export async function runCodeModeToolWithHooks(
 			try {
 				await context.completion?.(call);
 			} catch (error) {
-				console.error("Code Mode completion subscriber failed", error);
+				console.error("Nested tool completion subscriber failed", error);
 			}
 		}
 	}

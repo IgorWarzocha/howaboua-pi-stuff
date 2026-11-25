@@ -1,11 +1,45 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { basename, delimiter, dirname, isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import { acquireDirectoryLock } from "./directory-lock.ts";
 
 export const runImportCommand = promisify(execFile);
+
+export async function resolveWindowsNpmCli({
+	execPath,
+	env,
+}: Pick<NodeJS.Process, "execPath" | "env">): Promise<string> {
+	const fromNpm = env["npm_execpath"];
+	const candidates =
+		fromNpm &&
+		isAbsolute(fromNpm) &&
+		basename(fromNpm).toLowerCase() === "npm-cli.js"
+			? [fromNpm]
+			: [];
+	// Official npm.cmd installs place the JS entry point beside the shim.
+	// Run that entry point directly: execFile cannot launch a batch file.
+	for (const entry of [
+		dirname(execPath),
+		...(env["PATH"] ?? "").split(delimiter),
+	]) {
+		const directory = entry.replace(/^"(.*)"$/, "$1");
+		if (isAbsolute(directory))
+			candidates.push(
+				join(directory, "node_modules", "npm", "bin", "npm-cli.js"),
+			);
+	}
+	for (const candidate of new Set(candidates)) {
+		const info = await stat(candidate).catch((error: NodeJS.ErrnoException) => {
+			if (error.code !== "ENOENT" && error.code !== "ENOTDIR") throw error;
+		});
+		if (info?.isFile()) return candidate;
+	}
+	throw new Error(
+		"npm not found. Install npm with Node.js or add its directory to PATH, then retry.",
+	);
+}
 
 export function parseExactNpmImport(specifier: string): {
 	name: string;
@@ -69,10 +103,19 @@ export async function cacheExactNpmImport(
 				}),
 				{ mode: 0o600 },
 			);
+			const npmCli =
+				process.platform === "win32"
+					? await resolveWindowsNpmCli(process)
+					: undefined;
 			try {
 				await runImportCommand(
-					"npm",
+					npmCli
+						? process.versions["bun"]
+							? "node"
+							: process.execPath
+						: "npm",
 					[
+						...(npmCli ? [npmCli] : []),
 						"install",
 						"--ignore-scripts",
 						...(includeOptional ? ["--include=optional"] : []),
@@ -85,7 +128,7 @@ export async function cacheExactNpmImport(
 			} catch (error) {
 				signal?.throwIfAborted();
 				throw new Error(
-					`Could not install ${identity} without lifecycle scripts. Check registry access; packages needing install scripts are unavailable.`,
+					`Could not install ${identity} without lifecycle scripts. Check registry access. Packages needing install scripts are unavailable.`,
 					{ cause: error },
 				);
 			}

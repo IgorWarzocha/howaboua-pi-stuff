@@ -21,7 +21,6 @@ export class RuntimeCell {
 	private outputTruncated = false;
 	private cursor = 0;
 	private completedValue = false;
-	private yielded = deferred();
 	private blockersChanged = deferred();
 	private readonly blockers = new Set<string>();
 	private readonly completed = deferred();
@@ -47,21 +46,13 @@ export class RuntimeCell {
 			const blockersChanged = this.blockersChanged.promise;
 			const blocked = this.blockers.size > 0;
 			await waitForObservation(
-				[
-					this.completed.promise,
-					blockersChanged,
-					...(blocked ? [] : [this.yielded.promise]),
-				],
+				[this.completed.promise, blockersChanged],
 				blocked ? undefined : yieldTimeMs,
 				signal,
 			);
 			if (this.completedValue) return "result";
 			if (this.blockersChanged.promise !== blockersChanged) continue;
-			if (this.blockers.size > 0) {
-				this.yielded = deferred();
-				continue;
-			}
-			this.yielded = deferred();
+			if (this.blockers.size > 0) continue;
 			return "yielded";
 		}
 		return "result";
@@ -80,17 +71,12 @@ export class RuntimeCell {
 		return this.completed.promise;
 	}
 
-	requestYield(): void {
-		this.yielded.resolve();
-	}
-
 	setBlocked(blockerId: string, active: boolean): void {
 		const changed = active
 			? !this.blockers.has(blockerId)
 			: this.blockers.delete(blockerId);
 		if (active) this.blockers.add(blockerId);
 		if (!changed) return;
-		if (active) this.yielded = deferred();
 		this.blockersChanged.resolve();
 		this.blockersChanged = deferred();
 	}
@@ -115,7 +101,7 @@ export class RuntimeCell {
 			) {
 				const notice = {
 					type: "input_text" as const,
-					text: "[Notebook cell output truncated]",
+					text: "[Cell output truncated]",
 				};
 				this.items.push(notice);
 				accepted.push(notice);

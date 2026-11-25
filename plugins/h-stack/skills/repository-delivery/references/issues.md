@@ -8,12 +8,12 @@ Title:
 - Avoid vague titles such as `Software crashes`.
 - Prefer specific titles such as `Reloading a session crashes during delayed widget rendering`.
 
-Optional shapes. Mix, choose, or ignore them. Do not attribute a shape to a person.
+Optional shapes:
 
-- Trigger, actual and expected result, relevant version, then stop.
-- Minimized input, observed output, and the exact behavior in question.
-- Current mechanics, the proposal or question, consequences, and uncertainty.
-- Background, current state, constraints, and open decisions.
+- Trigger, actual and expected result, relevant version.
+- Minimized input, observed output, exact behavior in question.
+- Current mechanics, proposal or question, consequences, uncertainty.
+- Background, current state, constraints, open decisions.
 
 Bug: give the shortest known reproduction, frequency, impact, and only relevant environment, logs, or artifacts. State when it is intermittent or not reproducible. Separate observation from suspected cause.
 

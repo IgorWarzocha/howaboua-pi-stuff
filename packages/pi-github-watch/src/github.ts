@@ -34,7 +34,7 @@ export function githubClient(
 		});
 		if (result.code !== 0)
 			throw new Error(
-				"GitHub request failed. Check gh auth status and access to the watched URL, then watch again.",
+				"GitHub request failed. Check gh auth status and target access before retrying.",
 			);
 		return result.stdout.trim();
 	};
@@ -68,7 +68,7 @@ export function githubClient(
 				(/^#?\d+$/.test(value) ? value.replace(/^#/, "") : undefined);
 			if (!numberText)
 				throw new Error(
-					"Use a GitHub issue/PR or Actions run URL, owner/repo#123, or an issue/PR number against this repository's GitHub origin.",
+					"Use a GitHub issue/PR or Actions run URL, owner/repo#123, or issue/PR number in this repo.",
 				);
 			const number = Number(numberText);
 			if (!Number.isSafeInteger(number) || number < 1)
@@ -86,9 +86,7 @@ export function githubClient(
 				]))
 			).toLowerCase();
 			if (!/^[\w.-]+\/[\w.-]+$/.test(repo))
-				throw new Error(
-					"No GitHub origin found. Supply owner/repo#123 instead.",
-				);
+				throw new Error("No GitHub origin. Supply owner/repo#123.");
 			const kindText = await gh([
 				"api",
 				`repos/${repo}/issues/${number}`,
@@ -96,9 +94,7 @@ export function githubClient(
 				'if has("pull_request") then "pr" else "issue" end',
 			]);
 			if (kindText !== "pr" && kindText !== "issue")
-				throw new Error(
-					"GitHub returned an invalid thread type. Retry the watch.",
-				);
+				throw new Error("Invalid GitHub thread type. Retry the watch.");
 			return {
 				repo,
 				number,
@@ -139,7 +135,7 @@ export function githubClient(
 				if (value.state === "open" && !value.merged)
 					return { state: "open", headSha: value.headSha };
 			}
-			throw new Error("GitHub returned invalid PR state. Retry the watch.");
+			throw new Error("Invalid GitHub PR state. Retry the watch.");
 		},
 		async runSnapshot(run: WorkflowRun): Promise<RunSnapshot> {
 			const snapshot: unknown = JSON.parse(
@@ -173,7 +169,7 @@ export function githubClient(
 						attempt: snapshot.run_attempt,
 					};
 			}
-			throw new Error("GitHub returned invalid run metadata. Retry the watch.");
+			throw new Error("Invalid GitHub run metadata. Retry the watch.");
 		},
 	};
 }

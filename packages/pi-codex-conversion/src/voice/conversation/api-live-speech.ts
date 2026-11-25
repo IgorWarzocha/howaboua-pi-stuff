@@ -1,6 +1,6 @@
 import { MAX_REALTIME_VOICE_INPUT_BYTES } from "../prompts.ts";
 import type { RealtimePlayback } from "./playback.ts";
-import type { CodexConversationCallbacks } from "./session.ts";
+import type { ConversationCallbacks } from "./session.ts";
 
 export const TRANSCRIPT_GRACE_MS = 800;
 const OUTPUT_QUIET_MS = 500;
@@ -16,7 +16,7 @@ export interface ApiLiveLifecycle {
 
 interface ApiLiveSpeechOptions {
 	callbacks: Pick<
-		CodexConversationCallbacks,
+		ConversationCallbacks,
 		"onUserTranscript" | "onTurn" | "onStatus"
 	>;
 	playback: RealtimePlayback;

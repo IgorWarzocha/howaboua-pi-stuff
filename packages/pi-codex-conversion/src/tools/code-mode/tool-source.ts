@@ -1,4 +1,4 @@
-import { isCodeModeToolListed } from "./custom-tool-prompt.js";
+import { isCodeModeToolListed } from "./execution-prompt.js";
 import { codeModeGlobalName } from "./tool-identity.ts";
 import type { CodeModeToolDefinition } from "./types.js";
 

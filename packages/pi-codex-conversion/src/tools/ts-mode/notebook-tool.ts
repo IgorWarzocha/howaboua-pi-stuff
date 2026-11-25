@@ -15,12 +15,12 @@ import {
 	type Static,
 } from "@earendil-works/pi-schema";
 import { getExperimentalToolSampling } from "../tool-sampling.ts";
-import type { SharedCodeModeRuntime } from "./shared-runtime.ts";
+import type { SharedCodeModeRuntime } from "../execution/runtime.ts";
 import { notebookRenderers } from "./notebook-rendering.ts";
 import type {
 	NotebookControlRequest,
 	ProgrammaticCodeModeToolDefinition,
-} from "./types.ts";
+} from "../code-mode/types.ts";
 
 const PIN_FIELDS = {
 	action: { ...lit("pin"), type: "string" },
@@ -135,7 +135,7 @@ export function registerNotebookTool(
 			ctx,
 		) {
 			if (runtime.executionKind(ctx) !== "ts")
-				throw new Error("Notebook controls require TS mode");
+				throw new Error("Notebook controls require TS Notebook");
 			if (params.input === undefined || params.input === "help")
 				return {
 					content: [{ type: "text", text: NOTEBOOK_HELP }],
@@ -194,7 +194,7 @@ export function createNotebookControlProxy(
 			const request = parseNotebookRequest(input);
 			if (!canExecuteNotebookControlInsideExec(request))
 				return {
-					message: `Notebook ${request.action} was not run because it needs the active exec cell to finish. After exec returns, call notebook with ${JSON.stringify({ input: JSON.stringify(request) })}.`,
+					message: `Notebook ${request.action} not run. After exec finishes, call notebook with ${JSON.stringify({ input: JSON.stringify(request) })}.`,
 					details: { notRun: true, action: request.action, retry: request },
 				};
 			return runtime.controlNotebook(request, context, signal);

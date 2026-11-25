@@ -1,6 +1,8 @@
 Toolkit friction: propose fix; tiny low-risk→owning source, never installed tooling. Report validation. Release/install caveats only requested/actionable.
 
-Released Pi APIs, no patches/forks. Standalone extensions, optional runtime integrations. Released `@earendil-works/pi-schema` builders/validators, not TypeBox. No personal names/paths, host assumptions, private workflows.
+Latest released Pi only. Update root SDK pins → `bun run pi:sdk:sync` → refresh lockfile. No older-Pi fallbacks, patches or forks. Standalone extensions, optional runtime integrations. Released `@earendil-works/pi-schema` builders/validators, not TypeBox. No personal names/paths, host assumptions, private workflows.
+
+Use the real names of settings, modes, actions and data in identifiers. Name shared code for the capability it actually serves. When you encounter a misleading name in scope, rename it and its callers so readers can follow the code. Keep public and persisted names stable unless deliberately changing their contracts.
 
 Unique package fragment→immediate `packages/` subdir→refs. Substantial merge: check dependency currency. Exact direct npm/Cargo registry pins; ranged npm peers.
 

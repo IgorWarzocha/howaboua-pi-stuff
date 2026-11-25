@@ -26,6 +26,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - name: Validate preview target
         run: node scripts/prepare-preview-release.mjs
+      - name: Require the latest released Pi SDK
+        run: node scripts/pi-sdk-policy.mjs --latest
       - run: npm run install:ci
       - name: Set ephemeral preview version
         id: preview

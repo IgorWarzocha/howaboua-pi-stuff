@@ -2,7 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type {
 	CodeModeToolProvider,
 	OpaqueContextGuard,
-} from "./shared-runtime.ts";
+} from "../execution/runtime.ts";
 import type { RuntimeResponse } from "./types.ts";
 
 export class OpaqueResultState {

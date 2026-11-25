@@ -4,7 +4,7 @@ import { Worker } from "node:worker_threads";
 import { VM_BUN_WATCHDOG_EXIT } from "./limits.ts";
 import type { VmCommand, VmMessage, VmProcessMessage } from "./protocol.ts";
 
-function verifyCgroup(budget: number): void {
+function verifyCgroup(budget: number): string {
 	// Setting MemoryMax alone does not prove the session has the controller.
 	const cgroup = readFileSync("/proc/self/cgroup", "utf8")
 		.split("\n")
@@ -21,14 +21,16 @@ function verifyCgroup(budget: number): void {
 		).trim() !== "0"
 	)
 		throw new Error("VM Code process memory limit is not enforced");
+	return join("/sys/fs/cgroup", cgroup, "memory.current");
 }
 
-function watchMemory(budget: number): () => void {
+function watchMemory(budget: number): () => number {
 	const check = () => {
 		const rss = process.memoryUsage.rss();
 		if (!Number.isSafeInteger(rss) || rss <= 0)
 			throw new Error("VM Code process memory cannot be measured");
 		if (rss > budget) process.exit(VM_BUN_WATCHDOG_EXIT);
+		return rss;
 	};
 	check();
 	// The evaluator is on another thread; synchronous cells cannot block this timer.
@@ -40,8 +42,9 @@ const budget = Number(process.argv[2]) * 1024 * 1024;
 const policy = process.argv[3];
 if (!Number.isSafeInteger(budget) || budget <= 0)
 	throw new Error("VM Code process memory budget is invalid");
-let checkMemory: (() => void) | undefined;
-if (policy === "cgroup") verifyCgroup(budget);
+let checkMemory: (() => number) | undefined;
+let cgroupMemoryPath: string | undefined;
+if (policy === "cgroup") cgroupMemoryPath = verifyCgroup(budget);
 else if (policy === "watchdog") checkMemory = watchMemory(budget);
 else throw new Error("VM Code process memory policy is missing");
 
@@ -59,7 +62,18 @@ function send(message: VmProcessMessage): void {
 process.on("disconnect", () => process.exit());
 process.on("message", (command: VmCommand) => worker.postMessage(command));
 worker.on("message", (message: VmMessage) => {
-	checkMemory?.();
+	const rss = checkMemory?.();
+	if (message.kind === "bindings") {
+		if (cgroupMemoryPath) {
+			try {
+				const used = Number(readFileSync(cgroupMemoryPath, "utf8"));
+				if (Number.isSafeInteger(used) && used > 0)
+					message.memoryUsedBytes = used;
+			} catch {
+				// Measurement is advisory; the OS still enforces MemoryMax.
+			}
+		} else if (rss !== undefined) message.memoryUsedBytes = rss;
+	}
 	send(message);
 });
 worker.once("error", () => process.exit(1));

@@ -15,7 +15,7 @@ export function feedbackMessage(
 	const parts = [`GitHub watch: ${thread.url}.`];
 	if (headChange)
 		parts.push(
-			`PR head changed: ${headChange.before} → ${headChange.after}. Read the updated diff with gh pr diff ${thread.number} --repo ${thread.repo}.`,
+			`PR head: ${headChange.before} → ${headChange.after}. Diff: gh pr diff ${thread.number} --repo ${thread.repo}`,
 		);
 	const pending = [...snapshot.unresolved.values()];
 	if (thread.kind === "pr")
@@ -30,21 +30,21 @@ export function feedbackMessage(
 				)}${pending.length > 8 ? ` (${pending.length - 8} more)` : ""}.`,
 		);
 		parts.push(
-			"Read unresolved threads and replies with gh api graphql; paginate reviewThreads and comments, skipping isResolved threads.",
+			"gh api graphql: paginate reviewThreads and comments; skip isResolved threads.",
 		);
 	}
 	if (conversationChanges)
 		parts.push(
-			`${conversationChanges} conversation/review update(s). Read context with gh ${thread.kind === "pr" ? "pr" : "issue"} view ${thread.number} --repo ${thread.repo} --comments.`,
+			`${conversationChanges} conversation/review update(s). Context: gh ${thread.kind === "pr" ? "pr" : "issue"} view ${thread.number} --repo ${thread.repo} --comments`,
 		);
 	parts.push(
-		"Consider feedback in the context of the current task. If responding, reply in its discussion with the fix or reasoned disposition and verify the posting account before publishing.",
+		"Assess feedback against task scope. If replying, verify posting account and post the fix or rationale in its discussion.",
 	);
 	if (thread.kind === "pr")
 		parts.push(
-			"When addressing reviews, resolve threads only after the work is complete. Skip unchanged resolved threads.",
+			"Resolve only after the work is complete. Skip unchanged resolved threads.",
 		);
-	return parts.join(" ");
+	return parts.join("\n");
 }
 
 interface DeliveryRequest {

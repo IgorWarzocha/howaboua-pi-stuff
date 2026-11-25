@@ -26,7 +26,7 @@ interface Recovery {
 
 export class SitesOperationUnavailable extends Error {
 	constructor() {
-		super("This Sites operation is unavailable for the account");
+		super("Sites action unavailable for this account");
 	}
 }
 
@@ -95,7 +95,7 @@ export class SitesClient {
 				: [];
 		this.tools = tools.filter((tool) => isSitesTool(tool));
 		if (this.tools.length === 0) {
-			throw new Error("The ChatGPT account did not expose the Sites connector");
+			throw new Error("No Sites connector for this ChatGPT account");
 		}
 		return this.tools;
 	}
@@ -153,8 +153,8 @@ export class SitesClient {
 		if (response.status === 401 || response.status === 403) {
 			const message =
 				response.status === 401
-					? "Sites rejected the OpenAI Codex login. Ask the user to renew /login openai-codex (legacy OpenAI Codex)."
-					: "Sites access was denied (HTTP 403). Ask the user to check Sites access for that account and any network or browser challenge.";
+					? "Sites rejected login. Ask the user to renew it with /login openai-codex (legacy OpenAI Codex)."
+					: "Sites access denied (HTTP 403). Ask the user to check account access and any network or browser challenge.";
 			throw Object.assign(new Error(message), {
 				code: "sites_access_denied",
 				status: response.status,
@@ -264,16 +264,16 @@ function backendError(status: number, payload: unknown) {
 		)
 	) {
 		return new Error(
-			"This published Site does not expose MCP. Publish a version with an MCP server before requesting its connection.",
+			"Published Site exposes no MCP. Publish a version with an MCP server before requesting a connection.",
 		);
 	}
 	if (status === 404 && serialized.includes("Action not found")) {
 		return new SitesOperationUnavailable();
 	}
 	const message = terms
-		? "ChatGPT Sites publication terms must be accepted before this operation can continue"
+		? "ChatGPT Sites publication terms required to continue"
 		: recovery.saved_version_id
-			? "Sites saved a version but deployment failed; reuse saved_version_id with deployment.deploy after resolving the cause"
+			? "Version saved. Deploy failed. Fix cause, then deployment.deploy with saved_version_id."
 			: recovery.code === "site_not_owner_only"
 				? "Site is not verified owner-private; reread access before deployment"
 				: `Sites backend request failed${status ? ` (HTTP ${status})` : ""}`;

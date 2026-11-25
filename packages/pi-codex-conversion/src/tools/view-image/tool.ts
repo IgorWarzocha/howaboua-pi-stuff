@@ -1,6 +1,5 @@
 import {
 	type AgentToolResult,
-	type ExtensionAPI,
 	type ExtensionContext,
 	type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
@@ -108,7 +107,7 @@ async function executeRustViewImageContent(
 	);
 	if (!binary) {
 		throw new Error(
-			`view_image is unavailable: this installation has no image helper for ${process.platform}-${process.arch}. Ask the user to update or repair the extension installation. Other tools remain available`,
+			`view_image unavailable: no helper for ${process.platform}-${process.arch}. Ask the user to update or repair the extension. Other tools remain available.`,
 		);
 	}
 	const child = await runBundledTool({
@@ -327,11 +326,4 @@ export function createViewImageTool(
 					},
 				}),
 	};
-}
-
-export function registerViewImageTool(
-	pi: ExtensionAPI,
-	options: CreateViewImageToolOptions = {},
-): void {
-	pi.registerTool(createViewImageTool(options));
 }

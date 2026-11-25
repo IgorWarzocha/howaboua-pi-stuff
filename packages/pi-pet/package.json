@@ -77,8 +77,8 @@
   "packageManager": "bun@1.4.2",
   "peerDependencies": {
     "@howaboua/pi-gippity-control": ">=0.0.34",
-    "@earendil-works/pi-coding-agent": ">=1.5.0",
-    "@earendil-works/pi-tui": ">=1.0.0",
+    "@earendil-works/pi-coding-agent": ">=1.6.1",
+    "@earendil-works/pi-tui": ">=1.6.1",
     "@howaboua/pi-codex-conversion": ">=5.1.0"
   },
   "peerDependenciesMeta": {
@@ -90,15 +90,15 @@
     }
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "1.6.0",
-    "@earendil-works/pi-tui": "1.6.0",
+    "@earendil-works/pi-coding-agent": "1.6.1",
+    "@earendil-works/pi-tui": "1.6.1",
     "@types/node": "^26.6.6",
     "electron": "44.10.2",
     "knip": "^6.45.0",
     "typescript": "^7.0.2",
     "@howaboua/pi-codex-conversion": "5.1.0",
     "oxfmt": "^0.78.0",
-    "tsrs": "0.25.0-ts7.1.0-beta",
+    "tsrs": "7.1.0-beta.tsrs5",
     "oxlint": "1.94.0",
     "html-validate": "11.4.0",
     "stylelint": "17.16.0",
@@ -108,6 +108,6 @@
     "access": "public"
   },
   "dependencies": {
-    "@earendil-works/pi-schema": "1.6.0"
+    "@earendil-works/pi-schema": "1.6.1"
   }
 }

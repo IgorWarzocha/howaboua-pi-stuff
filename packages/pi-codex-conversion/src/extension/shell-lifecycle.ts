@@ -11,6 +11,7 @@ import {
 } from "../context-briefings.ts";
 import { admitCustomTurn } from "../custom-turn-admission.ts";
 import { withCodexDeveloperMessageDetails } from "../developer-messages.ts";
+import { SHELL_COMPLETION_GUIDANCE } from "../tools/exec/format.ts";
 import type { ExecSessionManager } from "../tools/exec/session-manager.ts";
 
 export interface CodexShellLifecycle {
@@ -187,7 +188,7 @@ export function registerCodexShellLifecycle(
 				id,
 				owner: "shells",
 				key: owner.sessionId,
-				content: `Background shells in this Pi session:\n${lines.join("\n")}\nCollect results with write_stdin. Keep normal monitoring; idle completion notices are a safety net.`,
+				content: `Background shells in this Pi session:\n${lines.join("\n")}\n${SHELL_COMPLETION_GUIDANCE} Use write_stdin for input or output needed now.`,
 			});
 			owner.briefingId = id;
 			return true;

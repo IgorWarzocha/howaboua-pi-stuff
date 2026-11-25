@@ -69,7 +69,7 @@ export function createCallSession(
 			pi.appendEntry("grok-realtime-transcript", { role, text }),
 		task: (id, request) => {
 			if (!effects.isCurrent())
-				throw new Error("Voice call ended before the task was accepted");
+				throw new Error("Voice call ended before task acceptance");
 			effects.working();
 			pi.appendEntry("grok-realtime-delegation", { id, request });
 			pi.sendUserMessage(

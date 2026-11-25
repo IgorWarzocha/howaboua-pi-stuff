@@ -18,12 +18,13 @@ import { createWriteStdinTool } from "../tools/exec/write-stdin-tool.ts";
 import { createViewImageTool } from "../tools/view-image/tool.ts";
 import { supportsViewImageInputs } from "./tool-support.ts";
 import {
-	isCodeModeRuntime,
-	resolveCodexRuntimePlanForState,
+	usesExecTools,
+	resolveAdapterRuntimePlanForState,
 } from "./activation/runtime-plan.ts";
 import {
-	CODE_MODE_TOOL_NAMES,
-	NOTEBOOK_MODE_TOOL_NAMES,
+	EXEC_TOOL_NAMES,
+	TS_NOTEBOOK_TOOL_NAMES,
+	REPLACED_PI_TOOL_NAMES,
 } from "./activation/tool-set.ts";
 import {
 	codeModeImageResult,
@@ -39,7 +40,6 @@ const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
 export async function registerCodexCodeMode(
 	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
-	beforePrepare?: (ctx: ExtensionContext) => void,
 ): Promise<CodeModeRegistration> {
 	let latestContext: ExtensionContext | undefined;
 	let stopped = false;
@@ -47,13 +47,13 @@ export async function registerCodexCodeMode(
 	const piTools = createPiCodeModeBridge(pi);
 	const isActive = (ctx: unknown) => {
 		if (ctx) latestContext = ctx as ExtensionContext;
-		const plan = resolveCodexRuntimePlanForState(
+		const plan = resolveAdapterRuntimePlanForState(
 			ctx as ExtensionContext,
 			runtime.state,
 		);
-		if (!isCodeModeRuntime(plan)) return false;
+		if (!usesExecTools(plan)) return false;
 		const requiredTools =
-			plan.kind === "ts" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
+			plan.kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES;
 		const activeTools = pi.getActiveTools();
 		return requiredTools.every((name) => activeTools.includes(name));
 	};
@@ -63,13 +63,13 @@ export async function registerCodexCodeMode(
 	const programmaticRuntime = await registerCodeModeTools(pi, {
 		prepareLoadout: (loadout) => {
 			if (!latestContext) return undefined;
-			const plan = resolveCodexRuntimePlanForState(
+			const plan = resolveAdapterRuntimePlanForState(
 				latestContext,
 				runtime.state,
 			);
-			if (!isCodeModeRuntime(plan)) return undefined;
+			if (!usesExecTools(plan)) return undefined;
 			const required =
-				plan.kind === "ts" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
+				plan.kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES;
 			if (
 				!required.every((name) =>
 					loadout.declared.some((tool) => tool.name === name),
@@ -112,6 +112,7 @@ export async function registerCodexCodeMode(
 				});
 			}
 			return piTools.prepareLoadout(loadout, [
+				...REPLACED_PI_TOOL_NAMES,
 				"codemode",
 				...(nativeSearch ? ["tool_search"] : []),
 			]);
@@ -129,18 +130,20 @@ export async function registerCodexCodeMode(
 			];
 		},
 		isActive,
+		heavySystemPromptOverwrite: () =>
+			runtime.state.config.prompt.heavySystemPromptOverwrite,
 		opaqueResultScope: (ctx) => resolveProtectedOutputScope(ctx),
 		lazyOpaqueResultScope: () => true,
 		deliverOpaqueResponse: (response, callId, scope, ctx) =>
 			appendRemoteDelivery(pi, response, callId, scope, ctx),
 		executionKind: (ctx) => {
-			const kind = resolveCodexRuntimePlanForState(
+			const kind = resolveAdapterRuntimePlanForState(
 				ctx as ExtensionContext,
 				runtime.state,
 			).kind;
 			return kind === "ts" || kind === "vm" ? kind : "code";
 		},
-		notebookOptions: () => ({
+		executionClientOptions: () => ({
 			maxHeapMiB: runtime.state.config.notebook.maxHeapMiB,
 			agentDir: getAgentDir(),
 			...(runtime.state.config.notebook.profile
@@ -151,13 +154,11 @@ export async function registerCodexCodeMode(
 		toolDetails: () => runtime.state.config.ui.toolDetails,
 	});
 	return {
-		prepare: (ctx) => {
-			if (ctx) beforePrepare?.(ctx as ExtensionContext);
-			return programmaticRuntime.prepare(ctx);
-		},
+		prepare: programmaticRuntime.prepare,
 		getTools: (ctx) => programmaticRuntime.getTools(ctx),
 		getPromptTools: (ctx) => programmaticRuntime.getPromptTools(ctx),
 		notebookStatus: (ctx) => programmaticRuntime.notebookStatus(ctx),
+		vmBindingStatus: (ctx) => programmaticRuntime.vmBindingStatus(ctx),
 		checkpointNotebook: () => programmaticRuntime.checkpointNotebook(),
 		shutdownHost: () => programmaticRuntime.shutdownHost(),
 		async shutdown() {
@@ -201,7 +202,7 @@ function createNestedTools(
 				promptGuidelines: [
 					"Wrap in *** Begin Patch / *** End Patch. Actions: *** Add File: path | *** Update File: path | *** Delete File: path",
 					"*** Move to: path follows its Update File header immediately; include a nonempty @@ hunk (one unchanged context line for a pure move)",
-					"Update hunks follow file order. Copy exact context; @@ text is context, not a line range. Reread changed files before patching",
+					"Update hunks MUST follow file order and MUST NOT overlap, including context; merge overlapping hunks. Copy exact context; @@ text is context, not a line range. Reread changed files before patching",
 					"One patch per file; split oversized patches serially. Batch independent files with Promise.allSettled",
 					"Use for targeted edits. Reserve shell/Python for formatting and bulk rewrites",
 				],
@@ -318,7 +319,7 @@ function createNestedTools(
 	}
 	if (
 		ctx &&
-		resolveCodexRuntimePlanForState(ctx, runtime.state).autoReasoning
+		resolveAdapterRuntimePlanForState(ctx, runtime.state).autoReasoning
 	) {
 		tools.push(
 			toNestedTool(

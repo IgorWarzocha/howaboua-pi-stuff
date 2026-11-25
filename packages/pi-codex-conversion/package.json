@@ -45,10 +45,6 @@
       "types": "./dist/developer-messages.d.ts",
       "import": "./dist/developer-messages.js"
     },
-    "./prompt-mode": {
-      "types": "./dist/prompt-mode.d.ts",
-      "import": "./dist/prompt-mode.js"
-    },
     "./compaction": {
       "types": "./dist/compaction.d.ts",
       "import": "./dist/compaction.js"
@@ -126,23 +122,23 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": ">=1.5.0",
-    "@earendil-works/pi-coding-agent": ">=1.5.0",
-    "@earendil-works/pi-tui": ">=1.0.0"
+    "@earendil-works/pi-ai": ">=1.6.1",
+    "@earendil-works/pi-coding-agent": ">=1.6.1",
+    "@earendil-works/pi-tui": ">=1.6.1"
   },
   "devDependencies": {
-    "@earendil-works/pi-agent-core": "1.6.0",
-    "@earendil-works/pi-ai": "1.6.0",
-    "@earendil-works/pi-coding-agent": "1.6.0",
-    "@earendil-works/pi-tui": "1.6.0",
+    "@earendil-works/pi-agent-core": "1.6.1",
+    "@earendil-works/pi-ai": "1.6.1",
+    "@earendil-works/pi-coding-agent": "1.6.1",
+    "@earendil-works/pi-tui": "1.6.1",
     "@types/node": "26.6.6",
     "@types/ws": "8.18.2",
-    "tsrs": "7.1.0-beta.tsrs4",
+    "tsrs": "7.1.0-beta.tsrs5",
     "tsx": "4.23.15",
     "typescript": "7.0.2"
   },
   "dependencies": {
-    "@earendil-works/pi-schema": "1.6.0",
+    "@earendil-works/pi-schema": "1.6.1",
     "@howaboua/pi-browser": "0.0.15",
     "acorn": "8.19.0",
     "https-proxy-agent": "9.1.0",

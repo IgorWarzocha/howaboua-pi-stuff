@@ -59,7 +59,7 @@ export async function reserveAgentName(
 	const name = requested?.trim() || availableAgentName(names, label);
 	if (names.has(name))
 		throw new Error(
-			`Agent name ${JSON.stringify(name)} is already in use; omit name or choose another`,
+			`Agent name ${JSON.stringify(name)} in use. Omit name or choose another`,
 		);
 	reserved.add(name);
 	return {
@@ -116,6 +116,9 @@ export function settlementResult(
 		!settlement.reply &&
 		!settlement.extensionMessages?.length
 			? { completed: true }
+			: {}),
+		...(settlement.reportFollowUp
+			? { report_follow_up: settlement.reportFollowUp }
 			: {}),
 	};
 }
@@ -186,7 +189,7 @@ export async function dispatchAgentWork(
 			} catch (cleanupError) {
 				throw new AggregateError(
 					[error, cleanupError],
-					"Delegation failed; temporary watch cleanup also failed",
+					"Delegation failed; temporary watch may remain",
 				);
 			}
 		}
@@ -217,7 +220,7 @@ export async function dispatchAgentWork(
 			runtime.monitor.releaseWorkClaim(attempt, error);
 		return {
 			...(receipt?.command ? { command: true } : {}),
-			warning: `Submitted, but monitoring refresh failed: ${error instanceof Error ? error.message : String(error)}. Inspect the target before resubmitting`,
+			warning: `Submitted; monitor refresh failed: ${error instanceof Error ? error.message : String(error)}. Do not resend; inspect the target`,
 		};
 	}
 	if (receipt?.command) return { command: true };

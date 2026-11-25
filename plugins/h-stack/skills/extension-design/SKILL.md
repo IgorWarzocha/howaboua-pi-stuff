@@ -1,15 +1,15 @@
 ---
 name: extension-design
 description: "Read before creating or refining a coding-agent extension."
-last-changed: "2026-09-29"
+last-changed: "2026-11-25"
 ---
 
 ## Choose the missing surface
 
-Use current harness docs and examples, not remembered APIs. Start from who initiates the workflow and what the harness or an existing CLI already does. Prefer a direct command or thin wrapper. An extension must need hooks, state, UI, or tool registration. Resolve an ambiguous product choice with the user, but implement an already specified or delegated shape without another approval round.
+Use current harness docs and examples, not remembered APIs. Start from who initiates the workflow, how often it runs, and what the harness or an existing CLI already does. Prefer a direct command or thin wrapper. An extension must need hooks, state, UI, or tool registration. Resolve an ambiguous product choice with the user, but implement an already specified or delegated shape without another approval round.
 
-- Users operate UI and slash commands. Agents use tools or discoverable CLIs. Do not mirror the two surfaces by default.
-- Keep rare user-invoked work out of permanent agent tools. Give the agent only choices it must make, not host policy or backend machinery.
+- Users operate UI and slash commands. Agents use tools or discoverable CLIs. Do not mirror the two surfaces by default. When both need the same operation, share its implementation and tailor each result to its audience.
+- A permanent agent tool must earn its model cost through repeated natural use or a needed capability the agent cannot otherwise reach. Keep rare user-invoked work out of permanent tools. Give the agent only choices it must make, not host policy or backend machinery.
 - Reuse the setup's navigation and settings patterns. Put related actions and persistent settings in one skimmable management surface. Configuration files are storage, not the interface.
 - Keep machinery proportional to the actual risks. Remove speculative modes, compatibility layers, and configuration. Agent results need useful state or a next action, not the surrounding workflow.
 
@@ -17,9 +17,9 @@ Load an applicable tool-design skill before changing an agent-facing tool. The R
 
 ## Validate the right surface
 
-Choose checks for concrete risks in the change, not a per-edit checklist. Routine wording edits do not require a behavioral study or an integration harness.
+Choose checks for concrete risks in the change, not a per-edit checklist. Routine wording edits do not require a behavioural study or an integration harness.
 
 - Before changing the live setup, test runtime changes locally. Consult current harness controls for isolation.
-- For tool-surface or prompt-assembly changes, inspect the affected emitted contracts and measure their token cost with existing tooling. Do not turn copy edits into whole-task performance comparisons.
-- When agent behavior needs evaluation, load an applicable instruction-calibration skill. Test natural use and the nearest non-use case with model, task, context, and harness version held fixed. Close finished test panes.
-- For activation, lifecycle, or extension-interoperability changes, check the affected workflow in the complete extension setup. Leave live activation to the user's existing authorization. Human UX acceptance still belongs to the user.
+- For tool-surface or prompt-assembly changes, inspect the contracts the model actually receives. If the change materially affects startup cost, measure equivalent first turns with and without it. Hold model, reasoning, task, context, and harness version fixed. Optimise for task success before token count. Routine copy edits need no comparison.
+- When agent behaviour needs evaluation, load an applicable instruction-calibration skill. Test natural use and the nearest non-use case with model, task, context, and harness version held fixed.
+- For activation, lifecycle, or extension-interoperability changes, check the affected workflow in the complete extension setup. Leave live activation to the user's existing authorisation. Let the user operate and judge the human interface in their normal workflow.

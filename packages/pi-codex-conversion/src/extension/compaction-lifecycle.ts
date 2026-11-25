@@ -1,8 +1,5 @@
-import type {
-	ExtensionAPI,
-	ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
-import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { resolveAdapterRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import {
 	hasPortableNativeCompactionSummary,
 	isNativeCompactionDetails,
@@ -11,7 +8,6 @@ import {
 	NATIVE_COMPACTION_PORTABLE_DISPLAY_TEXT,
 	NATIVE_COMPACTION_STRATEGY,
 	type NativeCompactionDisplayEntry,
-	type NativeCompactionUsage,
 } from "../adapter/compaction/types.ts";
 import { findLatestCompactionEntry } from "../adapter/compaction/details-store.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
@@ -34,7 +30,6 @@ export function createCodexCompactionLifecycle(
 	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
 	codeMode: CodeModeRegistration,
-	refreshNotebookStatus: (ctx: ExtensionContext) => Promise<boolean>,
 ) {
 	const { state } = runtime;
 	const stopWindowPreparation = registerContextWindowPreparation(
@@ -64,7 +59,7 @@ export function createCodexCompactionLifecycle(
 			// Compaction can resume this run without another agent_start.
 			runtime.suspendOrdinaryPrewarm();
 			state.cwd = ctx.cwd;
-			const plan = resolveCodexRuntimePlanForState(ctx, state);
+			const plan = resolveAdapterRuntimePlanForState(ctx, state);
 			if (event.reason !== "manual")
 				runtime.voice.announceContextTransition(event.reason);
 			const nativeCompaction = plan.nativeCompaction;
@@ -109,34 +104,35 @@ export function createCodexCompactionLifecycle(
 					isNativeCompactionDetails(compactionEntry.details)
 				) {
 					const details = compactionEntry.details;
+					const description = hasPortableNativeCompactionSummary(
+						compactionEntry,
+					)
+						? NATIVE_COMPACTION_PORTABLE_DISPLAY_TEXT
+						: NATIVE_COMPACTION_DISPLAY_TEXT;
+					const usage =
+						details.strategy === NATIVE_COMPACTION_STRATEGY
+							? details.usage
+							: undefined;
+					const cacheDiagnostic = usage
+						? formatCompactionCacheDiagnostic(usage, usage.diagnostic)
+						: undefined;
 					// Presentation entries persist and render without entering Pi's turn queue or LLM context.
 					pi.appendEntry<NativeCompactionDisplayEntry>(
 						NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
 						{
-							content: hasPortableNativeCompactionSummary(compactionEntry)
-								? NATIVE_COMPACTION_PORTABLE_DISPLAY_TEXT
-								: NATIVE_COMPACTION_DISPLAY_TEXT,
+							content:
+								usage && cacheDiagnostic
+									? `${description}\n\nCache read: ${((usage.cachedInputTokens / usage.inputTokens) * 100).toFixed(1)}% ${cacheDiagnostic}`
+									: description,
 							compactionEntryId: compactionEntry.id,
 						},
 					);
-					if (
-						details.strategy === NATIVE_COMPACTION_STRATEGY &&
-						details.usage
-					) {
-						pi.appendEntry<NativeCompactionDisplayEntry>(
-							NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
-							{
-								content: formatCompactionUsage(details.usage),
-								compactionEntryId: compactionEntry.id,
-								kind: "usage",
-							},
-						);
-					}
 				}
 				runtime.resetTransportForContextWindow(
 					ctx.sessionManager.getSessionId(),
 				);
-				await refreshNotebookStatus(ctx);
+				// A retained VM notice may predate bindings created in the compacted window.
+				if (state.bindingStatus?.kind === "vm") state.bindingStatus = undefined;
 				// Pi has not run the next context chain yet. Warm only its final request.
 				runtime.prepareTurn(ctx);
 				await runtime.voice.refreshRealtimeContext(ctx, state.config);
@@ -152,14 +148,4 @@ export function createCodexCompactionLifecycle(
 		failed: ExtensionHandler<SessionCompactFailedEvent>;
 		compacted: ExtensionHandler<SessionCompactEvent>;
 	};
-}
-
-function formatCompactionUsage(usage: NativeCompactionUsage): string {
-	const ratio =
-		usage.inputTokens > 0
-			? `${((usage.cachedInputTokens / usage.inputTokens) * 100).toFixed(1)}%`
-			: "0%";
-	const tokens = (value: number) => Math.round(value).toLocaleString("en-US");
-	const diagnostic = formatCompactionCacheDiagnostic(usage, usage.diagnostic);
-	return `Compaction V2 · input ${tokens(usage.inputTokens)} · cache read ${tokens(usage.cachedInputTokens)} (${ratio}) · cache write ${tokens(usage.cacheWriteInputTokens)} · output ${tokens(usage.outputTokens)}${diagnostic ? ` ${diagnostic}` : ""}`;
 }

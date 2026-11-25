@@ -1,24 +1,24 @@
 ---
 name: prompt-caching
 description: "Read before designing, measuring, or debugging prompt-cache behaviour in an agent harness or extension."
-last-changed: "2026-10-15"
+last-changed: "2026-11-25"
 ---
 
-Use provider-reported cache reads and writes as evidence. Continuation IDs, prewarm readiness, predictions, keys, and latency do not prove a hit. Verify the active endpoint and usage mapping rather than assuming public-API parity.
+Provider caching reuses prefill for an exact rendered prefix. Continuation carries conversation state. Prewarm prepares a request or connection. Prediction estimates reuse. Only provider-reported cache usage establishes a hit. Verify the active endpoint and usage mapping.
 
-Design for a small, stable static prefix before adding capabilities. Prefer deferred tool discovery, or one code-execution surface with a stable API, over loading every schema upfront. Keep available capabilities discoverable while revealing their current arguments on demand. Supply tool-specific instructions through supported mid-session system or developer messages, help, or tool results instead of rewriting the prefix. Do not preload instructions merely because a tool may become relevant later.
+Design for a small, stable static prefix before adding capabilities. Prefer code-mode or deferred tool discovery over loading every schema upfront. Keep available capabilities discoverable while revealing their current arguments on demand. Supply tool-specific instructions through supported mid-session system or developer messages, help, or tool results instead of rewriting the prefix. Do not preload instructions merely because a tool may become relevant later.
 
 ## Locate the first unexplained miss
 
-- For a reported miss, start with the transition and adjacent provider calls, not an aggregate hit ratio. Expand lifecycle coverage when shared state or an explicit audit requires it. An agent turn may contain several requests. Mark deliberate model, reasoning, mode, prompt, tool, compaction, and history boundaries first.
-- Compare final provider requests in order: system and developer instructions, ordered tool contracts, ordered input items and their identities, structured-output definitions, then lane and continuation properties. Session logs and source strings are not the wire payload.
+- For a reported miss, start with the transition and adjacent provider calls, not an aggregate hit ratio. Expand when shared state can affect the sequence. For a full audit, map the request lifecycle, including kickoff variants, queued and steered input, retries, prewarm, continuation, replay, and compaction. Record each affected call's trigger, lane, continuation state, uncached input, and cache reads and writes. Mark deliberate model, reasoning, mode, prompt, tool, compaction, and history boundaries first.
+- Compare final provider requests in order: system and developer instructions, ordered tool contracts, ordered input items and their identities, structured-output definitions, then lane and continuation properties. On a normal tool loop, expect the call and result to extend the logical history, even if continuation carries earlier items by reference. If earlier input changed, find the first changed item instead of blaming the visible tool. Session logs and source strings are not the wire payload.
 - Trace the first divergence backwards through the actual preparation and rewrite chain. Identify the owner and capture event of each consumed snapshot, its completed hooks, lane, consumers, and invalidators. Correct bytes captured before authoritative preparation are stale. Use the latest completed final request in the same lane, not session-start state. Guard against late asynchronous work overwriting a newer lane.
-- Adding context and starting a prepared run are different operations. Verify hook coverage for the implicated kickoff and queued paths. An idle check is not a reservation. Use an atomic route or revalidate at invocation.
+- Adding context and starting a prepared run are different operations. Verify hook coverage for the implicated kickoff and queued paths rather than inferring it from message role or visibility. An idle check is not a reservation. Use an atomic route or revalidate at invocation.
 - Prove the local mechanism in isolation, then exercise the affected multi-turn boundary in the user's complete extension setup. A later extension may change the same prompt, tools, or history.
 
 ## Preserve the right context
 
-- Prefer host state, UI, or a tool result over prompt mutation. Change only owned prompt fragments with deterministic, idempotent transforms. Preserve unrelated bytes and order. Fail visibly on absent or ambiguous anchors.
+- Prefer host state, UI, or a tool result over prompt mutation. Change only owned prompt fragments with deterministic, idempotent transforms. Keep stable guidance before volatile state where semantics permit. Preserve unrelated bytes and order. Fail visibly on absent or ambiguous anchors.
 - Never keep stale instructions or suppress useful tools for cache reuse. Treat intended prompt and tool changes as explained cold boundaries, not defects to conceal.
 - Never rewrite prior tool calls or results to integrate a capability. Append context or wait for an explicit history boundary. Preserve sent roles, types, IDs, tool pairing, order, and content. Apply provider conversions deterministically to a copy. Retain the actual sent representation for replay and compaction. Malformed-history repair must be canonical and explain its cold boundary.
 - Keep UI, persisted state, agent context, and provider input separate. A display flag does not establish model visibility. Use UI-only records for presentation and verify required provider exclusions survive prewarm, replay, resume, and compaction.

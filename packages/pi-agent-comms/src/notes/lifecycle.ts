@@ -217,12 +217,10 @@ export class NotesLifecycle {
 		parentCallId?: string,
 	): boolean {
 		if (this.newWindowRequests === "off")
-			throw new Error(
-				"New window requests are disabled. Continue in the current window.",
-			);
+			throw new Error("New context disabled. Continue here.");
 		if (!resume && !this.taskCompletionRollover)
 			throw new Error(
-				"Task-completion rollover is disabled. Continue here, or use new_context without resume: false.",
+				"Rollover without continuation disabled. Continue here or omit resume.",
 			);
 		if (this.checkpoint.pending || this.admission.pending) return false;
 		if (this.requests.pending) return false;
@@ -236,7 +234,7 @@ export class NotesLifecycle {
 			)
 		)
 			throw new Error(
-				"Save your progress in your own notes using a relative path, wait for the write to succeed, then call new_context next. Writing another agent's notes does not save your checkpoint.",
+				"Write or append to your own notes using a relative path. After success, call new_context next. Routed writes do not count.",
 			);
 		this.requests.schedule(ctx, handoff, resume);
 		return true;

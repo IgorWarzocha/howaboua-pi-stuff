@@ -2,7 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import type { RealtimePeerPlan, VoiceControllerRuntime } from "./start.ts";
 import type { VoiceSession } from "./support.ts";
-import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import type { RealtimeConversation } from "../conversation/session.ts";
 import type { CodexVoiceSessionMessages } from "../session-messages.ts";
 
 interface RealtimeReconnectCallbacks {
@@ -16,14 +16,14 @@ interface RealtimeReconnectCallbacks {
 		config: CodexConversionConfig,
 		plan: RealtimePeerPlan | undefined,
 		inputMuted: boolean,
-	): Promise<CodexRealtimeConversation | undefined>;
+	): Promise<RealtimeConversation | undefined>;
 }
 
 /** Replaces an established realtime call without transferring LAN ownership. */
 export function resumeDroppedConversation(options: {
 	runtime: VoiceControllerRuntime;
 	messages: CodexVoiceSessionMessages;
-	session: CodexRealtimeConversation;
+	session: RealtimeConversation;
 	error: Error;
 	callbacks: RealtimeReconnectCallbacks;
 }): void {
@@ -59,7 +59,7 @@ export function resumeDroppedConversation(options: {
 			wasMuted,
 		);
 		const replacementGeneration = runtime.startGeneration;
-		let resumed: CodexRealtimeConversation | undefined;
+		let resumed: RealtimeConversation | undefined;
 		try {
 			resumed = await resumePromise;
 		} catch (resumeError) {
@@ -86,7 +86,7 @@ export function resumeDroppedConversation(options: {
 
 export function markRealtimePeerInactive(
 	runtime: VoiceControllerRuntime,
-	session: CodexRealtimeConversation,
+	session: RealtimeConversation,
 	error: Error,
 	resuming: boolean,
 	plan = runtime.realtimePeerPlan,

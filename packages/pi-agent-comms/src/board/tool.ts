@@ -1,10 +1,8 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
-import { compile } from "@earendil-works/pi-schema";
-import { BoardParameters, prepareBoardArguments } from "./contract.js";
+import type { Static } from "@earendil-works/pi-schema";
+import { BoardParameters, parseBoardRequest } from "./contract.js";
 import { serializeBoardToolResult } from "./response.js";
 import type { BoardRuntime } from "./runtime/coordinator.js";
-
-const boardParametersValidator = compile(BoardParameters);
 
 export function createBoardTool(board: BoardRuntime) {
 	return defineTool({
@@ -12,19 +10,22 @@ export function createBoardTool(board: BoardRuntime) {
 		label: "Message board",
 		description: "Shared discussions and saved board history",
 		parameters: BoardParameters,
-		prepareArguments: prepareBoardArguments,
+		prepareArguments: parseBoardRequest,
 		executionMode: "sequential",
-		async execute(id, params, signal, _onUpdate, ctx) {
+		async execute(
+			id,
+			params: Static<typeof BoardParameters>,
+			signal,
+			_onUpdate,
+			ctx,
+		) {
 			signal?.throwIfAborted();
-			const prepared = prepareBoardArguments(params);
-			if (!boardParametersValidator.check(prepared))
-				throw new Error("Invalid board request; call board help");
-			const value = await board.execute(ctx, prepared, id);
+			const value = await board.execute(ctx, params, id);
 			return {
 				content: [
 					{
 						type: "text",
-						text: serializeBoardToolResult(value, prepared.action),
+						text: serializeBoardToolResult(value, params.action),
 					},
 				],
 				details: {},

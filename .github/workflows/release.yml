@@ -38,6 +38,8 @@ jobs:
           node-version-file: .node-version
           registry-url: https://registry.npmjs.org
       - uses: oven-sh/setup-bun@v2
+      - name: Require the latest released Pi SDK
+        run: node scripts/pi-sdk-policy.mjs --latest
       # npm provides its bundled node-gyp before Bun starts native install hooks.
       - run: npm run install:ci
       # Sandbox's optional Code integration and other package checks import Codex dist.
@@ -59,6 +61,9 @@ jobs:
           create-github-releases: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Verify npm downloads
+        if: steps.changesets.outputs.has-changesets == 'false'
+        run: node scripts/verify-release-downloads.mjs
       - name: Delete Changesets release branch after publish
         if: steps.changesets.outputs.published == 'true'
         run: git push origin --delete changeset-release/main || true

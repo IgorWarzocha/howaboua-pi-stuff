@@ -156,9 +156,7 @@ function readPendingMessage(value: unknown): PendingMessage {
 				queued: "queued" in value && value.queued === true,
 			};
 	}
-	throw new Error(
-		"Stored pending coordination is invalid. Reload a valid session before continuing.",
-	);
+	throw new Error("Invalid pending coordination. Reload a valid session.");
 }
 
 export function sendPolicyMessage(

@@ -9,7 +9,7 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import { deserialize, serialize } from "node:v8";
-import { acquireDirectoryLock } from "../code-mode/directory-lock.ts";
+import { acquireDirectoryLock } from "./directory-lock.ts";
 import {
 	compactState,
 	emptyState,

@@ -4,7 +4,13 @@ import type { BoardParams } from "./contract.js";
 // Includes UTF-8 text, JSON escaping and metadata, in every tool mode.
 const MAX_RESPONSE_BYTES = 8000;
 
-export function serializeBoardResult(value: unknown): string {
+const MUTATION_BUDGET_ERROR =
+	"Board acknowledgement exceeds budget. No change.";
+
+export function serializeBoardResult(
+	value: unknown,
+	beforeCommit = false,
+): string {
 	const text = JSON.stringify(value, (key, entry) =>
 		(key === "created_at" || key === "last_activity_at") &&
 		typeof entry === "string"
@@ -13,7 +19,9 @@ export function serializeBoardResult(value: unknown): string {
 	);
 	if (Buffer.byteLength(text) > MAX_RESPONSE_BYTES)
 		throw new Error(
-			"Result exceeds the output budget. Reduce limit or max_chars_per_post; use read_post with a smaller limit_chars for long posts.",
+			beforeCommit
+				? MUTATION_BUDGET_ERROR
+				: "Board result exceeds budget. Reduce limit, max_chars_per_post, or read_post limit_chars.",
 		);
 	return text;
 }
@@ -45,9 +53,7 @@ export function checkMutationBudget(caller: string, params: BoardParams) {
 		2048 + Buffer.byteLength(caller) + Buffer.byteLength(target) >
 		MAX_RESPONSE_BYTES
 	)
-		throw new Error(
-			"Output budget is too small to acknowledge a message-board mutation; no change was made.",
-		);
+		throw new Error(MUTATION_BUDGET_ERROR);
 }
 
 export function boundedBoardRead<T extends { value: unknown }>(
@@ -76,7 +82,7 @@ export function boundedBoardRead<T extends { value: unknown }>(
 			return result;
 		if (Math.floor(largest / scale) <= 1)
 			throw new Error(
-				"The output budget is too small for this result's metadata.",
+				"Board metadata exceeds budget even on the smallest page.",
 			);
 	}
 }

@@ -1,23 +1,27 @@
 import type { ToolDetailsMode } from "../../adapter/activation/config-contract.ts";
-import { OpaqueResultState } from "./opaque-result-state.ts";
+import { OpaqueResultState } from "../code-mode/opaque-result-state.ts";
 import type {
 	ExtensionContext,
 	ToolLoadout,
 	ToolLoadoutChanges,
 } from "@earendil-works/pi-coding-agent";
-import { ensureCodeModeHostBinary } from "./binary.js";
-import { CodeModeHostClient } from "./host-client.js";
-import { createNotebookControlProxy } from "./notebook-tool.ts";
-import { codeModeGlobalName } from "./tool-identity.ts";
-import { CodeModeNestedRenderStore } from "./trace-render-state.js";
-import { prepareCodeModeToolInput } from "./tool-input.ts";
+import { ensureCodeModeHostBinary } from "../code-mode/binary.js";
+import { CodeModeHostClient } from "../code-mode/host-client.js";
+import { createNotebookControlProxy } from "../ts-mode/notebook-tool.ts";
+import { codeModeGlobalName } from "../code-mode/tool-identity.ts";
+import { CodeModeNestedRenderStore } from "../code-mode/trace-render-state.js";
+import { prepareCodeModeToolInput } from "../code-mode/tool-input.ts";
+import {
+	formatVmBindingInventory,
+	type VmBindingInventory,
+} from "../vm-mode/binding-inventory.ts";
 import type {
 	CodeModeToolDefinition,
 	NotebookControlRequest,
 	NotebookControlResult,
 	RuntimeResponse,
 	ToolExecutionContext,
-} from "./types.js";
+} from "../code-mode/types.js";
 
 export type CodeModeExecutionKind = "code" | "ts" | "vm";
 
@@ -31,7 +35,7 @@ export interface OpaqueContextGuard {
 	resolveScope(): Promise<string>;
 }
 
-export interface NotebookRuntimeOptions {
+export interface ExecutionClientOptions {
 	maxHeapMiB: number;
 	agentDir: string;
 	profile?: string | undefined;
@@ -66,6 +70,7 @@ export interface CodeModeExecutionClient {
 		signal?: AbortSignal,
 	): Promise<RuntimeResponse>;
 	checkpoint?(): Promise<void>;
+	bindingInventory?(context: ToolExecutionContext): Promise<VmBindingInventory>;
 	controlNotebook?(
 		request: NotebookControlRequest,
 		context: ToolExecutionContext,
@@ -80,10 +85,11 @@ export interface CodeModeToolProvider {
 	prepareLoadout?(loadout: ToolLoadout): ToolLoadoutChanges | undefined;
 	documentationPath?: string | undefined;
 	isActive?(ctx: unknown): boolean;
+	heavySystemPromptOverwrite?(): boolean;
 	providesRenderers?: boolean | undefined;
 	toolDetails?(): ToolDetailsMode;
 	executionKind?(ctx: unknown): CodeModeExecutionKind;
-	notebookOptions?(ctx: unknown): NotebookRuntimeOptions;
+	executionClientOptions?(ctx: unknown): ExecutionClientOptions;
 	opaqueResultScope?(ctx: ExtensionContext): Promise<string>;
 	lazyOpaqueResultScope?(): boolean;
 	deliverOpaqueResponse?(
@@ -134,6 +140,12 @@ export class SharedCodeModeRuntime {
 				(client) => client.clearOpaqueResults?.(),
 				() => undefined,
 			);
+	}
+
+	heavySystemPromptOverwrite(ctx: ExtensionContext): boolean {
+		return this.activeProviders(ctx).some((provider) =>
+			provider.heavySystemPromptOverwrite?.(),
+		);
 	}
 
 	private opaqueOwner(ctx: ExtensionContext): string {
@@ -277,8 +289,8 @@ export class SharedCodeModeRuntime {
 		kind: Exclude<CodeModeExecutionKind, "code">,
 	): Promise<CodeModeExecutionClient> {
 		const options = this.activeProviders(ctx)
-			.find((provider) => provider.notebookOptions)
-			?.notebookOptions?.(ctx);
+			.find((provider) => provider.executionClientOptions)
+			?.executionClientOptions?.(ctx);
 		if (!options)
 			return Promise.reject(
 				new Error("Execution settings are unavailable. Reload Pi and retry."),
@@ -311,8 +323,8 @@ export class SharedCodeModeRuntime {
 									new VmCodeClient(clientOptions, this.renderStore),
 							)
 						: import("../ts-mode/client.ts").then(
-								({ TsCodeModeClient }) =>
-									new TsCodeModeClient(clientOptions, this.renderStore),
+								({ TsNotebookClient }) =>
+									new TsNotebookClient(clientOptions, this.renderStore),
 							);
 				this.runtimeClientPromise = pending;
 				this.runtimeClientOptionsKey = key;
@@ -343,6 +355,29 @@ export class SharedCodeModeRuntime {
 		await client.checkpoint?.();
 	}
 
+	async vmBindingStatus(
+		ctx: ExtensionContext,
+	): Promise<{ content: string; reset: boolean }> {
+		if (this.executionKind(ctx) !== "vm")
+			throw new Error("VM binding status requires VM Code");
+		const client = await this.getRuntimeClient(ctx, "vm");
+		if (!client.bindingInventory)
+			throw new Error("VM binding status unavailable");
+		const inventory = await client.bindingInventory({
+			cwd: ctx.cwd,
+			extensionContext: ctx,
+		});
+		return {
+			content: formatVmBindingInventory(
+				inventory,
+				inventory.kind === "bindings" &&
+					inventory.warn &&
+					this.heavySystemPromptOverwrite(ctx),
+			),
+			reset: inventory.kind === "reset",
+		};
+	}
+
 	async controlNotebook(
 		request: NotebookControlRequest,
 		context: ToolExecutionContext,
@@ -350,7 +385,7 @@ export class SharedCodeModeRuntime {
 	): Promise<NotebookControlResult> {
 		const kind = this.executionKind(context.extensionContext);
 		if (kind !== "ts") {
-			throw new Error("Notebook controls require TS mode");
+			throw new Error("Notebook controls require TS Notebook");
 		}
 		const client = await this.getRuntimeClient(context.extensionContext, kind);
 		if (!client.controlNotebook)
@@ -435,7 +470,7 @@ function collectUniqueTools(
 				continue;
 			if (previous.name !== tool.name) {
 				throw new Error(
-					`Code Mode tool names ${previous.name} and ${tool.name} both translate to ${globalName}`,
+					`Nested tool names ${previous.name} and ${tool.name} both translate to ${globalName}`,
 				);
 			}
 			throw new Error(`Duplicate code-mode tool: ${tool.name}`);

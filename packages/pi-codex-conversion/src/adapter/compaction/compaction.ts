@@ -20,12 +20,13 @@ import {
 	hasPortableNativeCompactionSummary,
 	NATIVE_COMPACTION_SHIM_SUMMARY,
 } from "./types.ts";
-import { isResponsesContext } from "../prompt/codex-model.ts";
+import { isResponsesContext } from "../prompt/model-support.ts";
 import {
-	isCodeModeRuntime,
-	resolveCodexRuntimePlanForState,
+	usesExecTools,
+	resolveAdapterRuntimePlanForState,
 } from "../activation/runtime-plan.ts";
 import type { AdapterState } from "../activation/state.ts";
+import { hiddenPiReplacementToolNames } from "../activation/tool-set.ts";
 import { executeRemoteCompactionV2 } from "./remote-v2-client.ts";
 import { buildRemoteCompactionV2Window } from "./remote-v2-history.ts";
 import { CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../../tools/code-mode/exec-contract.ts";
@@ -95,10 +96,10 @@ async function compactWithPiSummary(
 			)
 		: false;
 	const headers = { ...auth.headers };
-	const codexTransport = resolveCodexRuntimePlanForState(
+	const codexTransport = resolveAdapterRuntimePlanForState(
 		ctx,
 		state,
-	).effectiveOpenAICodex;
+	).codexOrConfiguredResponses;
 	if (codexTransport) rewriteRelationshipHeaders(headers, ctx);
 	try {
 		const result = await runPortablePiCompaction(
@@ -138,7 +139,7 @@ export async function handleCodexSessionBeforeCompact(
 	state: AdapterState,
 	pi: ExtensionAPI,
 ) {
-	const plan = resolveCodexRuntimePlanForState(ctx, state);
+	const plan = resolveAdapterRuntimePlanForState(ctx, state);
 	try {
 		if (event.signal.aborted) return { cancel: true };
 		// Compaction preparation is authoritative; never rebuild behind its edits.
@@ -172,8 +173,8 @@ async function handleCodexSessionBeforeCompactInner(
 	pi: ExtensionAPI,
 	branchEntries: SessionEntry[],
 ) {
-	const plan = resolveCodexRuntimePlanForState(ctx, state);
-	if (!plan.effectiveOpenAICodex && !isResponsesContext(ctx)) {
+	const plan = resolveAdapterRuntimePlanForState(ctx, state);
+	if (!plan.codexOrConfiguredResponses && !isResponsesContext(ctx)) {
 		ctx.ui.notify(
 			"OpenAI native compaction is enabled, but the current model is not Responses-compatible; Pi compaction was not run.",
 			"error",
@@ -260,9 +261,14 @@ async function handleCodexSessionBeforeCompactInner(
 			);
 		}
 	}
-	const codeMode = isCodeModeRuntime(plan);
+	const execToolsActive = usesExecTools(plan);
+	const responsesFormat = plan.responsesFormat ?? "responses";
 	const serializationOptions: SerializeResponsesMessagesOptions = {
-		...(plan.transport === "responses-lite"
+		hiddenToolNames: hiddenPiReplacementToolNames(
+			state.appliedRuntimeKind,
+			pi.getActiveTools(),
+		),
+		...(responsesFormat === "responses-lite"
 			? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS }
 			: {}),
 	};
@@ -271,7 +277,7 @@ async function handleCodexSessionBeforeCompactInner(
 		ctx,
 		state,
 		compactionTargetModel,
-		codeMode,
+		execToolsActive,
 		branchEntries,
 	);
 	const builtInput = buildNativeCompactionInput({
@@ -292,7 +298,7 @@ async function handleCodexSessionBeforeCompactInner(
 	const canonicalReplay =
 		runtime.codexTransport && runtime.apiKey
 			? await resolveCanonicalCompactionReplay({
-					codeMode,
+					responsesFormat,
 					sessionId: ctx.sessionManager.getSessionId(),
 					model: runtime.model,
 					identity: {
@@ -337,8 +343,8 @@ async function handleCodexSessionBeforeCompactInner(
 		ctx,
 		state,
 		runtime,
-		plan.transport === "responses-lite" ? "responses-lite" : "responses",
-		codeMode,
+		responsesFormat,
+		execToolsActive,
 		branchEntries,
 	);
 	const compactResult = await executeRemoteCompactionV2({
@@ -389,7 +395,7 @@ async function handleCodexSessionBeforeCompactInner(
 			compactedWindow,
 			compactResponseId: compactResult.responseId,
 			createdAt: compactResult.createdAt,
-			usage: compactResult.usage,
+			usage: compactResult.usage?.details,
 			requestMeta: {
 				tokensBefore: event.preparation.tokensBefore,
 				previousSummaryPresent: Boolean(event.preparation.previousSummary),
@@ -402,7 +408,8 @@ async function handleCodexSessionBeforeCompactInner(
 				firstKeptEntryId: event.preparation.firstKeptEntryId,
 				tokensBefore: event.preparation.tokensBefore,
 				details,
-				usage: portableCompaction?.usage,
+				nativeUsage: compactResult.usage?.accounting,
+				portableUsage: portableCompaction?.usage,
 			}),
 		};
 	} catch {
