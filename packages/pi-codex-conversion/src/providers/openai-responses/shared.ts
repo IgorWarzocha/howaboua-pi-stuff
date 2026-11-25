@@ -353,21 +353,24 @@ export function convertResponsesMessages<TApi extends Api>(
 						(isSameModel || anchoredToolNames.has(block.name)
 							? block.namespace
 							: undefined);
+					// A full replay must match the completed calls retained by WebSocket continuation.
+					const replayedCall = {
+						...(itemId ? { id: itemId } : {}),
+						call_id: callId,
+						name: wireCall.name,
+						status: "completed" as const,
+						...(namespace !== undefined ? { namespace } : {}),
+					};
 					output.push(
 						customInputProperty === undefined
 							? ({
 									type: "function_call",
-									...(itemId ? { id: itemId } : {}),
-									call_id: callId,
-									name: wireCall.name,
+									...replayedCall,
 									arguments: JSON.stringify(wireCall.arguments),
-									...(namespace !== undefined ? { namespace } : {}),
 								} as ResponseInput[number])
 							: ({
 									type: "custom_tool_call",
-									...(itemId ? { id: itemId } : {}),
-									call_id: callId,
-									name: wireCall.name,
+									...replayedCall,
 									input: sanitizeSurrogates(
 										getGrammarToolInput(
 											block.name,
@@ -375,7 +378,6 @@ export function convertResponsesMessages<TApi extends Api>(
 											customInputProperty,
 										),
 									),
-									...(namespace !== undefined ? { namespace } : {}),
 								} as ResponseInput[number]),
 					);
 				}

@@ -13,6 +13,6 @@
     "@howaboua/pi-codex-conversion": ">=3.0.24"
   },
   "dependencies": {
-    "@earendil-works/pi-schema": "1.6.0"
+    "@earendil-works/pi-schema": "1.6.1"
   }
 }

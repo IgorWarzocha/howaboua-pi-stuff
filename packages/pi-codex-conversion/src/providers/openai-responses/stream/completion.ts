@@ -1,4 +1,5 @@
 import {
+	appendAssistantMessageDiagnostic,
 	calculateCost,
 	type Api,
 	type AssistantMessage,
@@ -18,6 +19,8 @@ export function completeResponsesOutput<TApi extends Api>(
 	const { output, outputStates, options } = state;
 	const response = event.response;
 	if (response?.id) output.responseId = response.id;
+	if (response && "input_transformations" in response)
+		recordReasoningRemovals(output, response.input_transformations);
 	if (response?.usage) {
 		const inputDetails = response.usage.input_tokens_details as
 			| { cached_tokens?: number; cache_write_tokens?: number }
@@ -77,6 +80,38 @@ export function completeResponsesOutput<TApi extends Api>(
 		output.errorMessage =
 			"Invalid Responses tool stream: response ended with an unfinished tool call";
 	}
+}
+
+function recordReasoningRemovals(
+	output: AssistantMessage,
+	transformations: unknown,
+): void {
+	if (!Array.isArray(transformations)) return;
+	const removals = (transformations as unknown[]).flatMap((item) => {
+		if (!item || typeof item !== "object") return [];
+		const { type, action, reason, id } = item as Record<string, unknown>;
+		// Older models routinely drop earlier turns by design.
+		if (
+			type !== "reasoning" ||
+			action !== "removed" ||
+			reason === "turn_boundary"
+		)
+			return [];
+		return [
+			{
+				type,
+				action,
+				...(typeof id === "string" ? { id } : {}),
+				...(typeof reason === "string" ? { reason } : {}),
+			},
+		];
+	});
+	if (removals.length > 0)
+		appendAssistantMessageDiagnostic(output, {
+			type: "openai_input_transformations",
+			timestamp: Date.now(),
+			details: { transformations: removals },
+		});
 }
 
 function mapStopReason(

@@ -30,9 +30,9 @@
     ]
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=1.6.0",
-    "@earendil-works/pi-ai": ">=1.6.0",
-    "@earendil-works/pi-tui": ">=1.6.0"
+    "@earendil-works/pi-coding-agent": ">=1.6.1",
+    "@earendil-works/pi-ai": ">=1.6.1",
+    "@earendil-works/pi-tui": ">=1.6.1"
   },
   "scripts": {
     "check": "bun run lint && bun run typecheck",

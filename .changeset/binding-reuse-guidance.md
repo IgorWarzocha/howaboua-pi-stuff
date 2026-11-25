@@ -12,3 +12,4 @@
 - VM Code shows persistent binding names after context rollover. VM Code and TS Notebook require one-off declarations in a block and explain how to replace retained values without redeclaring them.
 - Code Mode results show nested tool failures even when the cell handles them. `apply_patch` guidance now requires file-ordered, non-overlapping hunks.
 - Shell, Code and TS Notebook status and recovery messages are shorter. Running shell notices explain that completion reports automatically when idle and that separate status commands and log-check loops are unnecessary.
+- Fixed a tool-call replay mismatch that could make GPT-6.2 drop replayed reasoning after a WebSocket reconnect. Pi's optional reasoning-drop notices now also report removals from PCC Responses streams.

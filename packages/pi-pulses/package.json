@@ -19,7 +19,7 @@
     "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=1.6.0",
+    "@earendil-works/pi-coding-agent": ">=1.6.1",
     "@howaboua/pi-codex-conversion": ">=5.1.0",
     "@howaboua/pi-shepherdr": "*"
   },
@@ -32,6 +32,6 @@
     }
   },
   "dependencies": {
-    "@earendil-works/pi-schema": "1.6.0"
+    "@earendil-works/pi-schema": "1.6.1"
   }
 }
