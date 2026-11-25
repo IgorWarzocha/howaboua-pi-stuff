@@ -82,8 +82,13 @@ export async function recordBindingStatus(
 				message.details.id === previous.id,
 		);
 	if (previousVisible) return false;
-	const { content, title } = await sampleBindingStatus(ctx, kind, codeMode);
 	ctx.signal?.throwIfAborted();
+	const { content, title, reset } = await sampleBindingStatus(
+		ctx,
+		kind,
+		codeMode,
+	);
+	if (!reset) ctx.signal?.throwIfAborted();
 	const status: BindingStatus = {
 		protocol: 1,
 		id: randomUUID(),
@@ -93,6 +98,8 @@ export async function recordBindingStatus(
 	// Durable at admission even during a live run; entry rendering owns the same UI notice.
 	pi.appendEntry(customType, status);
 	state.bindingStatus = { kind, id: status.id };
+	// A reset that already cleared bindings needs a durable receipt even if this turn was cancelled.
+	if (reset) ctx.signal?.throwIfAborted();
 	return true;
 }
 
@@ -100,13 +107,15 @@ async function sampleBindingStatus(
 	ctx: ExtensionContext,
 	kind: BindingStatusKind,
 	codeMode: Pick<CodeModeRegistration, "notebookStatus" | "vmBindingStatus">,
-): Promise<Pick<BindingStatus, "title" | "content">> {
+): Promise<Pick<BindingStatus, "title" | "content"> & { reset?: boolean }> {
 	try {
-		if (kind === "vm")
+		if (kind === "vm") {
+			const status = await codeMode.vmBindingStatus(ctx);
 			return {
-				title: `${EXECUTION_MODE_LABELS.vm} bindings`,
-				content: await codeMode.vmBindingStatus(ctx),
+				title: `${EXECUTION_MODE_LABELS.vm} ${status.reset ? "reset" : "bindings"}`,
+				...status,
 			};
+		}
 		const status = await codeMode.notebookStatus(ctx);
 		const inventory = status.details["startupStatus"] ?? status.message;
 		const content = [status.details["startupNotice"], inventory]

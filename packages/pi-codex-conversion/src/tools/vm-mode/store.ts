@@ -1,6 +1,6 @@
 import { VM_STORE_TOTAL_MAX, VM_STORE_VALUE_MAX } from "./limits.ts";
 
-/** Host-owned JSON, separate from guest bindings and retained only on deliberate restart. */
+/** Host-owned JSON, separate from guest bindings and retained across in-session restarts. */
 export class VmStore {
 	private readonly values = new Map<string, string>();
 

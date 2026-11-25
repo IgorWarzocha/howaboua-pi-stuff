@@ -34,7 +34,9 @@ export interface CodeModeRegistration {
 	getTools(ctx?: unknown): CodeModeToolDefinition[];
 	getPromptTools(ctx?: unknown): CodeModeToolDefinition[];
 	notebookStatus(ctx: ExtensionContext): Promise<NotebookControlResult>;
-	vmBindingStatus(ctx: ExtensionContext): Promise<string>;
+	vmBindingStatus(
+		ctx: ExtensionContext,
+	): ReturnType<SharedCodeModeRuntime["vmBindingStatus"]>;
 	checkpointNotebook(): Promise<void>;
 	shutdownHost(): Promise<void>;
 	shutdown(): Promise<void>;

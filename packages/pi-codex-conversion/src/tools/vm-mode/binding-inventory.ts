@@ -1,14 +1,16 @@
 import { VM_RESET_EXEC } from "../code-mode/exec-contract.ts";
 
-export interface VmBindingInventory {
-	names: string[];
-	warn: boolean;
-}
+export type VmBindingInventory =
+	| { kind: "bindings"; names: string[]; warn: boolean }
+	| { kind: "reset"; storedKeysSummary: string };
 
 export function formatVmBindingInventory(
-	{ names, warn }: VmBindingInventory,
+	status: VmBindingInventory,
 	heavySystemPromptOverwrite: boolean,
 ): string {
+	if (status.kind === "reset")
+		return `VM reset automatically at critical memory pressure. All bindings cleared. ${status.storedKeysSummary}`;
+	const { names, warn } = status;
 	const shown: string[] = [];
 	let length = 0;
 	for (const name of names) {

@@ -355,7 +355,9 @@ export class SharedCodeModeRuntime {
 		await client.checkpoint?.();
 	}
 
-	async vmBindingStatus(ctx: ExtensionContext): Promise<string> {
+	async vmBindingStatus(
+		ctx: ExtensionContext,
+	): Promise<{ content: string; reset: boolean }> {
 		if (this.executionKind(ctx) !== "vm")
 			throw new Error("VM binding status requires VM Code");
 		const client = await this.getRuntimeClient(ctx, "vm");
@@ -365,10 +367,15 @@ export class SharedCodeModeRuntime {
 			cwd: ctx.cwd,
 			extensionContext: ctx,
 		});
-		return formatVmBindingInventory(
-			inventory,
-			inventory.warn && this.heavySystemPromptOverwrite(ctx),
-		);
+		return {
+			content: formatVmBindingInventory(
+				inventory,
+				inventory.kind === "bindings" &&
+					inventory.warn &&
+					this.heavySystemPromptOverwrite(ctx),
+			),
+			reset: inventory.kind === "reset",
+		};
 	}
 
 	async controlNotebook(

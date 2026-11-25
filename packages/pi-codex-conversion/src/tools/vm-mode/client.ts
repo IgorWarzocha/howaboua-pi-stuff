@@ -220,11 +220,25 @@ export class VmCodeClient implements CodeModeExecutionClient {
 	async bindingInventory(
 		context: ToolExecutionContext,
 	): Promise<VmBindingInventory> {
-		return this.withConversation(context, undefined, async () => {
+		const signal = context.extensionContext?.signal;
+		return this.withConversation(context, signal, async () => {
 			const kernel = this.kernel;
-			if (!kernel || kernel.failed) return { names: [], warn: false };
+			if (!kernel || kernel.failed)
+				return { kind: "bindings", names: [], warn: false };
 			const { names, memoryUsedBytes } = await kernel.bindings();
+			signal?.throwIfAborted();
+			if (
+				kernel === this.kernel &&
+				!this.active &&
+				!this.closing &&
+				this.pressure.shouldRestart(memoryUsedBytes)
+			)
+				return {
+					kind: "reset",
+					storedKeysSummary: await this.restartKernel(),
+				};
 			return {
+				kind: "bindings",
 				names,
 				warn: kernel === this.kernel && this.pressure.observe(memoryUsedBytes),
 			};
@@ -344,10 +358,16 @@ export class VmCodeClient implements CodeModeExecutionClient {
 		await kernel?.stop();
 	}
 
-	private async restart(): Promise<RuntimeResponse> {
-		// Unlike lifecycle teardown, an intentional restart keeps the bounded host-side store.
+	private async restartKernel(): Promise<string> {
+		// Both restart paths keep the bounded conversation store; teardown does not.
+		const storedKeysSummary = this.store.describeRetainedKeys();
 		this.switching = this.stopKernel();
 		await this.switching;
+		return storedKeysSummary;
+	}
+
+	private async restart(): Promise<RuntimeResponse> {
+		const storedKeysSummary = await this.restartKernel();
 		return {
 			kind: "result",
 			cellId: `vm-${randomUUID()}`,
@@ -355,7 +375,7 @@ export class VmCodeClient implements CodeModeExecutionClient {
 			contentItems: [
 				{
 					type: "input_text",
-					text: `VM reset. All bindings cleared. ${this.store.describeRetainedKeys()}`,
+					text: `VM reset. All bindings cleared. ${storedKeysSummary}`,
 				},
 			],
 		};
