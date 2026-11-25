@@ -38,7 +38,7 @@
     "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'"
   },
   "peerDependencies": {
-    "@howaboua/pi-codex-conversion": ">=5.1.1",
+    "@howaboua/pi-codex-conversion": ">=5.1.2",
     "@earendil-works/pi-coding-agent": ">=1.6.1",
     "@earendil-works/pi-tui": ">=1.6.1"
   },
@@ -48,7 +48,7 @@
     }
   },
   "devDependencies": {
-    "@howaboua/pi-codex-conversion": "5.1.1",
+    "@howaboua/pi-codex-conversion": "5.1.2",
     "@earendil-works/pi-coding-agent": "1.6.1",
     "@earendil-works/pi-tui": "1.6.1",
     "@types/node": "26.6.6",

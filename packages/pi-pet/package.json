@@ -79,7 +79,7 @@
     "@howaboua/pi-gippity-control": ">=0.0.35",
     "@earendil-works/pi-coding-agent": ">=1.6.1",
     "@earendil-works/pi-tui": ">=1.6.1",
-    "@howaboua/pi-codex-conversion": ">=5.1.1"
+    "@howaboua/pi-codex-conversion": ">=5.1.2"
   },
   "peerDependenciesMeta": {
     "@howaboua/pi-gippity-control": {
@@ -96,7 +96,7 @@
     "electron": "44.10.2",
     "knip": "^6.45.0",
     "typescript": "^7.0.2",
-    "@howaboua/pi-codex-conversion": "5.1.1",
+    "@howaboua/pi-codex-conversion": "5.1.2",
     "oxfmt": "^0.78.0",
     "tsrs": "7.1.0-beta.tsrs5",
     "oxlint": "1.94.0",
