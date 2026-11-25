@@ -38,9 +38,7 @@ export function registerCodeModeEvents(
 					event.systemPromptOptions.selectedTools.includes(name),
 				),
 			executionKind,
-			activeProviders.some((provider) =>
-				provider.heavySystemPromptOverwrite?.(),
-			),
+			runtime.heavySystemPromptOverwrite(ctx),
 		);
 		return undefined;
 	});

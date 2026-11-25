@@ -174,4 +174,15 @@ export function registerCodexEvents(
 	pi.on("session_compact_failed", compaction.failed);
 	pi.on("session_compact", compaction.compacted);
 	pi.on("context_with_system", turn.contextWithSystem);
+	pi.on("tool_result", (event) => {
+		if (
+			event.toolName === "exec" &&
+			event.details &&
+			typeof event.details === "object" &&
+			"vmReset" in event.details &&
+			event.details.vmReset === true &&
+			state.bindingStatus?.kind === "vm"
+		)
+			state.bindingStatus = undefined;
+	});
 }

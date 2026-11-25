@@ -198,7 +198,7 @@ async function openMode(
 		};
 	if (mode === "TS Notebook") return { code: new TsNotebookClient(options) };
 	const vm = new VmCodeClient(options);
-	return { code: vm, workerHeap: async () => (await vm.sample())?.heapUsed };
+	return { code: vm, workerHeap: async () => vm.sampleHeapUsedBytes() };
 }
 
 const MODES = ["Code", "TS Notebook", "VM Code"];

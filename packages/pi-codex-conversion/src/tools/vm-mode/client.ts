@@ -22,9 +22,12 @@ import type {
 } from "../code-mode/types.ts";
 import { RuntimeCell } from "../code-mode/runtime-cell.ts";
 import { executionSessionIdentity } from "../code-mode/session-identity.ts";
+import type { VmBindingInventory } from "./binding-inventory.ts";
 import { VmKernel } from "./kernel.ts";
-import { VM_STORE_TOTAL_MAX, VM_STORE_VALUE_MAX, vmHeapMiB } from "./limits.ts";
-import type { VmMemory, VmTool } from "./protocol.ts";
+import { vmHeapMiB } from "./limits.ts";
+import { VmMemoryPressure } from "./memory-pressure.ts";
+import type { VmTool } from "./protocol.ts";
+import { VmStore } from "./store.ts";
 
 interface Execution {
 	cell: RuntimeCell;
@@ -42,13 +45,13 @@ const RESET = "VM Code reset and dropped conversation bindings";
 export class VmCodeClient implements CodeModeExecutionClient {
 	private readonly delegate: CodeModeDelegateRuntime;
 	private readonly heapMiB: number;
+	private readonly pressure: VmMemoryPressure;
 	private kernel: VmKernel | undefined;
 	private active: Execution | undefined;
 	private identity: string | undefined;
-	private readonly stored = new Map<string, string>();
+	private readonly store = new VmStore();
 	private closing: Promise<void> | undefined;
 	private switching: Promise<void> = Promise.resolve();
-	lastMemory: VmMemory | undefined;
 
 	constructor(
 		options: CodeModeClientOptions,
@@ -62,6 +65,7 @@ export class VmCodeClient implements CodeModeExecutionClient {
 				"VM Code under Bun is available on Linux, macOS and Windows. Start Pi under Node.js or select Code in /codex settings",
 			);
 		this.heapMiB = vmHeapMiB(options.maxHeapMiB);
+		this.pressure = new VmMemoryPressure(this.heapMiB);
 		this.delegate = new CodeModeDelegateRuntime(
 			() => {},
 			options.prepareToolInput,
@@ -75,11 +79,17 @@ export class VmCodeClient implements CodeModeExecutionClient {
 		signal?: AbortSignal,
 		tools: CodeModeToolDefinition[] = [],
 	): Promise<RuntimeResponse> {
-		signal?.throwIfAborted();
-		if (this.closing) throw new Error("VM Code is shutting down");
-		await this.switching;
-		this.bindContext(context);
-		await this.switching;
+		return this.withConversation(context, signal, () =>
+			this.executeBound(source, context, signal, tools),
+		);
+	}
+
+	private async executeBound(
+		source: string,
+		context: ToolExecutionContext,
+		signal: AbortSignal | undefined,
+		tools: CodeModeToolDefinition[],
+	): Promise<RuntimeResponse> {
 		if (this.active?.cell.isCompleted()) {
 			this.delegate.closeCell(this.active.cell.id);
 			this.active = undefined;
@@ -88,6 +98,8 @@ export class VmCodeClient implements CodeModeExecutionClient {
 			throw new Error(
 				"VM Code is still running an exec; wait for it or terminate it",
 			);
+		if (/^\/\/\s*@exec:\s*\{\s*"reset"\s*:\s*true\s*\}$/.test(source.trim()))
+			return this.restart();
 		const parsed = parseExecSource(source);
 		const cell = new RuntimeCell({
 			id: `vm-${randomUUID()}`,
@@ -141,8 +153,17 @@ export class VmCodeClient implements CodeModeExecutionClient {
 		context: ToolExecutionContext,
 		signal?: AbortSignal,
 	): Promise<RuntimeResponse> {
-		await this.switching;
-		this.bindContext(context);
+		return this.withConversation(context, undefined, () =>
+			this.waitBound(id, yieldTimeMs, context, signal),
+		);
+	}
+
+	private async waitBound(
+		id: string,
+		yieldTimeMs: number,
+		context: ToolExecutionContext,
+		signal?: AbortSignal,
+	): Promise<RuntimeResponse> {
 		const execution = this.active?.cell.id === id ? this.active : undefined;
 		if (!execution)
 			return {
@@ -173,52 +194,55 @@ export class VmCodeClient implements CodeModeExecutionClient {
 		context: ToolExecutionContext,
 		signal?: AbortSignal,
 	): Promise<RuntimeResponse> {
-		signal?.throwIfAborted();
-		this.bindContext(context);
-		const execution = this.active?.cell.id === id ? this.active : undefined;
-		if (!execution)
-			return {
-				kind: "terminated",
-				cellId: id,
-				contentItems: [],
-				missingCell: true,
-			};
-		await this.stop(execution, RESET);
-		return this.response(execution, "terminated");
+		return this.withConversation(context, signal, async () => {
+			const execution = this.active?.cell.id === id ? this.active : undefined;
+			if (!execution)
+				return {
+					kind: "terminated",
+					cellId: id,
+					contentItems: [],
+					missingCell: true,
+				};
+			await this.stop(execution, RESET);
+			return this.response(execution, "terminated");
+		});
 	}
 
 	clearOpaqueResults(): void {
 		this.delegate.clearOpaqueResults();
 	}
 
-	async sample(): Promise<VmMemory | undefined> {
+	sampleHeapUsedBytes(): Promise<number> | undefined {
 		if (!this.kernel || this.kernel.failed) return undefined;
-		const memory = await this.kernel.sample();
-		this.lastMemory = memory;
-		return memory;
+		return this.kernel.sampleHeapUsedBytes();
 	}
 
-	async bindingNames(context: ToolExecutionContext): Promise<string[]> {
-		await this.switching;
-		this.bindContext(context);
-		await this.switching;
-		if (!this.kernel || this.kernel.failed) return [];
-		return this.kernel.bindings();
-	}
-
-	/** Drops the conversation context when nothing is running, or after the running exec is stopped. */
-	async reset(): Promise<void> {
-		if (this.active && !this.active.cell.isCompleted())
-			await this.stop(this.active, RESET);
-		await this.drop();
+	async bindingInventory(
+		context: ToolExecutionContext,
+	): Promise<VmBindingInventory> {
+		return this.withConversation(context, undefined, async () => {
+			const kernel = this.kernel;
+			if (!kernel || kernel.failed) return { names: [], warn: false };
+			const { names, memoryUsedBytes } = await kernel.bindings();
+			return {
+				names,
+				warn: kernel === this.kernel && this.pressure.observe(memoryUsedBytes),
+			};
+		});
 	}
 
 	async shutdown(): Promise<void> {
 		if (!this.closing)
-			this.closing = this.reset().finally(() => {
-				this.delegate.clear();
-				this.identity = undefined;
-			});
+			this.closing = this.switching
+				.then(async () => {
+					if (this.active && !this.active.cell.isCompleted())
+						await this.stop(this.active, RESET);
+					await this.drop();
+				})
+				.finally(() => {
+					this.delegate.clear();
+					this.identity = undefined;
+				});
 		try {
 			await this.closing;
 		} finally {
@@ -233,11 +257,11 @@ export class VmCodeClient implements CodeModeExecutionClient {
 			execution.kernel = this.kernel;
 			cell.controller.signal.throwIfAborted();
 			const outcome = await execution.kernel.execute(
-				{ source: cell.source, tools, store: Object.fromEntries(this.stored) },
+				{ source: cell.source, tools, store: this.store.snapshot() },
 				{
 					output: (items) => cell.emit(items),
 					notify: (text) => this.delegate.notifyDirect(cell.id, text),
-					store: (key, json) => this.writeStore(key, json),
+					store: (key, json) => this.store.set(key, json),
 					cancel: () => {
 						this.delegate.cancelCell(cell.id);
 					},
@@ -253,7 +277,6 @@ export class VmCodeClient implements CodeModeExecutionClient {
 					},
 				},
 			);
-			this.lastMemory = outcome.memory;
 			if (execution.kernel.failed)
 				throw new Error(
 					outcome.error ||
@@ -262,15 +285,32 @@ export class VmCodeClient implements CodeModeExecutionClient {
 			cell.errorText = outcome.error;
 		} catch (error) {
 			if (execution.kernel?.failed || execution.stopping) {
-				this.kernel = undefined;
-				this.stored.clear();
+				await this.drop();
 			}
 			cell.errorText ??= error instanceof Error ? error.message : String(error);
 		} finally {
 			this.delegate.cancelCell(cell.id);
-			if (execution.kernel?.failed || execution.stopping)
-				this.kernel = undefined;
 			cell.markCompleted();
+		}
+	}
+
+	private async withConversation<T>(
+		context: ToolExecutionContext,
+		signal: AbortSignal | undefined,
+		action: () => T | Promise<T>,
+	): Promise<T> {
+		for (;;) {
+			signal?.throwIfAborted();
+			if (this.closing) throw new Error("VM Code is shutting down");
+			const transition = this.switching;
+			await transition;
+			signal?.throwIfAborted();
+			if (this.closing) throw new Error("VM Code is shutting down");
+			if (transition !== this.switching) continue;
+			this.bindContext(context);
+			// Admit synchronously after checking the live transition. A competing
+			// reset can replace it while another caller awaits the old one.
+			if (transition === this.switching) return action();
 		}
 	}
 
@@ -292,24 +332,33 @@ export class VmCodeClient implements CodeModeExecutionClient {
 		this.identity = identity;
 	}
 
-	private writeStore(key: string, json?: string): void {
-		let size = json === undefined ? 0 : key.length + json.length;
-		for (const [name, value] of this.stored)
-			if (name !== key) size += name.length + value.length;
-		if (json !== undefined && json.length > VM_STORE_VALUE_MAX)
-			throw new Error("Stored value is too large; store less data");
-		if (size > VM_STORE_TOTAL_MAX)
-			throw new Error("Store is full; delete keys with store(key, undefined)");
-		if (json === undefined) this.stored.delete(key);
-		else this.stored.set(key, json);
+	private async drop(): Promise<void> {
+		this.store.clear();
+		await this.stopKernel();
 	}
 
-	private async drop(): Promise<void> {
+	private async stopKernel(): Promise<void> {
 		const kernel = this.kernel;
 		this.kernel = undefined;
-		this.stored.clear();
-		this.lastMemory = undefined;
+		this.pressure.reset();
 		await kernel?.stop();
+	}
+
+	private async restart(): Promise<RuntimeResponse> {
+		// Unlike lifecycle teardown, an intentional restart keeps the bounded host-side store.
+		this.switching = this.stopKernel();
+		await this.switching;
+		return {
+			kind: "result",
+			cellId: `vm-${randomUUID()}`,
+			vmReset: true,
+			contentItems: [
+				{
+					type: "input_text",
+					text: `VM reset. All bindings cleared. ${this.store.describeRetainedKeys()}`,
+				},
+			],
+		};
 	}
 
 	private async stop(execution: Execution, reason: string): Promise<void> {

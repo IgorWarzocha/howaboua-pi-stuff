@@ -219,6 +219,7 @@ export type RuntimeResponse = (
 	terminate?: true | undefined;
 	maxOutputTokens?: number | undefined;
 	missingCell?: true | undefined;
+	vmReset?: true | undefined;
 	execSessionIds?: number[] | undefined;
 	nestedFailures?: RuntimeNestedFailure[] | undefined;
 	omittedNestedFailures?: number | undefined;

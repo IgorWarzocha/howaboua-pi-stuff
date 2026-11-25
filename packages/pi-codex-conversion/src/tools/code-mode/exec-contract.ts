@@ -20,6 +20,8 @@ export const MAX_EXEC_OUTPUT_TOKENS = 100_000;
 export const DEFAULT_EXEC_OUTPUT_TOKENS = 10_000;
 export const DEFAULT_EXEC_YIELD_MS = 30_000;
 
+export const VM_RESET_EXEC = '// @exec: {"reset": true}';
+
 export function parseExecSource(
 	source: string,
 	features: { allowIsolated?: boolean } = {},

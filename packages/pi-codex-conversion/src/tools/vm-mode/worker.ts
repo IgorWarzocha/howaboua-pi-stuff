@@ -1,4 +1,5 @@
 import { parentPort } from "node:worker_threads";
+import { getHeapSpaceStatistics } from "node:v8";
 import { createContext, runInContext, Script, SourceTextModule } from "node:vm";
 import { contentOutputFactorySource } from "../code-mode/content-output.ts";
 import { planVmCell, type VmBindings } from "./await-cell.ts";
@@ -54,10 +55,6 @@ const calls = new Map<number, Promise<void>>();
 
 function send(message: VmMessage): void {
 	parentPort?.postMessage(message);
-}
-function memory(): VmOutcome["memory"] {
-	const usage = process.memoryUsage();
-	return { heapUsed: usage.heapUsed, rss: usage.rss };
 }
 function record(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
@@ -195,7 +192,7 @@ function emit(kind: "text" | "image", value: string): void {
 	});
 }
 
-function finish(outcome: Omit<VmOutcome, "memory">): void {
+function finish(outcome: VmOutcome): void {
 	if (active === undefined) return;
 	const run = active;
 	if (resolvers.size) send({ run, kind: "cancel" });
@@ -203,7 +200,7 @@ function finish(outcome: Omit<VmOutcome, "memory">): void {
 	failure = undefined;
 	resolvers.clear();
 	calls.clear();
-	send({ run, kind: "done", outcome: { ...outcome, memory: memory() } });
+	send({ run, kind: "done", outcome });
 }
 
 function flushGuest(): void {
@@ -421,11 +418,27 @@ function reply(message: Extract<VmCommand, { kind: "reply" }>): void {
 
 parentPort?.on("message", (message: VmCommand) => {
 	if (message.kind === "bindings") {
-		send({ kind: "bindings", id: message.id, names: bindingNames() });
+		// Node limits old generation in this worker; Bun's supervisor measures its process.
+		const memoryUsedBytes = process.versions["bun"]
+			? undefined
+			: getHeapSpaceStatistics().reduce(
+					(total, space) =>
+						space.space_name === "old_space" ||
+						space.space_name === "large_object_space"
+							? total + space.space_used_size
+							: total,
+					0,
+				);
+		send({
+			kind: "bindings",
+			id: message.id,
+			names: bindingNames(),
+			...(memoryUsedBytes === undefined ? {} : { memoryUsedBytes }),
+		});
 		return;
 	}
-	if (message.kind === "sample") {
-		send({ kind: "sample", memory: memory() });
+	if (message.kind === "heapSample") {
+		send({ kind: "heapSample", heapUsedBytes: process.memoryUsage().heapUsed });
 		return;
 	}
 	if (message.kind === "run")

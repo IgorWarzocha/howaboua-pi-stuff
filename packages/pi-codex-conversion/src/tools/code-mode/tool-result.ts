@@ -63,6 +63,7 @@ export function toCodeModeToolResult(
 					}
 				: {}),
 			status: response.kind,
+			...(response.vmReset ? { vmReset: true } : {}),
 			...(nestedFailures ? { nestedFailureSummary: true } : {}),
 			...(response.opaqueDeliveryId
 				? { opaqueDeliveryId: response.opaqueDeliveryId }

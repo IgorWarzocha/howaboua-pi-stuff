@@ -11,6 +11,10 @@ import { createNotebookControlProxy } from "../ts-mode/notebook-tool.ts";
 import { codeModeGlobalName } from "../code-mode/tool-identity.ts";
 import { CodeModeNestedRenderStore } from "../code-mode/trace-render-state.js";
 import { prepareCodeModeToolInput } from "../code-mode/tool-input.ts";
+import {
+	formatVmBindingInventory,
+	type VmBindingInventory,
+} from "../vm-mode/binding-inventory.ts";
 import type {
 	CodeModeToolDefinition,
 	NotebookControlRequest,
@@ -66,7 +70,7 @@ export interface CodeModeExecutionClient {
 		signal?: AbortSignal,
 	): Promise<RuntimeResponse>;
 	checkpoint?(): Promise<void>;
-	bindingNames?(context: ToolExecutionContext): Promise<string[]>;
+	bindingInventory?(context: ToolExecutionContext): Promise<VmBindingInventory>;
 	controlNotebook?(
 		request: NotebookControlRequest,
 		context: ToolExecutionContext,
@@ -136,6 +140,12 @@ export class SharedCodeModeRuntime {
 				(client) => client.clearOpaqueResults?.(),
 				() => undefined,
 			);
+	}
+
+	heavySystemPromptOverwrite(ctx: ExtensionContext): boolean {
+		return this.activeProviders(ctx).some((provider) =>
+			provider.heavySystemPromptOverwrite?.(),
+		);
 	}
 
 	private opaqueOwner(ctx: ExtensionContext): string {
@@ -349,20 +359,16 @@ export class SharedCodeModeRuntime {
 		if (this.executionKind(ctx) !== "vm")
 			throw new Error("VM binding status requires VM Code");
 		const client = await this.getRuntimeClient(ctx, "vm");
-		if (!client.bindingNames) throw new Error("VM binding status unavailable");
-		const names = await client.bindingNames({
+		if (!client.bindingInventory)
+			throw new Error("VM binding status unavailable");
+		const inventory = await client.bindingInventory({
 			cwd: ctx.cwd,
 			extensionContext: ctx,
 		});
-		const shown: string[] = [];
-		let length = 0;
-		for (const name of names) {
-			if (length + name.length + 2 > 8_000) continue;
-			shown.push(name);
-			length += name.length + 2;
-		}
-		const omitted = names.length - shown.length;
-		return `VM bindings: ${shown.length ? shown.join(", ") : omitted ? "none shown" : "none"}${omitted ? ` (${omitted} omitted)` : ""}`;
+		return formatVmBindingInventory(
+			inventory,
+			inventory.warn && this.heavySystemPromptOverwrite(ctx),
+		);
 	}
 
 	async controlNotebook(
