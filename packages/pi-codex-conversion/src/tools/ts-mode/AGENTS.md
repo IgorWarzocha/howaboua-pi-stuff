@@ -1,4 +1,5 @@
 - Independent TS storage, never open/migrate legacy Notebook. Stable host owns tsrs compiler. Normal: serial Node REPL via public APIs. Isolated: disposable process, no auto-merge. Each process owns cwd/heap/subprocess cleanup.
+- Windows async tsrs uses separate stdin/stdout via the local socket bridge. Never pass `--pipe` to the Windows compiler in async mode: its synchronous pipe can deadlock reads and writes.
 - Register top-level function identity at creation, not final name. Restore recipe functions → decode data → initialise lexical roots. Function declarations self-reference outer lexical, not invented named expression.
 - Live errors may retain mutations. Executing cancellation invalidates kernel; recover last durable checkpoint. Live eval settling with outstanding tools/imports, even rejection → stop heap. Cancelling requests cannot quiesce user continuations. Cancel delegates before awaiting worker shutdown; admit no more cells there.
 - Immutable project baselines. Persist atomically before publishing merge; separate conflicting candidates. Unreachable worker node ≠ deletion. Union nodes, compact against merged roots.

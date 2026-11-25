@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import type { API } from "tsrs/async";
+import { bridgeCompilerStdio } from "./compiler-stdio.ts";
 import type { TsRuntime } from "./runtime.ts";
 
 export interface TsCompilerProcess {
@@ -17,30 +18,36 @@ export async function startTsCompiler(
 	runtime: TsRuntime,
 	options: { cwd: string; tsserverPath?: string },
 ): Promise<TsCompilerProcess> {
-	const directory = join(tmpdir(), `pi-ts-${randomUUID()}`);
-	const pipe =
-		process.platform === "win32"
-			? `\\\\.\\pipe\\pi-ts-${randomUUID()}`
-			: join(directory, "socket");
-	const args = [
-		"--api",
-		"--async",
-		"--cwd",
-		options.cwd,
-		"--pipe",
-		process.platform === "win32" ? pipe : directory,
-	];
+	const windows = process.platform === "win32";
+	const id = `pi-ts-${randomUUID()}`;
+	const directory = join(tmpdir(), id);
+	const pipe = windows ? `\\\\.\\pipe\\${id}` : join(directory, "socket");
+	const args = ["--api", "--async", "--cwd", options.cwd];
+	if (!windows) args.push("--pipe", directory);
 	// Keep the notebook's optimized compiler policy; an explicit user environment wins.
-	const child = spawn(
-		options.tsserverPath ?? process.execPath,
-		options.tsserverPath ? args : [runtime.launcher, ...args],
-		{
-			cwd: options.cwd,
-			env: { ...process.env, TSRS_FAST: process.env["TSRS_FAST"] ?? "1" },
-			detached: process.platform !== "win32",
+	const command = options.tsserverPath ?? process.execPath;
+	const commandArgs = options.tsserverPath ? args : [runtime.launcher, ...args];
+	const processOptions = {
+		cwd: options.cwd,
+		env: { ...process.env, TSRS_FAST: process.env["TSRS_FAST"] ?? "1" },
+	};
+	// tsrs' synchronous Windows pipe handle cannot service concurrent async reads and writes.
+	const stdioCompiler = windows
+		? spawn(command, commandArgs, {
+				...processOptions,
+				stdio: ["pipe", "pipe", "inherit"],
+			})
+		: undefined;
+	const child =
+		stdioCompiler ??
+		spawn(command, commandArgs, {
+			...processOptions,
+			detached: true,
 			stdio: ["ignore", "ignore", "inherit"],
-		},
-	);
+		});
+	const bridge = stdioCompiler
+		? bridgeCompilerStdio(stdioCompiler, pipe)
+		: undefined;
 	let failure: Error | undefined;
 	child.once("error", (error) => {
 		failure = error;
@@ -55,13 +62,14 @@ export async function startTsCompiler(
 			try {
 				await api.close();
 			} finally {
+				bridge?.close();
 				try {
 					if (
 						child.pid &&
 						child.exitCode === null &&
 						child.signalCode === null
 					) {
-						if (process.platform === "win32")
+						if (windows)
 							await new Promise<void>((resolve, reject) =>
 								execFile(
 									"taskkill",
@@ -95,12 +103,12 @@ export async function startTsCompiler(
 					}
 					await closed;
 				} finally {
-					if (process.platform !== "win32")
-						await rm(directory, { recursive: true, force: true });
+					if (!windows) await rm(directory, { recursive: true, force: true });
 				}
 			}
 		})());
 	try {
+		await bridge?.listen();
 		const deadline = performance.now() + 15_000;
 		while (true) {
 			if (failure) throw failure;
