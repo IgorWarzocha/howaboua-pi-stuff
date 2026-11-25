@@ -8,7 +8,7 @@ import type { TsRuntime } from "./runtime.ts";
 import type { TsImportOptions } from "./imports.ts";
 import { resolveTsSource, withTsImportApi } from "./imports-api.ts";
 import { relocateCommonJsModule } from "./imports-commonjs.ts";
-import { cacheExactNpmImport } from "../code-mode/npm-cache.ts";
+import { cacheExactNpmImport } from "./npm-cache.ts";
 
 /** Compile trusted local TS, including enums; never rely on Node's type stripping. */
 export async function compileTsImportSource(

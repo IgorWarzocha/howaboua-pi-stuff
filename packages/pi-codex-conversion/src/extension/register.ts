@@ -14,7 +14,7 @@ import { registerVoiceHandoff } from "../voice/handoff.ts";
 import {
 	hasCodexTransportConfigChanged,
 	isAdapterRuntime,
-	resolveCodexRuntimePlanForState,
+	resolveAdapterRuntimePlanForState,
 } from "../adapter/activation/runtime-plan.ts";
 import { hasCodexCacheKeepalivePlanChanged } from "../adapter/activation/cache-keepalive.ts";
 import { recordCodexSpend } from "../codex-usage/ledger-store.ts";
@@ -40,7 +40,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				compaction: runtime.state.config.compaction,
 			}),
 			useResponsesLite: (model) =>
-				resolveCodexRuntimePlanForState({ model }, runtime.state)
+				resolveAdapterRuntimePlanForState({ model }, runtime.state)
 					.responsesFormat === "responses-lite",
 			turnState: runtime.state.codexTurnState,
 			getDiagnostics: (sessionId) => runtime.diagnosticsSink(sessionId),
@@ -68,9 +68,10 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				if (
 					executionModeChanged ||
 					config.notebook.maxHeapMiB !== previousConfig.notebook.maxHeapMiB ||
-					config.notebook.profile !== previousConfig.notebook.profile
+					(runtime.state.bindingStatus?.kind === "ts" &&
+						config.notebook.profile !== previousConfig.notebook.profile)
 				)
-					runtime.state.notebookStatusMessageId = undefined;
+					runtime.state.bindingStatus = undefined;
 				tools.applyConfig(config);
 				runtime.state.availableToolNames = pi
 					.getAllTools()
@@ -121,7 +122,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			priority: () => (runtime.state.enabled ? 20 : 5),
 		});
 		const stopProtectedOutput = registerProtectedOutputHost(pi, (ctx) => {
-			const plan = resolveCodexRuntimePlanForState(ctx, runtime.state);
+			const plan = resolveAdapterRuntimePlanForState(ctx, runtime.state);
 			return plan.codexTransport && isAdapterRuntime(plan);
 		});
 		pi.on("session_shutdown", stopProtectedOutput);

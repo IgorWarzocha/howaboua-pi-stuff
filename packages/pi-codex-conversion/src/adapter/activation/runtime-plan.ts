@@ -6,11 +6,11 @@ import {
 	supportsResponsesLiteModel,
 } from "../../providers/openai-codex/responses-lite-model.ts";
 import {
-	isCodexLikeModel,
+	isDefaultAdapterModel,
 	isCodexTransportContext,
 	isOpenAIResponsesContext,
 	isResponsesContext,
-} from "../prompt/codex-model.ts";
+} from "../prompt/model-support.ts";
 import type { CodexConversionConfig } from "./config.ts";
 import { FAST_MODE_FAMILIES } from "./config-contract.ts";
 import type { ExecutionMode } from "./execution-mode.ts";
@@ -33,7 +33,7 @@ interface RuntimePlanBase {
 	ownedToolNames: string[];
 	configuredProvider: boolean;
 	codexTransport: boolean;
-	effectiveOpenAICodex: boolean;
+	codexOrConfiguredResponses: boolean;
 	nativeCompaction: boolean;
 	nativeReplay: boolean;
 	autoReasoning: boolean;
@@ -66,7 +66,7 @@ export interface VmRuntimePlan extends RuntimePlanBase {
 	responsesFormat: ResponsesFormat;
 }
 
-export type CodexRuntimePlan =
+export type AdapterRuntimePlan =
 	| InactiveRuntimePlan
 	| NormalRuntimePlan
 	| CodeRuntimePlan
@@ -156,14 +156,14 @@ export function hasCodexTransportConfigChanged(
 	);
 }
 
-export function resolveCodexRuntimePlan(
+export function resolveAdapterRuntimePlan(
 	ctx: RuntimeContext,
 	config: CodexConversionConfig,
 	executionMode?: ExecutionMode,
-): CodexRuntimePlan {
+): AdapterRuntimePlan {
 	const isConfigured = configuredProvider(ctx, config);
 	const codexTransport = isCodexTransportContext(ctx);
-	const effectiveOpenAICodex = codexTransport || isConfigured;
+	const codexOrConfiguredResponses = codexTransport || isConfigured;
 	const ownedToolNames = [
 		"change_reasoning",
 		...SHELL_ADAPTER_TOOL_NAMES,
@@ -175,7 +175,7 @@ export function resolveCodexRuntimePlan(
 		ownedToolNames,
 		configuredProvider: isConfigured,
 		codexTransport,
-		effectiveOpenAICodex,
+		codexOrConfiguredResponses,
 		nativeCompaction: false,
 		nativeReplay: false,
 		autoReasoning: false,
@@ -183,7 +183,7 @@ export function resolveCodexRuntimePlan(
 	const active =
 		config.scope.allProviders === "on" ||
 		isConfigured ||
-		isCodexLikeModel(ctx.model);
+		isDefaultAdapterModel(ctx.model);
 	if (!active)
 		return {
 			...base,
@@ -191,9 +191,9 @@ export function resolveCodexRuntimePlan(
 			toolNames: [],
 			responsesFormat: undefined,
 		};
-	base.nativeReplay = effectiveOpenAICodex;
+	base.nativeReplay = codexOrConfiguredResponses;
 	const nativeCompaction =
-		effectiveOpenAICodex && nativeCompactionConfigured(config.compaction);
+		codexOrConfiguredResponses && nativeCompactionConfigured(config.compaction);
 	base.autoReasoning =
 		config.tools.autoReasoning && supportsCodexReasoningUpdates(ctx.model);
 	const configuredExecutionMode = executionMode ?? config.executionMode;
@@ -236,11 +236,15 @@ export function resolveCodexRuntimePlan(
 	};
 }
 
-export function resolveCodexRuntimePlanForState(
+export function resolveAdapterRuntimePlanForState(
 	ctx: RuntimeContext,
 	state: Pick<AdapterState, "config" | "executionMode" | "availableToolNames">,
-): CodexRuntimePlan {
-	const plan = resolveCodexRuntimePlan(ctx, state.config, state.executionMode);
+): AdapterRuntimePlan {
+	const plan = resolveAdapterRuntimePlan(
+		ctx,
+		state.config,
+		state.executionMode,
+	);
 	const missingToolNames =
 		state.availableToolNames === undefined
 			? []
@@ -261,7 +265,7 @@ export function resolveCodexRuntimePlanForState(
 }
 
 export function isAdapterRuntime(
-	plan: CodexRuntimePlan,
+	plan: AdapterRuntimePlan,
 ): plan is NormalRuntimePlan | CodeRuntimePlan | TsRuntimePlan | VmRuntimePlan {
 	return (
 		plan.kind === "normal" ||
@@ -272,7 +276,7 @@ export function isAdapterRuntime(
 }
 
 export function usesExecTools(
-	plan: CodexRuntimePlan,
+	plan: AdapterRuntimePlan,
 ): plan is CodeRuntimePlan | TsRuntimePlan | VmRuntimePlan {
 	return plan.kind === "code" || plan.kind === "ts" || plan.kind === "vm";
 }

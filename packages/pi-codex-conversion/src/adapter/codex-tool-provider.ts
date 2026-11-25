@@ -8,7 +8,7 @@ import { extractAccountId } from "../providers/openai-codex/headers.ts";
 import {
 	isCodexTransportModel,
 	hasOpenAICodexProviderId,
-} from "./prompt/codex-model.ts";
+} from "./prompt/model-support.ts";
 
 const CONFIGURED_PROVIDER_CHANNEL =
 	"@howaboua/pi-codex-conversion.configured-provider/v1";

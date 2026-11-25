@@ -20,10 +20,10 @@ import {
 	hasPortableNativeCompactionSummary,
 	NATIVE_COMPACTION_SHIM_SUMMARY,
 } from "./types.ts";
-import { isResponsesContext } from "../prompt/codex-model.ts";
+import { isResponsesContext } from "../prompt/model-support.ts";
 import {
 	usesExecTools,
-	resolveCodexRuntimePlanForState,
+	resolveAdapterRuntimePlanForState,
 } from "../activation/runtime-plan.ts";
 import type { AdapterState } from "../activation/state.ts";
 import { hiddenPiReplacementToolNames } from "../activation/tool-set.ts";
@@ -96,10 +96,10 @@ async function compactWithPiSummary(
 			)
 		: false;
 	const headers = { ...auth.headers };
-	const codexTransport = resolveCodexRuntimePlanForState(
+	const codexTransport = resolveAdapterRuntimePlanForState(
 		ctx,
 		state,
-	).effectiveOpenAICodex;
+	).codexOrConfiguredResponses;
 	if (codexTransport) rewriteRelationshipHeaders(headers, ctx);
 	try {
 		const result = await runPortablePiCompaction(
@@ -139,7 +139,7 @@ export async function handleCodexSessionBeforeCompact(
 	state: AdapterState,
 	pi: ExtensionAPI,
 ) {
-	const plan = resolveCodexRuntimePlanForState(ctx, state);
+	const plan = resolveAdapterRuntimePlanForState(ctx, state);
 	try {
 		if (event.signal.aborted) return { cancel: true };
 		// Compaction preparation is authoritative; never rebuild behind its edits.
@@ -173,8 +173,8 @@ async function handleCodexSessionBeforeCompactInner(
 	pi: ExtensionAPI,
 	branchEntries: SessionEntry[],
 ) {
-	const plan = resolveCodexRuntimePlanForState(ctx, state);
-	if (!plan.effectiveOpenAICodex && !isResponsesContext(ctx)) {
+	const plan = resolveAdapterRuntimePlanForState(ctx, state);
+	if (!plan.codexOrConfiguredResponses && !isResponsesContext(ctx)) {
 		ctx.ui.notify(
 			"OpenAI native compaction is enabled, but the current model is not Responses-compatible; Pi compaction was not run.",
 			"error",

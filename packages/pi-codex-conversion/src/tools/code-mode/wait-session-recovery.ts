@@ -1,7 +1,7 @@
-import type { SharedCodeModeRuntime } from "./shared-runtime.js";
+import type { SharedCodeModeRuntime } from "../execution/runtime.js";
 import type { ToolExecutionContext } from "./types.js";
 import { runCodeModeToolWithHooks } from "./nested-tool-completion.js";
-import { formatRunningExecSessionGuidance } from "./tool-result.js";
+import { formatRunningShellGuidance } from "../exec/format.ts";
 
 export async function continueExecSessionFromMistakenWait(
 	cellId: string,
@@ -91,7 +91,7 @@ export async function continueExecSessionFromMistakenWait(
 					? [
 							{
 								type: "text" as const,
-								text: formatRunningExecSessionGuidance(sessionId),
+								text: formatRunningShellGuidance(sessionId, true),
 							},
 						]
 					: []),

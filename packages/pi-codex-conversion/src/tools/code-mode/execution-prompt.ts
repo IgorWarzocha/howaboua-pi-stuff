@@ -3,30 +3,13 @@ import {
 	upsertOpaqueSection,
 } from "../../prompt/owned-sections.ts";
 import type { CodeModeToolDefinition, CustomToolDefinition } from "./types.js";
-import type { CodeModeExecutionKind } from "./shared-runtime.js";
+import type { CodeModeExecutionKind } from "../execution/runtime.js";
 import {
 	codeModeGlobalName,
 	translateCodeModeGuideline,
 	translateCodeModeToolReferences,
 	translateCodeModeUsage,
 } from "./tool-identity.ts";
-
-const JS_CELL_DESCRIPTION =
-	"JavaScript computation/tool calls; source ONLY, NO JSON/fences";
-
-export const EXEC_DESCRIPTION = `${JS_CELL_DESCRIPTION}
-Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
-Bare values discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; content(value)→emit MCP text/images in order; text(value)→print serialized output; notify(value)→emit; both→undefined; yield_control()→yield`;
-
-export const ISOLATED_EXEC_GUIDANCE =
-	'Concurrent isolated: // @exec: {"isolated":true}; last checkpoint; shared vars unchanged';
-
-export const VM_EXEC_DESCRIPTION = `${JS_CELL_DESCRIPTION}
-Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
-Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, console, ALL_TOOLS
-content(value)→emit MCP text/images in order`;
-
-export const WAIT_DESCRIPTION = "Resume or terminate a yielded exec cell";
 
 const BUNDLED_TOOLS_HEADING = "Tools available in exec:";
 const CUSTOM_TOOLS_HEADING = "Configured custom tools:";
@@ -180,13 +163,13 @@ export function buildCodeModeToolsPrompt(
 	const sections = [
 		executionKind === "vm"
 			? prose(
-					"exec uses one JavaScript context for the conversation. let, const, function, and class declarations persist. Node, imports, fetch, and timers are unavailable. A stall, cancellation, memory limit, or termination clears bindings.",
-					"exec=one JS context per conversation; let/const/function/class persist; no Node/imports/fetch/timers; stall/cancel/memory limit/termination clears bindings",
+					"exec uses one JavaScript context for the conversation. Top-level declarations persist across cells and retain their values. Node, imports, fetch, and timers are unavailable. A stall, cancellation, memory limit, or termination clears bindings.",
+					"exec=one JS context per conversation; top-level declarations and values persist across cells; no Node/imports/fetch/timers; stall/cancel/memory limit/termination clears bindings",
 				)
 			: executionKind === "ts"
 				? prose(
-						"exec runs TypeScript with persistent bindings and modules. Imports, npm, Node, and Web APIs are available.",
-						"exec=persistent TS; imports/npm/Node/Web APIs; bindings/modules persist",
+						"exec runs TypeScript with persistent bindings, values, and modules across cells. Imports, npm, Node, and Web APIs are available.",
+						"exec=persistent TS; bindings/values/modules persist across cells; imports/npm/Node/Web APIs available",
 					)
 				: prose(
 						"Each exec call runs in a fresh JavaScript context without console, imports, Node, or browser APIs.",
@@ -194,8 +177,8 @@ export function buildCodeModeToolsPrompt(
 					),
 		executionKind !== "code"
 			? prose(
-					"Put one-off const and let declarations in a block. Keep them at the top level only if another cell needs them.",
-					"One-off const/let→block; top-level only for reuse across cells",
+					"Put one-off const and let declarations in a block. For a reusable result, declare let once, then assign without redeclaring. Use descriptive names for values retained across cells.",
+					"One-off const/let→{ ... }; reusable result→let once, then assign without let; retained values→descriptive names",
 				)
 			: undefined,
 		executionKind === "ts"

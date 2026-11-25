@@ -11,7 +11,7 @@ import type {
 	Model,
 	Usage,
 } from "@earendil-works/pi-ai";
-import { isStandardCodexSubscriptionModel } from "../adapter/prompt/codex-model.ts";
+import { isStandardCodexSubscriptionModel } from "../adapter/prompt/model-support.ts";
 import { extractAccountId } from "../providers/openai-codex/headers.ts";
 import type { LedgerOperation, LedgerResult } from "./ledger-operations.ts";
 import type { CodexUsageSnapshot } from "./payload.ts";

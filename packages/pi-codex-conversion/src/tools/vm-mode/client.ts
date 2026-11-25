@@ -3,7 +3,7 @@ import { CodeModeDelegateRuntime } from "../code-mode/delegate-runtime.ts";
 import {
 	formatCodeModeToolHelp,
 	isCodeModeToolListed,
-} from "../code-mode/custom-tool-prompt.ts";
+} from "../code-mode/execution-prompt.ts";
 import {
 	DEFAULT_EXEC_YIELD_MS,
 	parseExecSource,
@@ -11,7 +11,7 @@ import {
 import type {
 	CodeModeClientOptions,
 	CodeModeExecutionClient,
-} from "../code-mode/shared-runtime.ts";
+} from "../execution/runtime.ts";
 import { directToolYieldTime } from "../code-mode/tool-source.ts";
 import { codeModeGlobalName } from "../code-mode/tool-identity.ts";
 import type { CodeModeNestedRenderStore } from "../code-mode/trace-render-state.ts";
@@ -31,7 +31,6 @@ interface Execution {
 	kernel?: VmKernel;
 	done: Promise<void>;
 	stopping?: Promise<void>;
-	cooperative: boolean;
 	inflight: number;
 }
 
@@ -103,7 +102,6 @@ export class VmCodeClient implements CodeModeExecutionClient {
 		const execution: Execution = {
 			cell,
 			done: Promise.resolve(),
-			cooperative: false,
 			inflight: 0,
 		};
 		this.active = execution;
@@ -200,6 +198,14 @@ export class VmCodeClient implements CodeModeExecutionClient {
 		return memory;
 	}
 
+	async bindingNames(context: ToolExecutionContext): Promise<string[]> {
+		await this.switching;
+		this.bindContext(context);
+		await this.switching;
+		if (!this.kernel || this.kernel.failed) return [];
+		return this.kernel.bindings();
+	}
+
 	/** Drops the conversation context when nothing is running, or after the running exec is stopped. */
 	async reset(): Promise<void> {
 		if (this.active && !this.active.cell.isCompleted())
@@ -231,10 +237,6 @@ export class VmCodeClient implements CodeModeExecutionClient {
 				{
 					output: (items) => cell.emit(items),
 					notify: (text) => this.delegate.notifyDirect(cell.id, text),
-					yield: () => {
-						execution.cooperative = true;
-						cell.requestYield();
-					},
 					store: (key, json) => this.writeStore(key, json),
 					cancel: () => {
 						this.delegate.cancelCell(cell.id);
@@ -330,15 +332,10 @@ export class VmCodeClient implements CodeModeExecutionClient {
 		signal?: AbortSignal,
 	): Promise<RuntimeResponse> {
 		const kind = await execution.cell.observe(ms, signal);
-		if (
-			kind === "yielded" &&
-			!execution.cooperative &&
-			execution.inflight === 0
-		) {
+		if (kind === "yielded" && execution.inflight === 0) {
 			await this.stop(execution, STALL);
 			return this.response(execution, "result");
 		}
-		if (kind === "yielded") execution.cooperative = false;
 		return this.response(execution, kind);
 	}
 

@@ -5,7 +5,7 @@ import {
 	getPackageDir,
 	type NormalizedBuildSystemPromptOptions,
 } from "@earendil-works/pi-coding-agent";
-import { getCodeModePromptCapture } from "../tools/code-mode/custom-tool-prompt.js";
+import { getCodeModePromptCapture } from "../tools/code-mode/execution-prompt.js";
 
 export type PiSystemPromptOptions = NormalizedBuildSystemPromptOptions;
 

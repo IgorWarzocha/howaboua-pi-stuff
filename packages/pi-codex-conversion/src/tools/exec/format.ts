@@ -1,5 +1,12 @@
 import type { UnifiedExecResult } from "./session-manager.ts";
 
+export function formatRunningShellGuidance(
+	sessionId: number,
+	nested = false,
+): string {
+	return `Session ${sessionId} still running. Completion reports automatically when idle; continue work or end turn. Use ${nested ? "tools." : ""}write_stdin for input or intermediate output${nested ? "; do not use wait" : ""}`;
+}
+
 export function formatUnifiedExecResult(result: UnifiedExecResult): string {
 	const sections: string[] = [];
 
@@ -7,9 +14,7 @@ export function formatUnifiedExecResult(result: UnifiedExecResult): string {
 		sections.push(`Exit code: ${result.exit_code}`);
 	}
 	if (result.session_id !== undefined) {
-		sections.push(
-			`Session ${result.session_id} still running. Resume with write_stdin; set yield_time_ms near expected completion and lengthen later waits`,
-		);
+		sections.push(formatRunningShellGuidance(result.session_id));
 	}
 	if (result.truncated) {
 		sections.push(

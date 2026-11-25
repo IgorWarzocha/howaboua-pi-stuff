@@ -21,6 +21,7 @@ export interface VmMemory {
 export type VmCommand =
 	| { kind: "run"; run: number; input: VmInput }
 	| { kind: "reply"; run: number; id: number; json?: string; error?: string }
+	| { kind: "bindings"; id: number }
 	| { kind: "sample" };
 
 export interface VmOutcome {
@@ -31,11 +32,11 @@ export interface VmOutcome {
 export type VmMessage =
 	| { run: number; kind: "output"; items: RuntimeContentItem[] }
 	| { run: number; kind: "notify"; text: string }
-	| { run: number; kind: "yield" }
 	| { run: number; kind: "store"; key: string; json?: string }
 	| { run: number; kind: "call"; id: number; name: string; json: string }
 	| { run: number; kind: "cancel" }
 	| { run: number; kind: "done"; outcome: VmOutcome }
+	| { kind: "bindings"; id: number; names: string[] }
 	| { kind: "sample"; memory: VmMemory };
 
 export type VmProcessMessage = VmMessage | { kind: "ready" };

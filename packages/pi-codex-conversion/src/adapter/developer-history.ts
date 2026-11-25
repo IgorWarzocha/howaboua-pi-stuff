@@ -17,9 +17,9 @@ import {
 	projectToolkitUpdate,
 } from "./code-mode/toolkit-updates.ts";
 import {
-	CODEX_NOTEBOOK_STATUS_TYPE,
-	projectNotebookStatusEntry,
-} from "./notebook-status.ts";
+	isBindingStatusType,
+	projectBindingStatusEntry,
+} from "./binding-status.ts";
 import {
 	CODEX_CONTEXT_BRIEFING_TYPE,
 	projectCodexContextBriefing,
@@ -31,11 +31,8 @@ export function projectCodexDeveloperEntry(entry: SessionEntry): SessionEntry {
 		entry.customType === CODEX_CONTEXT_BRIEFING_TYPE
 	)
 		return projectCodexContextBriefing(entry);
-	if (
-		entry.type === "custom" &&
-		entry.customType === CODEX_NOTEBOOK_STATUS_TYPE
-	)
-		return projectNotebookStatusEntry(entry);
+	if (entry.type === "custom" && isBindingStatusType(entry.customType))
+		return projectBindingStatusEntry(entry);
 	if (entry.type === "custom" && entry.customType === CODEX_TOOLKIT_UPDATE_TYPE)
 		return projectToolkitUpdate(entry);
 	if (
@@ -214,6 +211,6 @@ function isVirtualCustomType(customType: string): boolean {
 		customType === CODEX_CONTEXT_BRIEFING_TYPE ||
 		customType === CODEX_CURRENT_TIME_REMINDER_TYPE ||
 		customType === CODEX_TOOLKIT_UPDATE_TYPE ||
-		customType === CODEX_NOTEBOOK_STATUS_TYPE
+		isBindingStatusType(customType)
 	);
 }

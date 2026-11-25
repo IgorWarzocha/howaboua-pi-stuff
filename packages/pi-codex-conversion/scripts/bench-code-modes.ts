@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { ensureCodeModeHostBinary } from "../src/tools/code-mode/binary.ts";
 import { CodeModeHostClient } from "../src/tools/code-mode/host-client.ts";
 import { prepareCodeModeToolInput } from "../src/tools/code-mode/tool-input.ts";
-import type { CodeModeExecutionClient } from "../src/tools/code-mode/shared-runtime.ts";
+import type { CodeModeExecutionClient } from "../src/tools/execution/runtime.ts";
 import type {
 	RuntimeResponse,
 	ToolExecutionContext,

@@ -15,12 +15,12 @@ import {
 	type Static,
 } from "@earendil-works/pi-schema";
 import { getExperimentalToolSampling } from "../tool-sampling.ts";
-import type { SharedCodeModeRuntime } from "./shared-runtime.ts";
+import type { SharedCodeModeRuntime } from "../execution/runtime.ts";
 import { notebookRenderers } from "./notebook-rendering.ts";
 import type {
 	NotebookControlRequest,
 	ProgrammaticCodeModeToolDefinition,
-} from "./types.ts";
+} from "../code-mode/types.ts";
 
 const PIN_FIELDS = {
 	action: { ...lit("pin"), type: "string" },

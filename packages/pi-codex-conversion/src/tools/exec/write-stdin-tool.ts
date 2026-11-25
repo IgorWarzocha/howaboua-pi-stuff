@@ -4,7 +4,7 @@ import { Container, Text } from "@earendil-works/pi-tui";
 import {
 	renderExecOutcome,
 	renderWriteStdinCall,
-} from "../../ui/tool-rendering/codex-rendering.ts";
+} from "../../ui/tool-rendering/exec-rendering.ts";
 import type {
 	ExecSessionManager,
 	UnifiedExecResult,

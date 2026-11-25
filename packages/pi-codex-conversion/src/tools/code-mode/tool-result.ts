@@ -4,6 +4,7 @@ import {
 } from "./exec-contract.ts";
 import { referenceEmittedTraceImages } from "./trace-images.js";
 import type { RuntimeContentItem, RuntimeResponse } from "./types.js";
+import { formatRunningShellGuidance } from "../exec/format.ts";
 
 const MAX_OUTPUT_IMAGE_COUNT = 4;
 const MAX_OUTPUT_IMAGE_CHARS = 16 * 1024 * 1024;
@@ -35,7 +36,7 @@ export function toCodeModeToolResult(
 		...(status ? [{ type: "text" as const, text: status }] : []),
 		...(response.execSessionIds ?? []).map((sessionId) => ({
 			type: "text" as const,
-			text: formatRunningExecSessionGuidance(sessionId),
+			text: formatRunningShellGuidance(sessionId, true),
 		})),
 		...truncateTextContent(output, outputTokens * 4),
 	];
@@ -116,11 +117,7 @@ function withScriptErrorRecovery(
 		)
 	)
 		return errorText;
-	return `${errorText}\nRetry: wrap one-off const/let and their uses in { ... }. Need a new persistent binding? Use a fresh name. Reuse an existing binding only after verifying its value`;
-}
-
-export function formatRunningExecSessionGuidance(sessionId: number): string {
-	return `Session ${sessionId} still running. Resume near completion with tools.write_stdin and an appropriate yield_time_ms; do not use wait`;
+	return `${errorText}\nRetry: wrap one-off const/let and their uses in { ... }. To replace an existing let value, assign without redeclaring. For const or a value you need to keep, use a block or a fresh name. Verify existing values before reuse`;
 }
 
 function toPiContent(item: RuntimeContentItem):

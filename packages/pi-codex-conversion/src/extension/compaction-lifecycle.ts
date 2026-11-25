@@ -2,7 +2,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import { resolveAdapterRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import {
 	hasPortableNativeCompactionSummary,
 	isNativeCompactionDetails,
@@ -34,7 +34,7 @@ export function createCodexCompactionLifecycle(
 	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
 	codeMode: CodeModeRegistration,
-	refreshNotebookStatus: (ctx: ExtensionContext) => Promise<boolean>,
+	refreshBindingStatus: (ctx: ExtensionContext) => Promise<boolean>,
 ) {
 	const { state } = runtime;
 	const stopWindowPreparation = registerContextWindowPreparation(
@@ -64,7 +64,7 @@ export function createCodexCompactionLifecycle(
 			// Compaction can resume this run without another agent_start.
 			runtime.suspendOrdinaryPrewarm();
 			state.cwd = ctx.cwd;
-			const plan = resolveCodexRuntimePlanForState(ctx, state);
+			const plan = resolveAdapterRuntimePlanForState(ctx, state);
 			if (event.reason !== "manual")
 				runtime.voice.announceContextTransition(event.reason);
 			const nativeCompaction = plan.nativeCompaction;
@@ -136,7 +136,9 @@ export function createCodexCompactionLifecycle(
 				runtime.resetTransportForContextWindow(
 					ctx.sessionManager.getSessionId(),
 				);
-				await refreshNotebookStatus(ctx);
+				// A retained VM notice may predate bindings created in the compacted window.
+				if (state.bindingStatus?.kind === "vm") state.bindingStatus = undefined;
+				await refreshBindingStatus(ctx);
 				// Pi has not run the next context chain yet. Warm only its final request.
 				runtime.prepareTurn(ctx);
 				await runtime.voice.refreshRealtimeContext(ctx, state.config);

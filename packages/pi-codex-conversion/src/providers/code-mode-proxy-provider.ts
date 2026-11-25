@@ -16,7 +16,7 @@ import type {
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import type { ExecutionMode } from "../adapter/activation/execution-mode.ts";
-import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import { resolveAdapterRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import {
 	buildRequestBody,
 	resolveCodexTranscript,
@@ -358,7 +358,7 @@ export function registerCodeModeProxyProvider(
 			const overlayStream: NonNullable<
 				RegisteredProviderConfig["streamSimple"]
 			> = (model, context, options) => {
-				const plan = resolveCodexRuntimePlanForState(
+				const plan = resolveAdapterRuntimePlanForState(
 					{ model },
 					{
 						config: getConfig(),

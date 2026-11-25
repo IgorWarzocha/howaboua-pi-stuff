@@ -19,7 +19,7 @@ import { createViewImageTool } from "../tools/view-image/tool.ts";
 import { supportsViewImageInputs } from "./tool-support.ts";
 import {
 	usesExecTools,
-	resolveCodexRuntimePlanForState,
+	resolveAdapterRuntimePlanForState,
 } from "./activation/runtime-plan.ts";
 import {
 	EXEC_TOOL_NAMES,
@@ -47,7 +47,7 @@ export async function registerCodexCodeMode(
 	const piTools = createPiCodeModeBridge(pi);
 	const isActive = (ctx: unknown) => {
 		if (ctx) latestContext = ctx as ExtensionContext;
-		const plan = resolveCodexRuntimePlanForState(
+		const plan = resolveAdapterRuntimePlanForState(
 			ctx as ExtensionContext,
 			runtime.state,
 		);
@@ -63,7 +63,7 @@ export async function registerCodexCodeMode(
 	const programmaticRuntime = await registerCodeModeTools(pi, {
 		prepareLoadout: (loadout) => {
 			if (!latestContext) return undefined;
-			const plan = resolveCodexRuntimePlanForState(
+			const plan = resolveAdapterRuntimePlanForState(
 				latestContext,
 				runtime.state,
 			);
@@ -137,7 +137,7 @@ export async function registerCodexCodeMode(
 		deliverOpaqueResponse: (response, callId, scope, ctx) =>
 			appendRemoteDelivery(pi, response, callId, scope, ctx),
 		executionKind: (ctx) => {
-			const kind = resolveCodexRuntimePlanForState(
+			const kind = resolveAdapterRuntimePlanForState(
 				ctx as ExtensionContext,
 				runtime.state,
 			).kind;
@@ -158,6 +158,7 @@ export async function registerCodexCodeMode(
 		getTools: (ctx) => programmaticRuntime.getTools(ctx),
 		getPromptTools: (ctx) => programmaticRuntime.getPromptTools(ctx),
 		notebookStatus: (ctx) => programmaticRuntime.notebookStatus(ctx),
+		vmBindingStatus: (ctx) => programmaticRuntime.vmBindingStatus(ctx),
 		checkpointNotebook: () => programmaticRuntime.checkpointNotebook(),
 		shutdownHost: () => programmaticRuntime.shutdownHost(),
 		async shutdown() {
@@ -318,7 +319,7 @@ function createNestedTools(
 	}
 	if (
 		ctx &&
-		resolveCodexRuntimePlanForState(ctx, runtime.state).autoReasoning
+		resolveAdapterRuntimePlanForState(ctx, runtime.state).autoReasoning
 	) {
 		tools.push(
 			toNestedTool(

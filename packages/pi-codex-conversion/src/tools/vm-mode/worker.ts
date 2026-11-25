@@ -31,6 +31,7 @@ const control = factory((kind: unknown, payload: unknown) => {
 	}
 }) as VmControl;
 const exported = new Map<string, string>();
+const scriptLexical = new Set<string>();
 let cells = 0;
 const IDENTIFIER = /^[$_\p{ID_Start}][$_\u200C\u200D\p{ID_Continue}]*$/u;
 runInContext(
@@ -38,6 +39,7 @@ runInContext(
 	context,
 	{ filename: "vm-code-content.js" },
 );
+const initialGlobals = new Set(Object.getOwnPropertyNames(context));
 
 let active: number | undefined;
 let outputChars = 0;
@@ -147,9 +149,6 @@ function bridge(kind: string, value: string): void {
 		case "notify":
 			send({ run: active, kind: "notify", text: value });
 			break;
-		case "yield":
-			send({ run: active, kind: "yield" });
-			break;
 		default:
 			throw new Error("Unknown Code operation");
 	}
@@ -212,7 +211,11 @@ function flushGuest(): void {
 	runInContext("void 0", context);
 }
 
-function runScript(source: string, parseError?: unknown): unknown {
+function runScript(
+	source: string,
+	bindings: VmBindings,
+	parseError?: unknown,
+): unknown {
 	let script: Script;
 	try {
 		script = new Script(source, { filename: "vm-code-cell.js" });
@@ -220,7 +223,15 @@ function runScript(source: string, parseError?: unknown): unknown {
 		// A plain script reports the first await, hiding the actual syntax error.
 		throw parseError ?? error;
 	}
+	for (const name of bindings.lexical) scriptLexical.add(name);
 	return script.runInContext(context);
+}
+
+function bindingNames(): string[] {
+	const names = new Set(scriptLexical);
+	for (const name of Object.getOwnPropertyNames(context))
+		if (!initialGlobals.has(name) && IDENTIFIER.test(name)) names.add(name);
+	return [...names].sort();
 }
 
 function thrown(error: unknown): { name: string; message: string } {
@@ -371,7 +382,7 @@ async function run(
 		rejectConflicts(planned.bindings);
 		if (planned.awaited) await runModule(planned.source);
 		else {
-			runScript(planned.source, planned.parseError);
+			runScript(planned.source, planned.bindings, planned.parseError);
 			await quiescent();
 		}
 		if (failure) {
@@ -409,6 +420,10 @@ function reply(message: Extract<VmCommand, { kind: "reply" }>): void {
 }
 
 parentPort?.on("message", (message: VmCommand) => {
+	if (message.kind === "bindings") {
+		send({ kind: "bindings", id: message.id, names: bindingNames() });
+		return;
+	}
 	if (message.kind === "sample") {
 		send({ kind: "sample", memory: memory() });
 		return;

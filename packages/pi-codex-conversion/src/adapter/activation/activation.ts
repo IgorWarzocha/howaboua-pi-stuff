@@ -7,8 +7,8 @@ import { renderCodexStatus } from "../../ui/status.ts";
 import {
 	ALL_CODEX_ADAPTER_TOOL_NAMES,
 	isAdapterRuntime,
-	resolveCodexRuntimePlanForState,
-	type CodexRuntimePlan,
+	resolveAdapterRuntimePlanForState,
+	type AdapterRuntimePlan,
 } from "./runtime-plan.ts";
 import type { AdapterState } from "./state.ts";
 import { REPLACED_PI_TOOL_NAMES, STATUS_KEY } from "./tool-set.ts";
@@ -17,9 +17,9 @@ export function syncAdapter(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	state: AdapterState,
-): CodexRuntimePlan {
+): AdapterRuntimePlan {
 	state.availableToolNames = pi.getAllTools().map((tool) => tool.name);
-	const plan = resolveCodexRuntimePlanForState(ctx, state);
+	const plan = resolveAdapterRuntimePlanForState(ctx, state);
 	reconcileExternalToolLoadout(state, pi.getActiveTools());
 	const extensionTools =
 		state.enabled || isAdapterRuntime(plan)
@@ -39,7 +39,7 @@ function enableAdapter(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	state: AdapterState,
-	plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" | "ts" | "vm" }>,
+	plan: Extract<AdapterRuntimePlan, { kind: "normal" | "code" | "ts" | "vm" }>,
 	extensionTools: ExtensionToolSnapshot,
 ): void {
 	const changed = hasRuntimePlanChanged(state, plan);
@@ -79,7 +79,7 @@ function disableAdapter(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	state: AdapterState,
-	plan: CodexRuntimePlan,
+	plan: AdapterRuntimePlan,
 	extensionTools: ExtensionToolSnapshot,
 ): void {
 	const owned = state.adapterOwnedToolNames ?? plan.ownedToolNames;
@@ -188,7 +188,7 @@ function reconcileExternalToolLoadout(
 
 function hasRuntimePlanChanged(
 	state: AdapterState,
-	plan: CodexRuntimePlan,
+	plan: AdapterRuntimePlan,
 ): boolean {
 	return (
 		!state.enabled ||
@@ -200,7 +200,7 @@ function hasRuntimePlanChanged(
 function applyRuntimeTools(
 	pi: ExtensionAPI,
 	state: AdapterState,
-	plan: CodexRuntimePlan,
+	plan: AdapterRuntimePlan,
 	toolNames: string[],
 ): void {
 	// Retain the native loadout in previousToolNames, but never run two code

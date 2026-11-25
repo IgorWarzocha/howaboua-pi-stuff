@@ -71,7 +71,7 @@ export function createCodexSessionLifecycle(
 	return {
 		start: async (event, ctx) => {
 			activate(ctx);
-			state.notebookStatusMessageId = undefined;
+			state.bindingStatus = undefined;
 			ui.invalidateUsageStatus();
 			await runtime.lanVoice.stop(ctx);
 			runtime.voice.resetContextAnnouncements();
@@ -118,7 +118,7 @@ export function createCodexSessionLifecycle(
 				runtime.voice.resetVoiceBranch(ctx);
 			runtime.resetTransport(ctx.sessionManager.getSessionId());
 			// Internal rollover preserves the admission that requested it.
-			state.notebookStatusMessageId = undefined;
+			state.bindingStatus = undefined;
 			const stateful =
 				state.executionMode === "ts" || state.executionMode === "vm";
 			if (stateful) appendExecutionTreeEpoch(pi);

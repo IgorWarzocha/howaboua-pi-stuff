@@ -11,7 +11,7 @@ import {
 	registerCodexToolProviderResolver,
 	resolveCodexToolProvider,
 } from "../adapter/codex-tool-provider.ts";
-import { isResponsesModel } from "../adapter/prompt/codex-model.ts";
+import { isResponsesModel } from "../adapter/prompt/model-support.ts";
 import {
 	registerApplyPatchResultEvent,
 	createApplyPatchTool,

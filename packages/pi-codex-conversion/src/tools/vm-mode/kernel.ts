@@ -12,7 +12,6 @@ import type {
 interface Callbacks {
 	output(items: RuntimeContentItem[]): void;
 	notify(text: string): void;
-	yield(): void;
 	store(key: string, json?: string): void;
 	request(id: number, name: string, value: unknown): Promise<unknown>;
 	cancel(): void;
@@ -38,6 +37,11 @@ export class VmKernel {
 	private failure: Error | undefined;
 	private stopping: Promise<void> | undefined;
 	private sampleWait: ((memory: VmMemory) => void) | undefined;
+	private readonly bindingWaiters = new Map<
+		number,
+		{ resolve(names: string[]): void; reject(error: Error): void }
+	>();
+	private nextBindingRequest = 0;
 
 	static create(heapMiB: number): VmKernel {
 		return new VmKernel(heapMiB);
@@ -79,12 +83,30 @@ export class VmKernel {
 		});
 	}
 
+	bindings(): Promise<string[]> {
+		if (this.failure || this.stopping)
+			return Promise.reject(this.failure ?? new Error("VM Code is stopping"));
+		return new Promise((resolve, reject) => {
+			const id = ++this.nextBindingRequest;
+			this.bindingWaiters.set(id, { resolve, reject });
+			this.endpoint.postMessage({ kind: "bindings", id });
+		});
+	}
+
 	async stop(): Promise<void> {
+		for (const waiter of this.bindingWaiters.values())
+			waiter.reject(new Error("VM Code is stopping"));
+		this.bindingWaiters.clear();
 		this.stopping ??= this.endpoint.stop();
 		await this.stopping;
 	}
 
 	private deliver(message: VmMessage): void {
+		if (message.kind === "bindings") {
+			this.bindingWaiters.get(message.id)?.resolve(message.names);
+			this.bindingWaiters.delete(message.id);
+			return;
+		}
 		if (message.kind === "sample") {
 			this.sampleWait?.(message.memory);
 			this.sampleWait = undefined;
@@ -99,9 +121,6 @@ export class VmKernel {
 					break;
 				case "notify":
 					active.callbacks.notify(message.text);
-					break;
-				case "yield":
-					active.callbacks.yield();
 					break;
 				case "store":
 					active.callbacks.store(message.key, message.json);
@@ -129,6 +148,8 @@ export class VmKernel {
 		this.active?.reject(error);
 		this.active = undefined;
 		this.sampleWait = undefined;
+		for (const waiter of this.bindingWaiters.values()) waiter.reject(error);
+		this.bindingWaiters.clear();
 	}
 
 	private async request(

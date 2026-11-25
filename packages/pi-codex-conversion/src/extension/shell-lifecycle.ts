@@ -187,7 +187,7 @@ export function registerCodexShellLifecycle(
 				id,
 				owner: "shells",
 				key: owner.sessionId,
-				content: `Background shells in this Pi session:\n${lines.join("\n")}\nCollect results with write_stdin. Keep normal monitoring; idle completion notices are a safety net.`,
+				content: `Background shells in this Pi session:\n${lines.join("\n")}\nCompletion reports automatically when idle; continue work or end turn. Use write_stdin for input or intermediate output.`,
 			});
 			owner.briefingId = id;
 			return true;

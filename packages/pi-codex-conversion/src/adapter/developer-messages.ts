@@ -17,7 +17,7 @@ import {
 } from "./reasoning-updates.ts";
 import { CODEX_CURRENT_TIME_REMINDER_TYPE } from "./current-time-reminder.ts";
 import { CODEX_TOOLKIT_UPDATE_TYPE } from "./code-mode/toolkit-updates.ts";
-import { CODEX_NOTEBOOK_STATUS_TYPE } from "./notebook-status.ts";
+import { isBindingStatusType } from "./binding-status.ts";
 import { CODEX_CONTEXT_BRIEFING_TYPE } from "../context-briefings.ts";
 import {
 	REMOTE_DELIVERY_MESSAGE,
@@ -75,7 +75,7 @@ export class CodexDeveloperMessageBridge {
 				(message.customType !== CODEX_DEVELOPER_MESSAGE_TYPE &&
 					message.customType !== CODEX_CURRENT_TIME_REMINDER_TYPE &&
 					message.customType !== CODEX_TOOLKIT_UPDATE_TYPE &&
-					message.customType !== CODEX_NOTEBOOK_STATUS_TYPE &&
+					!isBindingStatusType(message.customType) &&
 					message.customType !== CODEX_CONTEXT_BRIEFING_TYPE &&
 					message.customType !== REMOTE_DELIVERY_MESSAGE &&
 					message.customType !== CODEX_REASONING_UPDATE_TYPE &&
@@ -89,7 +89,7 @@ export class CodexDeveloperMessageBridge {
 					message.customType === CODEX_DEVELOPER_MESSAGE_TYPE ||
 					message.customType === CODEX_CURRENT_TIME_REMINDER_TYPE ||
 					message.customType === CODEX_TOOLKIT_UPDATE_TYPE ||
-					message.customType === CODEX_NOTEBOOK_STATUS_TYPE ||
+					isBindingStatusType(message.customType) ||
 					message.customType === CODEX_CONTEXT_BRIEFING_TYPE ||
 					customMetadata !== undefined
 				)

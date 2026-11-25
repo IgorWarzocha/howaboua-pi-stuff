@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import { resolveAdapterRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import {
 	rewriteCodexProviderHeaders,
 	rewriteCodexProviderRequest,
@@ -89,7 +89,7 @@ export function registerCodexEvents(
 		pi,
 		runtime,
 		codeMode,
-		turn.refreshNotebookStatus,
+		turn.refreshBindingStatus,
 	);
 	pi.events.on(REALTIME_VOICE_PROMPT_CHANNEL, (value) => {
 		const report = parseRealtimeVoicePrompt(value);
@@ -156,7 +156,7 @@ export function registerCodexEvents(
 	});
 	pi.on("agent_settled", turn.agentSettled);
 	pi.on("cache_warming_decision", (_event, ctx) => {
-		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		const plan = resolveAdapterRuntimePlanForState(ctx, state);
 		// These routes cannot honor Pi's one-token cap and must not advance the live response chain.
 		if (plan.codexTransport || plan.responsesFormat === "responses-lite")
 			return { action: "stop" };

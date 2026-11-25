@@ -54,7 +54,6 @@ export const VM_PRELUDE = String.raw`(hostBridge => {
     text, image,
     generatedImage: value => { image(value); if (value?.output_hint !== undefined) text(value.output_hint); },
     notify: value => bridge('notify', format(value)),
-    yield_control: () => { bridge('yield', ''); },
     exit: () => { const error = new Error('exit'); error.name = 'VmExit'; throw error; },
     store: (key, value) => {
       if (typeof key !== 'string') throw new TypeError('store key must be a string');

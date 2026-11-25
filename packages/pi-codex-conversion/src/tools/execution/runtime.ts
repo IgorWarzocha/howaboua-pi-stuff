@@ -1,23 +1,23 @@
 import type { ToolDetailsMode } from "../../adapter/activation/config-contract.ts";
-import { OpaqueResultState } from "./opaque-result-state.ts";
+import { OpaqueResultState } from "../code-mode/opaque-result-state.ts";
 import type {
 	ExtensionContext,
 	ToolLoadout,
 	ToolLoadoutChanges,
 } from "@earendil-works/pi-coding-agent";
-import { ensureCodeModeHostBinary } from "./binary.js";
-import { CodeModeHostClient } from "./host-client.js";
-import { createNotebookControlProxy } from "./notebook-tool.ts";
-import { codeModeGlobalName } from "./tool-identity.ts";
-import { CodeModeNestedRenderStore } from "./trace-render-state.js";
-import { prepareCodeModeToolInput } from "./tool-input.ts";
+import { ensureCodeModeHostBinary } from "../code-mode/binary.js";
+import { CodeModeHostClient } from "../code-mode/host-client.js";
+import { createNotebookControlProxy } from "../ts-mode/notebook-tool.ts";
+import { codeModeGlobalName } from "../code-mode/tool-identity.ts";
+import { CodeModeNestedRenderStore } from "../code-mode/trace-render-state.js";
+import { prepareCodeModeToolInput } from "../code-mode/tool-input.ts";
 import type {
 	CodeModeToolDefinition,
 	NotebookControlRequest,
 	NotebookControlResult,
 	RuntimeResponse,
 	ToolExecutionContext,
-} from "./types.js";
+} from "../code-mode/types.js";
 
 export type CodeModeExecutionKind = "code" | "ts" | "vm";
 
@@ -66,6 +66,7 @@ export interface CodeModeExecutionClient {
 		signal?: AbortSignal,
 	): Promise<RuntimeResponse>;
 	checkpoint?(): Promise<void>;
+	bindingNames?(context: ToolExecutionContext): Promise<string[]>;
 	controlNotebook?(
 		request: NotebookControlRequest,
 		context: ToolExecutionContext,
@@ -342,6 +343,26 @@ export class SharedCodeModeRuntime {
 		if (!pending) return;
 		const client = await pending;
 		await client.checkpoint?.();
+	}
+
+	async vmBindingStatus(ctx: ExtensionContext): Promise<string> {
+		if (this.executionKind(ctx) !== "vm")
+			throw new Error("VM binding status requires VM Code");
+		const client = await this.getRuntimeClient(ctx, "vm");
+		if (!client.bindingNames) throw new Error("VM binding status unavailable");
+		const names = await client.bindingNames({
+			cwd: ctx.cwd,
+			extensionContext: ctx,
+		});
+		const shown: string[] = [];
+		let length = 0;
+		for (const name of names) {
+			if (length + name.length + 2 > 8_000) continue;
+			shown.push(name);
+			length += name.length + 2;
+		}
+		const omitted = names.length - shown.length;
+		return `VM bindings: ${shown.length ? shown.join(", ") : omitted ? "none shown" : "none"}${omitted ? ` (${omitted} omitted)` : ""}`;
 	}
 
 	async controlNotebook(

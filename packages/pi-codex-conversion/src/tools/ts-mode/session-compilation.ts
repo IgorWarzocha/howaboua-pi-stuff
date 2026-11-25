@@ -4,11 +4,11 @@ import { rm } from "node:fs/promises";
 import {
 	formatCodeModeToolHelp,
 	isCodeModeToolListed,
-} from "../code-mode/custom-tool-prompt.ts";
+} from "../code-mode/execution-prompt.ts";
 import { commandOutputFormatterSource } from "../code-mode/command-output.ts";
 import { codeModeGlobalName } from "../code-mode/tool-identity.ts";
 import type { CodeModeToolDefinition } from "../code-mode/types.ts";
-import type { ExecutionClientOptions } from "../code-mode/shared-runtime.ts";
+import type { ExecutionClientOptions } from "../execution/runtime.ts";
 import { TsCompiler } from "./compiler.ts";
 import { loadTsRuntime, type TsRuntime } from "./runtime.ts";
 import {
@@ -137,7 +137,6 @@ export class TsSessionCompilation {
 					"load",
 					"ALL_TOOLS",
 					"exit",
-					"yield_control",
 				].includes(binding.name)
 			)
 				throw new Error(

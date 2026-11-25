@@ -1,5 +1,5 @@
 import type { CodeModeDelegateRuntime } from "../code-mode/delegate-runtime.ts";
-import type { ExecutionClientOptions } from "../code-mode/shared-runtime.ts";
+import type { ExecutionClientOptions } from "../execution/runtime.ts";
 import type { RuntimeCell } from "../code-mode/runtime-cell.ts";
 import { TsExecutionWorker } from "./execution-worker.ts";
 import { resolveTsRuntimeImport, type TsImportOptions } from "./imports.ts";
@@ -66,7 +66,6 @@ export class TsSessionKernel {
 			.execute(input, {
 				output: (items) => execution.cell.emit(items),
 				notify: (text) => delegate.notifyDirect(execution.cell.id, text),
-				yield: () => execution.cell.requestYield(),
 				request: async (operation, id, name, value) => {
 					execution.cell.controller.signal.throwIfAborted();
 					return operation === "tool"
@@ -127,7 +126,6 @@ export class TsSessionKernel {
 			{
 				output: () => {},
 				notify: () => {},
-				yield: () => {},
 				request: async (operation, _id, name) => {
 					if (operation === "tool")
 						throw new Error(
@@ -158,7 +156,6 @@ export class TsSessionKernel {
 			{
 				output: () => {},
 				notify: () => {},
-				yield: () => {},
 				request: async (operation, _id, name) => {
 					if (operation === "tool")
 						throw new Error("Tools cannot run while loading TS state");

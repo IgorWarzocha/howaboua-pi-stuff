@@ -8,7 +8,7 @@ import { syncAdapter } from "../adapter/activation/activation.ts";
 import {
 	isAdapterRuntime,
 	usesExecTools,
-	resolveCodexRuntimePlanForState,
+	resolveAdapterRuntimePlanForState,
 } from "../adapter/activation/runtime-plan.ts";
 import { supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
 import { prepareCodexSystemPrompt } from "../prompt/build-system-prompt.ts";
@@ -31,7 +31,7 @@ import type { createCodexReserveController } from "../codex-usage/reserve.ts";
 import { recordCurrentTimeReminder } from "../adapter/current-time-reminder.ts";
 import { recordCodexContextBriefings } from "../context-briefings.ts";
 import { recordCodeModeToolkit } from "../adapter/code-mode/toolkit-updates.ts";
-import { recordNotebookStatus } from "../adapter/notebook-status.ts";
+import { recordBindingStatus } from "../adapter/binding-status.ts";
 import { captureNativeCompactionContext } from "../adapter/replay/context.ts";
 import type {
 	ExtensionHandler,
@@ -58,23 +58,21 @@ export function createCodexTurnLifecycle(
 	shells: CodexShellLifecycle,
 ) {
 	const { state } = runtime;
-	const refreshNotebookStatus = (
+	const refreshBindingStatus = (
 		ctx: ExtensionContext,
 		messages?: readonly AgentMessage[],
 		selectedTools = pi.getActiveTools(),
 	): Promise<boolean> => {
-		const kind = resolveCodexRuntimePlanForState(ctx, state).kind;
-		if (
-			kind !== "ts" ||
-			!["exec", "wait", "notebook"].every((name) =>
-				selectedTools.includes(name),
-			)
-		)
+		const kind = resolveAdapterRuntimePlanForState(ctx, state).kind;
+		if (kind !== "ts" && kind !== "vm") return Promise.resolve(false);
+		const required = kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES;
+		if (!required.every((name) => selectedTools.includes(name)))
 			return Promise.resolve(false);
-		return recordNotebookStatus(
+		return recordBindingStatus(
 			pi,
 			ctx,
 			state,
+			kind,
 			messages ?? runtime.projectContextMessages(ctx),
 			codeMode,
 		);
@@ -95,7 +93,8 @@ export function createCodexTurnLifecycle(
 			await reserve.beforeTurn(ctx);
 			runtime.autoReasoning.begin(ctx);
 			const plan = syncAdapter(pi, ctx, state);
-			if (plan.kind !== "ts") state.notebookStatusMessageId = undefined;
+			if (plan.kind !== state.bindingStatus?.kind)
+				state.bindingStatus = undefined;
 			if (!isAdapterRuntime(plan)) {
 				state.preparedPrompt = undefined;
 				return undefined;
@@ -107,7 +106,7 @@ export function createCodexTurnLifecycle(
 				heavySystemPromptOverwrite:
 					state.config.prompt.heavySystemPromptOverwrite,
 			});
-			await refreshNotebookStatus(
+			await refreshBindingStatus(
 				ctx,
 				runtime.projectContextMessages(ctx),
 				event.systemPromptOptions.selectedTools,
@@ -135,7 +134,7 @@ export function createCodexTurnLifecycle(
 			if (!quotaExhausted) runtime.armCacheKeepalive(ctx);
 		},
 		contextWithSystem: async (event, ctx) => {
-			const plan = resolveCodexRuntimePlanForState(ctx, state);
+			const plan = resolveAdapterRuntimePlanForState(ctx, state);
 			try {
 				captureNativeCompactionContext(event.messages, ctx, state);
 				await recordCodexContextBriefings(
@@ -149,10 +148,10 @@ export function createCodexTurnLifecycle(
 				throw error;
 			}
 			let messages = runtime.projectContextMessages(ctx, event.messages);
-			if (await refreshNotebookStatus(ctx, messages))
+			if (await refreshBindingStatus(ctx, messages))
 				messages = runtime.projectContextMessages(ctx, event.messages);
 			if (
-				usesExecTools(resolveCodexRuntimePlanForState(ctx, state)) &&
+				usesExecTools(resolveAdapterRuntimePlanForState(ctx, state)) &&
 				recordCodeModeToolkit(
 					pi,
 					ctx,
@@ -204,9 +203,9 @@ export function createCodexTurnLifecycle(
 				),
 			};
 		},
-		refreshNotebookStatus,
+		refreshBindingStatus,
 	} satisfies {
-		refreshNotebookStatus: (
+		refreshBindingStatus: (
 			ctx: ExtensionContext,
 			messages?: readonly AgentMessage[],
 			selectedTools?: string[],

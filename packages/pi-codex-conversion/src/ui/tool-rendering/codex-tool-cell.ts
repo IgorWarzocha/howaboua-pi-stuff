@@ -1,5 +1,8 @@
 import { Text } from "@earendil-works/pi-tui";
-import type { RenderTheme } from "./codex-rendering.ts";
+export interface RenderTheme {
+	fg(role: string, text: string): string;
+	bold(text: string): string;
+}
 
 export function renderCodexToolCell(
 	title: string,

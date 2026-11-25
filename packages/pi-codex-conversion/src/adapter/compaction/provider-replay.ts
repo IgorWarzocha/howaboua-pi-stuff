@@ -18,7 +18,7 @@ import {
 	hasPortableNativeCompactionSummary,
 	type NativeCompactionEntry,
 } from "./types.ts";
-import { resolveCodexRuntimePlanForState } from "../activation/runtime-plan.ts";
+import { resolveAdapterRuntimePlanForState } from "../activation/runtime-plan.ts";
 import type { AdapterState } from "../activation/state.ts";
 import { CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../../tools/code-mode/exec-contract.ts";
 import { createCompactionSummaryAgentMessage } from "../replay/native-replay-matching.ts";
@@ -129,7 +129,7 @@ export async function rewriteCodexCompactedProviderRequest(
 	state: AdapterState,
 	hiddenToolNames: readonly string[],
 ): Promise<unknown | undefined> {
-	const plan = resolveCodexRuntimePlanForState(ctx, state);
+	const plan = resolveAdapterRuntimePlanForState(ctx, state);
 	if (!plan.nativeReplay) return undefined;
 	const selected = state.replayCompaction;
 	if (!selected || selected.sessionId !== ctx.sessionManager.getSessionId())

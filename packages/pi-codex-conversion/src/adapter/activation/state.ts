@@ -6,6 +6,7 @@ import type { ExecutionMode } from "./execution-mode.ts";
 import type { ResponsesFormat } from "./runtime-plan.ts";
 import type { CodexDeveloperMessageBridge } from "../developer-messages.ts";
 import type { CodexUsageStatus } from "../../codex-usage/payload.ts";
+import type { BindingStatusKind } from "../binding-status.ts";
 
 export interface PendingPiCompactionNativeWindow {
 	window: ResponsesInputItem[];
@@ -46,7 +47,7 @@ export interface AdapterState {
 	usageStatus?: CodexUsageStatus | undefined;
 	config: CodexConversionConfig;
 	executionMode: ExecutionMode;
-	notebookStatusMessageId?: string | undefined;
+	bindingStatus?: { kind: BindingStatusKind; id: string } | undefined;
 	codexTurnState: CodexTurnState;
 	developerMessages: CodexDeveloperMessageBridge;
 	pendingPiCompactionNativeWindow?: PendingPiCompactionNativeWindow | undefined;

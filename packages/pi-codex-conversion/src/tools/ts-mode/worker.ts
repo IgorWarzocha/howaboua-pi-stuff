@@ -469,7 +469,6 @@ async function run(input: TsWorkerInput): Promise<void> {
 			generatedImage,
 			notify: (value: unknown) =>
 				send({ kind: "notify", text: stringify(value) }),
-			yield_control: () => send({ kind: "yield" }),
 			exit: () => {
 				throw new Error("TS cell exited; earlier live mutations remain");
 			},
@@ -614,7 +613,6 @@ async function run(input: TsWorkerInput): Promise<void> {
 		"__tsContent",
 		"generatedImage",
 		"notify",
-		"yield_control",
 		"exit",
 		"store",
 		"load",
@@ -681,7 +679,6 @@ async function run(input: TsWorkerInput): Promise<void> {
 		content,
 		generatedImage,
 		(value: unknown) => send({ kind: "notify", text: stringify(value) }),
-		() => send({ kind: "yield" }),
 		() => {
 			throw new Error("TS cell exited without committing state");
 		},

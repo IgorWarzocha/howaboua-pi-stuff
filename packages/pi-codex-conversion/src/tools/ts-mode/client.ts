@@ -7,7 +7,7 @@ import {
 import type {
 	CodeModeExecutionClient,
 	NotebookClientOptions,
-} from "../code-mode/shared-runtime.ts";
+} from "../execution/runtime.ts";
 import { directToolYieldTime } from "../code-mode/tool-source.ts";
 import type { CodeModeNestedRenderStore } from "../code-mode/trace-render-state.ts";
 import type {

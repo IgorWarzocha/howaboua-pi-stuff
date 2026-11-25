@@ -21,11 +21,11 @@ import {
 	ISOLATED_EXEC_GUIDANCE,
 	VM_EXEC_DESCRIPTION,
 	WAIT_DESCRIPTION,
-} from "./custom-tool-prompt.js";
+} from "./exec-descriptions.js";
 import { createCodeModeRenderTracker } from "./render-tracker.js";
 import { renderExecCall, renderWaitCall } from "./call-rendering.js";
 import { renderTrackedCodeModeResult } from "./result-rendering.js";
-import type { SharedCodeModeRuntime } from "./shared-runtime.js";
+import type { SharedCodeModeRuntime } from "../execution/runtime.js";
 import { toCodeModeToolResult } from "./tool-result.js";
 import type {
 	CodeModeRenderContext,
@@ -35,7 +35,7 @@ import type {
 import { CODE_MODE_EXEC_CONSTRAINED_SAMPLING } from "./exec-contract.js";
 import { registerCodeModePreflightBroker } from "./nested-tool-preflight.js";
 import { continueExecSessionFromMistakenWait } from "./wait-session-recovery.js";
-import { registerNotebookTool } from "./notebook-tool.ts";
+import { registerNotebookTool } from "../ts-mode/notebook-tool.ts";
 import { PiToolCallScope } from "./pi-tool-call-scope.ts";
 
 const DEFAULT_WAIT_MS = 10_000;

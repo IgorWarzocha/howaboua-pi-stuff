@@ -1,4 +1,4 @@
-import { formatCodeModeToolHelp } from "./custom-tool-prompt.js";
+import { formatCodeModeToolHelp } from "./execution-prompt.js";
 import {
 	codeModeNameForToolIdentity,
 	resolveCodeModeToolIdentity,

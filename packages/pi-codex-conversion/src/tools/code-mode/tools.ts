@@ -14,7 +14,7 @@ import { registerPublicCodeModeTools } from "./public-tools.js";
 import {
 	SharedCodeModeRuntime,
 	type CodeModeToolProvider,
-} from "./shared-runtime.js";
+} from "../execution/runtime.js";
 import { registerCodeModeEvents } from "./tool-events.js";
 import type { CodeModeToolDefinition, NotebookControlResult } from "./types.ts";
 
@@ -34,6 +34,7 @@ export interface CodeModeRegistration {
 	getTools(ctx?: unknown): CodeModeToolDefinition[];
 	getPromptTools(ctx?: unknown): CodeModeToolDefinition[];
 	notebookStatus(ctx: ExtensionContext): Promise<NotebookControlResult>;
+	vmBindingStatus(ctx: ExtensionContext): Promise<string>;
 	checkpointNotebook(): Promise<void>;
 	shutdownHost(): Promise<void>;
 	shutdown(): Promise<void>;
@@ -118,6 +119,7 @@ export async function registerCodeModeTools(
 		prepare: (ctx) => runtime.prepare(ctx),
 		getTools: (ctx) => runtime.collectTools(ctx),
 		getPromptTools: (ctx) => runtime.collectPromptTools(ctx),
+		vmBindingStatus: (ctx) => runtime.vmBindingStatus(ctx),
 		notebookStatus: (ctx) =>
 			runtime.controlNotebook(
 				{ action: "status", query: "*" },

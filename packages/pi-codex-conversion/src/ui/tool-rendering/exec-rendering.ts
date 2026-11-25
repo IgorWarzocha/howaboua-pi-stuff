@@ -8,10 +8,7 @@ import type {
 	ExecOutcome,
 } from "../../tools/exec/command-state.ts";
 
-export interface RenderTheme {
-	fg(role: string, text: string): string;
-	bold(text: string): string;
-}
+import type { RenderTheme } from "./codex-tool-cell.ts";
 
 export function renderExecCommandCall(
 	command: string,

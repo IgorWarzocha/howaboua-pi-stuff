@@ -1,6 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-export interface CodexLikeModelDescriptor {
+export interface AdapterModelDescriptor {
 	provider: string;
 	api: string;
 	id: string;
@@ -8,7 +8,7 @@ export interface CodexLikeModelDescriptor {
 }
 
 export function hasOpenAICodexProviderId(
-	model: Partial<CodexLikeModelDescriptor> | null | undefined,
+	model: Partial<AdapterModelDescriptor> | null | undefined,
 ): boolean {
 	if (!model) return false;
 	return (model.provider ?? "").toLowerCase() === "openai-codex";
@@ -37,7 +37,7 @@ export function isCanonicalCodexBaseUrl(
 }
 
 export function isCanonicalCodexSubscriptionModel(
-	model: Partial<CodexLikeModelDescriptor> | null | undefined,
+	model: Partial<AdapterModelDescriptor> | null | undefined,
 ): boolean {
 	return Boolean(
 		model &&
@@ -47,7 +47,7 @@ export function isCanonicalCodexSubscriptionModel(
 }
 
 export function isStandardCodexSubscriptionModel(
-	model: Partial<CodexLikeModelDescriptor> | null | undefined,
+	model: Partial<AdapterModelDescriptor> | null | undefined,
 ): boolean {
 	return (
 		model?.provider === "openai-codex" &&
@@ -56,7 +56,7 @@ export function isStandardCodexSubscriptionModel(
 }
 
 export function isCodexTransportModel(
-	model: Partial<CodexLikeModelDescriptor> | null | undefined,
+	model: Partial<AdapterModelDescriptor> | null | undefined,
 ): boolean {
 	return Boolean(
 		model &&
@@ -66,7 +66,7 @@ export function isCodexTransportModel(
 }
 
 export function isResponsesModel(
-	model: Partial<CodexLikeModelDescriptor> | null | undefined,
+	model: Partial<AdapterModelDescriptor> | null | undefined,
 ): boolean {
 	if (!model) return false;
 	return (model.api ?? "").toLowerCase().includes("responses");
@@ -74,8 +74,8 @@ export function isResponsesModel(
 
 // Keep model detection intentionally conservative. The adapter replaces the
 // system prompt and tool surface, so false positives are worse than misses.
-export function isCodexLikeModel(
-	model: Partial<CodexLikeModelDescriptor> | null | undefined,
+export function isDefaultAdapterModel(
+	model: Partial<AdapterModelDescriptor> | null | undefined,
 ): boolean {
 	if (!model) return false;
 

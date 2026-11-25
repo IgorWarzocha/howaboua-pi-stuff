@@ -10,7 +10,7 @@ import {
 	renderExecCommandCall,
 	renderExecOutcome,
 	renderGroupedExecCommandCall,
-} from "../../ui/tool-rendering/codex-rendering.ts";
+} from "../../ui/tool-rendering/exec-rendering.ts";
 import { getExperimentalToolSampling } from "../tool-sampling.ts";
 import { getExecOutcome, type ExecCommandTracker } from "./command-state.ts";
 import { formatUnifiedExecResult } from "./format.ts";

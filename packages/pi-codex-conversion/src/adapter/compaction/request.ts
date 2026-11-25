@@ -23,7 +23,7 @@ import {
 	type SerializeResponsesMessagesOptions,
 } from "./serializer.ts";
 import {
-	resolveCodexRuntimePlanForState,
+	resolveAdapterRuntimePlanForState,
 	type ResponsesFormat,
 } from "../activation/runtime-plan.ts";
 import type { AdapterState } from "../activation/state.ts";
@@ -76,7 +76,7 @@ function buildCompactionReasoning(
 		compactionTargetModel.thinkingLevelMap?.[clampedLevel] ?? clampedLevel;
 	const effort =
 		typeof rawEffort === "string" &&
-		resolveCodexRuntimePlanForState(ctx, state).effectiveOpenAICodex
+		resolveAdapterRuntimePlanForState(ctx, state).codexOrConfiguredResponses
 			? clampCodexReasoningEffort(compactionTargetModel.id, rawEffort)
 			: rawEffort;
 	return effort === null ? undefined : { effort, summary: "auto" };
@@ -122,11 +122,11 @@ export function buildCompactionRequestOptions(
 		compactionTargetModel,
 		branchEntries,
 	);
-	const effectiveOpenAICodex = resolveCodexRuntimePlanForState(
+	const codexOrConfiguredResponses = resolveAdapterRuntimePlanForState(
 		{ model: compactionTargetModel },
 		state,
-	).effectiveOpenAICodex;
-	const serviceTier = effectiveOpenAICodex
+	).codexOrConfiguredResponses;
+	const serviceTier = codexOrConfiguredResponses
 		? resolveFastModeServiceTier(
 				state.config.openai.fast,
 				compactionTargetModel.id,
