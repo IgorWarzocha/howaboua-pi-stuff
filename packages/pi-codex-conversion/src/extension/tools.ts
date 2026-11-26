@@ -5,11 +5,7 @@ import type {
 	ToolLoadoutChanges,
 } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import {
-	hasActiveExecTools,
-	hiddenPiReplacementToolNames,
-	NESTED_ADAPTER_TOOL_NAMES,
-} from "../adapter/activation/tool-set.ts";
+import { hiddenPiReplacementToolNames } from "../adapter/activation/tool-set.ts";
 import {
 	registerCodexToolProviderPolicy,
 	registerCodexToolProviderResolver,
@@ -61,29 +57,6 @@ export function registerCodexTools(
 			),
 		};
 	};
-	// Declaration hiding preserves Pi admission but does not block execution.
-	pi.on("tool_call", (event) => {
-		const active = pi.getActiveTools();
-		const hiddenReplacements = hiddenPiReplacementToolNames(
-			runtime.state.appliedRuntimeKind,
-			active,
-		);
-		if (hiddenReplacements.includes(event.toolName))
-			return {
-				block: true,
-				reason: "Use the active Codex tools instead.",
-			};
-		if (
-			!event.parentToolCallId &&
-			hasActiveExecTools(runtime.state.appliedRuntimeKind, active) &&
-			NESTED_ADAPTER_TOOL_NAMES.includes(event.toolName)
-		)
-			return {
-				block: true,
-				reason: "Call this tool from exec.",
-			};
-		return undefined;
-	});
 	const allowsProvider = (model: Model<Api> | undefined) =>
 		isExplicitlyConfiguredToolProvider(model, runtime.state.config);
 	const unregisterProviderPolicy = registerCodexToolProviderPolicy(
