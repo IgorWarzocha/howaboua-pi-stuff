@@ -17,13 +17,10 @@ import { createExecCommandTool } from "../tools/exec/command-tool.ts";
 import { createWriteStdinTool } from "../tools/exec/write-stdin-tool.ts";
 import { createViewImageTool } from "../tools/view-image/tool.ts";
 import { supportsViewImageInputs } from "./tool-support.ts";
+import { resolveAdapterRuntimePlanForState } from "./activation/runtime-plan.ts";
 import {
-	usesExecTools,
-	resolveAdapterRuntimePlanForState,
-} from "./activation/runtime-plan.ts";
-import {
-	EXEC_TOOL_NAMES,
-	TS_NOTEBOOK_TOOL_NAMES,
+	hasActiveExecTools,
+	NESTED_ADAPTER_TOOL_NAMES,
 	REPLACED_PI_TOOL_NAMES,
 } from "./activation/tool-set.ts";
 import {
@@ -34,6 +31,7 @@ import { resolveProtectedOutputScope } from "../tools/code-mode/protected-output
 import { appendRemoteDelivery } from "../tools/code-mode/protected-delivery.ts";
 import { createPiCodeModeBridge } from "./code-mode/pi-tools.ts";
 import { syncAdapter } from "./activation/activation.ts";
+import { recordNativeNestedSelection } from "./activation/native-nested-selection.ts";
 
 const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
 
@@ -44,6 +42,7 @@ export async function registerCodexCodeMode(
 	let latestContext: ExtensionContext | undefined;
 	let stopped = false;
 	let pendingNativeProjection = false;
+	let callableNames: ReadonlySet<string> = new Set();
 	const piTools = createPiCodeModeBridge(pi);
 	const isActive = (ctx: unknown) => {
 		if (ctx) latestContext = ctx as ExtensionContext;
@@ -51,28 +50,18 @@ export async function registerCodexCodeMode(
 			ctx as ExtensionContext,
 			runtime.state,
 		);
-		if (!usesExecTools(plan)) return false;
-		const requiredTools =
-			plan.kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES;
-		const activeTools = pi.getActiveTools();
-		return requiredTools.every((name) => activeTools.includes(name));
+		return hasActiveExecTools(plan.kind, pi.getActiveTools());
 	};
 	const customToolsRuntime = await registerCustomTools(pi, undefined, {
 		isActive,
 	});
 	const programmaticRuntime = await registerCodeModeTools(pi, {
 		prepareLoadout: (loadout) => {
-			if (!latestContext) return undefined;
-			const plan = resolveAdapterRuntimePlanForState(
-				latestContext,
-				runtime.state,
-			);
-			if (!usesExecTools(plan)) return undefined;
-			const required =
-				plan.kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES;
+			callableNames = new Set(loadout.callable.map(({ name }) => name));
 			if (
-				!required.every((name) =>
-					loadout.declared.some((tool) => tool.name === name),
+				!hasActiveExecTools(
+					runtime.state.appliedRuntimeKind,
+					loadout.declared.map(({ name }) => name),
 				)
 			)
 				return undefined;
@@ -113,6 +102,7 @@ export async function registerCodexCodeMode(
 			}
 			return piTools.prepareLoadout(loadout, [
 				...REPLACED_PI_TOOL_NAMES,
+				...NESTED_ADAPTER_TOOL_NAMES,
 				"codemode",
 				...(nativeSearch ? ["tool_search"] : []),
 			]);
@@ -124,7 +114,13 @@ export async function registerCodexCodeMode(
 					runtime.state.previousToolNames ?? pi.getActiveTools(),
 			});
 			return [
-				...createNestedTools(pi, runtime, context),
+				...createNestedTools(
+					runtime,
+					context
+						? callableNames
+						: new Set(pi.getAllTools().map(({ name }) => name)),
+					context,
+				),
 				...extensions.tools,
 				...piTools.getTools(extensions.allToolNames),
 			];
@@ -153,6 +149,23 @@ export async function registerCodexCodeMode(
 		providesRenderers: true,
 		toolDetails: () => runtime.state.config.ui.toolDetails,
 	});
+	pi.on("message_end", ({ message }, ctx) => {
+		// Pi has already saved the system loadout, but not this new tree node.
+		if ((message.role === "user" || message.role === "custom") && isActive(ctx))
+			recordNativeNestedSelection(pi, ctx);
+	});
+	pi.on("session_shutdown", ({ reason }, ctx) => {
+		// Reload keeps live edits. Only an empty selection is ambiguous before
+		// its next saved turn. Marking an unsaved nonempty one would not save it.
+		if (
+			reason === "reload" &&
+			isActive(ctx) &&
+			!pi
+				.getActiveTools()
+				.some((name) => NESTED_ADAPTER_TOOL_NAMES.includes(name))
+		)
+			recordNativeNestedSelection(pi, ctx);
+	});
 	return {
 		prepare: programmaticRuntime.prepare,
 		getTools: (ctx) => programmaticRuntime.getTools(ctx),
@@ -171,13 +184,10 @@ export async function registerCodexCodeMode(
 }
 
 function createNestedTools(
-	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
+	toolNames: ReadonlySet<string>,
 	ctx?: ExtensionContext,
 ): ProgrammaticCodeModeToolDefinition[] {
-	const registeredToolNames = new Set(
-		pi.getAllTools().map((tool) => tool.name),
-	);
 	const options = {
 		describeImagesForTextModels: runtime.state.config.tools.viewImageFallback,
 		promptSnippet: false,
@@ -196,8 +206,8 @@ function createNestedTools(
 					runtime.state.config.ui.toolDetails === "preview",
 			}),
 			"tools.apply_patch(patch)",
-			{},
 			{
+				pccHooks: true,
 				kind: "freeform",
 				promptGuidelines: [
 					"Wrap in *** Begin Patch / *** End Patch. Actions: *** Add File: path | *** Update File: path | *** Delete File: path",
@@ -211,40 +221,13 @@ function createNestedTools(
 						throw new Error("apply_patch expects a patch string");
 					return { input };
 				},
-				resultError(result) {
-					if (
-						result.details &&
-						typeof result.details === "object" &&
-						"status" in result.details &&
-						result.details.status === "partial_failure"
-					)
-						return (
-							result.content
-								.filter((item) => item.type === "text")
-								.map((item) => item.text)
-								.join("\n") || "apply_patch partially failed"
-						);
-					return undefined;
-				},
 			},
 		),
 		toNestedTool(
 			createExecCommandTool(runtime.tracker, runtime.sessions, options),
 			"tools.exec_command({ cmd: string, workdir?: string, shell?: string, tty?: boolean, yield_time_ms?: number, max_output_tokens?: number, login?: boolean })",
 			{
-				start(id, input) {
-					const cmd =
-						input &&
-						typeof input === "object" &&
-						"cmd" in input &&
-						typeof input.cmd === "string"
-							? input.cmd
-							: "";
-					if (cmd) runtime.tracker.recordStart(id, cmd);
-				},
-				end: (id) => runtime.tracker.recordEnd(id),
-			},
-			{
+				pccHooks: true,
 				yieldTimeMs: LONG_RUNNING_TOOL_OUTER_YIELD_MS,
 				promptGuidelines: [
 					"Filter large output at the source",
@@ -279,8 +262,8 @@ function createNestedTools(
 		toNestedTool(
 			createWriteStdinTool(runtime.sessions, options),
 			"tools.write_stdin({ session_id: number, chars?: string, yield_time_ms?: number, max_output_tokens?: number })",
-			{},
 			{
+				pccHooks: true,
 				yieldTimeMs: LONG_RUNNING_TOOL_OUTER_YIELD_MS,
 				promptGuidelines: [
 					"Nonempty chars require tty=true on the original tools.exec_command call",
@@ -307,13 +290,15 @@ function createNestedTools(
 				imageCapable
 					? 'tools.view_image({ path: string, detail?: "original" })'
 					: "tools.view_image({ path: string })",
-				{},
-				imageCapable
-					? {
-							promptGuidelines: ["Pass the result to image()"],
-							resultValue: codeModeImageResult,
-						}
-					: {},
+				{
+					pccHooks: true,
+					...(imageCapable
+						? {
+								promptGuidelines: ["Pass the result to image()"],
+								resultValue: codeModeImageResult,
+							}
+						: {}),
+				},
 			),
 		);
 	}
@@ -328,12 +313,14 @@ function createNestedTools(
 					description: "Change reasoning effort",
 				},
 				'tools.change_reasoning({ level: "low" | "medium" | "high" | "xhigh" | "max" })',
-				{},
-				{ promptGuidelines: [runtime.autoReasoning.guidance()] },
+				{
+					pccHooks: true,
+					promptGuidelines: [runtime.autoReasoning.guidance()],
+				},
 			),
 		);
 	}
-	return tools.filter((tool) => registeredToolNames.has(tool.name));
+	return tools.filter((tool) => toolNames.has(tool.name));
 }
 
 function isExecResult(

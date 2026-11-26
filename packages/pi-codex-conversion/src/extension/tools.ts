@@ -5,7 +5,11 @@ import type {
 	ToolLoadoutChanges,
 } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { hiddenPiReplacementToolNames } from "../adapter/activation/tool-set.ts";
+import {
+	hasActiveExecTools,
+	hiddenPiReplacementToolNames,
+	NESTED_ADAPTER_TOOL_NAMES,
+} from "../adapter/activation/tool-set.ts";
 import {
 	registerCodexToolProviderPolicy,
 	registerCodexToolProviderResolver,
@@ -59,15 +63,24 @@ export function registerCodexTools(
 	};
 	// Declaration hiding preserves Pi admission but does not block execution.
 	pi.on("tool_call", (event) => {
-		if (
-			hiddenPiReplacementToolNames(
-				runtime.state.appliedRuntimeKind,
-				pi.getActiveTools(),
-			).includes(event.toolName)
-		)
+		const active = pi.getActiveTools();
+		const hiddenReplacements = hiddenPiReplacementToolNames(
+			runtime.state.appliedRuntimeKind,
+			active,
+		);
+		if (hiddenReplacements.includes(event.toolName))
 			return {
 				block: true,
 				reason: "Use the active Codex tools instead.",
+			};
+		if (
+			!event.parentToolCallId &&
+			hasActiveExecTools(runtime.state.appliedRuntimeKind, active) &&
+			NESTED_ADAPTER_TOOL_NAMES.includes(event.toolName)
+		)
+			return {
+				block: true,
+				reason: "Call this tool from exec.",
 			};
 		return undefined;
 	});
@@ -87,26 +100,28 @@ export function registerCodexTools(
 	const renderOptions = (config: CodexConversionConfig) => ({
 		customRendering: config.ui.toolRenaming,
 	});
+	// PCC selects these explicitly. Pi must not add them back on reload.
+	const coreLoadout = { defaultActive: false, prepareLoadout };
 	const registerCore = (config: CodexConversionConfig) => {
 		pi.registerTool({
 			...createApplyPatchTool({
 				customRustBinariesDir: config.tools.customRustBinariesDir,
 				showDiffWhenCollapsed: config.ui.toolDetails === "preview",
 			}),
-			prepareLoadout,
+			...coreLoadout,
 		});
 		pi.registerTool({
 			...createExecCommandTool(runtime.tracker, runtime.sessions, {
 				...renderOptions(config),
 				showOutputWhenCollapsed: true,
 			}),
-			prepareLoadout,
+			...coreLoadout,
 		});
 		pi.registerTool({
 			...createWriteStdinTool(runtime.sessions, {
 				showOutputWhenCollapsed: true,
 			}),
-			prepareLoadout,
+			...coreLoadout,
 		});
 		pi.registerTool({
 			...createViewImageTool({
@@ -114,7 +129,7 @@ export function registerCodexTools(
 				describeForTextModels: config.tools.viewImageFallback,
 				...renderOptions(config),
 			}),
-			prepareLoadout,
+			...coreLoadout,
 		});
 	};
 	registerCore(runtime.state.config);

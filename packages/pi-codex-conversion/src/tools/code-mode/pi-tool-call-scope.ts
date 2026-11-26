@@ -20,7 +20,7 @@ export class PiToolCallScope {
 	): ReturnType<ExecuteTool> | undefined {
 		if (!this.accepting) return undefined;
 		if (typeof this.context.executeTool !== "function")
-			throw new Error("MCP calls require Pi's nested tool executor");
+			throw new Error("Pi nested tool execution is unavailable");
 		const signals = [this.signal, options?.signal].filter(
 			(signal): signal is AbortSignal => Boolean(signal),
 		);

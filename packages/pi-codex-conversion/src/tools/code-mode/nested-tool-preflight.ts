@@ -115,6 +115,7 @@ export async function runCodeModeToolPreflight(
 	input: unknown,
 	context: ToolExecutionContext,
 	signal: AbortSignal,
+	dispatchViaPi?: true,
 ): Promise<void> {
 	signal.throwIfAborted();
 	if (!context.preflight) return;
@@ -125,6 +126,7 @@ export async function runCodeModeToolPreflight(
 		input,
 		toolCallId: context.toolCallId,
 		originalExecCallId: context.originalExecCallId,
+		...(dispatchViaPi ? { dispatchViaPi } : {}),
 		cwd: context.cwd,
 		extensionContext: context.extensionContext,
 		signal,

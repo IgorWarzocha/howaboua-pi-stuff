@@ -77,6 +77,11 @@ export const CORE_ADAPTER_TOOL_NAMES = [
 export const EXEC_TOOL_NAMES = ["exec", "wait"];
 export const TS_NOTEBOOK_TOOL_NAMES = [...EXEC_TOOL_NAMES, "notebook"];
 export const VIEW_IMAGE_TOOL_NAME = "view_image";
+export const NESTED_ADAPTER_TOOL_NAMES = [
+	...CORE_ADAPTER_TOOL_NAMES,
+	VIEW_IMAGE_TOOL_NAME,
+	"change_reasoning",
+];
 
 export function hiddenPiReplacementToolNames(
 	kind: AdapterState["appliedRuntimeKind"],
@@ -87,10 +92,15 @@ export function hiddenPiReplacementToolNames(
 			...(active.includes("exec_command") ? ["read", "bash"] : []),
 			...(active.includes(APPLY_PATCH_TOOL_NAME) ? ["edit", "write"] : []),
 		];
-	} else if (kind === "code" || kind === "vm" || kind === "ts") {
-		const required = kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES;
-		if (required.every((name) => active.includes(name)))
-			return REPLACED_PI_TOOL_NAMES;
-	}
+	} else if (hasActiveExecTools(kind, active)) return REPLACED_PI_TOOL_NAMES;
 	return [];
+}
+
+export function hasActiveExecTools(
+	kind: AdapterState["appliedRuntimeKind"],
+	active: readonly string[],
+): boolean {
+	if (kind !== "code" && kind !== "vm" && kind !== "ts") return false;
+	const required = kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES;
+	return required.every((name) => active.includes(name));
 }

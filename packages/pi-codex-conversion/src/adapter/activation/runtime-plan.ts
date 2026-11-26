@@ -16,11 +16,10 @@ import { FAST_MODE_FAMILIES } from "./config-contract.ts";
 import type { ExecutionMode } from "./execution-mode.ts";
 import type { AdapterState } from "./state.ts";
 import {
-	APPLY_PATCH_TOOL_NAME,
 	EXEC_TOOL_NAMES,
 	CORE_ADAPTER_TOOL_NAMES,
+	NESTED_ADAPTER_TOOL_NAMES,
 	TS_NOTEBOOK_TOOL_NAMES,
-	SHELL_ADAPTER_TOOL_NAMES,
 	VIEW_IMAGE_TOOL_NAME,
 } from "./tool-set.ts";
 
@@ -53,16 +52,19 @@ export interface NormalRuntimePlan extends RuntimePlanBase {
 
 export interface CodeRuntimePlan extends RuntimePlanBase {
 	kind: "code";
+	nestedToolNames: string[];
 	responsesFormat: ResponsesFormat;
 }
 
 export interface TsRuntimePlan extends RuntimePlanBase {
 	kind: "ts";
+	nestedToolNames: string[];
 	responsesFormat: ResponsesFormat;
 }
 
 export interface VmRuntimePlan extends RuntimePlanBase {
 	kind: "vm";
+	nestedToolNames: string[];
 	responsesFormat: ResponsesFormat;
 }
 
@@ -74,10 +76,8 @@ export type AdapterRuntimePlan =
 	| VmRuntimePlan;
 
 const ALL_ADAPTER_TOOL_NAMES = [
-	"change_reasoning",
-	...CORE_ADAPTER_TOOL_NAMES,
+	...NESTED_ADAPTER_TOOL_NAMES,
 	...TS_NOTEBOOK_TOOL_NAMES,
-	VIEW_IMAGE_TOOL_NAME,
 ];
 
 function configuredProvider(
@@ -164,15 +164,8 @@ export function resolveAdapterRuntimePlan(
 	const isConfigured = configuredProvider(ctx, config);
 	const codexTransport = isCodexTransportContext(ctx);
 	const codexOrConfiguredResponses = codexTransport || isConfigured;
-	const ownedToolNames = [
-		"change_reasoning",
-		...SHELL_ADAPTER_TOOL_NAMES,
-		...TS_NOTEBOOK_TOOL_NAMES,
-		APPLY_PATCH_TOOL_NAME,
-		VIEW_IMAGE_TOOL_NAME,
-	];
 	const base = {
-		ownedToolNames,
+		ownedToolNames: ALL_ADAPTER_TOOL_NAMES,
 		configuredProvider: isConfigured,
 		codexTransport,
 		codexOrConfiguredResponses,
@@ -196,6 +189,10 @@ export function resolveAdapterRuntimePlan(
 		codexOrConfiguredResponses && nativeCompactionConfigured(config.compaction);
 	base.autoReasoning =
 		config.tools.autoReasoning && supportsCodexReasoningUpdates(ctx.model);
+	const adapterTools = [
+		...structuredToolNames(ctx, config),
+		...(base.autoReasoning ? ["change_reasoning"] : []),
+	];
 	const configuredExecutionMode = executionMode ?? config.executionMode;
 	if (
 		configuredExecutionMode === "code" ||
@@ -209,6 +206,7 @@ export function resolveAdapterRuntimePlan(
 			const tsNotebookPlan = {
 				...base,
 				toolNames: [...TS_NOTEBOOK_TOOL_NAMES],
+				nestedToolNames: NESTED_ADAPTER_TOOL_NAMES,
 				responsesFormat,
 				nativeCompaction,
 			};
@@ -217,6 +215,7 @@ export function resolveAdapterRuntimePlan(
 		const execPlan = {
 			...base,
 			toolNames: [...EXEC_TOOL_NAMES],
+			nestedToolNames: NESTED_ADAPTER_TOOL_NAMES,
 			responsesFormat,
 			nativeCompaction,
 		};
@@ -227,10 +226,7 @@ export function resolveAdapterRuntimePlan(
 	return {
 		...base,
 		kind: "normal",
-		toolNames: [
-			...structuredToolNames(ctx, config),
-			...(base.autoReasoning ? ["change_reasoning"] : []),
-		],
+		toolNames: adapterTools,
 		responsesFormat: "responses",
 		nativeCompaction,
 	};

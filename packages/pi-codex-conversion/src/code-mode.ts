@@ -61,41 +61,36 @@ export function adaptToolForCodeMode<
 		: tool;
 	const usage =
 		options.usage ?? `tools.${codeModeGlobalName(nestedTool.name)}()`;
-	const adapted = toNestedTool(
-		nestedTool,
-		usage,
-		{},
-		{
-			modelVisibleResult: true,
-			executeViaPi: tool.name,
-			...(options.opaqueResult
-				? {
-						opaqueResult: true,
-						allowPlainResult: true,
-						opaqueResultScope: (result) => protectedOutputScope(result.details),
-					}
-				: {}),
-			...(options.propagateTermination ? { propagateTermination: true } : {}),
-			translatePromptMetadata: options.promptMetadata !== false,
-			...(options.kind ? { kind: options.kind } : {}),
-			...(options.prepareInput ? { prepareInput: options.prepareInput } : {}),
-			...(options.toolName ? { toolName: options.toolName } : {}),
-			...(options.resultValue
-				? {
-						resultValue: options.resultValue as (
-							result: AgentToolResult<unknown>,
-						) => unknown,
-					}
-				: {}),
-			...(options.blocking === true ? { blocking: true } : {}),
-			...(typeof options.blocking === "function"
-				? { isBlocking: options.blocking }
-				: {}),
-			...(options.deferLoading
-				? { deferLoading: true, discoverWhenDeferred: true }
-				: {}),
-		},
-	);
+	const adapted = toNestedTool(nestedTool, usage, {
+		modelVisibleResult: true,
+		piName: tool.name,
+		...(options.opaqueResult
+			? {
+					opaqueResult: true,
+					allowPlainResult: true,
+					opaqueResultScope: (result) => protectedOutputScope(result.details),
+				}
+			: {}),
+		...(options.propagateTermination ? { propagateTermination: true } : {}),
+		translatePromptMetadata: options.promptMetadata !== false,
+		...(options.kind ? { kind: options.kind } : {}),
+		...(options.prepareInput ? { prepareInput: options.prepareInput } : {}),
+		...(options.toolName ? { toolName: options.toolName } : {}),
+		...(options.resultValue
+			? {
+					resultValue: options.resultValue as (
+						result: AgentToolResult<unknown>,
+					) => unknown,
+				}
+			: {}),
+		...(options.blocking === true ? { blocking: true } : {}),
+		...(typeof options.blocking === "function"
+			? { isBlocking: options.blocking }
+			: {}),
+		...(options.deferLoading
+			? { deferLoading: true, discoverWhenDeferred: true }
+			: {}),
+	});
 	return {
 		...adapted,
 		...(options.discovery ? { discovery: options.discovery } : {}),

@@ -8,10 +8,16 @@ import {
 	ALL_CODEX_ADAPTER_TOOL_NAMES,
 	isAdapterRuntime,
 	resolveAdapterRuntimePlanForState,
+	usesExecTools,
 	type AdapterRuntimePlan,
 } from "./runtime-plan.ts";
 import type { AdapterState } from "./state.ts";
-import { REPLACED_PI_TOOL_NAMES, STATUS_KEY } from "./tool-set.ts";
+import { isLegacyCodeSelection } from "./native-nested-selection.ts";
+import {
+	EXEC_TOOL_NAMES,
+	REPLACED_PI_TOOL_NAMES,
+	STATUS_KEY,
+} from "./tool-set.ts";
 
 export function syncAdapter(
 	pi: ExtensionAPI,
@@ -64,9 +70,31 @@ function enableAdapter(
 			plan.kind === "normal"
 				? restoreTools(state.previousToolNames ?? [], projectedTools, owned)
 				: projectedTools;
+		// A restored Code selection carries its own optional tools, even before
+		// this instance has applied any loadout.
+		const hadExecLoadout = [
+			state.appliedRuntimeToolNames ?? [],
+			projectedTools,
+		].some((selection) =>
+			EXEC_TOOL_NAMES.every((name) => selection.includes(name)),
+		);
+		const migrateLegacySelection =
+			usesExecTools(plan) &&
+			!state.appliedRuntimeKind &&
+			EXEC_TOOL_NAMES.every((name) => projectedTools.includes(name)) &&
+			!plan.nestedToolNames.some((name) => projectedTools.includes(name)) &&
+			isLegacyCodeSelection(ctx);
 		// Pi persists the admitted selection. Hide replaced declarations at request time.
 		tools = mergeToolNames(
 			plan.toolNames,
+			usesExecTools(plan)
+				? plan.nestedToolNames.filter(
+						(name) =>
+							migrateLegacySelection ||
+							!hadExecLoadout ||
+							activeTools.includes(name),
+					)
+				: [],
 			stripAdapterTools(activeTools, owned),
 		);
 	}

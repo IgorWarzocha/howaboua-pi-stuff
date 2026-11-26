@@ -108,7 +108,7 @@ function renderTrace(
 	const renderContext: CodeModeNestedRenderContext = {
 		...(context?.keyHint ? { keyHint: context.keyHint } : {}),
 		...(context?.keyText ? { keyText: context.keyText } : {}),
-		toolCallId: trace.id,
+		toolCallId: trace.nativeCallIds?.at(-1) ?? trace.id,
 		cwd: context?.cwd ?? "",
 		state: renderState.state,
 		executionStarted: true,
