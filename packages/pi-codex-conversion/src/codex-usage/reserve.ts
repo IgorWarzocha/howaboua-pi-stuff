@@ -54,7 +54,10 @@ function readReturn(ctx: ExtensionContext): ReserveReturn | undefined {
 	};
 }
 
-export function createCodexReserveController(pi: ExtensionAPI) {
+export function createCodexReserveController(
+	pi: ExtensionAPI,
+	isActive: (model: ExtensionContext["model"]) => boolean,
+) {
 	let switching = false;
 	return {
 		modelSelected(ctx: ExtensionContext) {
@@ -68,6 +71,7 @@ export function createCodexReserveController(pi: ExtensionAPI) {
 		async beforeTurn(ctx: ExtensionContext): Promise<void> {
 			if (
 				ctx.model?.id !== CODEX_RESERVE_MODEL ||
+				!isActive(ctx.model) ||
 				!isCanonicalCodexSubscriptionModel(ctx.model)
 			)
 				return;
@@ -118,7 +122,12 @@ export function createCodexReserveController(pi: ExtensionAPI) {
 		},
 		async settled(ctx: ExtensionContext): Promise<boolean> {
 			const model = ctx.model;
-			if (!model || !isCanonicalCodexSubscriptionModel(model)) return false;
+			if (
+				!model ||
+				!isActive(model) ||
+				!isCanonicalCodexSubscriptionModel(model)
+			)
+				return false;
 			const branch = ctx.sessionManager.getBranch();
 			const last = branch.findLast(
 				(entry) =>
@@ -144,6 +153,11 @@ export function createCodexReserveController(pi: ExtensionAPI) {
 			)
 				return false;
 			if (model.id === CODEX_RESERVE_MODEL) return true;
+			const reserve = ctx.modelRegistry.find(
+				model.provider,
+				CODEX_RESERVE_MODEL,
+			);
+			if (reserve && !isActive(reserve)) return true;
 			const leaf = ctx.sessionManager.getLeafId();
 			try {
 				const status = await fetchCodexReserveStatus(ctx);
@@ -153,10 +167,6 @@ export function createCodexReserveController(pi: ExtensionAPI) {
 					!status?.entryAllowed
 				)
 					return true;
-				const reserve = ctx.modelRegistry.find(
-					model.provider,
-					CODEX_RESERVE_MODEL,
-				);
 				if (!reserve || !isCanonicalCodexSubscriptionModel(reserve)) {
 					ctx.ui.notify(
 						"Codex quota exhausted; Luna Reserve is offered but unavailable in this provider’s model catalog.",

@@ -27,7 +27,7 @@ import {
 	type ResponsesFormat,
 } from "../activation/runtime-plan.ts";
 import type { AdapterState } from "../activation/state.ts";
-import { hiddenPiReplacementToolNames } from "../activation/tool-set.ts";
+import { hiddenCodeModeToolNames } from "../activation/tool-set.ts";
 import { resolveFastModeServiceTier } from "../activation/fast-mode.ts";
 import { getActiveToolsInActiveOrder } from "../active-tools.ts";
 import { resolveCanonicalCompactionPromptInput } from "../../providers/openai-codex/session-continuity.ts";
@@ -45,10 +45,7 @@ function getCompactionTools(
 	state: AdapterState,
 	usesExecTools: boolean,
 ) {
-	const hidden = hiddenPiReplacementToolNames(
-		state.appliedRuntimeKind,
-		pi.getActiveTools(),
-	);
+	const hidden = hiddenCodeModeToolNames(state, pi.getActiveTools());
 	return getActiveToolsInActiveOrder(pi, usesExecTools).filter(
 		({ name }) => !hidden.includes(name),
 	);
@@ -156,10 +153,7 @@ export function buildCompactionTranscript(
 	branchEntries: SessionEntry[],
 ): TranscriptContext {
 	const prepared = state.preparedPrompt;
-	const hidden = hiddenPiReplacementToolNames(
-		state.appliedRuntimeKind,
-		pi.getActiveTools(),
-	);
+	const hidden = hiddenCodeModeToolNames(state, pi.getActiveTools());
 	if (
 		prepared?.sessionId === ctx.sessionManager.getSessionId() &&
 		prepared.provider === runtime.provider &&

@@ -21,12 +21,12 @@ import {
 	NATIVE_COMPACTION_SHIM_SUMMARY,
 } from "./types.ts";
 import { isResponsesContext } from "../prompt/model-support.ts";
-import {
-	usesExecTools,
-	resolveAdapterRuntimePlanForState,
-} from "../activation/runtime-plan.ts";
+import { resolveAdapterRuntimePlanForState } from "../activation/runtime-plan.ts";
 import type { AdapterState } from "../activation/state.ts";
-import { hiddenPiReplacementToolNames } from "../activation/tool-set.ts";
+import {
+	hasActiveExecTools,
+	hiddenCodeModeToolNames,
+} from "../activation/tool-set.ts";
 import { executeRemoteCompactionV2 } from "./remote-v2-client.ts";
 import { buildRemoteCompactionV2Window } from "./remote-v2-history.ts";
 import { CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../../tools/code-mode/exec-contract.ts";
@@ -261,13 +261,11 @@ async function handleCodexSessionBeforeCompactInner(
 			);
 		}
 	}
-	const execToolsActive = usesExecTools(plan);
+	const activeTools = pi.getActiveTools();
+	const execToolsActive = hasActiveExecTools(plan.kind, activeTools);
 	const responsesFormat = plan.responsesFormat ?? "responses";
 	const serializationOptions: SerializeResponsesMessagesOptions = {
-		hiddenToolNames: hiddenPiReplacementToolNames(
-			state.appliedRuntimeKind,
-			pi.getActiveTools(),
-		),
+		hiddenToolNames: hiddenCodeModeToolNames(state, activeTools),
 		...(responsesFormat === "responses-lite"
 			? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS }
 			: {}),

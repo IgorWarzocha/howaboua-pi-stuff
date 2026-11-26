@@ -83,7 +83,7 @@ export function createSettingsConfiguration(
 							item: {
 								id: "executionMode",
 								description:
-									"Structured: standard JSON schemas. Code: fresh JavaScript cells. VM Code: JavaScript bindings kept for this conversation. TS Notebook: persistent TypeScript with checkpoints and concurrent cells.",
+									"VM Code: JavaScript bindings kept for this conversation. Code: fresh JavaScript cells. TS Notebook: persistent TypeScript with checkpoints and concurrent cells.",
 								label: "Execution mode",
 								currentValue: EXECUTION_MODE_LABELS[draft.executionMode],
 								values: Object.values(EXECUTION_MODE_LABELS),

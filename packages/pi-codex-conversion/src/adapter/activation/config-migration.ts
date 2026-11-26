@@ -7,6 +7,7 @@ import {
 	type CodexConversionConfig,
 } from "./config.ts";
 import { normalizeExecutionMode } from "./execution-mode.ts";
+import { legacyAllProvidersMode } from "./model-scope.ts";
 import {
 	isRecord,
 	needsConfigUpgrade,
@@ -44,7 +45,29 @@ export function migrateCodexConversionConfig(
 	inheritedCompaction: CompactionMigrationInheritance = DEFAULT_CODEX_CONVERSION_CONFIG.compaction,
 	inheritedUi?: Record<string, unknown>,
 ): unknown {
-	if (!isRecord(value) || !needsConfigUpgrade(value)) return value;
+	if (!isRecord(value)) return value;
+	const document = needsConfigUpgrade(value)
+		? migrateLegacyConfig(value, inheritedCompaction, inheritedUi)
+		: value;
+	const scope = document["scope"];
+	const oldMode = isRecord(scope)
+		? legacyAllProvidersMode(scope["allProviders"])
+		: undefined;
+	let migrated = document;
+	if (isRecord(scope) && oldMode) {
+		const { allProviders: _allProviders, ...rest } = scope;
+		migrated = { ...migrated, scope: { mode: oldMode, ...rest } };
+	}
+	if (migrated["executionMode"] === "normal")
+		migrated = { ...migrated, executionMode: "vm" };
+	return migrated;
+}
+
+function migrateLegacyConfig(
+	value: Record<string, unknown>,
+	inheritedCompaction: CompactionMigrationInheritance,
+	inheritedUi?: Record<string, unknown>,
+): Record<string, unknown> {
 	if (
 		"voiceFeaturesOnly" in value ||
 		normalizeExecutionMode(value["executionMode"]) ||
@@ -90,7 +113,7 @@ export function migrateCodexConversionConfig(
 				...(mode
 					? { executionMode: mode }
 					: typeof beta["codeMode"] === "boolean"
-						? { executionMode: beta["codeMode"] ? "code" : "normal" }
+						? { executionMode: beta["codeMode"] ? "code" : "vm" }
 						: {}),
 				...(typeof openai["proxyResponsesLite"] !== "boolean" &&
 				typeof beta["responsesLite"] === "boolean"
@@ -110,7 +133,7 @@ export function migrateCodexConversionConfig(
 	for (const key of FLAT_KEYS) delete document[key];
 	const scope: Record<string, unknown> = {};
 	if (typeof value["useOnAllModels"] === "boolean")
-		scope["allProviders"] = value["useOnAllModels"] ? "on" : "off";
+		scope["mode"] = value["useOnAllModels"] ? "all" : "automatic";
 	if (typeof value["useAdapterProviders"] === "boolean")
 		scope["additionalProviders"] = value["useAdapterProviders"]
 			? normalizeProviderList(value["adapterProviders"])

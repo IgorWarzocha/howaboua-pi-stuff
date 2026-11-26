@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import {
 	assertConfigDocument,
 	assertWritableConfig,
+	SETTINGS_VERSION,
 	isRecord,
 	mergeConfigDocument,
 	needsConfigUpgrade,
@@ -16,10 +17,7 @@ import {
 	withoutDisabledProjectCacheKeepalive,
 } from "./config-document.ts";
 import { migrateCodexConversionConfig } from "./config-migration.ts";
-import {
-	normalizeAllProvidersMode,
-	resolveLegacyToolDetails,
-} from "./config-normalizers.ts";
+import { resolveLegacyToolDetails } from "./config-normalizers.ts";
 import { normalizeExecutionMode } from "./execution-mode.ts";
 import {
 	DEFAULT_CODEX_CONVERSION_CONFIG,
@@ -134,6 +132,8 @@ function cleanRetiredFields(
 	delete document["voiceFeaturesOnly"];
 	delete document["applyPatchOnly"];
 	delete document["viewImageOnly"];
+	const scope = document["scope"];
+	if (isRecord(scope)) delete scope["allProviders"];
 	const tools = document["tools"];
 	if (isRecord(tools)) {
 		delete tools["applyPatchOnly"];
@@ -170,10 +170,11 @@ export function persistConfigUpgrade(
 	migrated: unknown,
 	folderScope: boolean,
 ): void {
+	if (!isRecord(original) || !isRecord(migrated)) return;
+	const legacyDocument = needsConfigUpgrade(original);
 	if (
-		!isRecord(original) ||
-		!needsConfigUpgrade(original) ||
-		!isRecord(migrated)
+		!legacyDocument &&
+		(original["settingsVersion"] !== SETTINGS_VERSION || original === migrated)
 	)
 		return;
 	try {
@@ -185,15 +186,15 @@ export function persistConfigUpgrade(
 			!isDeepStrictEqual(JSON.parse(readFileSync(path, "utf8")), original)
 		)
 			return;
+		if (!legacyDocument) {
+			assertConfigDocument(migrated);
+			writeConfigDocumentAtomic(path, migrated);
+			return;
+		}
 		const document = structuredClone(migrated);
 		if (document["executionMode"] !== "notebook") {
 			const mode = normalizeExecutionMode(document["executionMode"]);
 			if (mode) document["executionMode"] = mode;
-		}
-		const scope = document["scope"];
-		if (isRecord(scope)) {
-			const mode = normalizeAllProvidersMode(scope["allProviders"]);
-			if (mode) scope["allProviders"] = mode;
 		}
 		// Older project files can still inherit the pre-preset global axes.
 		const oldUi = original["ui"];

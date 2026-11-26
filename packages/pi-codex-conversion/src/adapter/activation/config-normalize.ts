@@ -11,7 +11,6 @@ import {
 } from "./config-contract.ts";
 import {
 	isObject,
-	normalizeAllProvidersMode,
 	normalizeCacheDiagnosticsMode,
 	normalizeCodexVerbosity,
 	normalizeCompactionMethod,
@@ -34,6 +33,11 @@ import {
 } from "./config-values.ts";
 import { normalizeExecutionMode } from "./execution-mode.ts";
 import { normalizeFastMode } from "./fast-mode.ts";
+import {
+	legacyAllProvidersMode,
+	normalizeModelScopeMode,
+	normalizeModelScopeOverrides,
+} from "./model-scope.ts";
 
 export function normalizeCodexConversionConfig(
 	value: unknown,
@@ -73,10 +77,12 @@ export function normalizeCodexConversionConfig(
 				prompt["heavySystemPromptOverwrite"] === true,
 		},
 		scope: {
-			allProviders:
-				normalizeAllProvidersMode(scope["allProviders"]) ??
-				DEFAULT_CODEX_CONVERSION_CONFIG.scope["allProviders"],
+			mode:
+				normalizeModelScopeMode(scope["mode"]) ??
+				legacyAllProvidersMode(scope["allProviders"]) ??
+				DEFAULT_CODEX_CONVERSION_CONFIG.scope.mode,
 			additionalProviders: normalizeProviderList(scope["additionalProviders"]),
+			modelOverrides: normalizeModelScopeOverrides(scope["modelOverrides"]),
 		},
 		tools: {
 			autoReasoning: normalizeBoolean(

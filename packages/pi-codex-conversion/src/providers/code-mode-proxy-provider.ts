@@ -250,7 +250,6 @@ type ResponsesApi = "openai-responses" | "openai-codex-responses";
 
 function resolveProviderApis(
 	config: CodexConversionConfig,
-	executionMode: ExecutionMode | undefined,
 	modelRegistry: CodeModeModelRegistry,
 ): Map<string, ResponsesApi> {
 	const resolved = new Map<string, ResponsesApi>();
@@ -271,10 +270,8 @@ function resolveProviderApis(
 			model.api === "openai-responses"
 				? "openai-responses"
 				: "openai-codex-responses";
-		const mode = executionMode ?? config.executionMode;
 		const configuredResponsesLite =
 			model.api === "openai-responses" &&
-			(mode === "code" || mode === "ts" || mode === "vm") &&
 			config.openai.proxyResponsesLite &&
 			config.scope.additionalProviders.includes(
 				model.provider.trim().toLowerCase(),
@@ -331,11 +328,7 @@ export function registerCodeModeProxyProvider(
 		config: CodexConversionConfig,
 		modelRegistry: CodeModeModelRegistry,
 	) => {
-		const desiredProviders = resolveProviderApis(
-			config,
-			getExecutionMode(),
-			modelRegistry,
-		);
+		const desiredProviders = resolveProviderApis(config, modelRegistry);
 		for (const [provider, api] of desiredProviders) {
 			const existing = registeredProviders.get(provider);
 			if (existing?.api === api) continue;

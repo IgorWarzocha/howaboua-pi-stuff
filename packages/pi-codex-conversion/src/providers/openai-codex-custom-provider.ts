@@ -6,6 +6,7 @@ import {
 	type Provider,
 	type TranscriptContext,
 } from "@earendil-works/pi-ai";
+import { openAICodexResponsesApi } from "@earendil-works/pi-ai/api/openai-codex-responses.lazy";
 import {
 	extractAccountId,
 	buildWebSocketHeaders,
@@ -14,6 +15,7 @@ import {
 import { noThrowCodexDiagnosticsSink } from "./openai-codex/diagnostic-failure.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { normalizeCodexConfigurationUpdates } from "../adapter/reasoning-updates.ts";
+import type { ResponsesFormat } from "../adapter/activation/runtime-plan.ts";
 import { openAICodexProviderModels } from "./openai-codex/model-catalog.ts";
 import { CODEX_RESERVE_MODEL } from "../codex-usage/reserve-policy.ts";
 import { DEFAULT_CODEX_BASE_URL } from "./openai-codex/constants.ts";
@@ -208,7 +210,7 @@ export function registerOpenAICodexCustomProvider(
 	pi: ExtensionAPI,
 	options: {
 		getConfig?: () => CodexProviderRuntimeConfig | undefined;
-		useResponsesLite?: (model: Model<Api>) => boolean;
+		responsesFormat: (model: Model<Api>) => ResponsesFormat | undefined;
 		turnState?: CodexTurnState | undefined;
 		onPreparedPayload?: ((payload: ResponsesBody) => void) | undefined;
 		beforeRequestSend?: BeforeCodexRequestSend | undefined;
@@ -218,18 +220,18 @@ export function registerOpenAICodexCustomProvider(
 		recordUsage?: CodexUsageRecorder | undefined;
 	},
 ): void {
-	const streamSimple = (
+	const stock = openAICodexResponsesApi();
+	const streamCodex = (
 		model: Model<Api>,
 		context: TranscriptContext,
-		streamOptions?: CodexProviderStreamOptions,
+		format: ResponsesFormat,
+		streamOptions: CodexProviderStreamOptions | undefined,
 	) => {
 		const diagnostics = options.getDiagnostics?.(streamOptions?.sessionId);
 		const stream = createCodexTransportStream(model, context, streamOptions, {
 			prepareRequestBody: prepareCodexRequestBody,
 			...(options.getConfig ? { getConfig: options.getConfig } : {}),
-			...(options.useResponsesLite
-				? { useResponsesLite: options.useResponsesLite }
-				: {}),
+			responsesLite: format === "responses-lite",
 			...(options.turnState ? { turnState: options.turnState } : {}),
 			...(options.onPreparedPayload
 				? { onPreparedPayload: options.onPreparedPayload }
@@ -252,8 +254,18 @@ export function registerOpenAICodexCustomProvider(
 		getModels: () => models,
 		filterModels: (available) =>
 			available.filter(({ id }) => id !== CODEX_RESERVE_MODEL),
-		stream: streamSimple,
-		streamSimple,
+		stream: (model, context, streamOptions) => {
+			const format = options.responsesFormat(model);
+			return format
+				? streamCodex(model, context, format, streamOptions)
+				: stock.stream(model, context, streamOptions);
+		},
+		streamSimple: (model, context, streamOptions) => {
+			const format = options.responsesFormat(model);
+			return format
+				? streamCodex(model, context, format, streamOptions)
+				: stock.streamSimple(model, context, streamOptions);
+		},
 	};
 	pi.registerProvider(provider);
 }

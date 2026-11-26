@@ -79,10 +79,14 @@ const settingsDocument = compile(
 				v2UserMessageRetention: retention,
 			}),
 			scope: section({
+				mode: values("automatic", "all", "selected"),
 				allProviders: opt(
 					union([bool(), lit("off"), lit("on"), lit("extras")]),
 				),
 				additionalProviders: opt(arr(str())),
+				modelOverrides: opt(
+					arr(obj({ provider: str(), id: str(), enabled: bool() })),
+				),
 			}),
 			ui: section({
 				toolDetails: values("minimal", "compact", "preview"),

@@ -53,7 +53,11 @@ export function normalizeOpenAIRealtimeVoice(
 	return OPENAI_REALTIME_VOICES.find((voice) => voice === value);
 }
 
-import type { ExecutionMode } from "./execution-mode.ts";
+import {
+	DEFAULT_EXECUTION_MODE,
+	type ExecutionMode,
+} from "./execution-mode.ts";
+import type { ModelScopeMode, ModelScopeOverride } from "./model-scope.ts";
 
 export type CodexVerbosity = "low" | "medium" | "high";
 export const FAST_MODE_FAMILIES = ["astra", "sol", "terra", "luna"] as const;
@@ -67,7 +71,6 @@ export type ToolDetailsMode = "minimal" | "compact" | "preview";
 export type LunaCacheKeepaliveMinutes = 0 | 5 | 10 | 15;
 export type LunaCacheKeepaliveIntervalMinutes = 2.5 | 4.5;
 export type CacheKeepaliveIntervalMinutes = 25 | 55;
-export type AllProvidersMode = "off" | "on";
 export type CompactionMethod = "pi" | "v2" | "both";
 export type V2UserMessageRetention = 16 | 32 | 64;
 export const MIN_NOTEBOOK_HEAP_MIB = 256;
@@ -115,7 +118,11 @@ export interface CodexConversionConfig {
 		heavySystemPromptOverwrite: boolean;
 		currentTimeReminderMinutes: 0 | 30 | 60;
 	};
-	scope: { allProviders: AllProvidersMode; additionalProviders: string[] };
+	scope: {
+		mode: ModelScopeMode;
+		additionalProviders: string[];
+		modelOverrides: ModelScopeOverride[];
+	};
 	tools: {
 		autoReasoning: boolean;
 		customRustBinariesDir: string;
@@ -179,9 +186,9 @@ export interface CodexConversionConfig {
 }
 
 export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
-	executionMode: "normal",
+	executionMode: DEFAULT_EXECUTION_MODE,
 	prompt: { heavySystemPromptOverwrite: false, currentTimeReminderMinutes: 0 },
-	scope: { allProviders: "off", additionalProviders: [] },
+	scope: { mode: "automatic", additionalProviders: [], modelOverrides: [] },
 	tools: {
 		autoReasoning: false,
 		customRustBinariesDir: "",

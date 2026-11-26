@@ -22,7 +22,7 @@ export function buildConfigSettings(
 	ctx: Pick<ExtensionContext, "model"> = { model: undefined },
 	webSearchAvailable?: boolean,
 ): ConfigSetting[] {
-	if (tab === "adapter") return buildAdapterSettings(config, theme);
+	if (tab === "adapter") return buildAdapterSettings(config, theme, ctx.model);
 	if (tab === "context") return buildContextSettings(config, ctx);
 	if (tab === "tools") return buildToolsSettings(config);
 	if (tab === "openai") return buildOpenAISettings(config);

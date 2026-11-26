@@ -34,6 +34,8 @@ import {
 import { hasRealtimeWebSearch } from "../../voice/realtime-web-search.ts";
 import { openCodexSettingsScreen } from "./screen.ts";
 import { COMPACTION_METHOD_LABELS } from "./config-items-context.ts";
+import { MODEL_SCOPE_LABELS } from "./config-items-adapter.ts";
+import { EXECUTION_MODE_LABELS } from "../../adapter/activation/execution-mode.ts";
 import { captureSpendReport } from "../../codex-usage/report.ts";
 import { startUsageAnalysis } from "../../codex-usage/report.ts";
 import { isStandardCodexSubscriptionModel } from "../../adapter/prompt/model-support.ts";
@@ -443,5 +445,5 @@ function formatCodexSettings(config: CodexConversionConfig): string {
 	const promptOverwrite = config.prompt.heavySystemPromptOverwrite
 		? "on"
 		: "off";
-	return `Codex settings: execution ${config.executionMode}, providers ${config.scope.allProviders === "on" ? "all providers" : "Codex and configured"}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${promptOverwrite}, Proxy Responses Lite ${config.openai.proxyResponsesLite ? "on" : "off"}, compaction method ${COMPACTION_METHOD_LABELS[config.compaction.method]}, preserved user messages (V2 only) ${config.compaction.v2UserMessageRetention}k, Luna cache keepalive ${config.openai.lunaCacheKeepaliveMinutes === 0 ? "off" : `${config.openai.lunaCacheKeepaliveMinutes} mins duration, ${config.openai.lunaCacheKeepaliveIntervalMinutes} mins request interval`}, Astra/Sol/Terra cache keepalive ${config.openai.cacheKeepalive ? `${config.openai.cacheKeepaliveIntervalMinutes} mins request interval` : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, Daybreak ${accessProgram}, Fast Mode ${fast}, verbosity ${config.openai.verbosity}`;
+	return `Codex settings: execution ${EXECUTION_MODE_LABELS[config.executionMode]}, model scope ${MODEL_SCOPE_LABELS[config.scope.mode]}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${promptOverwrite}, Proxy Responses Lite ${config.openai.proxyResponsesLite ? "on" : "off"}, compaction method ${COMPACTION_METHOD_LABELS[config.compaction.method]}, preserved user messages (V2 only) ${config.compaction.v2UserMessageRetention}k, Luna cache keepalive ${config.openai.lunaCacheKeepaliveMinutes === 0 ? "off" : `${config.openai.lunaCacheKeepaliveMinutes} mins duration, ${config.openai.lunaCacheKeepaliveIntervalMinutes} mins request interval`}, Astra/Sol/Terra cache keepalive ${config.openai.cacheKeepalive ? `${config.openai.cacheKeepaliveIntervalMinutes} mins request interval` : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, Daybreak ${accessProgram}, Fast Mode ${fast}, verbosity ${config.openai.verbosity}`;
 }

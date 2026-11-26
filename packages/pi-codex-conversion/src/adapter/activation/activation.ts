@@ -8,13 +8,14 @@ import {
 	ALL_CODEX_ADAPTER_TOOL_NAMES,
 	isAdapterRuntime,
 	resolveAdapterRuntimePlanForState,
-	usesExecTools,
 	type AdapterRuntimePlan,
+	type ActiveRuntimePlan,
 } from "./runtime-plan.ts";
 import type { AdapterState } from "./state.ts";
 import { isLegacyCodeSelection } from "./native-nested-selection.ts";
 import {
 	EXEC_TOOL_NAMES,
+	NESTED_ADAPTER_TOOL_NAMES,
 	REPLACED_PI_TOOL_NAMES,
 	STATUS_KEY,
 } from "./tool-set.ts";
@@ -45,10 +46,12 @@ function enableAdapter(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	state: AdapterState,
-	plan: Extract<AdapterRuntimePlan, { kind: "normal" | "code" | "ts" | "vm" }>,
+	plan: ActiveRuntimePlan,
 	extensionTools: ExtensionToolSnapshot,
 ): void {
 	const changed = hasRuntimePlanChanged(state, plan);
+	const restoredNestedToolNames = state.suspendedNestedToolNames;
+	delete state.suspendedNestedToolNames;
 	const owned = state.enabled
 		? mergeToolNames(
 				state.adapterOwnedToolNames ?? plan.ownedToolNames,
@@ -66,10 +69,6 @@ function enableAdapter(
 	);
 	let tools = projectedTools;
 	if (changed) {
-		const activeTools =
-			plan.kind === "normal"
-				? restoreTools(state.previousToolNames ?? [], projectedTools, owned)
-				: projectedTools;
 		// A restored Code selection carries its own optional tools, even before
 		// this instance has applied any loadout.
 		const hadExecLoadout = [
@@ -79,7 +78,6 @@ function enableAdapter(
 			EXEC_TOOL_NAMES.every((name) => selection.includes(name)),
 		);
 		const migrateLegacySelection =
-			usesExecTools(plan) &&
 			!state.appliedRuntimeKind &&
 			EXEC_TOOL_NAMES.every((name) => projectedTools.includes(name)) &&
 			!plan.nestedToolNames.some((name) => projectedTools.includes(name)) &&
@@ -87,19 +85,25 @@ function enableAdapter(
 		// Pi persists the admitted selection. Hide replaced declarations at request time.
 		tools = mergeToolNames(
 			plan.toolNames,
-			usesExecTools(plan)
-				? plan.nestedToolNames.filter(
-						(name) =>
-							migrateLegacySelection ||
-							!hadExecLoadout ||
-							activeTools.includes(name),
-					)
-				: [],
-			stripAdapterTools(activeTools, owned),
+			plan.nestedToolNames.filter(
+				(name) =>
+					state.availableToolNames?.includes(name) &&
+					(migrateLegacySelection ||
+						(hadExecLoadout
+							? projectedTools.includes(name)
+							: !restoredNestedToolNames ||
+								restoredNestedToolNames.includes(name))),
+			),
+			stripAdapterTools(projectedTools, owned),
 		);
 	}
 	state.adapterOwnedToolNames = plan.ownedToolNames;
-	applyRuntimeTools(pi, state, plan, tools);
+	state.appliedRuntimeKind = plan.kind;
+	// The prepareLoadout hook needs the new runtime kind even if Pi already selected these names.
+	if (changed) pi.setActiveTools(tools);
+	else setActiveTools(pi, tools);
+	state.appliedRuntimeToolNames = [...plan.toolNames];
+	state.appliedActiveToolNames = [...pi.getActiveTools()];
 	renderCodexStatus(ctx, state, plan);
 }
 
@@ -116,13 +120,17 @@ function disableAdapter(
 		(!(plan.kind === "inactive" && plan.missingToolNames) &&
 			pi.getActiveTools().some((name) => owned.includes(name)))
 	) {
+		const activeTools = pi.getActiveTools();
+		if (
+			state.appliedRuntimeKind ||
+			EXEC_TOOL_NAMES.every((name) => activeTools.includes(name))
+		)
+			state.suspendedNestedToolNames = activeTools.filter((name) =>
+				NESTED_ADAPTER_TOOL_NAMES.includes(name),
+			);
 		const currentTools = state.enabled
-			? reconcileExtensionToolProjection(
-					state,
-					pi.getActiveTools(),
-					extensionTools,
-				)
-			: pi.getActiveTools();
+			? reconcileExtensionToolProjection(state, activeTools, extensionTools)
+			: activeTools;
 		// Registration cleanup has no prior loadout to restore, even after an earlier activation.
 		const previous = state.enabled ? (state.previousToolNames ?? []) : [];
 		setActiveTools(pi, restoreTools(previous, currentTools, owned));
@@ -134,6 +142,7 @@ function disableAdapter(
 	delete state.appliedRuntimeKind;
 	delete state.appliedRuntimeToolNames;
 	delete state.appliedActiveToolNames;
+	delete state.hiddenCodeModeToolNames;
 	if (ctx.hasUI)
 		ctx.ui.setStatus(
 			STATUS_KEY,
@@ -223,34 +232,6 @@ function hasRuntimePlanChanged(
 		state.appliedRuntimeKind !== plan.kind ||
 		!sameToolList(state.appliedRuntimeToolNames ?? [], plan.toolNames)
 	);
-}
-
-function applyRuntimeTools(
-	pi: ExtensionAPI,
-	state: AdapterState,
-	plan: AdapterRuntimePlan,
-	toolNames: string[],
-): void {
-	// Retain the native loadout in previousToolNames, but never run two code
-	// orchestrators or expose a second discovery path beside ALL_TOOLS.
-	let projected = toolNames;
-	if (plan.kind === "code" || plan.kind === "ts" || plan.kind === "vm") {
-		const nativeSearch = pi
-			.getAllTools()
-			.some(
-				(tool) =>
-					tool.name === "tool_search" &&
-					tool.sourceInfo?.path === "builtin:tool-search",
-			);
-		projected = toolNames.filter(
-			(name) =>
-				name !== "codemode" && !(nativeSearch && name === "tool_search"),
-		);
-	}
-	state.appliedRuntimeKind = plan.kind;
-	setActiveTools(pi, projected);
-	state.appliedRuntimeToolNames = [...plan.toolNames];
-	state.appliedActiveToolNames = [...pi.getActiveTools()];
 }
 
 function mergeToolNames(...groups: string[][]): string[] {

@@ -13,6 +13,8 @@ const LEGACY_NATIVE_COMPACTION_STRATEGY = "openai-native-compact-v1";
 export const NATIVE_COMPACTION_STRATEGY = "openai-responses-compaction-v2";
 export const NATIVE_COMPACTION_SHIM_SUMMARY =
 	"[OpenAI native compaction checkpoint]";
+export const OPAQUE_CHECKPOINT_REQUIRES_ADAPTER =
+	"This branch has an encrypted Codex checkpoint. Turn on Codex Conversion with the model used to make the checkpoint, then convert it to a Pi summary before continuing here.";
 export const NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE =
 	"codex-native-compaction-display";
 export const NATIVE_COMPACTION_DISPLAY_TEXT = [

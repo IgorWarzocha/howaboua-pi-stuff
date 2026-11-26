@@ -29,7 +29,7 @@ Confirm the active lifecycle rather than assuming an old hook order. Inspect sys
 - `src/providers/openai-codex-custom-provider.ts`, `openai-codex/websocket-stream.ts`, `session-continuity.ts`, and `transport-recovery.ts` own transport, replay baseline, continuation, and fallback.
 - `src/adapter/compaction/compaction.ts` owns native compaction orchestration. `src/adapter/replay/` owns canonical replay reconstruction and matching.
 
-Normal and Code Mode intentionally have different prompt and tool layouts. Do not claim continuity across that boundary. A ready WebSocket is transport state, not provider cache evidence. Preserve canonical replay item IDs, types, tool pairing, and order after compaction.
+Active PCC and stock Pi intentionally have different prompt and tool layouts. Do not claim continuity across that boundary. A ready WebSocket is transport state, not provider cache evidence. Preserve canonical replay item IDs, types, tool pairing, and order after compaction.
 
 ## Other local cache surfaces
 

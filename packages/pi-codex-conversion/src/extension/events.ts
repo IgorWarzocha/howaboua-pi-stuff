@@ -1,5 +1,11 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { resolveAdapterRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import {
+	isAdapterRuntime,
+	resolveAdapterRuntimePlanForState,
+} from "../adapter/activation/runtime-plan.ts";
 import {
 	rewriteCodexProviderHeaders,
 	rewriteCodexProviderRequest,
@@ -65,7 +71,9 @@ export function registerCodexEvents(
 	proxyProvider: CodeModeProxyProviderRegistration,
 ): void {
 	const { state, tracker, sessions } = runtime;
-	const reserve = createCodexReserveController(pi);
+	const adapterActiveForModel = (model: ExtensionContext["model"]) =>
+		isAdapterRuntime(resolveAdapterRuntimePlanForState({ model }, state));
+	const reserve = createCodexReserveController(pi, adapterActiveForModel);
 	const session = createCodexSessionLifecycle(
 		pi,
 		runtime,
@@ -75,7 +83,9 @@ export function registerCodexEvents(
 		proxyProvider,
 		reserve.modelSelected,
 	);
-	const shells = registerCodexShellLifecycle(pi, sessions);
+	const shells = registerCodexShellLifecycle(pi, sessions, (ctx) =>
+		adapterActiveForModel(ctx.model),
+	);
 	const turn = createCodexTurnLifecycle(
 		pi,
 		runtime,
@@ -153,7 +163,10 @@ export function registerCodexEvents(
 	pi.on("cache_warming_decision", (_event, ctx) => {
 		const plan = resolveAdapterRuntimePlanForState(ctx, state);
 		// These routes cannot honor Pi's one-token cap and must not advance the live response chain.
-		if (plan.codexTransport || plan.responsesFormat === "responses-lite")
+		if (
+			isAdapterRuntime(plan) &&
+			(plan.codexTransport || plan.responsesFormat === "responses-lite")
+		)
 			return { action: "stop" };
 		return undefined;
 	});

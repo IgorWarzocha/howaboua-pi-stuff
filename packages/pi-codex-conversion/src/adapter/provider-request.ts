@@ -11,7 +11,7 @@ import {
 	injectPendingNativeWindowIntoPiCompactionRequest,
 	rewriteCodexCompactedProviderRequest,
 } from "./compaction/provider-replay.ts";
-import { hiddenPiReplacementToolNames } from "./activation/tool-set.ts";
+import { hiddenCodeModeToolNames } from "./activation/tool-set.ts";
 import {
 	applyResponsesLiteRequest,
 	RESPONSES_LITE_HEADER,
@@ -102,7 +102,7 @@ export async function rewriteCodexProviderRequest(
 				rewrittenPayload,
 				ctx,
 				state,
-				hiddenPiReplacementToolNames(state.appliedRuntimeKind, activeTools),
+				hiddenCodeModeToolNames(state, activeTools),
 			)) ??
 			rewrittenPayload;
 	}

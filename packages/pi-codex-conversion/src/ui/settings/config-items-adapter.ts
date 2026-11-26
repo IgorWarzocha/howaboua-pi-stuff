@@ -1,9 +1,13 @@
-import type { Theme } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import {
 	type CodexConversionConfig,
 	normalizeProviderList,
 } from "../../adapter/activation/config.ts";
 import { editorCommand } from "./config-editor.ts";
+import {
+	getModelScopeOverride,
+	sameScopedModel,
+} from "../../adapter/activation/model-scope.ts";
 import {
 	type ConfigSetting,
 	setting,
@@ -13,29 +17,36 @@ import {
 export function buildAdapterSettings(
 	config: CodexConversionConfig,
 	theme: Theme,
+	model: ExtensionContext["model"],
 ): ConfigSetting[] {
 	return [
 		setting(
 			{
-				id: "allProviders",
+				id: "modelScope",
 				description: "Choose which models use the Codex adapter.",
-				label: "Provider scope",
-				currentValue: formatAllProvidersMode(config.scope.allProviders),
-				values: ["Codex and configured", "all providers"],
+				label: "Model scope",
+				currentValue: MODEL_SCOPE_LABELS[config.scope.mode],
+				values: Object.values(MODEL_SCOPE_LABELS),
 			},
 			(value, current) => ({
 				...current,
 				scope: {
 					...current.scope,
-					allProviders: parseAllProvidersMode(value),
+					mode:
+						value === MODEL_SCOPE_LABELS.all
+							? "all"
+							: value === MODEL_SCOPE_LABELS.selected
+								? "selected"
+								: "automatic",
 				},
 			}),
 		),
+		...(model ? [currentModelSetting(config, model)] : []),
 		setting(
 			{
 				id: "additionalProviders",
 				description:
-					"Provider IDs for compatible Responses endpoints, including passthrough proxies, that should use the adapter.",
+					"Compatible Responses providers to include in Codex and configured scope. Also enables configured provider features for selected models.",
 				label: "Additional providers",
 				currentValue: config.scope.additionalProviders.join(", "),
 				submenu: (currentValue, done) =>
@@ -110,18 +121,36 @@ export function buildAdapterSettings(
 	];
 }
 
-function formatAllProvidersMode(
-	value: CodexConversionConfig["scope"]["allProviders"],
-): string {
-	if (value === "on") return "all providers";
-	return "Codex and configured";
-}
+export const MODEL_SCOPE_LABELS = {
+	automatic: "Codex and configured",
+	all: "All providers",
+	selected: "Selected models",
+} as const;
 
-function parseAllProvidersMode(
-	value: string,
-): CodexConversionConfig["scope"]["allProviders"] {
-	if (value === "all providers") return "on";
-	return "off";
+function currentModelSetting(
+	config: CodexConversionConfig,
+	{ provider, id }: NonNullable<ExtensionContext["model"]>,
+): ConfigSetting {
+	const model = { provider, id };
+	const override = getModelScopeOverride(config.scope.modelOverrides, model);
+	return setting(
+		{
+			id: "currentModelScope",
+			label: "Current model",
+			description: `Override model scope for ${provider}/${id}. Default follows model scope.`,
+			currentValue:
+				override === undefined ? "Default" : override ? "On" : "Off",
+			values: ["Default", "On", "Off"],
+		},
+		(value, current) => {
+			const modelOverrides = current.scope.modelOverrides.filter(
+				(entry) => !sameScopedModel(entry, model),
+			);
+			if (value !== "Default")
+				modelOverrides.push({ ...model, enabled: value === "On" });
+			return { ...current, scope: { ...current.scope, modelOverrides } };
+		},
+	);
 }
 
 function normalizeCodexProviderText(value: string): string {

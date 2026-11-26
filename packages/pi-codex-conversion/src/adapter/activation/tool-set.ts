@@ -32,7 +32,7 @@ export function buildStatusText(
 	theme?: StatusTheme | undefined,
 ): string {
 	const extras = [
-		options.executionMode && options.executionMode !== "normal"
+		options.executionMode
 			? EXECUTION_MODE_LABELS[options.executionMode]
 			: undefined,
 		options.useOnAllModels ? "all models" : undefined,
@@ -83,21 +83,17 @@ export const NESTED_ADAPTER_TOOL_NAMES = [
 	"change_reasoning",
 ];
 
-export function hiddenPiReplacementToolNames(
-	kind: AdapterState["appliedRuntimeKind"],
+export function hiddenCodeModeToolNames(
+	state: AdapterState,
 	active: readonly string[],
 ): readonly string[] {
-	if (kind === "normal") {
-		return [
-			...(active.includes("exec_command") ? ["read", "bash"] : []),
-			...(active.includes(APPLY_PATCH_TOOL_NAME) ? ["edit", "write"] : []),
-		];
-	} else if (hasActiveExecTools(kind, active)) return REPLACED_PI_TOOL_NAMES;
-	return [];
+	return hasActiveExecTools(state.appliedRuntimeKind, active)
+		? (state.hiddenCodeModeToolNames ?? [])
+		: [];
 }
 
 export function hasActiveExecTools(
-	kind: AdapterState["appliedRuntimeKind"],
+	kind: ExecutionMode | "inactive" | undefined,
 	active: readonly string[],
 ): boolean {
 	if (kind !== "code" && kind !== "vm" && kind !== "ts") return false;

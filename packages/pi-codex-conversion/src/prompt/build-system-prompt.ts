@@ -1,5 +1,8 @@
 import { defineOwnedSection, upsertOpaqueSection } from "./owned-sections.ts";
-import type { ExecutionMode } from "../adapter/activation/execution-mode.ts";
+import {
+	DEFAULT_EXECUTION_MODE,
+	type ExecutionMode,
+} from "../adapter/activation/execution-mode.ts";
 import { formatRuntimeGuidelines } from "./runtime-guidelines.ts";
 import {
 	getPackageDir,
@@ -69,13 +72,9 @@ function prepareStructuredSkills(
 				!options.hiddenTools.includes(name),
 		);
 	const codexCanReadSkills = () =>
-		executionMode === "normal"
-			? options.selectedTools.includes("exec_command")
-			: options.selectedTools.includes("exec") &&
-				options.selectedTools.includes("wait") &&
-				(executionMode === "code" ||
-					executionMode === "vm" ||
-					options.selectedTools.includes("notebook"));
+		options.selectedTools.includes("exec") &&
+		options.selectedTools.includes("wait") &&
+		(executionMode !== "ts" || options.selectedTools.includes("notebook"));
 	if (sections["skills"] === undefined) {
 		defineOwnedSection(sections, "skills", () =>
 			piWillRenderSkills() &&
@@ -95,7 +94,7 @@ export function prepareCodexSystemPrompt(
 	options: PiSystemPromptOptions,
 	config: PrepareCodexSystemPromptOptions = {},
 ): void {
-	const executionMode = config.executionMode ?? "normal";
+	const executionMode = config.executionMode ?? DEFAULT_EXECUTION_MODE;
 	const heavySystemPromptOverwrite = config.heavySystemPromptOverwrite ?? false;
 	const skills = options.skills.filter(
 		(skill) => !skill.disableModelInvocation,

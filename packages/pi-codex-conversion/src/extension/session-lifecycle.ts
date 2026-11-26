@@ -4,6 +4,10 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
+import {
+	isAdapterRuntime,
+	resolveAdapterRuntimePlanForState,
+} from "../adapter/activation/runtime-plan.ts";
 import { supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
 import { onCodeModeExtensionToolsRefresh } from "../code-mode-extension-tools.ts";
 import type { CodeModeProxyProviderRegistration } from "../providers/code-mode-proxy-provider.ts";
@@ -120,13 +124,17 @@ export function createCodexSessionLifecycle(
 			// Internal rollover preserves the admission that requested it.
 			state.bindingStatus = undefined;
 			const stateful =
-				state.executionMode === "ts" || state.executionMode === "vm";
+				(state.executionMode === "ts" || state.executionMode === "vm") &&
+				(state.enabled ||
+					isAdapterRuntime(resolveAdapterRuntimePlanForState(ctx, state)));
 			if (stateful) appendExecutionTreeEpoch(pi);
 			await codeMode.shutdownHost();
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 			// Pi restored the branch's tool loadout, not its execution-mode setting.
 			// Reapply the current mode while retaining non-adapter tool selections.
 			delete state.appliedRuntimeKind;
+			delete state.appliedRuntimeToolNames;
+			delete state.suspendedNestedToolNames;
 			syncAdapter(pi, ctx, state);
 			prepareExecutionHost(codeMode, ctx);
 			if (stateful) {

@@ -1,6 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { supportsCodexReasoningUpdates } from "../reasoning-updates.ts";
-import { supportsViewImageInputs } from "../tool-support.ts";
 import {
 	isGpt6ModelId,
 	supportsResponsesLiteModel,
@@ -14,20 +13,19 @@ import {
 import type { CodexConversionConfig } from "./config.ts";
 import { FAST_MODE_FAMILIES } from "./config-contract.ts";
 import type { ExecutionMode } from "./execution-mode.ts";
+import { getModelScopeOverride } from "./model-scope.ts";
 import type { AdapterState } from "./state.ts";
 import {
 	EXEC_TOOL_NAMES,
-	CORE_ADAPTER_TOOL_NAMES,
 	NESTED_ADAPTER_TOOL_NAMES,
 	TS_NOTEBOOK_TOOL_NAMES,
-	VIEW_IMAGE_TOOL_NAME,
 } from "./tool-set.ts";
 
 type RuntimeContext = Pick<ExtensionContext, "model">;
 export type ResponsesFormat = "responses" | "responses-lite";
 
 interface RuntimePlanBase {
-	kind: "inactive" | "normal" | "code" | "ts" | "vm";
+	kind: "inactive" | ExecutionMode;
 	toolNames: string[];
 	ownedToolNames: string[];
 	configuredProvider: boolean;
@@ -45,35 +43,13 @@ export interface InactiveRuntimePlan extends RuntimePlanBase {
 	responsesFormat: undefined;
 }
 
-export interface NormalRuntimePlan extends RuntimePlanBase {
-	kind: "normal";
-	responsesFormat: "responses";
-}
-
-export interface CodeRuntimePlan extends RuntimePlanBase {
-	kind: "code";
+export interface ActiveRuntimePlan extends RuntimePlanBase {
+	kind: ExecutionMode;
 	nestedToolNames: string[];
 	responsesFormat: ResponsesFormat;
 }
 
-export interface TsRuntimePlan extends RuntimePlanBase {
-	kind: "ts";
-	nestedToolNames: string[];
-	responsesFormat: ResponsesFormat;
-}
-
-export interface VmRuntimePlan extends RuntimePlanBase {
-	kind: "vm";
-	nestedToolNames: string[];
-	responsesFormat: ResponsesFormat;
-}
-
-export type AdapterRuntimePlan =
-	| InactiveRuntimePlan
-	| NormalRuntimePlan
-	| CodeRuntimePlan
-	| TsRuntimePlan
-	| VmRuntimePlan;
+export type AdapterRuntimePlan = InactiveRuntimePlan | ActiveRuntimePlan;
 
 const ALL_ADAPTER_TOOL_NAMES = [
 	...NESTED_ADAPTER_TOOL_NAMES,
@@ -122,16 +98,6 @@ function usesResponsesLite(
 		: proxySupportsResponsesLite(ctx, config);
 }
 
-function structuredToolNames(
-	ctx: RuntimeContext,
-	config: CodexConversionConfig,
-): string[] {
-	const names = [...CORE_ADAPTER_TOOL_NAMES];
-	if (supportsViewImageInputs(ctx.model) || config.tools.viewImageFallback)
-		names.push(VIEW_IMAGE_TOOL_NAME);
-	return names;
-}
-
 /** Provider feature negotiation shares the configured method; route eligibility is resolved below. */
 export function nativeCompactionConfigured(
 	compaction: CodexConversionConfig["compaction"] | undefined,
@@ -173,10 +139,13 @@ export function resolveAdapterRuntimePlan(
 		nativeReplay: false,
 		autoReasoning: false,
 	};
+	const { mode, modelOverrides } = config.scope;
 	const active =
-		config.scope.allProviders === "on" ||
-		isConfigured ||
-		isDefaultAdapterModel(ctx.model);
+		ctx.model &&
+		(getModelScopeOverride(modelOverrides, ctx.model) ??
+			(mode === "all" ||
+				(mode === "automatic" &&
+					(isConfigured || isDefaultAdapterModel(ctx.model)))));
 	if (!active)
 		return {
 			...base,
@@ -189,45 +158,15 @@ export function resolveAdapterRuntimePlan(
 		codexOrConfiguredResponses && nativeCompactionConfigured(config.compaction);
 	base.autoReasoning =
 		config.tools.autoReasoning && supportsCodexReasoningUpdates(ctx.model);
-	const adapterTools = [
-		...structuredToolNames(ctx, config),
-		...(base.autoReasoning ? ["change_reasoning"] : []),
-	];
-	const configuredExecutionMode = executionMode ?? config.executionMode;
-	if (
-		configuredExecutionMode === "code" ||
-		configuredExecutionMode === "ts" ||
-		configuredExecutionMode === "vm"
-	) {
-		const responsesFormat: ResponsesFormat = usesResponsesLite(ctx, config)
-			? "responses-lite"
-			: "responses";
-		if (configuredExecutionMode === "ts") {
-			const tsNotebookPlan = {
-				...base,
-				toolNames: [...TS_NOTEBOOK_TOOL_NAMES],
-				nestedToolNames: NESTED_ADAPTER_TOOL_NAMES,
-				responsesFormat,
-				nativeCompaction,
-			};
-			return { ...tsNotebookPlan, kind: "ts" };
-		}
-		const execPlan = {
-			...base,
-			toolNames: [...EXEC_TOOL_NAMES],
-			nestedToolNames: NESTED_ADAPTER_TOOL_NAMES,
-			responsesFormat,
-			nativeCompaction,
-		};
-		return configuredExecutionMode === "vm"
-			? { ...execPlan, kind: "vm" }
-			: { ...execPlan, kind: "code" };
-	}
+	const kind = executionMode ?? config.executionMode;
 	return {
 		...base,
-		kind: "normal",
-		toolNames: adapterTools,
-		responsesFormat: "responses",
+		kind,
+		toolNames: [...(kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES)],
+		nestedToolNames: NESTED_ADAPTER_TOOL_NAMES,
+		responsesFormat: usesResponsesLite(ctx, config)
+			? "responses-lite"
+			: "responses",
 		nativeCompaction,
 	};
 }
@@ -262,19 +201,8 @@ export function resolveAdapterRuntimePlanForState(
 
 export function isAdapterRuntime(
 	plan: AdapterRuntimePlan,
-): plan is NormalRuntimePlan | CodeRuntimePlan | TsRuntimePlan | VmRuntimePlan {
-	return (
-		plan.kind === "normal" ||
-		plan.kind === "code" ||
-		plan.kind === "ts" ||
-		plan.kind === "vm"
-	);
-}
-
-export function usesExecTools(
-	plan: AdapterRuntimePlan,
-): plan is CodeRuntimePlan | TsRuntimePlan | VmRuntimePlan {
-	return plan.kind === "code" || plan.kind === "ts" || plan.kind === "vm";
+): plan is ActiveRuntimePlan {
+	return plan.kind !== "inactive";
 }
 
 export const ALL_CODEX_ADAPTER_TOOL_NAMES = ALL_ADAPTER_TOOL_NAMES;

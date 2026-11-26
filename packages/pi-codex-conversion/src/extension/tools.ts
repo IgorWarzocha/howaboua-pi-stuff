@@ -1,11 +1,6 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
-import type {
-	ExtensionAPI,
-	ToolLoadout,
-	ToolLoadoutChanges,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { hiddenPiReplacementToolNames } from "../adapter/activation/tool-set.ts";
 import {
 	registerCodexToolProviderPolicy,
 	registerCodexToolProviderResolver,
@@ -46,17 +41,6 @@ export function registerCodexTools(
 ): CodexToolRegistration {
 	registerApplyPatchResultEvent(pi);
 	pi.registerTool(runtime.autoReasoning.tool);
-	const prepareLoadout = (
-		loadout: ToolLoadout,
-	): ToolLoadoutChanges | undefined => {
-		if (runtime.state.appliedRuntimeKind !== "normal") return undefined;
-		return {
-			hiddenDeclarations: hiddenPiReplacementToolNames(
-				"normal",
-				loadout.declared.map(({ name }) => name),
-			),
-		};
-	};
 	const allowsProvider = (model: Model<Api> | undefined) =>
 		isExplicitlyConfiguredToolProvider(model, runtime.state.config);
 	const unregisterProviderPolicy = registerCodexToolProviderPolicy(
@@ -74,7 +58,7 @@ export function registerCodexTools(
 		customRendering: config.ui.toolRenaming,
 	});
 	// PCC selects these explicitly. Pi must not add them back on reload.
-	const coreLoadout = { defaultActive: false, prepareLoadout };
+	const coreLoadout = { defaultActive: false };
 	const registerCore = (config: CodexConversionConfig) => {
 		pi.registerTool({
 			...createApplyPatchTool({

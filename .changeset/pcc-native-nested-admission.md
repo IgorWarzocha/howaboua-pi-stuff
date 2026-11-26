@@ -2,9 +2,13 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
+Removed Structured execution mode. VM Code is now the default, and saved Structured settings (`normal`) migrate to VM Code.
+
+Set the current model to Off under `/codex` → General to use Pi's own tools and provider behaviour. In Selected models scope, PCC runs only for models you set to On. Existing provider scope settings keep their behaviour.
+
 Fixed PCC's native Code and Notebook tools to use Pi's tool admission hooks. The nested catalogue follows Pi's callable selection, and stale names no longer bypass it. PCC preflight and completion hooks still run for these tools. An in-flight Pi call can delay an outer yield until the call settles.
 
-PCC no longer blocks calls to hidden Pi tools or direct calls to its own nested tools. Pi's tool guards still apply.
+PCC preserves Pi's selected native Codemode when switching models or resuming a session. Hiding a declaration no longer blocks calls. Pi tool allowlists and guards still apply.
 
 Older Code sessions whose saved selection could not record PCC's nested tools regain the default nested tools. Deliberate selections, including an empty nested selection, are preserved.
 
