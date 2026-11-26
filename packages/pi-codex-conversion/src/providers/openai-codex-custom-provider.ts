@@ -6,7 +6,7 @@ import {
 	type Provider,
 	type TranscriptContext,
 } from "@earendil-works/pi-ai";
-import { openAICodexResponsesApi } from "@earendil-works/pi-ai/api/openai-codex-responses.lazy";
+import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
 import {
 	extractAccountId,
 	buildWebSocketHeaders,
@@ -220,7 +220,15 @@ export function registerOpenAICodexCustomProvider(
 		recordUsage?: CodexUsageRecorder | undefined;
 	},
 ): void {
-	const stock = openAICodexResponsesApi();
+	let stockProvider: Provider | undefined;
+	const getStockProvider = () => {
+		stockProvider ??= builtinProviders().find(
+			({ id }) => id === "openai-codex",
+		);
+		if (!stockProvider)
+			throw new Error("Pi's built-in OpenAI Codex provider is unavailable");
+		return stockProvider;
+	};
 	const streamCodex = (
 		model: Model<Api>,
 		context: TranscriptContext,
@@ -258,13 +266,13 @@ export function registerOpenAICodexCustomProvider(
 			const format = options.responsesFormat(model);
 			return format
 				? streamCodex(model, context, format, streamOptions)
-				: stock.stream(model, context, streamOptions);
+				: getStockProvider().stream(model, context, streamOptions);
 		},
 		streamSimple: (model, context, streamOptions) => {
 			const format = options.responsesFormat(model);
 			return format
 				? streamCodex(model, context, format, streamOptions)
-				: stock.streamSimple(model, context, streamOptions);
+				: getStockProvider().streamSimple(model, context, streamOptions);
 		},
 	};
 	pi.registerProvider(provider);
