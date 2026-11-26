@@ -8,7 +8,7 @@ import {
 	isDefaultAdapterModel,
 	isCodexTransportContext,
 	isOpenAIResponsesContext,
-	isResponsesContext,
+	isResponsesModel,
 } from "../prompt/model-support.ts";
 import type { CodexConversionConfig } from "./config.ts";
 import { FAST_MODE_FAMILIES } from "./config-contract.ts";
@@ -28,7 +28,7 @@ interface RuntimePlanBase {
 	kind: "inactive" | ExecutionMode;
 	toolNames: string[];
 	ownedToolNames: string[];
-	configuredProvider: boolean;
+	configuredResponsesModel: boolean;
 	codexTransport: boolean;
 	codexOrConfiguredResponses: boolean;
 	nativeCompaction: boolean;
@@ -56,25 +56,25 @@ const ALL_ADAPTER_TOOL_NAMES = [
 	...TS_NOTEBOOK_TOOL_NAMES,
 ];
 
-function configuredProvider(
-	ctx: RuntimeContext,
+export function isConfiguredResponsesModel(
+	model: RuntimeContext["model"],
 	config: CodexConversionConfig,
 ): boolean {
-	const provider = ctx.model?.provider?.trim().toLowerCase();
-	return Boolean(
-		provider &&
-		isResponsesContext(ctx) &&
-		config.scope.additionalProviders.includes(provider),
+	return (
+		!!model &&
+		isResponsesModel(model) &&
+		getModelScopeOverride(config.scope.modelOverrides, model) === true
 	);
 }
 
 function proxySupportsResponsesLite(
 	ctx: RuntimeContext,
 	config: CodexConversionConfig,
+	configuredResponsesModel: boolean,
 ): boolean {
 	if (
 		!config.openai.proxyResponsesLite ||
-		!configuredProvider(ctx, config) ||
+		!configuredResponsesModel ||
 		!isOpenAIResponsesContext(ctx)
 	)
 		return false;
@@ -87,15 +87,6 @@ function proxySupportsResponsesLite(
 		isGpt6ModelId(id) ||
 		/^gpt-5\.6(?:-(?:luna|terra|sol))?$/.test(id.toLowerCase())
 	);
-}
-
-function usesResponsesLite(
-	ctx: RuntimeContext,
-	config: CodexConversionConfig,
-): boolean {
-	return isCodexTransportContext(ctx)
-		? supportsResponsesLiteModel(ctx.model?.id)
-		: proxySupportsResponsesLite(ctx, config);
 }
 
 /** Provider feature negotiation shares the configured method; route eligibility is resolved below. */
@@ -127,12 +118,12 @@ export function resolveAdapterRuntimePlan(
 	config: CodexConversionConfig,
 	executionMode?: ExecutionMode,
 ): AdapterRuntimePlan {
-	const isConfigured = configuredProvider(ctx, config);
+	const isConfigured = isConfiguredResponsesModel(ctx.model, config);
 	const codexTransport = isCodexTransportContext(ctx);
 	const codexOrConfiguredResponses = codexTransport || isConfigured;
 	const base = {
 		ownedToolNames: ALL_ADAPTER_TOOL_NAMES,
-		configuredProvider: isConfigured,
+		configuredResponsesModel: isConfigured,
 		codexTransport,
 		codexOrConfiguredResponses,
 		nativeCompaction: false,
@@ -144,8 +135,7 @@ export function resolveAdapterRuntimePlan(
 		ctx.model &&
 		(getModelScopeOverride(modelOverrides, ctx.model) ??
 			(mode === "all" ||
-				(mode === "automatic" &&
-					(isConfigured || isDefaultAdapterModel(ctx.model)))));
+				(mode === "automatic" && isDefaultAdapterModel(ctx.model))));
 	if (!active)
 		return {
 			...base,
@@ -164,7 +154,11 @@ export function resolveAdapterRuntimePlan(
 		kind,
 		toolNames: [...(kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES)],
 		nestedToolNames: NESTED_ADAPTER_TOOL_NAMES,
-		responsesFormat: usesResponsesLite(ctx, config)
+		responsesFormat: (
+			codexTransport
+				? supportsResponsesLiteModel(ctx.model?.id)
+				: proxySupportsResponsesLite(ctx, config, isConfigured)
+		)
 			? "responses-lite"
 			: "responses",
 		nativeCompaction,

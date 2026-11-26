@@ -7,7 +7,10 @@ import {
 	type CodexConversionConfig,
 } from "./config.ts";
 import { normalizeExecutionMode } from "./execution-mode.ts";
-import { legacyAllProvidersMode } from "./model-scope.ts";
+import {
+	legacyAllProvidersMode,
+	migrateFlatModelScopeOverrides,
+} from "./model-scope.ts";
 import {
 	isRecord,
 	needsConfigUpgrade,
@@ -50,13 +53,22 @@ export function migrateCodexConversionConfig(
 		? migrateLegacyConfig(value, inheritedCompaction, inheritedUi)
 		: value;
 	const scope = document["scope"];
-	const oldMode = isRecord(scope)
-		? legacyAllProvidersMode(scope["allProviders"])
-		: undefined;
 	let migrated = document;
-	if (isRecord(scope) && oldMode) {
+	if (isRecord(scope)) {
 		const { allProviders: _allProviders, ...rest } = scope;
-		migrated = { ...migrated, scope: { mode: oldMode, ...rest } };
+		const oldMode = legacyAllProvidersMode(_allProviders);
+		const rules = rest["modelOverrides"];
+		if (oldMode || Array.isArray(rules))
+			migrated = {
+				...migrated,
+				scope: {
+					...(oldMode ? { mode: oldMode } : {}),
+					...rest,
+					...(Array.isArray(rules)
+						? { modelOverrides: migrateFlatModelScopeOverrides(rules) }
+						: {}),
+				},
+			};
 	}
 	if (migrated["executionMode"] === "normal")
 		migrated = { ...migrated, executionMode: "vm" };

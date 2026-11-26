@@ -114,7 +114,6 @@ export function createSettingsConfiguration(
 			...buildConfigSettings(
 				activeTab,
 				draft,
-				theme,
 				availableContextModels,
 				ctx,
 				options.hasWebSearch?.(),
@@ -312,8 +311,9 @@ export function createSettingsConfiguration(
 				if (!definition?.update) return;
 				const previousValue = definition.item.currentValue;
 				const nextDraft = definition.update(value, draft);
-				if (options.onChange(nextDraft)) {
-					draft = nextDraft;
+				if (options.onChange(nextDraft, draft)) {
+					draft =
+						id === "modelScope" ? options.configScope.reload() : nextDraft;
 					if (activeTab === "context" || id === "voiceModel") {
 						settingsList = createSettingsList();
 						settingsList.selectItem(id);

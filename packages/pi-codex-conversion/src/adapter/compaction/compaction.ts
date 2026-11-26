@@ -48,7 +48,6 @@ import {
 	resolveCanonicalCompactionReplay,
 } from "./request.ts";
 import {
-	getSupportedNativeCompactionProviders,
 	injectPendingNativeWindowIntoPiCompactionRequest,
 	stashLatestNativeWindowForPiCompactionFallback,
 } from "./provider-replay.ts";
@@ -185,7 +184,7 @@ async function handleCodexSessionBeforeCompactInner(
 
 	const resolution = await resolveNativeCompactionEnvironment(ctx, {
 		enabled: true,
-		supportedProviders: getSupportedNativeCompactionProviders(state),
+		configuredResponsesModel: plan.configuredResponsesModel,
 	});
 	if (!resolution.ok) {
 		if (

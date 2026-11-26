@@ -22,6 +22,10 @@ import {
 	writeCodexConversionConfig,
 } from "../../adapter/activation/config-store.ts";
 import { syncAdapter } from "../../adapter/activation/activation.ts";
+import {
+	getModelScopeOverride,
+	withModelScopeOverride,
+} from "../../adapter/activation/model-scope.ts";
 import type { AdapterState } from "../../adapter/activation/state.ts";
 import type { CodexVoiceController } from "../../voice/controller.ts";
 import { createCodexVoiceControls } from "../../voice/controls.ts";
@@ -78,18 +82,21 @@ export function registerCodexCommand(
 	pi.on("session_start", cancelPendingApplication);
 	pi.on("session_shutdown", cancelPendingApplication);
 
-	function effectiveConfig(ctx: ExtensionContext): CodexConversionConfig {
-		return readEffectiveCodexConversionConfig({
+	function configLocation(ctx: ExtensionContext) {
+		return {
 			cwd: ctx.cwd,
 			projectTrusted: ctx.isProjectTrusted(),
-		});
+		};
 	}
 
 	function applySavedConfig(ctx: ExtensionContext): void {
 		pendingApplication = undefined;
 		try {
 			const previousConfig = state.config;
-			const config = effectiveConfig(ctx);
+			const config = readEffectiveCodexConversionConfig({
+				...configLocation(ctx),
+				activatingModel: ctx.model,
+			});
 			state.config = config;
 			state.executionMode = config.executionMode;
 			onConfigApplied?.(config, ctx, previousConfig);
@@ -137,13 +144,36 @@ export function registerCodexCommand(
 		ctx: ExtensionCommandContext,
 		scope: CodexConversionConfigScope,
 		nextConfig: CodexConversionConfig,
+		previousConfig?: CodexConversionConfig,
 	): boolean {
+		if (scope === "folder" && !ctx.isProjectTrusted()) {
+			ctx.ui.notify(
+				"Trust this folder before changing folder settings",
+				"error",
+			);
+			return false;
+		}
 		const path =
 			scope === "folder"
 				? getProjectCodexConversionConfigPath(ctx.cwd)
 				: getCodexConversionConfigPath();
+		const model = ctx.model;
+		let modelOverrides: CodexConversionConfig["scope"]["modelOverrides"] = {};
+		// The project draft includes inherited rules for display, not for saving.
+		if (model && previousConfig) {
+			const next = getModelScopeOverride(
+				nextConfig.scope.modelOverrides,
+				model,
+			);
+			const previous = getModelScopeOverride(
+				previousConfig.scope.modelOverrides,
+				model,
+			);
+			if (next !== undefined && next !== previous)
+				modelOverrides = withModelScopeOverride({}, model, next);
+		}
 		const writeResult = writeCodexConversionConfig(
-			nextConfig,
+			{ ...nextConfig, scope: { ...nextConfig.scope, modelOverrides } },
 			path,
 			scope === "folder",
 		);
@@ -224,7 +254,7 @@ export function registerCodexCommand(
 			}
 		}
 		const readSelectedConfig = () => {
-			const effective = effectiveConfig(ctx);
+			const effective = readEffectiveCodexConversionConfig(configLocation(ctx));
 			const selected =
 				configScope === "folder"
 					? readLayeredCodexConversionConfig({
@@ -255,7 +285,8 @@ export function registerCodexCommand(
 			},
 			initialConfig: readSelectedConfig(),
 			initialTab: tab,
-			onChange: (config) => saveAndApply(ctx, configScope, config),
+			onChange: (config, previous) =>
+				saveAndApply(ctx, configScope, config, previous),
 			onGlobalLunaCacheKeepalive: (minutes, interval) => {
 				const result = setGlobalCodexLunaCacheKeepalive(
 					minutes,

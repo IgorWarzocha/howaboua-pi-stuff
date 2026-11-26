@@ -26,7 +26,7 @@ export function renderCodexStatus(
 			{
 				executionMode: plan.kind,
 				useOnAllModels: config.scope.mode === "all",
-				additionalProvider: plan.configuredProvider,
+				configuredResponsesModel: plan.configuredResponsesModel,
 				fast,
 				baseTierEstimate:
 					fast === "ultrafast" &&

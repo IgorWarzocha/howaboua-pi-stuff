@@ -11,12 +11,10 @@ import {
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
-import {
-	migrateCodexConversionConfig,
-	type CompactionMigrationInheritance,
-} from "./config-migration.ts";
+import { migrateCodexConversionConfig } from "./config-migration.ts";
 import {
 	normalizeCodexConversionConfig,
+	normalizeProviderList,
 	type CodexConversionConfig,
 	type LunaCacheKeepaliveMinutes,
 	type LunaCacheKeepaliveIntervalMinutes,
@@ -31,6 +29,14 @@ import {
 	readCodexConversionConfig as readFileConfig,
 	writeCodexConversionConfig as writeFileConfig,
 } from "./config-file.ts";
+import {
+	isResponsesModel,
+	type AdapterModelDescriptor,
+} from "../prompt/model-support.ts";
+import {
+	getModelScopeOverride,
+	withModelScopeOverride,
+} from "./model-scope.ts";
 
 export function readCodexConversionConfig(
 	configPath = getCodexConversionConfigPath(),
@@ -50,6 +56,9 @@ export interface EffectiveCodexConversionConfigOptions {
 	projectTrusted: boolean;
 	globalConfigPath?: string | undefined;
 	upgradeSettings?: boolean | undefined;
+	activatingModel?:
+		| Pick<AdapterModelDescriptor, "provider" | "id" | "api">
+		| undefined;
 	env?: NodeJS.ProcessEnv | undefined;
 }
 
@@ -121,23 +130,15 @@ export function readLegacyCodexNotesConfig(
 		: undefined;
 }
 
-export function readProjectCodexConversionDocument(
+function readProjectCodexConversionDocument(
 	cwd: string,
 	projectTrusted: boolean,
-	inheritedCompaction?: CompactionMigrationInheritance,
-	inheritedUi?: Record<string, unknown>,
-	upgrade = false,
 ): Record<string, unknown> | undefined {
 	if (!projectTrusted) return undefined;
 	const path = getProjectCodexConversionConfigPath(cwd);
 	const parsed = readConfigDocument(path, "trusted project");
 	if (!isRecord(parsed)) return undefined;
-	const current = migrateCodexConversionConfig(
-		parsed,
-		inheritedCompaction,
-		inheritedUi,
-	);
-	if (upgrade) persistConfigUpgrade(path, parsed, current, true);
+	const current = migrateCodexConversionConfig(parsed);
 	return isRecord(current) ? withoutGlobalOnlyDocument(current) : undefined;
 }
 
@@ -203,23 +204,25 @@ export function readLayeredCodexConversionConfig(
 ): CodexConversionConfig {
 	const globalPath = options.globalConfigPath ?? getCodexConversionConfigPath();
 	const document = readConfigDocument(globalPath, "global");
-	const global = normalizeGlobalConfigDocument(
-		document,
-		options.upgradeSettings ? globalPath : undefined,
-	);
+	const globalDocument = migrateCodexConversionConfig(document);
+	const global = normalizeGlobalConfigDocument(document, globalDocument);
 	// Legacy project options can inherit continuity axes normalization no longer owns.
 	const legacyCompaction =
 		isRecord(document) && isRecord(document["compaction"])
 			? document["compaction"]
 			: {};
-	const project = readProjectCodexConversionDocument(
-		options.cwd,
-		options.projectTrusted,
+	const projectPath = options.projectTrusted
+		? getProjectCodexConversionConfigPath(options.cwd)
+		: undefined;
+	const originalProject = projectPath
+		? readConfigDocument(projectPath, "trusted project")
+		: undefined;
+	const projectDocument = migrateCodexConversionConfig(
+		originalProject,
 		{ ...global.compaction, ...legacyCompaction },
 		isRecord(document) && isRecord(document["ui"]) ? document["ui"] : undefined,
-		options.upgradeSettings,
 	);
-	return project
+	const config = isRecord(projectDocument)
 		? normalizeCodexConversionConfig(
 				mergeConfigDocument(
 					{
@@ -230,10 +233,77 @@ export function readLayeredCodexConversionConfig(
 								? "notebook"
 								: global.executionMode,
 					},
-					project,
+					withoutGlobalOnlyDocument(projectDocument),
 				),
 			)
 		: global;
+	const seed = legacyScopeSeed(
+		config,
+		options.activatingModel,
+		globalDocument,
+		projectDocument,
+	);
+	if (options.upgradeSettings || seed?.owner === "global")
+		persistConfigUpgrade(
+			globalPath,
+			document,
+			seed?.owner === "global" ? seed.document : globalDocument,
+			false,
+		);
+	if (projectPath && (options.upgradeSettings || seed?.owner === "folder"))
+		persistConfigUpgrade(
+			projectPath,
+			originalProject,
+			seed?.owner === "folder" ? seed.document : projectDocument,
+			true,
+		);
+	if (seed && options.activatingModel)
+		config.scope.modelOverrides = withModelScopeOverride(
+			config.scope.modelOverrides,
+			options.activatingModel,
+			true,
+		);
+	return config;
+}
+
+function legacyScopeSeed(
+	config: CodexConversionConfig,
+	model: EffectiveCodexConversionConfigOptions["activatingModel"],
+	global: unknown,
+	project: unknown,
+):
+	| { owner: CodexConversionConfigScope; document: Record<string, unknown> }
+	| undefined {
+	if (
+		!model ||
+		!isResponsesModel(model) ||
+		config.scope.mode === "selected" ||
+		getModelScopeOverride(config.scope.modelOverrides, model) !== undefined
+	)
+		return undefined;
+	// An explicit project list (including an empty list) shadows the global list.
+	const projectOwnsList =
+		isRecord(project) &&
+		isRecord(project["scope"]) &&
+		Object.hasOwn(project["scope"], "additionalProviders");
+	const document = projectOwnsList ? project : global;
+	if (!isRecord(document) || !isRecord(document["scope"])) return undefined;
+	const scope = document["scope"];
+	if (
+		!normalizeProviderList(scope["additionalProviders"]).includes(
+			model.provider.trim().toLowerCase(),
+		)
+	)
+		return undefined;
+	return {
+		owner: projectOwnsList ? "folder" : "global",
+		document: {
+			...document,
+			scope: mergeConfigDocument(scope, {
+				modelOverrides: withModelScopeOverride({}, model, true),
+			}),
+		},
+	};
 }
 
 export function setProjectCodexCacheKeepalive(
@@ -312,7 +382,7 @@ export function materializeFolderCodexConversionConfig(
 		globalConfigPath,
 	});
 	const result = writeCodexConversionConfig(
-		config,
+		{ ...config, scope: { ...config.scope, modelOverrides: {} } },
 		getProjectCodexConversionConfigPath(cwd),
 		true,
 	);

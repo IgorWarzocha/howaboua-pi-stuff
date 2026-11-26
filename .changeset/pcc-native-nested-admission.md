@@ -4,7 +4,7 @@
 
 Removed Structured execution mode. VM Code is now the default, and saved Structured settings (`normal`) migrate to VM Code.
 
-Set the current model to Off under `/codex` → General to use Pi's own tools and provider behaviour. In Selected models scope, PCC runs only for models you set to On. Existing provider scope settings keep their behaviour.
+Set the current model to Off under `/codex` → General to use Pi's own tools and provider behaviour. Selected models scope uses a provider-and-model whitelist. Previously enabled Responses providers seed a model as On when you first activate it in Automatic or All providers. Existing model choices are preserved. Default follows the scope without importing the old provider choice again.
 
 Fixed PCC's native Code and Notebook tools to use Pi's tool admission hooks. The nested catalogue follows Pi's callable selection, and stale names no longer bypass it. PCC preflight and completion hooks still run for these tools. An in-flight Pi call can delay an outer yield until the call settles.
 

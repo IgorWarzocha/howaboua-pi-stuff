@@ -1,12 +1,14 @@
-import type { Api, Model } from "@earendil-works/pi-ai";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
+import { isConfiguredResponsesModel } from "../adapter/activation/runtime-plan.ts";
 import {
 	registerCodexToolProviderPolicy,
 	registerCodexToolProviderResolver,
 	resolveCodexToolProvider,
 } from "../adapter/codex-tool-provider.ts";
-import { isResponsesModel } from "../adapter/prompt/model-support.ts";
 import {
 	registerApplyPatchResultEvent,
 	createApplyPatchTool,
@@ -21,38 +23,21 @@ export interface CodexToolRegistration {
 	shutdown(): void;
 }
 
-export function isExplicitlyConfiguredToolProvider(
-	model: Model<Api> | undefined,
-	config: CodexConversionConfig,
-): boolean {
-	const provider = model?.provider?.trim().toLowerCase();
-	return Boolean(
-		isResponsesModel(model) &&
-		provider &&
-		config.scope.additionalProviders.some(
-			(entry) => entry.trim().toLowerCase() === provider,
-		),
-	);
-}
-
 export function registerCodexTools(
 	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
 ): CodexToolRegistration {
 	registerApplyPatchResultEvent(pi);
 	pi.registerTool(runtime.autoReasoning.tool);
-	const allowsProvider = (model: Model<Api> | undefined) =>
-		isExplicitlyConfiguredToolProvider(model, runtime.state.config);
+	const allowsProvider = (model: ExtensionContext["model"]) =>
+		isConfiguredResponsesModel(model, runtime.state.config);
 	const unregisterProviderPolicy = registerCodexToolProviderPolicy(
 		pi,
-		(model) => allowsProvider(model as Model<Api> | undefined),
+		allowsProvider,
 	);
 	const unregisterProviderResolver = registerCodexToolProviderResolver(
 		pi,
-		(ctx) =>
-			resolveCodexToolProvider(ctx, (model) =>
-				allowsProvider(model as Model<Api> | undefined),
-			),
+		(ctx) => resolveCodexToolProvider(ctx, allowsProvider),
 	);
 	const renderOptions = (config: CodexConversionConfig) => ({
 		customRendering: config.ui.toolRenaming,

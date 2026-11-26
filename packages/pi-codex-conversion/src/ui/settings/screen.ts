@@ -22,7 +22,10 @@ export interface CodexSettingsScreenOptions extends UsageTabOptions {
 	hasWebSearch?: () => boolean;
 	waitForIdle: () => Promise<void>;
 	initialConfig: CodexConversionConfig;
-	onChange: (nextConfig: CodexConversionConfig) => boolean;
+	onChange: (
+		nextConfig: CodexConversionConfig,
+		previousConfig?: CodexConversionConfig,
+	) => boolean;
 	onGlobalLunaCacheKeepalive: (
 		minutes: LunaCacheKeepaliveMinutes,
 		interval: LunaCacheKeepaliveIntervalMinutes,

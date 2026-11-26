@@ -89,6 +89,7 @@ export function createCodexSessionLifecycle(
 				cwd: ctx.cwd,
 				projectTrusted: ctx.isProjectTrusted(),
 				upgradeSettings: true,
+				activatingModel: ctx.model,
 			});
 			state.executionMode = state.config.executionMode;
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
@@ -104,13 +105,18 @@ export function createCodexSessionLifecycle(
 			if (event.reason === "startup") await maybeWarnLocalCheckoutVersion(ctx);
 		},
 		modelSelected: async (_event, ctx) => {
-			modelSelected(ctx);
 			activate(ctx);
 			ui.invalidateUsageStatus();
 			runtime.resetTransport(ctx.sessionManager.getSessionId());
 			state.cwd = ctx.cwd;
+			state.config.scope = readEffectiveCodexConversionConfig({
+				cwd: ctx.cwd,
+				projectTrusted: ctx.isProjectTrusted(),
+				activatingModel: ctx.model,
+			}).scope;
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 			syncAdapter(pi, ctx, state);
+			modelSelected(ctx);
 			// Keep existing window state, but leave initial creation to the first prepared turn.
 			await runtime.configureDiagnostics(ctx);
 			void ui.refreshUsageStatus(ctx);

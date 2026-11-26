@@ -61,14 +61,12 @@ export function readCodexConversionConfig(
 
 export function normalizeGlobalConfigDocument(
 	parsed: unknown,
-	upgradePath?: string,
+	migrated = migrateCodexConversionConfig(parsed),
 ): CodexConversionConfig {
 	if (parsed === undefined)
 		return structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
-	const current = migrateCodexConversionConfig(parsed);
-	if (upgradePath) persistConfigUpgrade(upgradePath, parsed, current, false);
 	const config = withoutProjectOnlyConfig(
-		normalizeCodexConversionConfig(current),
+		normalizeCodexConversionConfig(migrated),
 	);
 	const voice =
 		isRecord(parsed) && isRecord(parsed["voice"]) ? parsed["voice"] : undefined;
@@ -102,7 +100,13 @@ export function writeCodexConversionConfig(
 		}
 		if (isRecord(existing)) {
 			assertWritableConfig(existing);
-			document = mergeConfigDocument(existing, normalized);
+			const migrated = migrateCodexConversionConfig(existing);
+			document = mergeConfigDocument(
+				isRecord(migrated) && isRecord(migrated["scope"])
+					? { ...existing, scope: migrated["scope"] }
+					: existing,
+				normalized,
+			);
 		}
 		document = folderScope
 			? withoutDisabledProjectCacheKeepalive(

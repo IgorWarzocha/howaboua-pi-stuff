@@ -25,7 +25,7 @@ export function buildStatusText(
 		baseTierEstimate?: boolean | undefined;
 		daybreak?: boolean | undefined;
 		useOnAllModels: boolean;
-		additionalProvider?: boolean | undefined;
+		configuredResponsesModel?: boolean | undefined;
 		compaction?: boolean | undefined;
 		usageStatus?: CodexUsageStatus | undefined;
 	},
@@ -36,7 +36,7 @@ export function buildStatusText(
 			? EXECUTION_MODE_LABELS[options.executionMode]
 			: undefined,
 		options.useOnAllModels ? "all models" : undefined,
-		options.additionalProvider ? "additional provider" : undefined,
+		options.configuredResponsesModel ? "configured model" : undefined,
 		options.compaction ? "compact v2" : undefined,
 		options.fast === "ultrafast"
 			? "ultrafast"

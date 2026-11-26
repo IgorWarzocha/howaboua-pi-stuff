@@ -49,7 +49,7 @@ Choose an execution mode under `/codex` → **General**:
 
 Code starts fresh for each cell. VM Code keeps `let`, `const`, `function` and `class` bindings for the conversation, without notebook controls or a saved heap. TS Notebook retains state between cells and provides notebook management controls. See [execution modes](#code-mode-and-custom-tools) below.
 
-Under **Model scope**, choose **Codex and configured**, **All providers** or **Selected models**. Use **Current model** to turn the adapter **On** or **Off** for the model selected in Pi. **Default** follows the scope. With **Selected models**, only models you set to **On** use the adapter. Other models keep Pi's tool behaviour.
+Under **Model scope**, choose **Automatic**, **All providers** or **Selected models**. Automatic covers recognised Codex and GPT routes. Use **Current model** to turn the adapter **On** or **Off** for the model selected in Pi. **Default** follows the scope. With **Selected models**, only models with an **On** rule use the adapter. Other models keep Pi's tool behaviour.
 
 Pi tool allowlists and exclusions still apply. VM Code and Code require `exec` and `wait`. TS Notebook also requires `notebook`. If a required tool is unavailable, the adapter does not activate.
 
@@ -70,7 +70,7 @@ Background shells survive context compaction and Notes rollover. The agent recei
 
 | Tab | Covers |
 | --- | --- |
-| General | Settings scope, execution mode, providers, prompt overwrite, time reminders |
+| General | Settings scope, execution mode, model scope, prompt overwrite, time reminders |
 | Context | Compaction method and retained user messages |
 | Tools | Auto reasoning, image descriptions, Code and Notebook shell output |
 | OpenAI | Fast and Ultrafast modes, Daybreak, verbosity, transport, diagnostics, Responses Lite |
@@ -282,7 +282,11 @@ Use `/codex voice stop` to stop voice. The remote server stops when its owning P
 
 PCC supports GPT-6 Astra, Sol and Luna, GPT-6.1 Sol and Terra, and GPT-6.2 Sol and Astra, with Responses Lite and live reasoning adjustments on Codex transport. Available context sizes and reasoning levels depend on the selected model. Cost estimates use [published API rates](https://developers.openai.com/api/docs/pricing).
 
-Default scope covers Codex-like GPT routes and Responses providers listed under **Additional providers**. Switching to an unrelated model restores Pi's ordinary tools.
+An explicit **On** rule for a compatible Responses passthrough also makes it eligible for provider features such as Codex V2 compaction and Proxy Responses Lite.
+
+Upgrading from **Additional providers**: when you activate a previously enabled Responses model in **Automatic** or **All providers**, PCC saves it as **On** in the settings file that enabled its provider. Existing model rules take precedence over old provider lists. Set a migrated model to **Default** to follow the scope without importing its old provider choice again. To stop importing models you have not used yet, remove the old `scope.additionalProviders` list from the settings file.
+
+In JSON, `scope.modelOverrides` maps exact Pi provider IDs to model IDs, for example `{"my-proxy":{"gpt-6-sol":true,"gpt-6-luna":false}}`. Use `true` for **On**, `false` for **Off** and `null` for **Default**. A trusted project's rule takes precedence over the matching global rule. A missing rule can inherit a global rule or import the old provider choice.
 
 Codex Live voice, dictation, usage and image descriptions can use the Codex login while another provider's model is active. Realtime voice models use the API provider selected in voice settings instead. The separate web and image-generation extensions also use their configured access independently.
 

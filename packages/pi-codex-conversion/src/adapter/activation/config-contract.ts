@@ -57,7 +57,7 @@ import {
 	DEFAULT_EXECUTION_MODE,
 	type ExecutionMode,
 } from "./execution-mode.ts";
-import type { ModelScopeMode, ModelScopeOverride } from "./model-scope.ts";
+import type { ModelScopeMode, ModelScopeOverrides } from "./model-scope.ts";
 
 export type CodexVerbosity = "low" | "medium" | "high";
 export const FAST_MODE_FAMILIES = ["astra", "sol", "terra", "luna"] as const;
@@ -120,8 +120,7 @@ export interface CodexConversionConfig {
 	};
 	scope: {
 		mode: ModelScopeMode;
-		additionalProviders: string[];
-		modelOverrides: ModelScopeOverride[];
+		modelOverrides: ModelScopeOverrides;
 	};
 	tools: {
 		autoReasoning: boolean;
@@ -188,7 +187,7 @@ export interface CodexConversionConfig {
 export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	executionMode: DEFAULT_EXECUTION_MODE,
 	prompt: { heavySystemPromptOverwrite: false, currentTimeReminderMinutes: 0 },
-	scope: { mode: "automatic", additionalProviders: [], modelOverrides: [] },
+	scope: { mode: "automatic", modelOverrides: {} },
 	tools: {
 		autoReasoning: false,
 		customRustBinariesDir: "",

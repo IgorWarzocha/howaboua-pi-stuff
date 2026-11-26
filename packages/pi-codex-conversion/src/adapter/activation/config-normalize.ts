@@ -18,7 +18,6 @@ import {
 	normalizeCustomRustBinariesDir,
 	normalizeDictationShortcutMode,
 	normalizeLunaCacheKeepaliveMinutes,
-	normalizeProviderList,
 	normalizeRealtimeV3Voice,
 	normalizeV2UserMessageRetention,
 	normalizeVoiceContextReasoning,
@@ -81,7 +80,6 @@ export function normalizeCodexConversionConfig(
 				normalizeModelScopeMode(scope["mode"]) ??
 				legacyAllProvidersMode(scope["allProviders"]) ??
 				DEFAULT_CODEX_CONVERSION_CONFIG.scope.mode,
-			additionalProviders: normalizeProviderList(scope["additionalProviders"]),
 			modelOverrides: normalizeModelScopeOverrides(scope["modelOverrides"]),
 		},
 		tools: {
