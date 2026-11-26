@@ -10,7 +10,7 @@ FTS opt-in/derived/current session only. Explicit pruning may delete rows; recon
 
 Lazy cache by immutable Pi entry; never mutate cached entries. Rendered cache one page continuation. Worker reuse requires same ordered selection + SQLite revision across connections. Checked `.mjs` outside jiti; no type stripping in `node_modules`. Type-only protocol imports; probe installed copy, not symlink.
 
-Optional public PCC prep: cancel/project before provider in either load order. Tool eligibility ≠ continuation. `resume:false`→successful settle, no abort/terminate/successor. Tail admission: active parent IDs on demand at manual/due idle + checkpoint completion, no bookmark/JSONL. Original branch/order, never kickoff; preserve Off/shell wake.
+Optional public PCC prep: cancel/project before provider in either load order. Tool eligibility ≠ continuation. `resume:false`→successful settle, no abort/terminate/successor. Tail admission: active parent IDs on demand at manual/due idle + checkpoint completion, no bookmark/JSONL. Original branch/order, never kickoff; idle input and custom delivery share eligibility, Off requires fresh notes.
 
 Notes-only rollover: check real window change, cosmetic `Compaction cancelled` immaterial. Await optional prep→recheck session/window→cut. Summary compaction owns refresh, identity-only no repeat. Pi-limited request cancels own eligible hook before provider; only that cancellation permits rollover. Exact no-work errors keep window; other failures fail. Request permission ≠ idle/manual policy.
 

@@ -81,16 +81,14 @@ export class NotesLifecycle {
 		this.admission = new IdleAdmission(
 			this,
 			pi,
-			(ctx, source) =>
-				this.normalCompaction || source === "custom"
-					? this.requests.roll(
-							ctx,
-							false,
-							undefined,
-							undefined,
-							this.normalCompaction ? undefined : this.retainedTail(ctx),
-						)
-					: this.rollNotes(ctx),
+			(ctx) => {
+				const tail = this.normalCompaction ? undefined : this.retainedTail(ctx);
+				if (!this.normalCompaction && this.rolloverTail !== "off" && !tail)
+					throw new Error(
+						"No eligible saved checkpoint; the current context remains",
+					);
+				return this.requests.roll(ctx, false, undefined, undefined, tail);
+			},
 			() => this.requests.pending,
 			() => this.checkpoint.pending,
 		);
@@ -191,7 +189,7 @@ export class NotesLifecycle {
 			this.windows.current?.currentWindowId,
 		);
 	}
-	private retainedTail(ctx: ExtensionContext): RolloverTail | undefined {
+	retainedTail(ctx: ExtensionContext): RolloverTail | undefined {
 		const windowId = this.windows.current?.currentWindowId;
 		if (windowId && this.rolloverTail !== "off")
 			return findRolloverTail(ctx.sessionManager, windowId, this.rolloverTail);

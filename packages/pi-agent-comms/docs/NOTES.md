@@ -46,7 +46,7 @@ Set **Rollover tail** to **Conversation** to keep user messages, attachments and
 
 Pi rejects `/compact` when there is too little history to prepare compaction, before extensions run. `new_context` follows the separate **New window requests** setting.
 
-Idle rollover is off by default. Choose 25m, 55m, 2h, 6h or 12h in `/notes`. Hour presets leave a five-minute buffer. When the interval elapses, the next prompt waits for rollover. With a Conversation or Full tail, Notes uses the same save eligibility as `/compact` and requests a checkpoint if needed. With the tail off or normal compaction on, input proceeds in the current window if the latest completed turn did not save notes.
+Idle rollover is off by default. Choose 25m, 55m, 2h, 6h or 12h in `/notes`. Hour presets leave a five-minute buffer. When the interval elapses, the next prompt or custom delivery rolls over only if continuity is ready. With a Conversation or Full tail, an eligible saved checkpoint is required; with the tail off or normal compaction on, the latest completed turn must have saved notes. Otherwise input proceeds in the current window without requesting a checkpoint.
 
 Held input keeps its original text, attachments and SDK options. If normal compaction has nothing to summarise, input proceeds in the current window. After a failed checkpoint or rollover, submit another prompt to retry or reload to cancel the pending input.
 
