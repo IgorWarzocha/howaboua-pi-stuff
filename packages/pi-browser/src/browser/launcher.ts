@@ -116,10 +116,7 @@ async function waitForDebugEndpoint(
 }
 
 function hasGraphicalDesktop(env: NodeJS.ProcessEnv): boolean {
-	return Boolean(
-		env["XDG_CURRENT_DESKTOP"]?.trim() &&
-		(env["WAYLAND_DISPLAY"] || env["DISPLAY"]),
-	);
+	return Boolean(env["WAYLAND_DISPLAY"]?.trim() || env["DISPLAY"]?.trim());
 }
 
 async function graphicalEnvironment(
