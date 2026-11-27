@@ -1,5 +1,11 @@
 # @howaboua/pi-stuff
 
+## 0.0.122
+
+- Bundled updates:
+
+  - **@howaboua/pi-reactions**: Added optional per-reaction keyboard shortcuts for the latest finished reply. No keys are bound by default.
+
 ## 0.0.121
 
 - Bundled updates:
