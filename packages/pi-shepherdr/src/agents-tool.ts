@@ -56,6 +56,7 @@ export function createAgentsTool(
 				: []),
 		],
 		parameters: AgentsParameters,
+		prepareArguments: parseAgentsRequest,
 		executionMode: "parallel",
 		async execute(_toolCallId, input: AgentsToolParams, signal, onUpdate, ctx) {
 			const params = parseAgentsRequest(input);

@@ -172,18 +172,24 @@ export function parseAgentsRequest(input: unknown): AgentsParams {
 		request = { ...request, action: "help" };
 	const action = request["action"];
 	if (typeof action !== "string" || !Object.hasOwn(ACTION_FIELDS, action)) {
-		throw new Error(`agents action must be one of: ${ACTIONS.join(", ")}`);
+		throw new Error(
+			"Unknown agents action. Call agents with {} for current actions and fields",
+		);
 	}
 	const fields = ACTION_FIELDS[action as (typeof ACTIONS)[number]];
 	const unknown = Object.keys(request).filter((key) => !fields.has(key));
 	if (unknown.length > 0) {
-		throw new Error(`unknown ${action} field(s): ${unknown.join(", ")}`);
+		throw new Error(
+			`Unknown ${action} field(s): ${unknown.join(", ")}. Call agents with {} for valid fields`,
+		);
 	}
 	if (action === "send") {
 		if ("message" in request === "task" in request)
 			throw new Error("send requires exactly one of message or task");
 		if ("wait" in request && !("task" in request))
 			throw new Error("wait requires task");
+		if ("wait" in request && request["wait"] !== true)
+			throw new Error("Use wait: true to wait for the task, or omit wait");
 	}
 	if (action === "watch" && typeof request["enabled"] !== "boolean")
 		throw new Error("watch requires enabled: true or false");
