@@ -21,7 +21,6 @@ import { resolveAdapterRuntimePlanForState } from "./activation/runtime-plan.ts"
 import {
 	hasActiveExecTools,
 	NESTED_ADAPTER_TOOL_NAMES,
-	REPLACED_PI_TOOL_NAMES,
 } from "./activation/tool-set.ts";
 import {
 	codeModeImageResult,
@@ -30,7 +29,6 @@ import {
 import { resolveProtectedOutputScope } from "../tools/code-mode/protected-output.ts";
 import { appendRemoteDelivery } from "../tools/code-mode/protected-delivery.ts";
 import { createPiCodeModeBridge } from "./code-mode/pi-tools.ts";
-import { syncAdapter } from "./activation/activation.ts";
 import { recordNativeNestedSelection } from "./activation/native-nested-selection.ts";
 
 const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
@@ -39,13 +37,9 @@ export async function registerCodexCodeMode(
 	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
 ): Promise<CodeModeRegistration> {
-	let latestContext: ExtensionContext | undefined;
-	let stopped = false;
-	let pendingNativeProjection = false;
 	let callableNames: ReadonlySet<string> = new Set();
 	const piTools = createPiCodeModeBridge(pi);
 	const isActive = (ctx: unknown) => {
-		if (ctx) latestContext = ctx as ExtensionContext;
 		const plan = resolveAdapterRuntimePlanForState(
 			ctx as ExtensionContext,
 			runtime.state,
@@ -65,8 +59,6 @@ export async function registerCodexCodeMode(
 				)
 			)
 				return undefined;
-			// MCP can activate native discovery after our preparation hook or during
-			// a run. Reconcile outside Pi's synchronous loadout callback.
 			const nativeSearch = pi
 				.getAllTools()
 				.some(
@@ -74,38 +66,17 @@ export async function registerCodexCodeMode(
 						tool.name === "tool_search" &&
 						tool.sourceInfo?.path === "builtin:tool-search",
 				);
-			if (
-				!pendingNativeProjection &&
-				loadout.declared.some(
-					(tool) =>
-						tool.name === "codemode" ||
-						(nativeSearch && tool.name === "tool_search"),
-				)
-			) {
-				pendingNativeProjection = true;
-				queueMicrotask(() => {
-					pendingNativeProjection = false;
-					if (
-						!stopped &&
-						latestContext &&
-						isActive(latestContext) &&
-						pi
-							.getActiveTools()
-							.some(
-								(name) =>
-									name === "codemode" ||
-									(nativeSearch && name === "tool_search"),
-							)
-					)
-						syncAdapter(pi, latestContext, runtime.state);
-				});
-			}
-			return piTools.prepareLoadout(loadout, [
-				...REPLACED_PI_TOOL_NAMES,
+			// Keep the Pi selection intact for resume and model switches.
+			// If a replacement is not callable, keep the selected Pi tool usable.
+			const changes = piTools.prepareLoadout(loadout, [
+				...(callableNames.has("exec_command") ? ["read", "bash"] : []),
+				...(callableNames.has("apply_patch") ? ["edit", "write"] : []),
 				...NESTED_ADAPTER_TOOL_NAMES,
 				"codemode",
 				...(nativeSearch ? ["tool_search"] : []),
 			]);
+			runtime.state.hiddenCodeModeToolNames = changes.hiddenDeclarations;
+			return changes;
 		},
 		getTools: (ctx) => {
 			const context = ctx as ExtensionContext | undefined;
@@ -175,8 +146,6 @@ export async function registerCodexCodeMode(
 		checkpointNotebook: () => programmaticRuntime.checkpointNotebook(),
 		shutdownHost: () => programmaticRuntime.shutdownHost(),
 		async shutdown() {
-			stopped = true;
-			latestContext = undefined;
 			await programmaticRuntime.shutdown();
 			await customToolsRuntime.shutdown();
 		},

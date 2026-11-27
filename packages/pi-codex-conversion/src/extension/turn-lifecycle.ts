@@ -7,7 +7,6 @@ import type {
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import {
 	isAdapterRuntime,
-	usesExecTools,
 	resolveAdapterRuntimePlanForState,
 } from "../adapter/activation/runtime-plan.ts";
 import { supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
@@ -124,7 +123,12 @@ export function createCodexTurnLifecycle(
 		contextWithSystem: async (event, ctx) => {
 			const plan = resolveAdapterRuntimePlanForState(ctx, state);
 			try {
-				captureNativeCompactionContext(event.messages, ctx, state);
+				captureNativeCompactionContext(
+					event.messages,
+					ctx,
+					state,
+					plan.nativeReplay,
+				);
 				await recordCodexContextBriefings(
 					pi,
 					ctx,
@@ -137,7 +141,7 @@ export function createCodexTurnLifecycle(
 			}
 			let messages = runtime.projectContextMessages(ctx, event.messages);
 			if (
-				usesExecTools(resolveAdapterRuntimePlanForState(ctx, state)) &&
+				isAdapterRuntime(plan) &&
 				recordCodeModeToolkit(
 					pi,
 					ctx,
@@ -169,7 +173,7 @@ export function createCodexTurnLifecycle(
 			try {
 				messages = projectCodeModeMcpSections(
 					messages,
-					usesExecTools(plan) &&
+					isAdapterRuntime(plan) &&
 						required.every((name) => pi.getActiveTools().includes(name)),
 				);
 			} catch (error) {

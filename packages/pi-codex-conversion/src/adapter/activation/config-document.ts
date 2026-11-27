@@ -6,6 +6,7 @@ import {
 	compile,
 	int,
 	lit,
+	map,
 	nul,
 	obj,
 	opt,
@@ -79,10 +80,17 @@ const settingsDocument = compile(
 				v2UserMessageRetention: retention,
 			}),
 			scope: section({
+				mode: values("automatic", "all", "selected"),
 				allProviders: opt(
 					union([bool(), lit("off"), lit("on"), lit("extras")]),
 				),
 				additionalProviders: opt(arr(str())),
+				modelOverrides: opt(
+					union([
+						map(map(union([bool(), nul()]))),
+						arr(obj({ provider: str(), id: str(), enabled: bool() })),
+					]),
+				),
 			}),
 			ui: section({
 				toolDetails: values("minimal", "compact", "preview"),
@@ -239,15 +247,22 @@ export function mergeConfigDocument(
 	existing: Record<string, unknown>,
 	owned: Record<string, unknown>,
 ): Record<string, unknown> {
-	const merged = { ...existing };
-	for (const [key, value] of Object.entries(owned)) {
-		const previous = merged[key];
-		merged[key] =
-			isRecord(previous) && isRecord(value)
-				? mergeConfigDocument(previous, value)
-				: value;
-	}
-	return merged;
+	return {
+		...existing,
+		...Object.fromEntries(
+			Object.entries(owned).map(([key, value]) => {
+				const previous = Object.hasOwn(existing, key)
+					? existing[key]
+					: undefined;
+				return [
+					key,
+					isRecord(previous) && isRecord(value)
+						? mergeConfigDocument(previous, value)
+						: value,
+				];
+			}),
+		),
+	};
 }
 
 export function clearAbsentOwnedOptionals(

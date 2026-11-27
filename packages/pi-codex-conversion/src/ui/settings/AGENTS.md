@@ -1,5 +1,5 @@
-- Explicit actions persist; startup/resume read only. Destructive retention submenu: browsing inert, Enter applies, Esc cancels.
-- Scoped mode: normal/code/notebook/ts/js/vm. No session entries or inherited mode UI.
+- Explicit settings actions persist. Destructive retention submenu: browsing inert, Enter applies, Esc cancels.
+- Model scope uses exact Pi provider + model ID rules. Display inherited rules; save only the edited rule to the selected settings file. No session entries.
 - `config-items.ts` dispatches; `config-items-<tab>.ts` builds; `config-items-shared.ts` owns shared controls/types. `/codex` opens General; actions under tabs, no default-tab args or quick toggles.
 - Open/save immediately, persist synchronously. Live config/tools wait for idle; UI doesn't. Other reloads hide pending edits. Concurrency only for reproduced background writers or realistic overlap. Settings flip: trace source/read lifecycle/draft before race diagnosis.
 - `screen/configuration.ts` owns draft/list/picker flags. Open picker captures Tab; context-list rebuild reselects changed item.

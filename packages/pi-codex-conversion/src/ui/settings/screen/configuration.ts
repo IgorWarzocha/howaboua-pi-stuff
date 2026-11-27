@@ -83,7 +83,7 @@ export function createSettingsConfiguration(
 							item: {
 								id: "executionMode",
 								description:
-									"Structured: standard JSON schemas. Code: fresh JavaScript cells. VM Code: JavaScript bindings kept for this conversation. TS Notebook: persistent TypeScript with checkpoints and concurrent cells.",
+									"VM Code: JavaScript bindings kept for this conversation. Code: fresh JavaScript cells. TS Notebook: persistent TypeScript with checkpoints and concurrent cells.",
 								label: "Execution mode",
 								currentValue: EXECUTION_MODE_LABELS[draft.executionMode],
 								values: Object.values(EXECUTION_MODE_LABELS),
@@ -114,7 +114,6 @@ export function createSettingsConfiguration(
 			...buildConfigSettings(
 				activeTab,
 				draft,
-				theme,
 				availableContextModels,
 				ctx,
 				options.hasWebSearch?.(),
@@ -312,8 +311,9 @@ export function createSettingsConfiguration(
 				if (!definition?.update) return;
 				const previousValue = definition.item.currentValue;
 				const nextDraft = definition.update(value, draft);
-				if (options.onChange(nextDraft)) {
-					draft = nextDraft;
+				if (options.onChange(nextDraft, draft)) {
+					draft =
+						id === "modelScope" ? options.configScope.reload() : nextDraft;
 					if (activeTab === "context" || id === "voiceModel") {
 						settingsList = createSettingsList();
 						settingsList.selectItem(id);

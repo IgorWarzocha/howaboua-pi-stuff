@@ -38,27 +38,7 @@ export function formatRuntimeGuidelines(
 				.flatMap((name) => options.toolGuidelines[name] ?? []),
 			...options.promptGuidelines,
 		);
-	if (executionMode === "normal") {
-		if (active.has("exec_command")) {
-			add(
-				"Use exec_command for shell commands. Filter large output at the source.",
-				"Shell→exec_command; filter large output at source",
-			);
-			add(
-				"Set tty=true only for input or persistent processes.",
-				"tty=true only for input or persistent processes",
-			);
-		}
-		if (active.has("apply_patch"))
-			add(
-				"Use apply_patch to edit, create, delete, or move files. Split oversized patches.",
-				"Text edits, creates, deletes, moves→apply_patch; split oversized patches",
-			);
-		add(
-			"Run independent calls in parallel when practical.",
-			"Independent calls→parallel when practical",
-		);
-	} else if (
+	if (
 		active.has("exec") &&
 		active.has("wait") &&
 		(executionMode !== "ts" || active.has("notebook"))

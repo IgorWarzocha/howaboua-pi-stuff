@@ -36,6 +36,7 @@ function shortCommand(command: string): string {
 export function registerCodexShellLifecycle(
 	pi: ExtensionAPI,
 	sessions: ExecSessionManager,
+	isActive: (ctx: ExtensionContext) => boolean,
 ): CodexShellLifecycle {
 	let active: ShellContext | undefined;
 	let timer: ReturnType<typeof setTimeout> | undefined;
@@ -55,6 +56,7 @@ export function registerCodexShellLifecycle(
 			!disposed &&
 			active === owner &&
 			!owner.paused &&
+			isActive(owner.ctx) &&
 			owner.ctx.sessionManager.getSessionId() === owner.sessionId &&
 			owner.ctx.isIdle()
 		);
@@ -140,6 +142,10 @@ export function registerCodexShellLifecycle(
 		activate(ctx);
 		invalidate();
 	});
+	pi.on("model_select", (_event, ctx) => {
+		activate(ctx);
+		schedule();
+	});
 	pi.on("session_compact", invalidate);
 	pi.on("agent_start", (_event, ctx) => {
 		activate(ctx).paused = false;
@@ -159,7 +165,7 @@ export function registerCodexShellLifecycle(
 
 	return {
 		recordBriefing(ctx, messages) {
-			if (disposed) return false;
+			if (disposed || !isActive(ctx)) return false;
 			const owner = activate(ctx);
 			if (
 				owner.admitted &&

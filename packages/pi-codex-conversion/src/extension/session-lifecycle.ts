@@ -4,6 +4,10 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
+import {
+	isAdapterRuntime,
+	resolveAdapterRuntimePlanForState,
+} from "../adapter/activation/runtime-plan.ts";
 import { supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
 import { onCodeModeExtensionToolsRefresh } from "../code-mode-extension-tools.ts";
 import type { CodeModeProxyProviderRegistration } from "../providers/code-mode-proxy-provider.ts";
@@ -85,6 +89,7 @@ export function createCodexSessionLifecycle(
 				cwd: ctx.cwd,
 				projectTrusted: ctx.isProjectTrusted(),
 				upgradeSettings: true,
+				activatingModel: ctx.model,
 			});
 			state.executionMode = state.config.executionMode;
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
@@ -100,13 +105,18 @@ export function createCodexSessionLifecycle(
 			if (event.reason === "startup") await maybeWarnLocalCheckoutVersion(ctx);
 		},
 		modelSelected: async (_event, ctx) => {
-			modelSelected(ctx);
 			activate(ctx);
 			ui.invalidateUsageStatus();
 			runtime.resetTransport(ctx.sessionManager.getSessionId());
 			state.cwd = ctx.cwd;
+			state.config.scope = readEffectiveCodexConversionConfig({
+				cwd: ctx.cwd,
+				projectTrusted: ctx.isProjectTrusted(),
+				activatingModel: ctx.model,
+			}).scope;
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 			syncAdapter(pi, ctx, state);
+			modelSelected(ctx);
 			// Keep existing window state, but leave initial creation to the first prepared turn.
 			await runtime.configureDiagnostics(ctx);
 			void ui.refreshUsageStatus(ctx);
@@ -120,13 +130,17 @@ export function createCodexSessionLifecycle(
 			// Internal rollover preserves the admission that requested it.
 			state.bindingStatus = undefined;
 			const stateful =
-				state.executionMode === "ts" || state.executionMode === "vm";
+				(state.executionMode === "ts" || state.executionMode === "vm") &&
+				(state.enabled ||
+					isAdapterRuntime(resolveAdapterRuntimePlanForState(ctx, state)));
 			if (stateful) appendExecutionTreeEpoch(pi);
 			await codeMode.shutdownHost();
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 			// Pi restored the branch's tool loadout, not its execution-mode setting.
 			// Reapply the current mode while retaining non-adapter tool selections.
 			delete state.appliedRuntimeKind;
+			delete state.appliedRuntimeToolNames;
+			delete state.suspendedNestedToolNames;
 			syncAdapter(pi, ctx, state);
 			prepareExecutionHost(codeMode, ctx);
 			if (stateful) {

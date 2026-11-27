@@ -10,7 +10,7 @@ const KNOWN_INTROS = new Set([
 	INTRO + CODEMODE + SEARCH,
 ]);
 const UNSUPPORTED =
-	"Unsupported Pi MCP server summary format; update Codex Conversion or use Structured mode";
+	"Unsupported Pi MCP server summary format; update Codex Conversion or turn it off for this model";
 const OPEN = "<mcp_servers>\n";
 const CLOSE = "\n</mcp_servers>";
 

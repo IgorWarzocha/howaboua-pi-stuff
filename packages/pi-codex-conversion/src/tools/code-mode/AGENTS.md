@@ -1,7 +1,7 @@
 - Conversion activation/nested definitions stay outside.
 - Code host: checksummed official release in `host-assets.ts`, cached by release/platform. No local build, bundled host or `customRustBinariesDir`. Upstream routes in package AGENTS.md.
 - Native `exec`/`wait`: no rename, config or collision fallback. State stays mode-local. Notebook controls TS only.
-- Code/Notebook: one standing entry per promoted tool. `ALL_TOOLS` lists current public callables regardless of promotion/notices, excludes deliberately unlisted controls. Not Structured mode.
+- Code/Notebook: one standing entry per promoted tool. `ALL_TOOLS` lists current public callables regardless of promotion/notices, excludes deliberately unlisted controls.
 - Only explicit `discovery: "help"` omits signatures; empty call returns usage without execution. Never infer from optional args or apply to arbitrary third-party tools.
 - `src/code-mode-preflight.ts`: lightweight public guard. Shared protocol dependency stays outside extension graph.
 - Shared Code turn hook can precede PCC. Capture Heavy system prompt overwrite from the active provider, not PCC's later hook.

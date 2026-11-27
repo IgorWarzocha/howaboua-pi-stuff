@@ -7,7 +7,6 @@ import { compile } from "@earendil-works/pi-schema";
 import { missingMcpToolMessage } from "../../tools/code-mode/mcp-tool-recovery.ts";
 import type { ProgrammaticCodeModeToolDefinition } from "../../tools/code-mode/types.ts";
 import { ALL_CODEX_ADAPTER_TOOL_NAMES } from "../activation/runtime-plan.ts";
-import { REPLACED_PI_TOOL_NAMES } from "../activation/tool-set.ts";
 
 /** Pi owns callable admission; explicit integrations reserve their native names. */
 export function createPiCodeModeBridge(pi: ExtensionAPI): {
@@ -31,7 +30,7 @@ export function createPiCodeModeBridge(pi: ExtensionAPI): {
 				.filter(
 					(tool) =>
 						tool.name !== "codemode" &&
-						!REPLACED_PI_TOOL_NAMES.includes(tool.name) &&
+						!additionallyHidden.includes(tool.name) &&
 						!ALL_CODEX_ADAPTER_TOOL_NAMES.includes(tool.name) &&
 						registered.get(tool.name)?.sourceInfo?.path !==
 							"builtin:tool-search",

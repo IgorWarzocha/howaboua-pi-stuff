@@ -26,10 +26,13 @@ export interface AdapterState {
 	/** Managed names whose provider gates passed at the last projection refresh. */
 	activeCodeModeExtensionToolNames?: string[] | undefined;
 	/** Last adapter policy and output, used to distinguish external loadout edits. */
-	appliedRuntimeKind?: "inactive" | "normal" | "code" | "ts" | "vm" | undefined;
+	appliedRuntimeKind?: ExecutionMode | undefined;
 	appliedRuntimeToolNames?: string[] | undefined;
 	appliedActiveToolNames?: string[] | undefined;
 	previousToolNames?: string[] | undefined;
+	/** Selection to reapply when returning from an out-of-scope model. Tree restore supersedes it. */
+	suspendedNestedToolNames?: string[] | undefined;
+	hiddenCodeModeToolNames?: readonly string[] | undefined;
 	preparedPrompt?:
 		| {
 				sessionId: string;

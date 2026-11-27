@@ -3,6 +3,8 @@ import { resolveAdapterRuntimePlanForState } from "../adapter/activation/runtime
 import {
 	hasPortableNativeCompactionSummary,
 	isNativeCompactionDetails,
+	isNativeCompactionEntry,
+	OPAQUE_CHECKPOINT_REQUIRES_ADAPTER,
 	NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
 	NATIVE_COMPACTION_DISPLAY_TEXT,
 	NATIVE_COMPACTION_PORTABLE_DISPLAY_TEXT,
@@ -60,6 +62,16 @@ export function createCodexCompactionLifecycle(
 			runtime.suspendOrdinaryPrewarm();
 			state.cwd = ctx.cwd;
 			const plan = resolveAdapterRuntimePlanForState(ctx, state);
+			if (!plan.nativeReplay) {
+				const checkpoint = findLatestCompactionEntry(event.branchEntries);
+				if (
+					isNativeCompactionEntry(checkpoint) &&
+					!hasPortableNativeCompactionSummary(checkpoint)
+				) {
+					ctx.ui.notify(OPAQUE_CHECKPOINT_REQUIRES_ADAPTER, "error");
+					return { cancel: true };
+				}
+			}
 			if (event.reason !== "manual")
 				runtime.voice.announceContextTransition(event.reason);
 			const nativeCompaction = plan.nativeCompaction;
