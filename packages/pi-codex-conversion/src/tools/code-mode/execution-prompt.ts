@@ -179,7 +179,7 @@ export function buildCodeModeToolsPrompt(
 			? prose(
 					"For one-off work, print the tool result directly or start the cell with a block and use let inside it. Declare at top level only for cross-cell reuse. Give each retained binding a distinct, task-specific name.",
 					executionKind === "vm"
-						? "One-off exec MUST use { ... }. Check final } before sending. Block locals→let. Top level→cross-cell reuse only; distinct task-specific names."
+						? "One-off exec MUST use { ... }. Check final } before sending. Temporary bindings→let inside. Top level→cross-cell reuse only; distinct task-specific names."
 						: "One-off work→print directly or start cell with { ... } and use let inside. Top level→cross-cell reuse only; distinct, task-specific names.",
 				)
 			: undefined,
