@@ -1,6 +1,6 @@
 {
   "name": "@howaboua/pi-reactions",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "React to assistant replies in Pi without starting another turn",
   "type": "module",
   "main": "src/index.ts",

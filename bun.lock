@@ -284,7 +284,7 @@
     },
     "packages/pi-extensions": {
       "name": "@howaboua/pi-extensions",
-      "version": "0.0.113",
+      "version": "0.0.114",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.23",
         "@howaboua/pi-better-skills-tool": "0.0.16",
@@ -292,7 +292,7 @@
         "@howaboua/pi-gippity-control": "0.0.36",
         "@howaboua/pi-github-watch": "0.0.10",
         "@howaboua/pi-gpt-switcher": "0.1.7",
-        "@howaboua/pi-reactions": "0.0.2",
+        "@howaboua/pi-reactions": "0.0.3",
         "@howaboua/pi-shepherdr": "1.0.6",
         "@howaboua/pi-suggestions": "0.0.4",
         "@howaboua/pi-unicode-charts": "0.1.6",
@@ -460,7 +460,7 @@
     },
     "packages/pi-reactions": {
       "name": "@howaboua/pi-reactions",
-      "version": "0.0.2",
+      "version": "0.0.3",
       "dependencies": {
         "@earendil-works/pi-schema": "1.7.0",
       },
@@ -561,7 +561,7 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.121",
+      "version": "0.0.122",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.23",
         "@howaboua/pi-better-skills-tool": "0.0.16",
@@ -569,7 +569,7 @@
         "@howaboua/pi-gippity-control": "0.0.36",
         "@howaboua/pi-github-watch": "0.0.10",
         "@howaboua/pi-gpt-switcher": "0.1.7",
-        "@howaboua/pi-reactions": "0.0.2",
+        "@howaboua/pi-reactions": "0.0.3",
         "@howaboua/pi-shepherdr": "1.0.6",
         "@howaboua/pi-skill-chrome-cdp": "0.0.5",
         "@howaboua/pi-skill-code": "0.0.5",

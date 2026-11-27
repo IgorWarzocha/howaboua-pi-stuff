@@ -93,15 +93,11 @@ Fixed duplicate Guardian reviews of nested PCC tool calls. Custom Code tools sti
 
 [Full changelog](./packages/pi-codex-web-run/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.113
+### @howaboua/pi-extensions — 0.0.114
 
 - Bundled updates:
 
-  - **@howaboua/pi-reactions**:
-
-    Added a clickable reaction picker below finished Pi replies. The default reactions are OK, Reconsider, Push and Verify. Reactions reach the agent on the next ordinary prompt without changing the prompt text.
-
-    Define reactions in `reactions.json`. A reaction with `"startTurn": true` starts its own turn when clicked.
+  - **@howaboua/pi-reactions**: Added optional per-reaction keyboard shortcuts for the latest finished reply. No keys are bound by default.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -146,11 +142,9 @@ Fixed duplicate Guardian reviews of nested PCC tool calls. Custom Code tools sti
 
 [Full changelog](./packages/pi-pet/CHANGELOG.md)
 
-### @howaboua/pi-reactions — 0.0.2
+### @howaboua/pi-reactions — 0.0.3
 
-- Added a clickable reaction picker below finished Pi replies. The default reactions are OK, Reconsider, Push and Verify. Reactions reach the agent on the next ordinary prompt without changing the prompt text.
-
-  Define reactions in `reactions.json`. A reaction with `"startTurn": true` starts its own turn when clicked.
+- Added optional per-reaction keyboard shortcuts for the latest finished reply. No keys are bound by default.
 
 [Full changelog](./packages/pi-reactions/CHANGELOG.md)
 
@@ -229,15 +223,11 @@ Fixed duplicate Guardian reviews of nested PCC tool calls. Custom Code tools sti
 
 [Full changelog](./packages/pi-skills/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.121
+### @howaboua/pi-stuff — 0.0.122
 
 - Bundled updates:
 
-  - **@howaboua/pi-reactions**:
-
-    Added a clickable reaction picker below finished Pi replies. The default reactions are OK, Reconsider, Push and Verify. Reactions reach the agent on the next ordinary prompt without changing the prompt text.
-
-    Define reactions in `reactions.json`. A reaction with `"startTurn": true` starts its own turn when clicked.
+  - **@howaboua/pi-reactions**: Added optional per-reaction keyboard shortcuts for the latest finished reply. No keys are bound by default.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
