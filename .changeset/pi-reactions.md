@@ -2,4 +2,4 @@
 "@howaboua/pi-reactions": patch
 ---
 
-Added clickable reactions to finished Pi replies: Looks good, Reconsider, Push to remote and Verify. Reactions accompany the next ordinary prompt without starting a turn.
+Added a clickable reaction picker below finished Pi replies: OK, Reconsider, Push and Verify. Reactions reach the agent on the next ordinary prompt without starting a turn or changing the prompt text.

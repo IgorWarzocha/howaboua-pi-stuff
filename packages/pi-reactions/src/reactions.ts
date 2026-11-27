@@ -4,74 +4,41 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 
 export const REPLY_ROW = "pi-reactions-reply";
-export const REACTION_ENTRY = "pi-reactions-selection";
-const REACTION_HEADER = "Reactions to earlier assistant replies:";
+export const REACTION_ENTRY = "pi-reactions-reaction";
+const REACTION_MESSAGE = "pi-reactions-delivery";
 
 export const REACTIONS = {
-	like: {
-		icon: "👍",
-		label: "Looks good",
-		instruction: "Looks good. No extra action.",
-	},
-	dislike: {
-		icon: "👎",
-		label: "Reconsider",
-		instruction:
-			"Reconsider this reply. Don't assume which part I objected to.",
-	},
-	push: {
-		icon: "⬆️",
-		label: "Push to remote",
-		instruction:
-			"Push the changes discussed in this reply to their existing remote branch only if the reply and branch are clear. Do not merge or release.",
-	},
-	verify: {
-		icon: "🔍",
-		label: "Verify",
-		instruction:
-			"Check the claim or run the validation discussed in this reply.",
-	},
+	like: { icon: "👍", label: "OK" },
+	dislike: { icon: "👎", label: "Reconsider" },
+	push: { icon: "⬆️", label: "Push" },
+	verify: { icon: "🔍", label: "Verify" },
 } as const;
 
 export type Reaction = keyof typeof REACTIONS;
 export const REACTION_KEYS = Object.keys(REACTIONS) as Reaction[];
 
-export interface ReplyReference {
-	replyId: string;
-	excerpt: string;
+export function readReplyId(data: unknown): string | undefined {
+	return data &&
+		typeof data === "object" &&
+		"replyId" in data &&
+		typeof data.replyId === "string"
+		? data.replyId
+		: undefined;
 }
 
-export interface ReactionSelection extends ReplyReference {
-	reaction: Reaction | null;
-}
-
-export function readReplyReference(data: unknown): ReplyReference | undefined {
-	if (
-		!data ||
-		typeof data !== "object" ||
-		!("replyId" in data) ||
-		typeof data.replyId !== "string" ||
-		!("excerpt" in data) ||
-		typeof data.excerpt !== "string"
-	)
-		return undefined;
-	return { replyId: data.replyId, excerpt: data.excerpt };
-}
-
-function readSelection(data: unknown): ReactionSelection | undefined {
-	const reply = readReplyReference(data);
-	if (!reply || !data || typeof data !== "object" || !("reaction" in data))
+function readReaction(data: unknown): Reaction | null | undefined {
+	if (!data || typeof data !== "object" || !("reaction" in data))
 		return undefined;
 	const reaction = data.reaction;
-	if (reaction === null) return { ...reply, reaction };
-	if (typeof reaction !== "string" || !Object.hasOwn(REACTIONS, reaction))
-		return undefined;
-	return { ...reply, reaction: reaction as Reaction };
+	if (reaction === null) return null;
+	return typeof reaction === "string" && Object.hasOwn(REACTIONS, reaction)
+		? (reaction as Reaction)
+		: undefined;
 }
 
-function isFinishedReply(
+export function isFinishedReply(
 	message: SessionMessageEntry["message"],
-): message is Extract<SessionMessageEntry["message"], { role: "assistant" }> {
+): boolean {
 	return (
 		message.role === "assistant" &&
 		(message.stopReason === "stop" || message.stopReason === "length") &&
@@ -81,86 +48,79 @@ function isFinishedReply(
 	);
 }
 
-export function replyReference(
-	entry: SessionMessageEntry,
-): ReplyReference | undefined {
-	const message = entry.message;
-	if (!isFinishedReply(message)) return undefined;
-	const excerpt = message.content
-		.filter((part) => part.type === "text")
-		.map((part) => part.text)
-		.join(" ")
-		.replace(/\s+/gu, " ")
-		.trim();
-	return {
-		replyId: entry.id,
-		excerpt: Array.from(excerpt).slice(0, 72).join(""),
-	};
-}
-
-type ActiveReaction = ReplyReference & { reaction: Reaction };
-
-function reactionLine(
-	selection: ActiveReaction,
-	replies: ReadonlyMap<string, number>,
-): string {
-	const { icon, instruction } = REACTIONS[selection.reaction];
-	const position = replies.get(selection.replyId);
-	const earlier = position === undefined ? 0 : replies.size - position;
-	const reply =
-		earlier === 0
-			? "Latest finished reply"
-			: `Finished reply ${earlier} before the latest`;
-	return `- ${reply}, starting ${JSON.stringify(selection.excerpt)}: ${icon} ${instruction}`;
+function deliveredSelections(details: unknown): Set<unknown> {
+	return new Set(
+		details &&
+			typeof details === "object" &&
+			"selectionIds" in details &&
+			Array.isArray(details.selectionIds)
+			? details.selectionIds
+			: [],
+	);
 }
 
 export function projectReactions(branch: readonly SessionEntry[]) {
 	const selected = new Map<string, Reaction>();
-	const pending = new Map<string, ActiveReaction>();
+	const pending = new Map<
+		string,
+		{ reaction: Reaction; selectionId: string }
+	>();
 	const replies = new Map<string, number>();
 	for (const entry of branch) {
 		if (entry.type === "message" && isFinishedReply(entry.message)) {
-			replies.set(entry.id, replies.size + 1);
+			replies.set(entry.id, replies.size);
 		} else if (entry.type === "custom" && entry.customType === REACTION_ENTRY) {
-			const selection = readSelection(entry.data);
-			if (!selection || !replies.has(selection.replyId)) continue;
-			const { replyId, reaction } = selection;
+			const replyId = readReplyId(entry.data);
+			const reaction = readReaction(entry.data);
+			if (
+				replyId === undefined ||
+				!replies.has(replyId) ||
+				reaction === undefined
+			)
+				continue;
 			if (reaction === null) {
 				selected.delete(replyId);
 				pending.delete(replyId);
 			} else {
 				selected.set(replyId, reaction);
-				pending.set(replyId, { ...selection, reaction });
+				pending.set(replyId, { reaction, selectionId: entry.id });
 			}
 		} else if (
 			pending.size &&
-			entry.type === "message" &&
-			entry.message.role === "user"
+			entry.type === "custom_message" &&
+			entry.customType === REACTION_MESSAGE
 		) {
-			// Consume only annotations present in an accepted user message. A prompt
-			// rejected or handled after the input hook must leave clicks pending.
-			const content = entry.message.content;
-			const text =
-				typeof content === "string"
-					? content
-					: content.find((part) => part.type === "text")?.text;
-			if (!text?.startsWith(REACTION_HEADER + "\n")) continue;
-			const lines = new Set(text.split("\n\n", 1)[0]?.split("\n"));
+			const delivered = deliveredSelections(entry.details);
 			for (const [replyId, selection] of pending) {
-				if (lines.has(reactionLine(selection, replies)))
-					pending.delete(replyId);
+				if (delivered.has(selection.selectionId)) pending.delete(replyId);
 			}
 		}
 	}
-	const prefix = pending.size
-		? [
-				REACTION_HEADER,
-				...Array.from(pending.values(), (selection) =>
-					reactionLine(selection, replies),
-				),
-				"",
-				"",
-			].join("\n")
-		: "";
-	return { selected, prefix };
+	const lines: string[] = [];
+	const selectionIds: string[] = [];
+	for (const [replyId, { reaction, selectionId }] of pending) {
+		const position = replies.get(replyId);
+		if (position === undefined) continue;
+		const earlier = replies.size - position - 1;
+		const target =
+			earlier === 0
+				? "your latest reply"
+				: earlier === 1
+					? "the reply before your latest"
+					: `the reply ${earlier} before your latest`;
+		const { icon, label } = REACTIONS[reaction];
+		lines.push(`User reaction to ${target}: ${icon} ${label}`);
+		selectionIds.push(selectionId);
+	}
+	return {
+		selected,
+		message: lines.length
+			? {
+					customType: REACTION_MESSAGE,
+					display: false,
+					content: lines.join("\n"),
+					details: { selectionIds },
+				}
+			: undefined,
+	};
 }

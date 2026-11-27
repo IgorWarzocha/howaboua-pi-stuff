@@ -2,17 +2,17 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { registerReactionDelivery } from "./delivery.js";
 import { reactionRow } from "./reaction-row.js";
 import {
+	isFinishedReply,
 	projectReactions,
-	readReplyReference,
-	replyReference,
+	readReplyId,
 	REACTIONS,
 	REACTION_ENTRY,
 	REACTION_KEYS,
 	REPLY_ROW,
 	type Reaction,
-	type ReplyReference,
 } from "./reactions.js";
 
 export default function reactions(pi: ExtensionAPI): void {
@@ -35,22 +35,18 @@ export default function reactions(pi: ExtensionAPI): void {
 
 	const toggle = (
 		ctx: ExtensionContext,
-		reply: ReplyReference,
+		replyId: string,
 		reaction: Reaction,
 	) => {
 		if (!ctx.isIdle()) {
 			ctx.ui.notify("Wait for the turn to finish before reacting", "info");
 			return true;
 		}
-		if (
-			!ctx.sessionManager
-				.getBranch()
-				.some((entry) => entry.id === reply.replyId)
-		)
+		if (!ctx.sessionManager.getBranch().some((entry) => entry.id === replyId))
 			return false;
-		const active = read(ctx).selected.get(reply.replyId);
+		const active = read(ctx).selected.get(replyId);
 		pi.appendEntry(REACTION_ENTRY, {
-			...reply,
+			replyId,
 			reaction: active === reaction ? null : reaction,
 		});
 		return true;
@@ -68,40 +64,31 @@ export default function reactions(pi: ExtensionAPI): void {
 		if (ctx.mode !== "tui" || event.aborted) return;
 		const branch = ctx.sessionManager.getBranch();
 		const entry = branch.findLast((item) => item.type === "message");
-		if (!entry || entry.type !== "message") return;
-		const reply = replyReference(entry);
 		if (
-			!reply ||
+			!entry ||
+			entry.type !== "message" ||
+			!isFinishedReply(entry.message) ||
 			branch.some(
 				(item) =>
 					item.type === "custom" &&
 					item.customType === REPLY_ROW &&
-					readReplyReference(item.data)?.replyId === reply.replyId,
+					readReplyId(item.data) === entry.id,
 			)
 		)
 			return;
-		pi.appendEntry(REPLY_ROW, reply);
+		pi.appendEntry(REPLY_ROW, { replyId: entry.id });
 	});
 	pi.registerEntryRenderer(REPLY_ROW, (entry, _options, theme) => {
-		const reply = readReplyReference(entry.data);
-		if (!reply) return undefined;
+		const replyId = readReplyId(entry.data);
+		if (!replyId) return undefined;
 		return reactionRow(
 			theme,
-			() =>
-				uiContext ? read(uiContext).selected.get(reply.replyId) : undefined,
-			(reaction) => (uiContext ? toggle(uiContext, reply, reaction) : false),
+			pi.getSettings().outputPad === 0 ? 0 : 1,
+			() => (uiContext ? read(uiContext).selected.get(replyId) : undefined),
+			(reaction) => (uiContext ? toggle(uiContext, replyId, reaction) : false),
 		);
 	});
-	pi.on("input", (event, ctx) => {
-		if (
-			event.source !== "interactive" ||
-			event.streamingBehavior ||
-			/^[!/]/u.test(event.text.trimStart())
-		)
-			return;
-		const { prefix } = read(ctx);
-		if (prefix) return { action: "transform", text: prefix + event.text };
-	});
+	registerReactionDelivery(pi, read);
 	pi.registerCommand("react", {
 		description: "React to the latest finished reply",
 		handler: async (_args, ctx) => {
@@ -112,12 +99,9 @@ export default function reactions(pi: ExtensionAPI): void {
 			const entry = ctx.sessionManager
 				.getBranch()
 				.findLast(
-					(item) =>
-						item.type === "message" && replyReference(item) !== undefined,
+					(item) => item.type === "message" && isFinishedReply(item.message),
 				);
-			const reply =
-				entry?.type === "message" ? replyReference(entry) : undefined;
-			if (!reply) {
+			if (!entry) {
 				ctx.ui.notify("No reply to react to", "info");
 				return;
 			}
@@ -128,7 +112,7 @@ export default function reactions(pi: ExtensionAPI): void {
 			const label = await ctx.ui.select("React to latest reply", labels);
 			const reaction =
 				label === undefined ? undefined : REACTION_KEYS[labels.indexOf(label)];
-			if (reaction) toggle(ctx, reply, reaction);
+			if (reaction) toggle(ctx, entry.id, reaction);
 		},
 	});
 }

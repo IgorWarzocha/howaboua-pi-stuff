@@ -1,1 +1,1 @@
-- Reply rows and reaction selections → session custom entries. No turn trigger, standing prompt edits or past-message rewrites. Consume reactions only from accepted annotated user entries on the active branch.
+- Reply rows and selections → session custom entries. Next human kickoff → hidden chronological custom message, developer carrier when PCC is available. Consume from persisted delivery IDs on the active branch. No prompt edits, transcript rewrites or turn triggers.
