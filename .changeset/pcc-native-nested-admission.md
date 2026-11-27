@@ -13,3 +13,13 @@ PCC preserves Pi's selected native Codemode when switching models or resuming a 
 Older Code sessions whose saved selection could not record PCC's nested tools regain the default nested tools. Deliberate selections, including an empty nested selection, are preserved.
 
 Update Codex Guardian alongside PCC to avoid duplicate reviews of these nested calls.
+
+Background shell completions reach an active agent after its current tool batch, without skipping tool calls. They still wake an idle session.
+
+Background shell and Notebook guidance now describe completion reports and startup hook tool restrictions without naming the host.
+
+VM Code identifies a missing final brace in a one-off block and confirms the cell did not run.
+
+Partial `apply_patch` failures identify changed paths and clarify which edits still need attention.
+
+`apply_patch` guidance now tells agents to finish related patches before formatting, which can invalidate patch context.

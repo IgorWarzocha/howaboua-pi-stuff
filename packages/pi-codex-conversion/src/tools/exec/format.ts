@@ -1,7 +1,7 @@
 import type { UnifiedExecResult } from "./session-manager.ts";
 
 export const SHELL_COMPLETION_GUIDANCE =
-	"Pi reports completion when idle. Continue independent work or end the turn and resume on the report. Do not poll or block just for exit or status, including with empty write_stdin, ps, sleep or log reads.";
+	"Shell completion is reported automatically after the current tool batch, or wakes an idle session. Continue independent work or end the turn and resume on the report. Do not poll or block just for exit or status, including with empty write_stdin, ps, sleep or log reads.";
 
 export function formatRunningShellGuidance(
 	sessionId: number,

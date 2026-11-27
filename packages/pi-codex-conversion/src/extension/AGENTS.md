@@ -2,5 +2,6 @@
 - Prewarm final serialised requests with real-turn tools. Restore owned `exec` sampling missing from `ToolInfo`. Compaction warmup waits for real request: no supported rerun of all context hooks. Generic compaction preparations before provider work in either extension order.
 - Native compaction usage → Pi compaction result for totals and cost notices. Checkpoint description and cache diagnostics → custom entry, never `sendMessage` (queues empty continuations). Notices use Pi theme tokens and expansion hooks. Summaries are metadata, not content previews. Provider-role promotion doesn't own UI.
 - Auto-compaction can resume without `agent_start`. Keep live delivery/request context across same-session transport/window resets. Canonical summary requests supply own context.
+- Shell notices: active → Pi boundary draft after tool results, never steering or follow-up. Idle → Notes admission before kickoff. Acknowledge only persisted notices.
 - Binding inventories: append after the toolkit at inference admission; never reorder sent notices. VM resamples after successful compaction; TS resamples if its notice is no longer visible.
 - `transport/runtime.ts`: one ordinary/keepalive controller and settlement lane. Scheduler owns timer/epoch only. Capture final request after validation.

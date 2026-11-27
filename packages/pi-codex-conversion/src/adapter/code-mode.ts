@@ -183,7 +183,10 @@ function createNestedTools(
 					"*** Move to: path follows its Update File header immediately; include a nonempty @@ hunk (one unchanged context line for a pure move)",
 					"Update hunks MUST follow file order and MUST NOT overlap, including context; merge overlapping hunks. Copy exact context; @@ text is context, not a line range. Reread changed files before patching",
 					"One patch per file; split oversized patches serially. Batch independent files with Promise.allSettled",
-					"Use for targeted edits. Reserve shell/Python for formatting and bulk rewrites",
+					"Use for targeted edits. Reserve shell/Python for formatting and bulk rewrites. " +
+						(runtime.state.config.prompt.heavySystemPromptOverwrite
+							? "Related patches → finish before formatting; changed context can make patches fail"
+							: "Finish related patches before formatting when possible; formatting can change the context and make patches fail."),
 				],
 				prepareInput(input) {
 					if (typeof input !== "string")

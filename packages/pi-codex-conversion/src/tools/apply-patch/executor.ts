@@ -1,5 +1,4 @@
-import { relative, resolve as resolveNativePath } from "node:path";
-import { parsePatchActions } from "../../patch/parser.ts";
+import { resolve as resolveNativePath } from "node:path";
 import {
 	ExecutePatchError,
 	type ExecutePatchResult,
@@ -20,28 +19,6 @@ function parseRustApplyPatchJson(stdout: string): RustApplyPatchJson {
 		throw new Error("apply_patch returned invalid structured JSON output");
 	}
 	return parsed;
-}
-
-function displayPatchPath(cwd: string, path: string): string {
-	if (!path.startsWith("/")) {
-		return path;
-	}
-	const relativePath = relative(cwd, path);
-	return relativePath &&
-		!relativePath.startsWith("..") &&
-		!relativePath.startsWith("/")
-		? relativePath
-		: path;
-}
-
-function errorMentionsAction(
-	error: string,
-	action: { path: string; movePath?: string | undefined },
-): boolean {
-	return (
-		error.includes(action.path) ||
-		(action.movePath ? error.includes(action.movePath) : false)
-	);
 }
 
 function collapseDuplicatedError(message: string): string {
@@ -231,23 +208,5 @@ export async function executePatchWithRust({
 	const errorMessage = collapseDuplicatedError(
 		parsed.error ?? child.stderr ?? "apply_patch failed",
 	);
-	let parsedActions = [] as ReturnType<typeof parsePatchActions>;
-	try {
-		parsedActions = parsePatchActions({ text: patchText }).map((action) => ({
-			...action,
-			path: displayPatchPath(cwd, action.path),
-			movePath: action.movePath
-				? displayPatchPath(cwd, action.movePath)
-				: action.movePath,
-		}));
-	} catch {
-		// Rust already produced the authoritative parse error.
-	}
-	const failureAction = parsedActions.find((action) =>
-		errorMentionsAction(errorMessage, action),
-	);
-	const failures = failureAction
-		? [{ action: failureAction, message: errorMessage }]
-		: [];
-	throw new ExecutePatchError(errorMessage, result, failures);
+	throw new ExecutePatchError(errorMessage, result, []);
 }

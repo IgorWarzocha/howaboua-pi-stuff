@@ -55,8 +55,9 @@ export async function agentsHelp(
 			reply:
 				"MUST use extension report/read template via reply, not send. Returns on acceptance without waiting for resumed work",
 			machine:
-				"Use list id or unique label; local or omitted→Pi host; list/find omitted→all",
-			target: "target=Pi session reference or terminal; /root=live spawn root",
+				"Use list id or unique label; local or omitted→current host; list/find omitted→all",
+			target:
+				"target=agent session reference or terminal address; /root=live spawn root",
 			resume:
 				"send/assign to owned closed worker→resume saved session; restore reporting unless unwatched",
 			placement:
@@ -87,10 +88,12 @@ export async function agentsHelp(
 		},
 		profiles: describeProfiles(profiles),
 		advanced: {
-			core: "Non-agent processes, persistent terminals, remote machines→read hc --skill",
+			agents:
+				"MUST use agents for supported Pi agent operations, even when the Herdr manuals show CLI alternatives.",
+			core: "Non-agent processes and persistent terminals, remote commands and files, machine setup → hc --skill",
 			core_background:
 				"hc run --bg → parent exit note unless notes off or --no-notify. Other work or end turn. No sleep, hc get/read loops or log checks for exit. hc wait only if exit/readiness blocks progress or needed result won't arrive by note.",
-			app: "Change what the user sees (spaces/tabs/panes)→herdr-app --skill",
+			app: "Window layout (spaces, tabs, panes) → herdr-app --skill",
 		},
 	};
 }

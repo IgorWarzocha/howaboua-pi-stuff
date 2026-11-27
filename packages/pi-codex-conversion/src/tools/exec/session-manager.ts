@@ -103,7 +103,8 @@ export interface ExecSessionManager {
 	getSessionCommand(sessionId: number): string | undefined;
 	listSessions(maxOutputChars?: number): ExecSessionSnapshot[];
 	backgroundSessions(ownerSessionId: string): ExecSessionSnapshot[];
-	collectCompletions(ownerSessionId: string): ExecSessionCompletion[];
+	pendingCompletions(ownerSessionId: string): ExecSessionCompletion[];
+	acknowledgeCompletions(completions: readonly ExecSessionCompletion[]): void;
 	terminateSession(sessionId: number): boolean;
 	onSessionChange(
 		listener: (reason: ExecSessionChangeReason) => void,
@@ -497,7 +498,7 @@ export function createExecSessionManager(
 						session.ownerSessionId === ownerSessionId,
 				)
 				.map((session) => snapshotSession(session, 0)),
-		collectCompletions: (ownerSessionId) =>
+		pendingCompletions: (ownerSessionId) =>
 			[...sessions.values()]
 				.filter(
 					(session) =>
@@ -509,18 +510,20 @@ export function createExecSessionManager(
 						session.exitCode !== null,
 				)
 				.slice(0, 4)
-				.map((session) => {
-					const snapshot = makeSnapshotResult(session, 0, 2_000, true);
-					// A bounded notification must not drain output the agent has not chosen to collect.
-					if (snapshot.truncated) session.completionNotified = true;
-					return {
-						id: session.id,
-						command: session.command,
-						result: snapshot.truncated
-							? snapshot
-							: finishResult(session, 0, 2_000),
-					};
-				}),
+				.map((session) => ({
+					id: session.id,
+					command: session.command,
+					result: makeSnapshotResult(session, 0, 2_000, true),
+				})),
+		acknowledgeCompletions: (completions) => {
+			for (const { id, result } of completions) {
+				const session = sessions.get(id);
+				if (!session || session.completionNotified) continue;
+				// Keep truncated unread output available for explicit collection.
+				if (result.truncated) session.completionNotified = true;
+				else finishResult(session, 0, 2_000);
+			}
+		},
 		terminateSession: (sessionId) => {
 			const session = sessions.get(sessionId);
 			if (!session || session.exitCode !== undefined || session.terminating)

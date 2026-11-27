@@ -113,22 +113,6 @@ function uniqueStrings(values: Array<string | undefined>): string[] {
 	);
 }
 
-function getFailedPaths(error: ExecutePatchError): string[] {
-	return uniqueStrings(
-		error.failures.flatMap(({ action }) => [
-			action.path,
-			action.type === "update" ? action.movePath : undefined,
-		]),
-	);
-}
-
-function getAppliedPaths(
-	result: ExecutePatchResult,
-	failedFiles: string[],
-): string[] {
-	return result.changedFiles.filter((path) => !failedFiles.includes(path));
-}
-
 function touchedPatchPaths(cwd: string, patchText: string): string[] {
 	try {
 		const paths = parsePatchActions({ text: patchText }).flatMap((action) => [
@@ -162,22 +146,26 @@ async function withTouchedFileMutationQueues<T>(
 }
 
 function buildPartialFailureMessage(
-	message: string,
-	failedFiles: string[],
-	appliedFiles: string[],
+	result: ExecutePatchResult,
+	failedTargetSummary: string,
+	cause: string,
 ): string {
-	const lines = [message];
-	if (failedFiles.length > 0) {
-		lines.push(
-			`Failed file${failedFiles.length === 1 ? "" : "s"}: ${failedFiles.join(", ")}`,
-		);
-		lines.push("MUST read failed files before retrying.");
+	const lines = [
+		failedTargetSummary
+			? `apply_patch partially failed while patching ${failedTargetSummary}`
+			: "apply_patch partially failed",
+	];
+	if (result.changedFiles.length > 0) {
+		lines.push(`Changed paths: ${result.changedFiles.join(", ")}`);
 	}
-	if (appliedFiles.length > 0) {
-		lines.push(
-			"Earlier file actions applied. MUST NOT reread other patch files unless a dependency requires it.",
-		);
-	}
+	lines.push(
+		result.fuzz > 0
+			? "Change details may be incomplete. Inspect affected paths before retrying unfinished edits."
+			: failedTargetSummary
+				? "Later sections did not run. MUST inspect the failed target before retrying unfinished edits."
+				: "Later sections did not run. Inspect the failed target before retrying unfinished edits.",
+		cause,
+	);
 	return lines.join("\n");
 }
 
@@ -194,8 +182,8 @@ function summarizePatchCause(cause: string): string {
 	const preview = expectedContextPreview(cause);
 	if (preview === undefined) return cause;
 	return preview
-		? `expected context not found\nExpected near: ${preview}`
-		: "expected context not found";
+		? `${cause.split("\n", 1)[0]}\nExpected near: ${preview}`
+		: cause.split("\n", 1)[0]!;
 }
 
 function addContextRecovery(
@@ -341,20 +329,12 @@ export function createApplyPatchTool(
 					const partial = error.hasPartialSuccess();
 					const failedTargets = describeFailedActions(error, ctx.cwd);
 					const failedTargetSummary = failedTargets.join(", ");
-					const prefix = partial
-						? `apply_patch partially failed after ${summarizePatchCounts(error.result)}`
-						: "apply_patch failed";
 					const cause = summarizePatchCause(error.message);
-					const rawMessage = failedTargetSummary
-						? `${prefix} while patching ${failedTargetSummary}: ${cause}`
-						: `${prefix}: ${cause}`;
 					if (partial) {
-						const failedFiles = getFailedPaths(error);
-						const appliedFiles = getAppliedPaths(error.result, failedFiles);
 						const recoveryMessage = buildPartialFailureMessage(
-							rawMessage,
-							failedFiles,
-							appliedFiles,
+							error.result,
+							failedTargetSummary,
+							cause,
 						);
 						markApplyPatchPartialFailure(toolCallId, failedTargets);
 						const details = {
@@ -373,6 +353,9 @@ export function createApplyPatchTool(
 							details,
 						};
 					}
+					const rawMessage = failedTargetSummary
+						? `apply_patch failed while patching ${failedTargetSummary}: ${cause}`
+						: `apply_patch failed: ${cause}`;
 					const message = addContextRecovery(
 						rawMessage,
 						error.message,

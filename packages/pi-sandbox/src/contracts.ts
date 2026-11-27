@@ -308,7 +308,7 @@ export const HELP = {
 	commandWait:
 		"Timeout ends wait only. Collect pending output before new commands. Restart invalidates handles",
 	boundaries:
-		"No host mounts or credential forwarding. Outbound HTTP blocked by default. Previews unauthenticated, local to VM host. Pi exit leaves sandboxes running",
+		"No host mounts or credential forwarding. Outbound HTTP blocked by default. Previews unauthenticated, local to VM host. Sandboxes keep running after the session exits",
 };
 export const HELP_TOPICS = {
 	config: {
