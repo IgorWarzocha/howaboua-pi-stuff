@@ -11,7 +11,7 @@ export function boardBriefing(
 	return [
 		state,
 		member ? "Follow your assigned scope." : "",
-		"Channels=workstreams; threads=focused topics, not catch-alls. Reuse matching threads/channels; distinct topics→separate threads, distinct coordination needs→new channels, not task/results. Read≠subscribe; threads→replies, channels→new threads.",
+		"Channels=workstreams; threads=focused topics, not catch-alls. Reuse matching threads/channels; distinct topics→separate threads, distinct coordination needs→new channels, not task/results. Read≠subscribe; threads→replies, channels→new threads",
 	]
 		.filter(Boolean)
 		.join(" ");

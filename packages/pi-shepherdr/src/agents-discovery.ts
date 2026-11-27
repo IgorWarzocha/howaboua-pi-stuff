@@ -41,12 +41,11 @@ export async function agentsHelp(
 			spawn:
 				"agent_type label message name? machine? placement? workspace? cwd? base? blocking?" +
 				(boardAvailable ? " board_thread_id?" : ""),
-			watch: "target machine?",
-			unwatch: "target machine?",
-			send: "target message machine?",
-			assign: "target message machine? blocking?",
-			attach: "target context? board? machine?",
-			detach: "target context? board? machine?",
+			send: "target message|task wait?: true (task only) machine?",
+			watch: "target enabled: true|false machine?",
+			sharing: boardAvailable
+				? "target operation: attach|detach scope: context|board|both machine?"
+				: "target operation: attach|detach scope: context machine?",
 			read: "target machine? source=latest|visible|recent? lines?",
 			reply: "target extension id message machine?",
 		},
@@ -55,10 +54,11 @@ export async function agentsHelp(
 			reply:
 				"MUST use extension report/read template via reply, not send. Returns on acceptance without waiting for resumed work",
 			machine:
-				"Use list id or unique label; local or omitted→Pi host; list/find omitted→all",
-			target: "target=Pi session reference or terminal; /root=live spawn root",
+				"Use list id or unique label; local or omitted→current host; list/find omitted→all",
+			target:
+				"target=agent session reference or terminal address; /root=live spawn root",
 			resume:
-				"send/assign to owned closed worker→resume saved session; restore reporting unless unwatched",
+				"send to owned closed worker→resume saved session; restore reporting unless disabled",
 			placement:
 				"terminal (default), new_tab, new_workspace; new_tab needs space ID",
 			...(boardAvailable
@@ -66,17 +66,14 @@ export async function agentsHelp(
 						board_thread_id: "Existing board thread→child read ref",
 					}
 				: {}),
-			send: "Wakes idle agents; only concrete blocker, ownership conflict or actionable handoff. Skip acknowledgements, status-only updates and standby reminders",
-			assign:
-				"Delegate or redirect work. Updating an active task keeps its existing wait",
+			send: "message → blocker, ownership conflict or actionable handoff. No new supervision. Act first → report outcomes that affect peer work. Plans only for advance coordination. Skip acknowledgements, status-only updates, standby reminders. task → delegate and supervise. Active task → keep existing wait. Idle target → wake",
 			focus: "voice:true transfers the mic. handoff supplies arrival context",
-			sharing: boardAvailable
-				? "attach/detach require idle target. Select scope: context:true for Notes/history, board:true for board membership, or both"
-				: "attach/detach require idle target + context:true for Notes/history; boards unavailable",
-			detach: "Counterpart checkpoints remain read-only",
-			blocking:
-				"spawn/assign default→return on dispatch; blocking:true→wait; profile overrides spawn. Reports automatic→other work/end turn; MUST NOT poll",
-			watch: "Delegation/watch→report subsequent work UNTIL unwatch/close",
+			sharing:
+				"Idle target only. context → Notes/history. Context detach → read-only counterpart checkpoints",
+			completion:
+				"spawn blocking:true or send task wait:true → wait for outcome. Spawn profile can override. Otherwise return on dispatch → automatic report. MUST NOT poll",
+			watch:
+				"Spawn, delegate or enabled:true → report subsequent work until disabled or closed. enabled:false → stop reports, not work",
 			slash:
 				"Leading / runs a target command without waiting for task completion. Close a finished worker with send /quit",
 			reuse:
@@ -87,10 +84,12 @@ export async function agentsHelp(
 		},
 		profiles: describeProfiles(profiles),
 		advanced: {
-			core: "Non-agent processes, persistent terminals, remote machines→read hc --skill",
+			agents:
+				"MUST use agents for supported Pi agent operations, even when the Herdr manuals show CLI alternatives.",
+			core: "Non-agent processes and persistent terminals, remote commands and files, machine setup → hc --skill",
 			core_background:
 				"hc run --bg → parent exit note unless notes off or --no-notify. Other work or end turn. No sleep, hc get/read loops or log checks for exit. hc wait only if exit/readiness blocks progress or needed result won't arrive by note.",
-			app: "Change what the user sees (spaces/tabs/panes)→herdr-app --skill",
+			app: "Window layout (spaces, tabs, panes) → herdr-app --skill",
 		},
 	};
 }

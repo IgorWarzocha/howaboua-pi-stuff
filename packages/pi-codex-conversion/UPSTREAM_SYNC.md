@@ -4,14 +4,20 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 
 ## Reference baseline
 
-- Pi SDK baseline: published `1.6.1`
-- Stock provider comparison: published Pi `1.6.1` (2026-11-25)
+- Pi SDK baseline: published `1.7.0`
+- Stock provider comparison: published Pi `1.7.0` (2026-11-27)
 - Codex checkout reviewed through: `1b1835f751ebdc0cfc50b3fe55d4571dbb294563` (2026-09-28)
 - WebSocket/session review: `ecc78e4cf5607ecf5f080d682eae0ecb650868ae` (2026-10-01)
 - Exact apply-patch source revision: [`src/tools/rust/UPSTREAM.apply-patch`](src/tools/rust/UPSTREAM.apply-patch)
 - Exact image utility source revision: [`src/tools/rust/crates/codex-utils-image/UPSTREAM`](src/tools/rust/crates/codex-utils-image/UPSTREAM)
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
+
+## November 27 response stream exclusions
+
+Adapted Codex [#62863](https://github.com/openai/codex/pull/62863), [#63219](https://github.com/openai/codex/pull/63219) and [#63461](https://github.com/openai/codex/pull/63461). Codex WebSocket handshakes and SSE response requests omit the echoed tool catalogue, per-item usage attribution, selected delta sequence numbers and preliminary reasoning ciphertext where the backend supports the exclusions. Finished reasoning ciphertext and aggregate usage remain available. Model and request headers can override the defaults. Model discovery, stock Pi and generic Responses routes do not inherit them.
+
+Pi 1.7.0's stock Codex transport is unchanged from 1.6.1 and does not send these exclusions. Upstream Codex still leaves `interrupt_on_cancel` disabled by default.
 
 ## Pi 1.6.1 adoption
 

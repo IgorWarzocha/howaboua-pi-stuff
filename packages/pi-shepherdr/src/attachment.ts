@@ -5,7 +5,6 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { Static } from "@earendil-works/pi-schema";
 import type { ContextSharingService } from "@howaboua/pi-agent-comms/context-sharing";
-import type { AgentsParams } from "./agents-contract.js";
 import { AttachmentNotes } from "./attachment-notes.js";
 import {
 	type AttachmentPlan,
@@ -23,6 +22,11 @@ import { sessionPath } from "./core/agents.js";
 import type { ConnectedMachine } from "./fleet/index.js";
 import { sessionContextPath } from "./remote/shepherdr-context.mjs";
 import type { PaneInfo } from "./types.js";
+
+interface SharingSelection {
+	context: boolean;
+	board: boolean;
+}
 
 /** Coordinates retry-safe attach/detach from the controlling session. */
 export class AgentAttachment {
@@ -49,7 +53,7 @@ export class AgentAttachment {
 		ctx: ExtensionContext,
 		runtime: ConnectedMachine,
 		panel: PaneInfo,
-		params: AgentsParams,
+		params: SharingSelection,
 		signal: AbortSignal,
 	) {
 		if (params.board) this.board.requireAvailable();
@@ -203,7 +207,7 @@ export class AgentAttachment {
 		ctx: ExtensionContext,
 		runtime: ConnectedMachine,
 		panel: PaneInfo,
-		params: AgentsParams,
+		params: SharingSelection,
 		signal: AbortSignal,
 	) {
 		if (params.board) this.board.requireAvailable();

@@ -43,16 +43,16 @@
   "dependencies": {
     "proxy-from-env": "2.1.0",
     "undici": "8.13.1",
-    "@earendil-works/pi-schema": "1.6.1"
+    "@earendil-works/pi-schema": "1.7.0"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=1.6.1",
-    "@earendil-works/pi-tui": ">=1.6.1",
+    "@earendil-works/pi-coding-agent": ">=1.7.0",
+    "@earendil-works/pi-tui": ">=1.7.0",
     "@howaboua/pi-codex-conversion": ">=5.1.2"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "1.6.1",
-    "@earendil-works/pi-tui": "1.6.1",
+    "@earendil-works/pi-coding-agent": "1.7.0",
+    "@earendil-works/pi-tui": "1.7.0",
     "@types/node": "26.6.6",
     "typescript": "7.0.2",
     "@howaboua/pi-codex-conversion": "5.1.2",

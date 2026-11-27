@@ -143,7 +143,7 @@ function withScriptErrorRecovery(
 		)
 	)
 		return errorText;
-	return `${errorText}\nRetry: wrap one-off code in { ... } and prefer let inside the block. For a new persistent binding, pick a different name.`;
+	return `${errorText}\nRetry: wrap one-off code in { ... }. For a new persistent binding, pick a different name.`;
 }
 
 function toPiContent(item: RuntimeContentItem):

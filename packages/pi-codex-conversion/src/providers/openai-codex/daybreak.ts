@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import {
-	buildSSEHeaders,
+	buildCodexModelDiscoveryHeaders,
 	extractAccountId,
 	resolveCodexUrl,
 } from "./headers.ts";
@@ -89,15 +89,12 @@ export async function resolveDaybreakAccess(
 	const token = options.apiKey;
 	if (!token) throw new Error("No Codex credentials available");
 	await osInfoReady;
-	const headers = buildSSEHeaders(
+	const headers = buildCodexModelDiscoveryHeaders(
 		model.headers,
 		options.headers,
 		extractAccountId(token),
 		token,
-		undefined,
 	);
-	headers.set("accept", "application/json");
-	headers.delete("content-type");
 	const url = new URL(resolveCodexUrl(model.baseUrl));
 	url.pathname = url.pathname.replace(/\/responses$/, "/models");
 	url.searchParams.set("client_version", "0.162.0");

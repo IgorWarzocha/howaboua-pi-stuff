@@ -68,11 +68,13 @@ export async function createCodexDiagnosticsRuntime(options: {
 	};
 	const show = (status: string) => ctx.ui.setStatus(CACHE_STATUS_KEY, status);
 	const showCurrent = (suffix: string) => {
+		if (!ctx.hasUI) return;
 		const status = themedStatus(`${suffix}${logActive ? " • log" : ""}`);
 		if (holdingMiss) latestAfterMiss = status;
 		else show(status);
 	};
 	const holdMiss = (suffix: string) => {
+		if (!ctx.hasUI) return;
 		if (holdTimer) clearTimeout(holdTimer);
 		holdingMiss = true;
 		latestAfterMiss = undefined;
