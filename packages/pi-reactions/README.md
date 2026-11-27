@@ -2,7 +2,7 @@
 
 Install with `pi install npm:@howaboua/pi-reactions`. Requires Pi 1.7 and fullscreen mode for mouse interaction.
 
-Click 🫥 below a finished reply to open its reaction picker, or use `/react` for the latest reply. Select the same emoji again to remove it.
+Click 🫥 below a finished reply to open its reaction picker. Select the same emoji again to remove it.
 
 | Reaction | Meaning                                                  |
 | -------- | -------------------------------------------------------- |
@@ -24,6 +24,6 @@ On first load, Pi Reactions creates `reactions.json` in your Pi agent directory 
 ]
 ```
 
-Use unique IDs and icons. Each icon is one visible glyph; its label appears in `/react` and in the note sent to the agent. Keep an entry's ID when reordering or restyling it. Use a new ID if its meaning changes. An empty list (`[]`) disables reactions without recreating the defaults.
+Use unique IDs and icons. Each icon is one visible glyph. The label goes in the note sent to the agent. Keep an entry's ID when reordering or restyling it. Use a new ID if its meaning changes. An empty list (`[]`) disables reactions without recreating the defaults.
 
 To try it from the checkout, run `pi -e ./packages/pi-reactions/src/index.ts`.

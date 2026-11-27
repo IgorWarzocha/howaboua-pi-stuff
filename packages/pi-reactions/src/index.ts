@@ -17,12 +17,6 @@ export default function reactions(pi: ExtensionAPI): void {
 	const definitions = loadReactions();
 	if (!definitions.length) return;
 	const byId = new Map(definitions.map((reaction) => [reaction.id, reaction]));
-	const choices = new Map(
-		definitions.map((reaction) => [
-			`${reaction.icon} ${reaction.label}`,
-			reaction.id,
-		]),
-	);
 	let uiContext: ExtensionContext | undefined;
 	let cached:
 		| {
@@ -101,27 +95,4 @@ export default function reactions(pi: ExtensionAPI): void {
 		);
 	});
 	registerReactionDelivery(pi, read);
-	pi.registerCommand("react", {
-		description: "React to the latest finished reply",
-		handler: async (_args, ctx) => {
-			if (!ctx.isIdle()) {
-				ctx.ui.notify("Wait for the turn to finish before reacting", "info");
-				return;
-			}
-			const entry = ctx.sessionManager
-				.getBranch()
-				.findLast(
-					(item) => item.type === "message" && isFinishedReply(item.message),
-				);
-			if (!entry) {
-				ctx.ui.notify("No reply to react to", "info");
-				return;
-			}
-			const choice = await ctx.ui.select("React to latest reply", [
-				...choices.keys(),
-			]);
-			const reactionId = choice === undefined ? undefined : choices.get(choice);
-			if (reactionId) toggle(ctx, entry.id, reactionId);
-		},
-	});
 }
