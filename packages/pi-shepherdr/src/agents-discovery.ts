@@ -66,7 +66,7 @@ export async function agentsHelp(
 						board_thread_id: "Existing board thread→child read ref",
 					}
 				: {}),
-			send: "message → concrete blocker, ownership conflict or actionable handoff without new supervision. Skip acknowledgements, status-only updates and standby reminders. task → delegate and supervise; active task updates keep the existing wait. Both wake idle agents",
+			send: "message → concrete blocker, ownership conflict or actionable handoff without new supervision. Do the work first; report outcomes that change peer work. Announce plans only when coordination is needed before acting. Skip acknowledgements, status-only updates and standby reminders. task → delegate and supervise; active task updates keep the existing wait. Both wake idle agents",
 			focus: "voice:true transfers the mic. handoff supplies arrival context",
 			sharing:
 				"Idle target only. context → Notes/history. Detaching context keeps counterpart checkpoints read-only",
