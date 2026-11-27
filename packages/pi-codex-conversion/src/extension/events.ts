@@ -6,6 +6,7 @@ import {
 	isAdapterRuntime,
 	resolveAdapterRuntimePlanForState,
 } from "../adapter/activation/runtime-plan.ts";
+import { getModelScopeOverride } from "../adapter/activation/model-scope.ts";
 import {
 	rewriteCodexProviderHeaders,
 	rewriteCodexProviderRequest,
@@ -73,7 +74,12 @@ export function registerCodexEvents(
 	const { state, tracker, sessions } = runtime;
 	const adapterActiveForModel = (model: ExtensionContext["model"]) =>
 		isAdapterRuntime(resolveAdapterRuntimePlanForState({ model }, state));
-	const reserve = createCodexReserveController(pi, adapterActiveForModel);
+	const reserve = createCodexReserveController(
+		pi,
+		adapterActiveForModel,
+		(model) =>
+			getModelScopeOverride(state.config.scope.modelOverrides, model) === false,
+	);
 	const session = createCodexSessionLifecycle(
 		pi,
 		runtime,

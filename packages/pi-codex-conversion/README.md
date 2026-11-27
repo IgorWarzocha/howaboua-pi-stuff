@@ -109,7 +109,7 @@ Press **Ctrl+O** to expand tool output and see the available source, output and 
 
 `/codex usage analyse` asks your agent to inspect longer-term trends and reasoning levels. Tracking is local and stores no conversation content. The first view imports available session costs, but cannot recover missing calls or exact historical reset times.
 
-When ordinary quota runs out, eligible accounts may receive **Luna Reserve**. PCC switches only after backend authorisation and asks you to send `continue`. It does not redeem reset credits automatically. Your original model returns after ordinary quota recovers, unless you choose another model first.
+When ordinary quota runs out, eligible accounts may receive **Luna Reserve**. PCC switches only after backend authorisation and asks you to send `continue`. It does not redeem reset credits automatically. An unlisted Reserve model uses stock Pi in Selected models scope; an explicit Off rule prevents automatic entry. Your original model returns after ordinary quota recovers, unless you choose another model first.
 
 </details>
 
