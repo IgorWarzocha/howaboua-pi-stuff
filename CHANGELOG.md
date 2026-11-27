@@ -93,16 +93,15 @@ Fixed duplicate Guardian reviews of nested PCC tool calls. Custom Code tools sti
 
 [Full changelog](./packages/pi-codex-web-run/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.112
+### @howaboua/pi-extensions — 0.0.113
 
 - Bundled updates:
 
-  - **@howaboua/pi-shepherdr**:
+  - **@howaboua/pi-reactions**:
 
-    - Breaking: `send` takes `task` to delegate supervised work, or `message` to send a peer message. Use `wait: true` to wait for a task. Removed `assign`.
-    - Breaking: `watch` requires `enabled: true` or `false`. Removed `unwatch`.
-    - Breaking: `sharing` takes `operation: "attach" | "detach"` and `scope: "context" | "board" | "both"`. Removed the separate `attach` and `detach` actions.
-    - Clarified when to use `agents`, `hc` and `herdr-app`.
+    Added a clickable reaction picker below finished Pi replies. The default reactions are OK, Reconsider, Push and Verify. Reactions reach the agent on the next ordinary prompt without changing the prompt text.
+
+    Define reactions in `reactions.json`. A reaction with `"startTurn": true` starts its own turn when clicked.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -146,6 +145,14 @@ Fixed duplicate Guardian reviews of nested PCC tool calls. Custom Code tools sti
 - Unknown reaction errors show the exact `pet_show` call to list valid actions.
 
 [Full changelog](./packages/pi-pet/CHANGELOG.md)
+
+### @howaboua/pi-reactions — 0.0.2
+
+- Added a clickable reaction picker below finished Pi replies. The default reactions are OK, Reconsider, Push and Verify. Reactions reach the agent on the next ordinary prompt without changing the prompt text.
+
+  Define reactions in `reactions.json`. A reaction with `"startTurn": true` starts its own turn when clicked.
+
+[Full changelog](./packages/pi-reactions/CHANGELOG.md)
 
 ### @howaboua/pi-sandbox — 0.1.9
 
@@ -222,16 +229,15 @@ Fixed duplicate Guardian reviews of nested PCC tool calls. Custom Code tools sti
 
 [Full changelog](./packages/pi-skills/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.120
+### @howaboua/pi-stuff — 0.0.121
 
 - Bundled updates:
 
-  - **@howaboua/pi-shepherdr**:
+  - **@howaboua/pi-reactions**:
 
-    - Breaking: `send` takes `task` to delegate supervised work, or `message` to send a peer message. Use `wait: true` to wait for a task. Removed `assign`.
-    - Breaking: `watch` requires `enabled: true` or `false`. Removed `unwatch`.
-    - Breaking: `sharing` takes `operation: "attach" | "detach"` and `scope: "context" | "board" | "both"`. Removed the separate `attach` and `detach` actions.
-    - Clarified when to use `agents`, `hc` and `herdr-app`.
+    Added a clickable reaction picker below finished Pi replies. The default reactions are OK, Reconsider, Push and Verify. Reactions reach the agent on the next ordinary prompt without changing the prompt text.
+
+    Define reactions in `reactions.json`. A reaction with `"startTurn": true` starts its own turn when clicked.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

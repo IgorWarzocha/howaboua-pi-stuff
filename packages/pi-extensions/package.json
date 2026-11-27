@@ -1,6 +1,6 @@
 {
   "name": "@howaboua/pi-extensions",
-  "version": "0.0.112",
+  "version": "0.0.113",
   "description": "all Howaboua Pi extensions",
   "type": "module",
   "keywords": [
@@ -19,6 +19,7 @@
     "@howaboua/pi-gippity-control": "0.0.36",
     "@howaboua/pi-github-watch": "0.0.10",
     "@howaboua/pi-gpt-switcher": "0.1.7",
+    "@howaboua/pi-reactions": "0.0.2",
     "@howaboua/pi-shepherdr": "1.0.6",
     "@howaboua/pi-suggestions": "0.0.4",
     "@howaboua/pi-unicode-charts": "0.1.6"

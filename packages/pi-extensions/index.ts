@@ -5,6 +5,7 @@ import howabouaPiCacheHitPredictor from "@howaboua/pi-cache-hit-predictor";
 import howabouaPiGippityControl from "@howaboua/pi-gippity-control";
 import howabouaPiGithubWatch from "@howaboua/pi-github-watch";
 import howabouaPiGptSwitcher from "@howaboua/pi-gpt-switcher";
+import howabouaPiReactions from "@howaboua/pi-reactions";
 import howabouaPiShepherdr from "@howaboua/pi-shepherdr";
 import howabouaPiSuggestions from "@howaboua/pi-suggestions";
 import howabouaPiUnicodeCharts from "@howaboua/pi-unicode-charts";
@@ -16,6 +17,7 @@ export default async function (pi: ExtensionAPI) {
 	await howabouaPiGippityControl(pi);
 	await howabouaPiGithubWatch(pi);
 	await howabouaPiGptSwitcher(pi);
+	await howabouaPiReactions(pi);
 	await howabouaPiShepherdr(pi);
 	await howabouaPiSuggestions(pi);
 	await howabouaPiUnicodeCharts(pi);

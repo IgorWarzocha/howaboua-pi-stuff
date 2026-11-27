@@ -1,5 +1,15 @@
 # @howaboua/pi-stuff
 
+## 0.0.121
+
+- Bundled updates:
+
+  - **@howaboua/pi-reactions**:
+
+    Added a clickable reaction picker below finished Pi replies. The default reactions are OK, Reconsider, Push and Verify. Reactions reach the agent on the next ordinary prompt without changing the prompt text.
+
+    Define reactions in `reactions.json`. A reaction with `"startTurn": true` starts its own turn when clicked.
+
 ## 0.0.120
 
 - Bundled updates:
