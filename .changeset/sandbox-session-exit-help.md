@@ -2,4 +2,4 @@
 "@howaboua/pi-sandbox": patch
 ---
 
-Sandbox help now describes sandbox persistence in terms of session exit.
+Sandbox help now states that sandboxes continue after the session exits.
