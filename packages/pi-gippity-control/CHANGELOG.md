@@ -1,5 +1,9 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.36
+
+- Updated package dependencies.
+
 ## 0.0.35
 
 - Shortened voice setup, unsent-task and call-ending messages.

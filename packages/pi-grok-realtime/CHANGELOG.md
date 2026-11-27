@@ -1,5 +1,9 @@
 # @howaboua/pi-grok-realtime
 
+## 0.0.10
+
+- Updated package dependencies.
+
 ## 0.0.9
 
 - Shortened xAI credential errors, voice task receipts and reconnect guidance.
