@@ -10,6 +10,7 @@ export async function runCodeModeToolWithHooks(
 	context: ToolExecutionContext,
 	signal: AbortSignal,
 	run: (context: ToolExecutionContext) => Promise<unknown>,
+	dispatchViaPi?: true,
 ): Promise<unknown> {
 	let call: CodeModeToolCompletionCall | undefined;
 	if (context.completion) {
@@ -21,6 +22,7 @@ export async function runCodeModeToolWithHooks(
 				input: structuredClone(input),
 				toolCallId: context.toolCallId,
 				originalExecCallId: context.originalExecCallId,
+				...(dispatchViaPi ? { dispatchViaPi } : {}),
 				cwd: context.cwd,
 				extensionContext: context.extensionContext,
 				signal,
@@ -44,7 +46,13 @@ export async function runCodeModeToolWithHooks(
 			}
 		: context;
 	try {
-		await runCodeModeToolPreflight(toolName, input, invocationContext, signal);
+		await runCodeModeToolPreflight(
+			toolName,
+			input,
+			invocationContext,
+			signal,
+			dispatchViaPi,
+		);
 		phase = "execution";
 		const result = await run(invocationContext);
 		if (call && !captured) call.result = result;

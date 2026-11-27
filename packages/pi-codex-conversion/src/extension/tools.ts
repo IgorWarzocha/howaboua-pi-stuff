@@ -1,17 +1,14 @@
-import type { Api, Model } from "@earendil-works/pi-ai";
 import type {
 	ExtensionAPI,
-	ToolLoadout,
-	ToolLoadoutChanges,
+	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { hiddenPiReplacementToolNames } from "../adapter/activation/tool-set.ts";
+import { isConfiguredResponsesModel } from "../adapter/activation/runtime-plan.ts";
 import {
 	registerCodexToolProviderPolicy,
 	registerCodexToolProviderResolver,
 	resolveCodexToolProvider,
 } from "../adapter/codex-tool-provider.ts";
-import { isResponsesModel } from "../adapter/prompt/model-support.ts";
 import {
 	registerApplyPatchResultEvent,
 	createApplyPatchTool,
@@ -26,87 +23,47 @@ export interface CodexToolRegistration {
 	shutdown(): void;
 }
 
-export function isExplicitlyConfiguredToolProvider(
-	model: Model<Api> | undefined,
-	config: CodexConversionConfig,
-): boolean {
-	const provider = model?.provider?.trim().toLowerCase();
-	return Boolean(
-		isResponsesModel(model) &&
-		provider &&
-		config.scope.additionalProviders.some(
-			(entry) => entry.trim().toLowerCase() === provider,
-		),
-	);
-}
-
 export function registerCodexTools(
 	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
 ): CodexToolRegistration {
 	registerApplyPatchResultEvent(pi);
 	pi.registerTool(runtime.autoReasoning.tool);
-	const prepareLoadout = (
-		loadout: ToolLoadout,
-	): ToolLoadoutChanges | undefined => {
-		if (runtime.state.appliedRuntimeKind !== "normal") return undefined;
-		return {
-			hiddenDeclarations: hiddenPiReplacementToolNames(
-				"normal",
-				loadout.declared.map(({ name }) => name),
-			),
-		};
-	};
-	// Declaration hiding preserves Pi admission but does not block execution.
-	pi.on("tool_call", (event) => {
-		if (
-			hiddenPiReplacementToolNames(
-				runtime.state.appliedRuntimeKind,
-				pi.getActiveTools(),
-			).includes(event.toolName)
-		)
-			return {
-				block: true,
-				reason: "Use the active Codex tools instead.",
-			};
-		return undefined;
-	});
-	const allowsProvider = (model: Model<Api> | undefined) =>
-		isExplicitlyConfiguredToolProvider(model, runtime.state.config);
+	const allowsProvider = (model: ExtensionContext["model"]) =>
+		isConfiguredResponsesModel(model, runtime.state.config);
 	const unregisterProviderPolicy = registerCodexToolProviderPolicy(
 		pi,
-		(model) => allowsProvider(model as Model<Api> | undefined),
+		allowsProvider,
 	);
 	const unregisterProviderResolver = registerCodexToolProviderResolver(
 		pi,
-		(ctx) =>
-			resolveCodexToolProvider(ctx, (model) =>
-				allowsProvider(model as Model<Api> | undefined),
-			),
+		(ctx) => resolveCodexToolProvider(ctx, allowsProvider),
 	);
 	const renderOptions = (config: CodexConversionConfig) => ({
 		customRendering: config.ui.toolRenaming,
 	});
+	// PCC selects these explicitly. Pi must not add them back on reload.
+	const coreLoadout = { defaultActive: false };
 	const registerCore = (config: CodexConversionConfig) => {
 		pi.registerTool({
 			...createApplyPatchTool({
 				customRustBinariesDir: config.tools.customRustBinariesDir,
 				showDiffWhenCollapsed: config.ui.toolDetails === "preview",
 			}),
-			prepareLoadout,
+			...coreLoadout,
 		});
 		pi.registerTool({
 			...createExecCommandTool(runtime.tracker, runtime.sessions, {
 				...renderOptions(config),
 				showOutputWhenCollapsed: true,
 			}),
-			prepareLoadout,
+			...coreLoadout,
 		});
 		pi.registerTool({
 			...createWriteStdinTool(runtime.sessions, {
 				showOutputWhenCollapsed: true,
 			}),
-			prepareLoadout,
+			...coreLoadout,
 		});
 		pi.registerTool({
 			...createViewImageTool({
@@ -114,7 +71,7 @@ export function registerCodexTools(
 				describeForTextModels: config.tools.viewImageFallback,
 				...renderOptions(config),
 			}),
-			prepareLoadout,
+			...coreLoadout,
 		});
 	};
 	registerCore(runtime.state.config);

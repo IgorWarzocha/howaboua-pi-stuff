@@ -27,12 +27,10 @@ export class IdleAdmission {
 		| "idleMinutes"
 		| "normalCompaction"
 		| "rolloverTail"
+		| "retainedTail"
 	>;
 	private readonly pi: ExtensionAPI;
-	private readonly roll: (
-		ctx: ExtensionContext,
-		source: "input" | "custom",
-	) => Promise<void>;
+	private readonly roll: (ctx: ExtensionContext) => Promise<void>;
 	private readonly rolloverPending: () => boolean;
 	private readonly checkpointPending: () => boolean;
 	constructor(
@@ -70,11 +68,9 @@ export class IdleAdmission {
 
 	prepareCustomTurn(ctx: ExtensionContext): Promise<void> | undefined {
 		if (this.customAdmission) return this.customAdmission;
-		// Shell wake and other custom deliveries keep their prior admission gate.
-		if (!this.host.active || !this.idleDue(ctx) || !this.host.fresh(ctx))
-			return;
+		if (!this.host.active || !this.eligible(ctx)) return;
 		const sessionId = ctx.sessionManager.getSessionId();
-		const preparation = this.roll(ctx, "custom")
+		const preparation = this.roll(ctx)
 			.then(() => {
 				if (
 					!this.host.active ||
@@ -92,8 +88,9 @@ export class IdleAdmission {
 	private eligible(ctx: ExtensionContext): boolean {
 		return (
 			this.idleDue(ctx) &&
-			((!this.host.normalCompaction && this.host.rolloverTail !== "off") ||
-				this.host.fresh(ctx))
+			(!this.host.normalCompaction && this.host.rolloverTail !== "off"
+				? Boolean(this.host.retainedTail(ctx))
+				: this.host.fresh(ctx))
 		);
 	}
 	private idleDue(ctx: ExtensionContext): boolean {
@@ -181,7 +178,7 @@ export class IdleAdmission {
 		held: HeldInput,
 	): Promise<void> {
 		held.phase = "rolling";
-		await this.roll(ctx, "input");
+		await this.roll(ctx);
 		if (
 			this.held !== held ||
 			held.sessionId !== ctx.sessionManager.getSessionId()

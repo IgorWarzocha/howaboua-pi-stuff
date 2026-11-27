@@ -34,14 +34,10 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 		| undefined;
 	try {
 		registerOpenAICodexCustomProvider(pi, {
-			getConfig: () => ({
-				executionMode: runtime.state.executionMode,
-				openai: runtime.state.config.openai,
-				compaction: runtime.state.config.compaction,
-			}),
-			useResponsesLite: (model) =>
+			getConfig: () => runtime.state.config,
+			responsesFormat: (model) =>
 				resolveAdapterRuntimePlanForState({ model }, runtime.state)
-					.responsesFormat === "responses-lite",
+					.responsesFormat,
 			turnState: runtime.state.codexTurnState,
 			getDiagnostics: (sessionId) => runtime.diagnosticsSink(sessionId),
 			beforeRequestSend: runtime.beforeRequestSend,
@@ -97,7 +93,14 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				) {
 					runtime.cancelCacheKeepalive();
 				}
-				if (hasCodexTransportConfigChanged(previousConfig, config)) {
+				const adapterWasActive = runtime.state.enabled;
+				const adapterWillBeActive = isAdapterRuntime(
+					resolveAdapterRuntimePlanForState(ctx, runtime.state),
+				);
+				if (
+					adapterWasActive !== adapterWillBeActive ||
+					hasCodexTransportConfigChanged(previousConfig, config)
+				) {
 					runtime.resetTransport(ctx.sessionManager.getSessionId());
 				}
 				if (executionModeChanged) {

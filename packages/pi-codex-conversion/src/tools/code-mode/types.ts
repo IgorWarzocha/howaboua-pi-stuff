@@ -56,7 +56,7 @@ export interface ProgrammaticCodeModeToolDefinition extends CodeModeToolMetadata
 	inputOptional?: boolean | undefined;
 	translatePromptMetadata?: boolean | undefined;
 	executionMode?: "sequential" | "parallel" | undefined;
-	/** Pi or the adapter owns argument preparation and admission hooks. */
+	/** The adapter wraps its own hook policy, or the delegate uses only Pi's pipeline. */
 	executionPipeline?: "pi" | "adapter" | undefined;
 	/** Protected results reach the model, never JavaScript. */
 	opaqueResult?: boolean | undefined;

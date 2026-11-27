@@ -261,6 +261,6 @@ export const boardHelp = {
 		originals:
 			"Saved summary → full=true for originals. Truncated preview → read_post",
 		paging:
-			"Repeat the same read with next_cursor as cursor. For read_post, use next_offset_chars as offset_chars while below n_chars",
+			"read_thread replies and search_posts results: newest first. Repeat the same read with next_cursor as cursor. For read_post, use next_offset_chars as offset_chars while below n_chars",
 	},
 };

@@ -11,6 +11,8 @@ export interface CodeModeToolPreflightCall {
 	toolCallId: string;
 	/** Original Pi exec call that started this cell, preserved across waits. */
 	originalExecCallId?: string | undefined;
+	/** Admission also runs through Pi's tool_call pipeline before execution. */
+	dispatchViaPi?: true | undefined;
 	cwd: string;
 	extensionContext: ExtensionContext;
 	signal: AbortSignal;

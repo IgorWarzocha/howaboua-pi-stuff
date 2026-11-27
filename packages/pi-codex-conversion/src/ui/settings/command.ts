@@ -22,6 +22,10 @@ import {
 	writeCodexConversionConfig,
 } from "../../adapter/activation/config-store.ts";
 import { syncAdapter } from "../../adapter/activation/activation.ts";
+import {
+	getModelScopeOverride,
+	withModelScopeOverride,
+} from "../../adapter/activation/model-scope.ts";
 import type { AdapterState } from "../../adapter/activation/state.ts";
 import type { CodexVoiceController } from "../../voice/controller.ts";
 import { createCodexVoiceControls } from "../../voice/controls.ts";
@@ -34,6 +38,8 @@ import {
 import { hasRealtimeWebSearch } from "../../voice/realtime-web-search.ts";
 import { openCodexSettingsScreen } from "./screen.ts";
 import { COMPACTION_METHOD_LABELS } from "./config-items-context.ts";
+import { MODEL_SCOPE_LABELS } from "./config-items-adapter.ts";
+import { EXECUTION_MODE_LABELS } from "../../adapter/activation/execution-mode.ts";
 import { captureSpendReport } from "../../codex-usage/report.ts";
 import { startUsageAnalysis } from "../../codex-usage/report.ts";
 import { isStandardCodexSubscriptionModel } from "../../adapter/prompt/model-support.ts";
@@ -76,18 +82,21 @@ export function registerCodexCommand(
 	pi.on("session_start", cancelPendingApplication);
 	pi.on("session_shutdown", cancelPendingApplication);
 
-	function effectiveConfig(ctx: ExtensionContext): CodexConversionConfig {
-		return readEffectiveCodexConversionConfig({
+	function configLocation(ctx: ExtensionContext) {
+		return {
 			cwd: ctx.cwd,
 			projectTrusted: ctx.isProjectTrusted(),
-		});
+		};
 	}
 
 	function applySavedConfig(ctx: ExtensionContext): void {
 		pendingApplication = undefined;
 		try {
 			const previousConfig = state.config;
-			const config = effectiveConfig(ctx);
+			const config = readEffectiveCodexConversionConfig({
+				...configLocation(ctx),
+				activatingModel: ctx.model,
+			});
 			state.config = config;
 			state.executionMode = config.executionMode;
 			onConfigApplied?.(config, ctx, previousConfig);
@@ -135,13 +144,36 @@ export function registerCodexCommand(
 		ctx: ExtensionCommandContext,
 		scope: CodexConversionConfigScope,
 		nextConfig: CodexConversionConfig,
+		previousConfig?: CodexConversionConfig,
 	): boolean {
+		if (scope === "folder" && !ctx.isProjectTrusted()) {
+			ctx.ui.notify(
+				"Trust this folder before changing folder settings",
+				"error",
+			);
+			return false;
+		}
 		const path =
 			scope === "folder"
 				? getProjectCodexConversionConfigPath(ctx.cwd)
 				: getCodexConversionConfigPath();
+		const model = ctx.model;
+		let modelOverrides: CodexConversionConfig["scope"]["modelOverrides"] = {};
+		// The project draft includes inherited rules for display, not for saving.
+		if (model && previousConfig) {
+			const next = getModelScopeOverride(
+				nextConfig.scope.modelOverrides,
+				model,
+			);
+			const previous = getModelScopeOverride(
+				previousConfig.scope.modelOverrides,
+				model,
+			);
+			if (next !== undefined && next !== previous)
+				modelOverrides = withModelScopeOverride({}, model, next);
+		}
 		const writeResult = writeCodexConversionConfig(
-			nextConfig,
+			{ ...nextConfig, scope: { ...nextConfig.scope, modelOverrides } },
 			path,
 			scope === "folder",
 		);
@@ -222,7 +254,7 @@ export function registerCodexCommand(
 			}
 		}
 		const readSelectedConfig = () => {
-			const effective = effectiveConfig(ctx);
+			const effective = readEffectiveCodexConversionConfig(configLocation(ctx));
 			const selected =
 				configScope === "folder"
 					? readLayeredCodexConversionConfig({
@@ -253,7 +285,8 @@ export function registerCodexCommand(
 			},
 			initialConfig: readSelectedConfig(),
 			initialTab: tab,
-			onChange: (config) => saveAndApply(ctx, configScope, config),
+			onChange: (config, previous) =>
+				saveAndApply(ctx, configScope, config, previous),
 			onGlobalLunaCacheKeepalive: (minutes, interval) => {
 				const result = setGlobalCodexLunaCacheKeepalive(
 					minutes,
@@ -443,5 +476,5 @@ function formatCodexSettings(config: CodexConversionConfig): string {
 	const promptOverwrite = config.prompt.heavySystemPromptOverwrite
 		? "on"
 		: "off";
-	return `Codex settings: execution ${config.executionMode}, providers ${config.scope.allProviders === "on" ? "all providers" : "Codex and configured"}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${promptOverwrite}, Proxy Responses Lite ${config.openai.proxyResponsesLite ? "on" : "off"}, compaction method ${COMPACTION_METHOD_LABELS[config.compaction.method]}, preserved user messages (V2 only) ${config.compaction.v2UserMessageRetention}k, Luna cache keepalive ${config.openai.lunaCacheKeepaliveMinutes === 0 ? "off" : `${config.openai.lunaCacheKeepaliveMinutes} mins duration, ${config.openai.lunaCacheKeepaliveIntervalMinutes} mins request interval`}, Astra/Sol/Terra cache keepalive ${config.openai.cacheKeepalive ? `${config.openai.cacheKeepaliveIntervalMinutes} mins request interval` : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, Daybreak ${accessProgram}, Fast Mode ${fast}, verbosity ${config.openai.verbosity}`;
+	return `Codex settings: execution ${EXECUTION_MODE_LABELS[config.executionMode]}, model scope ${MODEL_SCOPE_LABELS[config.scope.mode]}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${promptOverwrite}, Proxy Responses Lite ${config.openai.proxyResponsesLite ? "on" : "off"}, compaction method ${COMPACTION_METHOD_LABELS[config.compaction.method]}, preserved user messages (V2 only) ${config.compaction.v2UserMessageRetention}k, Luna cache keepalive ${config.openai.lunaCacheKeepaliveMinutes === 0 ? "off" : `${config.openai.lunaCacheKeepaliveMinutes} mins duration, ${config.openai.lunaCacheKeepaliveIntervalMinutes} mins request interval`}, Astra/Sol/Terra cache keepalive ${config.openai.cacheKeepalive ? `${config.openai.cacheKeepaliveIntervalMinutes} mins request interval` : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, Daybreak ${accessProgram}, Fast Mode ${fast}, verbosity ${config.openai.verbosity}`;
 }

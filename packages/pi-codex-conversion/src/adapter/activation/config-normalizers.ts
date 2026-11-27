@@ -1,5 +1,4 @@
 import {
-	type AllProvidersMode,
 	type CacheDiagnosticsMode,
 	type CodexVerbosity,
 	type CompactionMethod,
@@ -17,14 +16,6 @@ import {
 import { normalizeOptionalString } from "./config-values.ts";
 
 export { isObject } from "./config-values.ts";
-
-export function normalizeAllProvidersMode(
-	value: unknown,
-): AllProvidersMode | undefined {
-	if (value === true) return "on";
-	if (value === false || value === "extras") return "off";
-	return value === "off" || value === "on" ? value : undefined;
-}
 
 export function normalizeToolDetailsMode(
 	value: unknown,

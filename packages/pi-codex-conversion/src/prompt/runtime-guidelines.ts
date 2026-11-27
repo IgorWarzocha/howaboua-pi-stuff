@@ -38,40 +38,22 @@ export function formatRuntimeGuidelines(
 				.flatMap((name) => options.toolGuidelines[name] ?? []),
 			...options.promptGuidelines,
 		);
-	if (executionMode === "normal") {
-		if (active.has("exec_command")) {
-			add(
-				"Use exec_command for shell commands. Filter large output at the source.",
-				"Shell→exec_command; filter large output at source",
-			);
-			add(
-				"Set tty=true only for input or persistent processes.",
-				"tty=true only for input or persistent processes",
-			);
-		}
-		if (active.has("apply_patch"))
-			add(
-				"Use apply_patch to edit, create, delete, or move files. Split oversized patches.",
-				"Text edits, creates, deletes, moves→apply_patch; split oversized patches",
-			);
-		add(
-			"Run independent calls in parallel when practical.",
-			"Independent calls→parallel when practical",
-		);
-	} else if (
+	if (
 		active.has("exec") &&
 		active.has("wait") &&
 		(executionMode !== "ts" || active.has("notebook"))
 	) {
+		const language = executionMode === "ts" ? "TypeScript" : "JavaScript";
+		const shortLanguage = executionMode === "ts" ? "TS" : "JS";
 		if (executionMode !== "code")
 			add("You may reuse verified bindings.", "Reuse verified bindings only");
 		add(
-			"Bind complex strings before calling tools from JavaScript. Check quotes, commas, and closing delimiters before sending.",
-			"JS calls: bind complex strings first; check quotes, commas, delimiters",
+			`Bind complex strings before calling tools from ${language}. Check quotes, commas, and closing delimiters before sending.`,
+			`${shortLanguage} calls: bind complex strings first; check quotes, commas, delimiters`,
 		);
 		add(
-			"Group related calls in one JavaScript cell and use their results to decide what to do next. Use text() to show the outcome, a blocker, or a decision needed.",
-			"Related calls→one JS cell; branch or loop on results; text()→outcome, blocker or decision",
+			`Use ${language} for computation, data transformation, and tool orchestration. Combine related calls and branch or loop on their results. Use text() to show the outcome, a blocker, or a decision needed.`,
+			`${shortLanguage}→compute, transform, orchestrate tools; batch related calls, branch/loop on results; text()→outcome, blocker or decision`,
 		);
 		if (executionMode === "ts") {
 			add(

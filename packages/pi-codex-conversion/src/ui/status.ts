@@ -1,6 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AdapterState } from "../adapter/activation/state.ts";
-import type { AdapterRuntimePlan } from "../adapter/activation/runtime-plan.ts";
+import type { ActiveRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import { STATUS_KEY, buildStatusText } from "../adapter/activation/tool-set.ts";
 import { isResponsesContext } from "../adapter/prompt/model-support.ts";
 import { resolveFastModeServiceTier } from "../adapter/activation/fast-mode.ts";
@@ -9,7 +9,7 @@ import { codexUltrafastCostMultiplier } from "../providers/openai-codex/usage.ts
 export function renderCodexStatus(
 	ctx: ExtensionContext,
 	state: AdapterState,
-	plan: Extract<AdapterRuntimePlan, { kind: "normal" | "code" | "ts" | "vm" }>,
+	plan: ActiveRuntimePlan,
 ): void {
 	if (!ctx.hasUI) return;
 	if (!state.config.ui.statusLine) {
@@ -25,8 +25,8 @@ export function renderCodexStatus(
 		buildStatusText(
 			{
 				executionMode: plan.kind,
-				useOnAllModels: config.scope.allProviders === "on",
-				additionalProvider: plan.configuredProvider,
+				useOnAllModels: config.scope.mode === "all",
+				configuredResponsesModel: plan.configuredResponsesModel,
 				fast,
 				baseTierEstimate:
 					fast === "ultrafast" &&

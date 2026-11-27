@@ -1,4 +1,4 @@
-import { parse } from "acorn";
+import { parse, type Options } from "acorn";
 
 interface Syntax {
 	type: string;
@@ -36,6 +36,11 @@ const FUNCTION = new Set([
 ]);
 const LOOP = new Set(["ForStatement", "ForInStatement", "ForOfStatement"]);
 const HOST = `globalThis[Symbol.for("pi.vm-code/init")]`;
+const CELL_SYNTAX: Options = {
+	ecmaVersion: "latest",
+	allowAwaitOutsideFunction: true,
+	sourceType: "script",
+};
 
 /**
  * Awaited cells run as one module. `let`, `const` and `class` exist for the whole cell, and a
@@ -48,18 +53,14 @@ export function planVmCell(
 ): VmPlan {
 	let program: Syntax;
 	try {
-		program = parse(source, {
-			ecmaVersion: "latest",
-			allowAwaitOutsideFunction: true,
-			sourceType: "script",
-		}) as unknown as Syntax;
+		program = parse(source, CELL_SYNTAX) as unknown as Syntax;
 	} catch (error) {
 		if (declaredEarly(error)) throw error;
 		return {
 			awaited: false,
 			source,
 			bindings: noBindings(),
-			parseError: error,
+			parseError: withMissingClosingBraceHint(source, error),
 		};
 	}
 	const bindings = scriptBindings(program);
@@ -69,6 +70,30 @@ export function planVmCell(
 		source: compileModule(source, program, bindings, bound),
 		bindings,
 	};
+}
+
+function withMissingClosingBraceHint(source: string, error: unknown): unknown {
+	if (
+		!(error instanceof SyntaxError) ||
+		!("pos" in error) ||
+		error.pos !== source.length
+	)
+		return error;
+	const closed = `${source}\n}`;
+	try {
+		const { body } = parse(closed, CELL_SYNTAX);
+		if (
+			body.length === 1 &&
+			body[0]?.type === "BlockStatement" &&
+			body[0].end === closed.length
+		)
+			return new SyntaxError(
+				`${error.message}\nNothing ran. Close the cell's opening block with } and retry.`,
+			);
+	} catch {
+		// An EOF error alone does not identify the missing token.
+	}
+	return error;
 }
 
 function compileModule(

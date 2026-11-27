@@ -18,7 +18,6 @@ import {
 	resolveCodexWebSocketUrl,
 } from "../headers.ts";
 import { codexDiagnosticsFailure } from "../diagnostic-failure.ts";
-import { supportsResponsesLiteModel } from "../responses-lite-model.ts";
 import { resolveCodexTranscript } from "../request-body.ts";
 import { applyResponsesLiteWebSocketMetadata } from "../responses-lite.ts";
 import { normalizeTimeoutMs } from "../sse.ts";
@@ -51,15 +50,12 @@ import {
 import { preconnectWebSocket } from "../websocket-session-cache.ts";
 import { osInfoReady } from "../node-runtime.ts";
 
-export type CodexProviderRuntimeConfig = Pick<
-	CodexConversionConfig,
-	"openai" | "executionMode"
-> &
+export type CodexProviderRuntimeConfig = Pick<CodexConversionConfig, "openai"> &
 	Partial<Pick<CodexConversionConfig, "compaction">>;
 
 export interface CodexTransportRecoveryDependencies {
 	getConfig?: () => CodexProviderRuntimeConfig | undefined;
-	useResponsesLite?: (model: Model<Api>) => boolean;
+	responsesLite: boolean;
 	turnState?: CodexTurnState | undefined;
 	onPreparedPayload?: ((payload: ResponsesBody) => void) | undefined;
 	beforeRequestSend?: BeforeCodexRequestSend | undefined;
@@ -121,12 +117,7 @@ export class CodexTransportRequest<TApi extends Api> {
 		this.deps = deps;
 		this.options = options;
 		this.runtimeConfig = deps.getConfig?.();
-		this.responsesLite =
-			deps.useResponsesLite?.(model) ??
-			((this.runtimeConfig?.executionMode === "code" ||
-				this.runtimeConfig?.executionMode === "ts" ||
-				this.runtimeConfig?.executionMode === "vm") &&
-				supportsResponsesLiteModel(model.id));
+		this.responsesLite = deps.responsesLite;
 		this.resolvedContext = resolveCodexTranscript(model, context);
 		const modelSupportsGrammarTools =
 			(

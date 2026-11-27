@@ -351,8 +351,10 @@ export default async function guardian(
 	try {
 		const { registerCodeModeToolPreflight } =
 			await import("@howaboua/pi-codex-conversion/code-mode-preflight");
-		preflight = registerCodeModeToolPreflight(pi, (call) =>
-			admit(
+		preflight = registerCodeModeToolPreflight(pi, (call) => {
+			// Pi will admit the actual call, after native argument preparation.
+			if ("dispatchViaPi" in call && call.dispatchViaPi === true) return;
+			return admit(
 				{
 					toolName: call.toolName,
 					input: call.input,
@@ -362,8 +364,8 @@ export default async function guardian(
 				call.originalExecCallId,
 				call.extensionContext,
 				call.signal,
-			),
-		);
+			);
+		});
 	} catch {
 		// Native Pi still works. Wrappers with active rules fail closed above.
 	}

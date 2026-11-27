@@ -16,7 +16,10 @@ import type {
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import type { ExecutionMode } from "../adapter/activation/execution-mode.ts";
-import { resolveAdapterRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import {
+	resolveAdapterRuntimePlan,
+	resolveAdapterRuntimePlanForState,
+} from "../adapter/activation/runtime-plan.ts";
 import {
 	buildRequestBody,
 	resolveCodexTranscript,
@@ -250,36 +253,20 @@ type ResponsesApi = "openai-responses" | "openai-codex-responses";
 
 function resolveProviderApis(
 	config: CodexConversionConfig,
-	executionMode: ExecutionMode | undefined,
 	modelRegistry: CodeModeModelRegistry,
 ): Map<string, ResponsesApi> {
 	const resolved = new Map<string, ResponsesApi>();
+	if (!config.openai.proxyResponsesLite) return resolved;
 	for (const model of modelRegistry.getAll()) {
-		if (
-			model.api !== "openai-responses" &&
-			model.api !== "openai-codex-responses"
-		)
-			continue;
 		// PCC's native provider already routes context namespaces. A legacy overlay
 		// replaces that provider in Pi, losing its catalog and reasoning constraints.
+		if (model.api !== "openai-responses") continue;
+		const plan = resolveAdapterRuntimePlan({ model }, config);
 		if (
-			model.provider === "openai-codex" &&
-			model.api === "openai-codex-responses"
+			plan.configuredResponsesModel &&
+			plan.responsesFormat === "responses-lite"
 		)
-			continue;
-		const api: ResponsesApi =
-			model.api === "openai-responses"
-				? "openai-responses"
-				: "openai-codex-responses";
-		const mode = executionMode ?? config.executionMode;
-		const configuredResponsesLite =
-			model.api === "openai-responses" &&
-			(mode === "code" || mode === "ts" || mode === "vm") &&
-			config.openai.proxyResponsesLite &&
-			config.scope.additionalProviders.includes(
-				model.provider.trim().toLowerCase(),
-			);
-		if (configuredResponsesLite) resolved.set(model.provider, api);
+			resolved.set(model.provider, "openai-responses");
 	}
 	return resolved;
 }
@@ -331,11 +318,7 @@ export function registerCodeModeProxyProvider(
 		config: CodexConversionConfig,
 		modelRegistry: CodeModeModelRegistry,
 	) => {
-		const desiredProviders = resolveProviderApis(
-			config,
-			getExecutionMode(),
-			modelRegistry,
-		);
+		const desiredProviders = resolveProviderApis(config, modelRegistry);
 		for (const [provider, api] of desiredProviders) {
 			const existing = registeredProviders.get(provider);
 			if (existing?.api === api) continue;

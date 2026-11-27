@@ -469,11 +469,17 @@ TS Notebook shares pinned bindings between sessions using the same working direc
 
 ### Observe and guard nested calls
 
-Pi's ordinary tool events see outer `exec` and `wait` calls. Use the separate nested-call hooks when you need to inspect the operations inside them.
+Pi's ordinary tool events see outer `exec` and `wait` calls and any nested calls dispatched through Pi's `ctx.executeTool()`. Nested Pi events carry `parentToolCallId`, which can name a later `wait` call rather than the original `exec`.
+
+PCC's native tools inside Code and Notebook use Pi's live callable loadout. Its nested catalogue describes the tools Pi can call, not the decisions of runtime `tool_call` guards. A guard can still veto a listed tool, and Pi rejects a stale tool name if it is no longer callable. This is tool admission, not a JavaScript or OS sandbox.
+
+PCC-native nested calls run PCC preflight before Pi dispatch and report PCC completion afterwards. Custom Code tools that do not use Pi dispatch still use PCC hooks. Ordinary Pi-bridged tools use Pi events instead. A Pi-dispatched call already in progress can delay an outer yield until it settles, so Pi can record the result on its parent call.
 
 `registerCodeModeToolPreflight(pi, handler)` and `registerCodeModeToolCompletion(pi, handler)` each return `{ available, dispose() }`. They discover the broker in either load order and dispose on shutdown. The older `code-mode-preflight` subpath remains supported. An older broker may support preflight without completion.
 
-Both callbacks receive `toolName`, raw `input`, `toolCallId`, optional `originalExecCallId`, `cwd`, `extensionContext` and `signal`. Preflight can return `{ block: true, reason }` or allow execution by returning nothing or `{ block: false }`.
+Both callbacks receive `toolName`, `input`, `toolCallId`, optional `originalExecCallId`, `cwd`, `extensionContext` and `signal`. PCC-native calls supply prepared arguments. Preflight can return `{ block: true, reason }` or allow execution by returning nothing or `{ block: false }`.
+
+`dispatchViaPi: true` marks PCC calls that also go through Pi admission. If you enforce the same policy in both hooks, let your Pi `tool_call` handler decide these marked calls so it reviews the action once.
 
 Completion adds `status: "success"` and `result`, or `status: "error"`, `phase: "preflight" | "execution"`, `error` and `result`. The result is the captured full Pi result when available, otherwise the returned value. An error can follow partial side effects.
 

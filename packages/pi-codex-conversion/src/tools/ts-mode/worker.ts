@@ -298,7 +298,7 @@ async function run(input: TsWorkerInput): Promise<void> {
 				try {
 					if (hookContext.getStore() === "startup")
 						throw new Error(
-							"Pi tools are unavailable in startup hooks; run tool-dependent work in a normal cell after startup",
+							"Tools are unavailable in startup hooks. Run tool-dependent work in a normal cell after startup",
 						);
 					value = await request("tool", name, toolInput);
 					if (live && evaluator) value = evaluator.values.clone(value);

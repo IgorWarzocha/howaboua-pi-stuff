@@ -10,6 +10,14 @@ export { headersToRecord } from "./header-record.ts";
 
 type ProviderHeaders = Record<string, string | null>;
 
+const CODEX_RESPONSE_EXCLUSIONS = {
+	"x-codex-exclude": "tools,usage.attribution",
+	// Finished reasoning still carries ciphertext for replay. Negotiate
+	// preliminary fields separately for servers that only know x-codex-exclude.
+	"x-codex-exclude-stream-fields":
+		"delta.sequence_number,reasoning.added.encrypted_content",
+};
+
 export function extractAccountId(token: string): string {
 	try {
 		const parts = token.split(".");
@@ -91,8 +99,12 @@ function buildBaseCodexHeaders(
 	accountId: string,
 	token: string,
 	routingRequest?: Pick<ResponsesBody, "model" | "service_tier">,
+	defaults?: Record<string, string>,
 ): Headers {
 	const headers = new Headers(modelHeaders);
+	for (const [key, value] of Object.entries(defaults ?? {})) {
+		if (!headers.has(key)) headers.set(key, value);
+	}
 	for (const [key, value] of Object.entries(additionalHeaders ?? {})) {
 		if (value === null) {
 			headers.delete(key);
@@ -121,6 +133,24 @@ function buildBaseCodexHeaders(
 	return headers;
 }
 
+export function buildCodexModelDiscoveryHeaders(
+	modelHeaders: Record<string, string> | undefined,
+	additionalHeaders: ProviderHeaders | undefined,
+	accountId: string,
+	token: string,
+): Headers {
+	const headers = buildBaseCodexHeaders(
+		modelHeaders,
+		additionalHeaders,
+		accountId,
+		token,
+	);
+	headers.set("OpenAI-Beta", "responses=experimental");
+	headers.set("accept", "application/json");
+	headers.delete("content-type");
+	return headers;
+}
+
 export function buildSSEHeaders(
 	modelHeaders: Record<string, string> | undefined,
 	additionalHeaders: ProviderHeaders | undefined,
@@ -136,6 +166,7 @@ export function buildSSEHeaders(
 		accountId,
 		token,
 		routingRequest,
+		CODEX_RESPONSE_EXCLUSIONS,
 	);
 	headers.set("OpenAI-Beta", "responses=experimental");
 	headers.set("accept", "text/event-stream");
@@ -166,6 +197,7 @@ export function buildWebSocketHeaders(
 		accountId,
 		token,
 		routingRequest,
+		CODEX_RESPONSE_EXCLUSIONS,
 	);
 	headers.delete("accept");
 	headers.delete("content-type");

@@ -135,7 +135,7 @@ export function createNotesSettingsControls(
 				id: "idle",
 				label: "Idle rollover",
 				description:
-					"After this idle period, your next message starts a new window if the last turn saved notes. GPT intervals are recommendations, not cache limits.",
+					"After this idle period, the next input starts a new window if the configured notes or tail is ready; otherwise it continues here. GPT intervals are recommendations, not cache limits.",
 				currentValue: idleValue(settings.idleMinutes),
 				values: IDLE_MINUTES.map(idleValue),
 			},
@@ -143,7 +143,7 @@ export function createNotesSettingsControls(
 				id: "rolloverTail",
 				label: "Rollover tail",
 				description:
-					"For notes-only /compact and idle rollover: Conversation keeps user messages, attachments and assistant replies since the last completed Notes save. Full adds complete tool calls and extension messages. Both ask for a save if none qualifies.",
+					"For notes-only /compact and idle rollover: Conversation keeps user messages, attachments and assistant replies since the last completed Notes save. Full adds complete tool calls and extension messages. /compact asks for a save if none qualifies; idle continues here.",
 				currentValue: ROLLOVER_TAIL_LABELS[settings.rolloverTail],
 				values: ROLLOVER_TAILS.map((mode) => ROLLOVER_TAIL_LABELS[mode]),
 			},

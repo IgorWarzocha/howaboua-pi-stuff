@@ -34,7 +34,7 @@ Recent live checks used `openai-codex/gpt-6-sol`, OpenRouter's `cohere/north-min
 
 ## Responses Lite is a request format
 
-PCC selects Lite automatically for eligible Codex models in Code or Notebook. Structured mode uses regular Responses. The current [model gate](../../packages/pi-codex-conversion/src/providers/openai-codex/responses-lite-model.ts) and [runtime plan](../../packages/pi-codex-conversion/src/adapter/activation/runtime-plan.ts) define eligibility.
+PCC selects Lite automatically for eligible Codex models when the adapter is active. The current [model gate](../../packages/pi-codex-conversion/src/providers/openai-codex/responses-lite-model.ts) and [runtime plan](../../packages/pi-codex-conversion/src/adapter/activation/runtime-plan.ts) define eligibility.
 
 We inspect the request rather than treating the Notebook setting as proof. A fresh Lite request has an `additional_tools` input item and no top-level `tools` or `instructions`. The [Lite transformation](../../packages/pi-codex-conversion/src/providers/openai-codex/responses-lite.ts) owns that format. HTTP streaming and WebSocket are separate transport choices, not synonyms for Responses and Lite.
 

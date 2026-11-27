@@ -1,4 +1,4 @@
-import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type {
 	CodexConversionConfig,
 	VoiceContextModel,
@@ -17,12 +17,11 @@ export type { ConfigSetting } from "./config-items-shared.ts";
 export function buildConfigSettings(
 	tab: SettingsTab,
 	config: CodexConversionConfig,
-	theme: Theme,
 	availableContextModels: VoiceContextModel[] = [],
 	ctx: Pick<ExtensionContext, "model"> = { model: undefined },
 	webSearchAvailable?: boolean,
 ): ConfigSetting[] {
-	if (tab === "adapter") return buildAdapterSettings(config, theme);
+	if (tab === "adapter") return buildAdapterSettings(config, ctx.model);
 	if (tab === "context") return buildContextSettings(config, ctx);
 	if (tab === "tools") return buildToolsSettings(config);
 	if (tab === "openai") return buildOpenAISettings(config);

@@ -2,7 +2,7 @@ import type { Api, Model, ProviderHeaders } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isCodexTransportModel } from "../prompt/model-support.ts";
 
-export const DEFAULT_SUPPORTED_PROVIDERS = ["openai", "openai-codex"] as const;
+const DEFAULT_SUPPORTED_PROVIDERS = new Set(["openai", "openai-codex"]);
 export const DEFAULT_SUPPORTED_APIS = [
 	"openai-responses",
 	"openai-codex-responses",
@@ -24,7 +24,7 @@ type NativeCompactionFailureReason =
 
 export type NativeCompactionSupportOptions = {
 	enabled?: boolean | undefined;
-	supportedProviders?: readonly string[] | undefined;
+	configuredResponsesModel?: boolean | undefined;
 	supportedApis?: readonly string[] | undefined;
 };
 
@@ -74,16 +74,6 @@ function normalizeConfiguredSet(
 	const source = values && values.length > 0 ? values : defaults;
 	return new Set(
 		source.map((value) => value.trim()).filter((value) => value.length > 0),
-	);
-}
-
-function normalizeConfiguredProviderSet(
-	values: readonly string[] | undefined,
-): Set<string> {
-	return new Set(
-		[...normalizeConfiguredSet(values, DEFAULT_SUPPORTED_PROVIDERS)].map(
-			(value) => value.toLowerCase(),
-		),
 	);
 }
 
@@ -215,12 +205,9 @@ export async function resolveNativeCompactionEnvironment(
 			...descriptor,
 		};
 	}
-	const supportedProviders = normalizeConfiguredProviderSet(
-		options.supportedProviders,
-	);
-	const providerSupported = supportedProviders.has(
-		descriptor.provider.trim().toLowerCase(),
-	);
+	const providerSupported =
+		options.configuredResponsesModel ||
+		DEFAULT_SUPPORTED_PROVIDERS.has(descriptor.provider.trim().toLowerCase());
 	if (!providerSupported && !isCodexTransportModel(currentModel)) {
 		return {
 			ok: false,

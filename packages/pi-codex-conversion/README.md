@@ -9,7 +9,7 @@ For the argument and token numbers, read [How I gave Pi 17 tools without loading
 ## What you get
 
 - Codex-shaped shell, patch and image tools
-- tools exposed directly, composed in one-shot code, or used through a persistent TypeScript notebook
+- tools composed in one-shot JavaScript, conversation-local VM Code or a persistent TypeScript notebook
 - foreground, background and interactive shell sessions with resumable output
 - image descriptions for blind models
 - realtime voice, push-to-dictate and a remote voice interface for your phone or browser
@@ -28,7 +28,7 @@ pi install npm:@howaboua/pi-codex-conversion
 
 Requires the latest Pi release and Node.js 22.19 or newer. Native helpers for macOS, Linux and Windows are bundled for x64 and arm64. TS Notebook has [narrower platform support](#code-mode-and-custom-tools).
 
-Open `/codex` after installation. Codex-like GPT models use **Structured** mode by default.
+Open `/codex` after installation. Scoped models use **VM Code** by default. Saved **Structured** settings switch to **VM Code** automatically.
 
 **My recommended setup:** select **TS Notebook** under **General**, enable **Heavy system prompt overwrite**, and choose **Codex V2** compaction under **Context**. These are opt-in, but they're what I'm daily-driving and fine-tuning towards.
 
@@ -43,16 +43,19 @@ Choose an execution mode under `/codex` → **General**:
 
 | Mode | How the model uses tools |
 | --- | --- |
-| **Structured** | Calls tools directly through top-level JSON schemas. |
+| **VM Code** | Composes tools in one JavaScript context kept for the conversation. |
 | **Code** | Composes tools in one-shot JavaScript cells through `exec`, with `wait` for longer work. |
 | **TS Notebook** | Uses a persistent TypeScript notebook with strict checking before execution and Node APIs. |
-| **VM Code** | Composes tools in one JavaScript context kept for the conversation. |
 
 Code starts fresh for each cell. VM Code keeps `let`, `const`, `function` and `class` bindings for the conversation, without notebook controls or a saved heap. TS Notebook retains state between cells and provides notebook management controls. See [execution modes](#code-mode-and-custom-tools) below.
 
-Execution mode is separate from provider scope. Apply the adapter to **Codex and configured** providers or **all providers**. For voice and dictation without the Codex adapter, install [GipPity Control](../pi-gippity-control) instead.
+Under **Model scope**, choose **Automatic**, **All providers** or **Selected models**. Automatic covers recognised Codex and GPT routes. Use **Current model** to turn the adapter **On** or **Off** for the model selected in Pi. **Default** follows the scope. With **Selected models**, only models with an **On** rule use the adapter. Other models keep Pi's tool behaviour.
 
-The Codex toolset reads files through the shell and edits with `apply_patch`, rather than Pi's separate text read, edit and write tools.
+Pi tool allowlists and exclusions still apply. VM Code and Code require `exec` and `wait`. TS Notebook also requires `notebook`. If a required tool is unavailable, the adapter does not activate.
+
+For voice and dictation without the Codex adapter, install [GipPity Control](../pi-gippity-control) instead.
+
+The Codex toolset reads files through the shell and edits with `apply_patch`. If a replacement is unavailable, the corresponding selected Pi tools remain available inside `exec`.
 
 Background shells survive context compaction and Notes rollover. The agent receives a fresh shell inventory without changing the standing prompt. If a command finishes with an uncollected result, PCC wakes the agent only when idle. Normal monitoring remains primary; these notices are a safety net.
 
@@ -67,7 +70,7 @@ Background shells survive context compaction and Notes rollover. The agent recei
 
 | Tab | Covers |
 | --- | --- |
-| General | Settings scope, execution mode, providers, prompt overwrite, time reminders |
+| General | Settings scope, execution mode, model scope, prompt overwrite, time reminders |
 | Context | Compaction method and retained user messages |
 | Tools | Auto reasoning, image descriptions, Code and Notebook shell output |
 | OpenAI | Fast and Ultrafast modes, Daybreak, verbosity, transport, diagnostics, Responses Lite |
@@ -106,7 +109,7 @@ Press **Ctrl+O** to expand tool output and see the available source, output and 
 
 `/codex usage analyse` asks your agent to inspect longer-term trends and reasoning levels. Tracking is local and stores no conversation content. The first view imports available session costs, but cannot recover missing calls or exact historical reset times.
 
-When ordinary quota runs out, eligible accounts may receive **Luna Reserve**. PCC switches only after backend authorisation and asks you to send `continue`. It does not redeem reset credits automatically. Your original model returns after ordinary quota recovers, unless you choose another model first.
+When ordinary quota runs out, eligible accounts may receive **Luna Reserve**. PCC switches only after backend authorisation and asks you to send `continue`. It does not redeem reset credits automatically. An unlisted Reserve model uses stock Pi in Selected models scope; an explicit Off rule prevents automatic entry. Your original model returns after ordinary quota recovers, unless you choose another model first.
 
 </details>
 
@@ -125,7 +128,7 @@ Choose under `/codex context`:
 
 V2 can preserve 16k, 32k or 64k of recent user messages verbatim. The default is 64k. This is not the total context limit.
 
-V2 and Both require Codex or a configured compatible passthrough. **Choose Both before creating a checkpoint you need across providers, or convert to Pi summary before switching.** Other routes use Pi summary without erasing your saved method.
+V2 and Both require Codex or a configured compatible passthrough. **Choose Both before creating a checkpoint you need on a different provider or with the adapter off.** If you already have an encrypted-only checkpoint, convert it to a Pi summary before switching. Other routes use Pi summary without erasing your saved method.
 
 For notes, history, context-window rollover and shared agent context, install [Agent Comms](../pi-agent-comms/docs/NOTES.md) and configure it under `/notes`. These are not built into PCC. Existing Notes-enabled PCC configurations require Notes to be loaded or that old continuity setting to be explicitly disabled.
 
@@ -279,7 +282,11 @@ Use `/codex voice stop` to stop voice. The remote server stops when its owning P
 
 PCC supports GPT-6 Astra, Sol and Luna, GPT-6.1 Sol and Terra, and GPT-6.2 Sol and Astra, with Responses Lite and live reasoning adjustments on Codex transport. Available context sizes and reasoning levels depend on the selected model. Cost estimates use [published API rates](https://developers.openai.com/api/docs/pricing).
 
-Default scope covers Codex-like GPT routes and Responses providers listed under **Additional providers**. Switching to an unrelated model restores Pi's ordinary tools.
+An explicit **On** rule for a compatible Responses passthrough also makes it eligible for provider features such as Codex V2 compaction and Proxy Responses Lite.
+
+Upgrading from **Additional providers**: when you activate a previously enabled Responses model in **Automatic** or **All providers**, PCC saves it as **On** in the settings file that enabled its provider. Existing model rules take precedence over old provider lists. Set a migrated model to **Default** to follow the scope without importing its old provider choice again. To stop importing models you have not used yet, remove the old `scope.additionalProviders` list from the settings file.
+
+In JSON, `scope.modelOverrides` maps exact Pi provider IDs to model IDs, for example `{"my-proxy":{"gpt-6-sol":true,"gpt-6-luna":false}}`. Use `true` for **On**, `false` for **Off** and `null` for **Default**. A trusted project's rule takes precedence over the matching global rule. A missing rule can inherit a global rule or import the old provider choice.
 
 Codex Live voice, dictation, usage and image descriptions can use the Codex login while another provider's model is active. Realtime voice models use the API provider selected in voice settings instead. The separate web and image-generation extensions also use their configured access independently.
 

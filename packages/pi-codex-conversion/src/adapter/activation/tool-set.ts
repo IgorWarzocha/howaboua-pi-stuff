@@ -25,18 +25,18 @@ export function buildStatusText(
 		baseTierEstimate?: boolean | undefined;
 		daybreak?: boolean | undefined;
 		useOnAllModels: boolean;
-		additionalProvider?: boolean | undefined;
+		configuredResponsesModel?: boolean | undefined;
 		compaction?: boolean | undefined;
 		usageStatus?: CodexUsageStatus | undefined;
 	},
 	theme?: StatusTheme | undefined,
 ): string {
 	const extras = [
-		options.executionMode && options.executionMode !== "normal"
+		options.executionMode
 			? EXECUTION_MODE_LABELS[options.executionMode]
 			: undefined,
 		options.useOnAllModels ? "all models" : undefined,
-		options.additionalProvider ? "additional provider" : undefined,
+		options.configuredResponsesModel ? "configured model" : undefined,
 		options.compaction ? "compact v2" : undefined,
 		options.fast === "ultrafast"
 			? "ultrafast"
@@ -77,20 +77,26 @@ export const CORE_ADAPTER_TOOL_NAMES = [
 export const EXEC_TOOL_NAMES = ["exec", "wait"];
 export const TS_NOTEBOOK_TOOL_NAMES = [...EXEC_TOOL_NAMES, "notebook"];
 export const VIEW_IMAGE_TOOL_NAME = "view_image";
+export const NESTED_ADAPTER_TOOL_NAMES = [
+	...CORE_ADAPTER_TOOL_NAMES,
+	VIEW_IMAGE_TOOL_NAME,
+	"change_reasoning",
+];
 
-export function hiddenPiReplacementToolNames(
-	kind: AdapterState["appliedRuntimeKind"],
+export function hiddenCodeModeToolNames(
+	state: AdapterState,
 	active: readonly string[],
 ): readonly string[] {
-	if (kind === "normal") {
-		return [
-			...(active.includes("exec_command") ? ["read", "bash"] : []),
-			...(active.includes(APPLY_PATCH_TOOL_NAME) ? ["edit", "write"] : []),
-		];
-	} else if (kind === "code" || kind === "vm" || kind === "ts") {
-		const required = kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES;
-		if (required.every((name) => active.includes(name)))
-			return REPLACED_PI_TOOL_NAMES;
-	}
-	return [];
+	return hasActiveExecTools(state.appliedRuntimeKind, active)
+		? (state.hiddenCodeModeToolNames ?? [])
+		: [];
+}
+
+export function hasActiveExecTools(
+	kind: ExecutionMode | "inactive" | undefined,
+	active: readonly string[],
+): boolean {
+	if (kind !== "code" && kind !== "vm" && kind !== "ts") return false;
+	const required = kind === "ts" ? TS_NOTEBOOK_TOOL_NAMES : EXEC_TOOL_NAMES;
+	return required.every((name) => active.includes(name));
 }

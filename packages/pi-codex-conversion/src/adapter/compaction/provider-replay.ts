@@ -5,7 +5,6 @@ import type {
 import { resolveLatestNativeCompactionEntry } from "./details-store.ts";
 import { rewriteResponsesPayloadWithNativeReplay } from "../replay/payload-rewrite.ts";
 import {
-	DEFAULT_SUPPORTED_PROVIDERS,
 	isResponsesCompatiblePayload,
 	resolveNativeCompactionEnvironment,
 	type ResponsesCompatibleRequestPayload,
@@ -112,17 +111,6 @@ function isPiCompactionSummarizationPayload(
 	});
 }
 
-export function getSupportedNativeCompactionProviders(
-	state: AdapterState,
-): string[] {
-	return [
-		...new Set([
-			...DEFAULT_SUPPORTED_PROVIDERS,
-			...state.config.scope.additionalProviders,
-		]),
-	];
-}
-
 export async function rewriteCodexCompactedProviderRequest(
 	payload: unknown,
 	ctx: ExtensionContext,
@@ -144,7 +132,7 @@ export async function rewriteCodexCompactedProviderRequest(
 		ctx,
 		{
 			enabled: true,
-			supportedProviders: getSupportedNativeCompactionProviders(state),
+			configuredResponsesModel: plan.configuredResponsesModel,
 		},
 		payload,
 	);
@@ -205,11 +193,13 @@ export async function injectPendingNativeWindowIntoPiCompactionRequest(
 	}
 	if (!isPiCompactionSummarizationPayload(payload)) return undefined;
 
+	const plan = resolveAdapterRuntimePlanForState(ctx, state);
+	if (!plan.nativeReplay) return undefined;
 	const resolution = await resolveNativeCompactionEnvironment(
 		ctx,
 		{
 			enabled: true,
-			supportedProviders: getSupportedNativeCompactionProviders(state),
+			configuredResponsesModel: plan.configuredResponsesModel,
 		},
 		payload,
 	);
