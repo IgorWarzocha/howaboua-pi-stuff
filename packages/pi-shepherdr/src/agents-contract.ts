@@ -19,16 +19,15 @@ const ACTIONS = [
 	"focus",
 	"spawn",
 	"watch",
-	"unwatch",
 	"send",
-	"assign",
-	"attach",
-	"detach",
+	"sharing",
 	"read",
 	"reply",
 ] as const;
 export const READ_SOURCES = ["latest", "visible", "recent"] as const;
 const STATUSES = ["idle", "working", "blocked", "done", "unknown"] as const;
+const SHARING_OPERATIONS = ["attach", "detach"] as const;
+const SHARING_SCOPES = ["context", "board", "both"] as const;
 
 const ACTION_FIELDS: Record<(typeof ACTIONS)[number], ReadonlySet<string>> = {
 	help: new Set(["action", "commands", "target", "machine"]),
@@ -49,12 +48,9 @@ const ACTION_FIELDS: Record<(typeof ACTIONS)[number], ReadonlySet<string>> = {
 		"blocking",
 		"board_thread_id",
 	]),
-	watch: new Set(["action", "machine", "target"]),
-	unwatch: new Set(["action", "machine", "target"]),
-	send: new Set(["action", "machine", "target", "message"]),
-	assign: new Set(["action", "machine", "target", "message", "blocking"]),
-	attach: new Set(["action", "machine", "target", "context", "board"]),
-	detach: new Set(["action", "machine", "target", "context", "board"]),
+	watch: new Set(["action", "machine", "target", "enabled"]),
+	send: new Set(["action", "machine", "target", "message", "task", "wait"]),
+	sharing: new Set(["action", "machine", "target", "operation", "scope"]),
 	read: new Set(["action", "machine", "target", "source", "lines"]),
 	reply: new Set(["action", "machine", "target", "extension", "id", "message"]),
 };
@@ -84,7 +80,9 @@ const AgentsRequest = obj({
 	}),
 	workspace: opt(str()),
 	cwd: opt(str()),
-	message: opt(str({ description: "Task, follow-up or extension reply" })),
+	message: opt(str()),
+	task: opt(str()),
+	wait: opt({ ...lit(true), type: "boolean" }),
 	base: opt(str({ description: "Review base branch" })),
 	blocking: opt(
 		bool({
@@ -92,8 +90,9 @@ const AgentsRequest = obj({
 				"Wait for delegated result; profile policy overrides spawn; default false",
 		}),
 	),
-	context: opt(bool()),
-	board: opt(bool()),
+	enabled: opt(bool()),
+	operation: opt({ ...oneOf(SHARING_OPERATIONS), type: "string" }),
+	scope: opt({ ...oneOf(SHARING_SCOPES), type: "string" }),
 	board_thread_id: opt(str({ minLength: 1 })),
 	query: opt(str()),
 	status: opt({
@@ -127,7 +126,17 @@ export const AgentsParameters = {
 	),
 	additionalProperties: true,
 };
-export type AgentsParams = Static<typeof AgentsRequest>;
+type AgentRequest = Static<typeof AgentsRequest>;
+export type AgentsParams = AgentRequest &
+	(
+		| { action: "watch"; enabled: boolean }
+		| {
+				action: "sharing";
+				operation: (typeof SHARING_OPERATIONS)[number];
+				scope: (typeof SHARING_SCOPES)[number];
+		  }
+		| { action: Exclude<AgentRequest["action"], "watch" | "sharing"> }
+	);
 export type AgentsToolParams = Static<typeof AgentsParameters>;
 
 export function requiredAgentField(
@@ -165,13 +174,29 @@ export function parseAgentsRequest(input: unknown): AgentsParams {
 	if (typeof action !== "string" || !Object.hasOwn(ACTION_FIELDS, action)) {
 		throw new Error(`agents action must be one of: ${ACTIONS.join(", ")}`);
 	}
-	if (action === "send" && "blocking" in request) {
-		throw new Error(
-			"send is message-only; omit blocking. Use assign to delegate work",
-		);
+	const fields = ACTION_FIELDS[action as (typeof ACTIONS)[number]];
+	const unknown = Object.keys(request).filter((key) => !fields.has(key));
+	if (unknown.length > 0) {
+		throw new Error(`unknown ${action} field(s): ${unknown.join(", ")}`);
 	}
-	if ("commands" in request && action !== "help")
-		throw new Error("commands requires action=help or no action");
+	if (action === "send") {
+		if ("message" in request === "task" in request)
+			throw new Error("send requires exactly one of message or task");
+		if ("wait" in request && !("task" in request))
+			throw new Error("wait requires task");
+	}
+	if (action === "watch" && typeof request["enabled"] !== "boolean")
+		throw new Error("watch requires enabled: true or false");
+	if (
+		action === "sharing" &&
+		(!SHARING_OPERATIONS.some(
+			(operation) => operation === request["operation"],
+		) ||
+			!SHARING_SCOPES.some((scope) => scope === request["scope"]))
+	)
+		throw new Error(
+			"sharing requires operation: attach or detach, and scope: context, board or both",
+		);
 	if (
 		action === "help" &&
 		request["commands"] !== true &&
@@ -182,15 +207,6 @@ export function parseAgentsRequest(input: unknown): AgentsParams {
 		throw new Error(
 			"machine requires target for command discovery; omit both for this session",
 		);
-	if (action === "attach" || action === "detach") {
-		for (const field of ["context", "board"]) {
-			if (field in request && typeof request[field] !== "boolean")
-				throw new Error(`${field} must be a boolean`);
-		}
-		if (request["context"] !== true && request["board"] !== true)
-			throw new Error(`${action} requires context:true or board:true`);
-		request = { context: false, board: false, ...request };
-	}
 	if (action === "reply") {
 		for (const field of ["extension", "id", "target"]) {
 			if (typeof request[field] !== "string" || !request[field].trim())
@@ -198,12 +214,6 @@ export function parseAgentsRequest(input: unknown): AgentsParams {
 		}
 		if (typeof request["message"] !== "string")
 			throw new Error("message is required for reply");
-	}
-	const unknown = Object.keys(request).filter(
-		(key) => !ACTION_FIELDS[action as keyof typeof ACTION_FIELDS].has(key),
-	);
-	if (unknown.length > 0) {
-		throw new Error(`unknown ${action} field(s): ${unknown.join(", ")}`);
 	}
 	if (
 		action === "read" &&
@@ -230,7 +240,7 @@ export function isBlockingAgentsCall(input: unknown): boolean {
 				),
 				value.blocking,
 			);
-		return value.action === "assign" && value.blocking === true;
+		return value.action === "send" && value.wait === true;
 	} catch {
 		return false;
 	}

@@ -171,7 +171,7 @@ export class AgentBoard {
 			)
 		)
 			throw new Error(
-				"Shared Board needs a fresh saved session. Use assign for existing agents",
+				"Shared Board needs a fresh saved session. Use send with task for existing agents",
 			);
 		const file = ctx.sessionManager.getSessionFile();
 		if (!file)

@@ -41,12 +41,11 @@ export async function agentsHelp(
 			spawn:
 				"agent_type label message name? machine? placement? workspace? cwd? base? blocking?" +
 				(boardAvailable ? " board_thread_id?" : ""),
-			watch: "target machine?",
-			unwatch: "target machine?",
-			send: "target message machine?",
-			assign: "target message machine? blocking?",
-			attach: "target context? board? machine?",
-			detach: "target context? board? machine?",
+			send: "target message|task wait?: true (task only) machine?",
+			watch: "target enabled: true|false machine?",
+			sharing: boardAvailable
+				? "target operation: attach|detach scope: context|board|both machine?"
+				: "target operation: attach|detach scope: context machine?",
 			read: "target machine? source=latest|visible|recent? lines?",
 			reply: "target extension id message machine?",
 		},
@@ -59,7 +58,7 @@ export async function agentsHelp(
 			target:
 				"target=agent session reference or terminal address; /root=live spawn root",
 			resume:
-				"send/assign to owned closed worker→resume saved session; restore reporting unless unwatched",
+				"send to owned closed worker→resume saved session; restore reporting unless disabled",
 			placement:
 				"terminal (default), new_tab, new_workspace; new_tab needs space ID",
 			...(boardAvailable
@@ -67,17 +66,14 @@ export async function agentsHelp(
 						board_thread_id: "Existing board thread→child read ref",
 					}
 				: {}),
-			send: "Wakes idle agents; only concrete blocker, ownership conflict or actionable handoff. Skip acknowledgements, status-only updates and standby reminders",
-			assign:
-				"Delegate or redirect work. Updating an active task keeps its existing wait",
+			send: "message → concrete blocker, ownership conflict or actionable handoff without new supervision. Skip acknowledgements, status-only updates and standby reminders. task → delegate and supervise; active task updates keep the existing wait. Both wake idle agents",
 			focus: "voice:true transfers the mic. handoff supplies arrival context",
-			sharing: boardAvailable
-				? "attach/detach require idle target. Select scope: context:true for Notes/history, board:true for board membership, or both"
-				: "attach/detach require idle target + context:true for Notes/history; boards unavailable",
-			detach: "Counterpart checkpoints remain read-only",
-			blocking:
-				"spawn/assign default→return on dispatch; blocking:true→wait; profile overrides spawn. Reports automatic→other work/end turn; MUST NOT poll",
-			watch: "Delegation/watch→report subsequent work UNTIL unwatch/close",
+			sharing:
+				"Idle target only. context → Notes/history. Detaching context keeps counterpart checkpoints read-only",
+			completion:
+				"spawn blocking:true or send task with wait:true → wait for outcome. Spawn profile can override. Otherwise return on dispatch and report automatically; MUST NOT poll",
+			watch:
+				"Spawn/delegate or enabled:true → report subsequent work until disabled or closed. enabled:false stops reports, not work",
 			slash:
 				"Leading / runs a target command without waiting for task completion. Close a finished worker with send /quit",
 			reuse:

@@ -89,17 +89,25 @@ export function createAgentsTool(
 			}
 
 			let target = required(params.target, "target");
-			if (params.action === "send" || params.action === "assign")
-				required(params.message, "message");
+			const outgoing =
+				params.action === "send"
+					? {
+							text: required(
+								params.task ?? params.message,
+								params.task === undefined ? "message" : "task",
+							),
+							delegate: params.task !== undefined,
+							wait: params.wait === true,
+						}
+					: undefined;
 			const owned =
-				(params.action === "send" || params.action === "assign") &&
-				target !== "/root"
+				outgoing && target !== "/root"
 					? await resumer.resolve(
 							ctx,
 							target,
 							params.machine,
 							executionSignal,
-							!/^\/quit(?:\s|$)/.test(params.message?.trim() ?? ""),
+							!/^\/quit(?:\s|$)/.test(outgoing.text),
 						)
 					: undefined;
 			if (owned) {
@@ -138,13 +146,13 @@ export function createAgentsTool(
 					),
 				);
 			}
-			if (params.action === "unwatch") {
+			if (params.action === "watch" && !params.enabled) {
 				const record = runtime.monitor
 					.list()
 					.find((agent) => agent.paneId === target || agent.name === target);
 				if (!record) {
 					return toolResult({
-						unwatched: false,
+						watched: false,
 						machine: runtime.machine,
 						target,
 					});
@@ -158,7 +166,7 @@ export function createAgentsTool(
 					false,
 				);
 				return toolResult({
-					unwatched: true,
+					watched: false,
 					machine: runtime.machine,
 					target: record.paneId,
 				});
@@ -178,13 +186,16 @@ export function createAgentsTool(
 					commands: await runtime.client.commands(panel),
 				});
 			}
-			if (params.action === "attach" || params.action === "detach") {
+			if (params.action === "sharing") {
 				return toolResult(
-					await sharedContext.attachment[params.action](
+					await sharedContext.attachment[params.operation](
 						ctx,
 						runtime,
 						panel,
-						params,
+						{
+							context: params.scope !== "board",
+							board: params.scope !== "context",
+						},
 						executionSignal,
 					),
 				);
@@ -225,13 +236,13 @@ export function createAgentsTool(
 						: {}),
 				});
 			}
-			if (params.action === "send" || params.action === "assign") {
-				const message = required(params.message, "message");
+			if (outgoing) {
+				const { text: message, delegate, wait } = outgoing;
 				const attributedMessage = await attributeAgentPrompt(
 					fleet.connected().client,
 					ctx.sessionManager.getSessionId(),
 					message,
-					params.action === "send" ? "message" : "task",
+					delegate ? "task" : "message",
 				);
 				attributedMessage.context = [
 					attributedMessage.context,
@@ -244,7 +255,7 @@ export function createAgentsTool(
 				]
 					.filter(Boolean)
 					.join("\n");
-				if (params.action === "send" && !owned?.restoreSupervision) {
+				if (!delegate && !owned?.restoreSupervision) {
 					executionSignal.throwIfAborted();
 					const receipt = await runtime.client.sendMessage(
 						panel,
@@ -264,7 +275,7 @@ export function createAgentsTool(
 					runtime,
 					panel,
 					message,
-					params.action === "assign" && params.blocking === true,
+					wait,
 					executionSignal,
 					update,
 					() => runtime.client.sendMessage(panel, attributedMessage),
@@ -272,7 +283,7 @@ export function createAgentsTool(
 						expectUserMessage: true,
 					},
 				);
-				if (params.action === "send")
+				if (!delegate)
 					return toolResult(
 						{
 							sent: true,
@@ -294,11 +305,11 @@ export function createAgentsTool(
 								}
 							: dispatch.settlement
 								? {
-										assigned: true,
+										delegated: true,
 										...settlementResult(runtime.machine, dispatch.settlement),
 									}
 								: {
-										assigned: true,
+										delegated: true,
 										machine: runtime.machine,
 										target: panel.pane_id,
 										status: "working",
@@ -336,7 +347,7 @@ export function createAgentsTool(
 				0,
 				0,
 			);
-			const message = params?.message ?? params?.handoff;
+			const message = params?.task ?? params?.message ?? params?.handoff;
 			if (!context?.expanded || !message) return title;
 			const container = new Container();
 			container.addChild(title);

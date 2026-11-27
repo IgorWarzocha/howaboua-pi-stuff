@@ -118,7 +118,7 @@ export class SpawnContext {
 			)
 		)
 			throw new Error(
-				"Shared context needs a fresh session. Use assign for existing agents",
+				"Shared context needs a fresh session. Use send with task for existing agents",
 			);
 		const parentFile = ctx.sessionManager.getSessionFile();
 		if (!parentFile)
