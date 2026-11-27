@@ -66,14 +66,14 @@ export async function agentsHelp(
 						board_thread_id: "Existing board thread→child read ref",
 					}
 				: {}),
-			send: "message → concrete blocker, ownership conflict or actionable handoff without new supervision. Do the work first; report outcomes that change peer work. Announce plans only when coordination is needed before acting. Skip acknowledgements, status-only updates and standby reminders. task → delegate and supervise; active task updates keep the existing wait. Both wake idle agents",
+			send: "message → blocker, ownership conflict or actionable handoff. No new supervision. Act first → report outcomes that affect peer work. Plans only for advance coordination. Skip acknowledgements, status-only updates, standby reminders. task → delegate and supervise. Active task → keep existing wait. Idle target → wake",
 			focus: "voice:true transfers the mic. handoff supplies arrival context",
 			sharing:
-				"Idle target only. context → Notes/history. Detaching context keeps counterpart checkpoints read-only",
+				"Idle target only. context → Notes/history. Context detach → read-only counterpart checkpoints",
 			completion:
-				"spawn blocking:true or send task with wait:true → wait for outcome. Spawn profile can override. Otherwise return on dispatch and report automatically; MUST NOT poll",
+				"spawn blocking:true or send task wait:true → wait for outcome. Spawn profile can override. Otherwise return on dispatch → automatic report. MUST NOT poll",
 			watch:
-				"Spawn/delegate or enabled:true → report subsequent work until disabled or closed. enabled:false stops reports, not work",
+				"Spawn, delegate or enabled:true → report subsequent work until disabled or closed. enabled:false → stop reports, not work",
 			slash:
 				"Leading / runs a target command without waiting for task completion. Close a finished worker with send /quit",
 			reuse:
