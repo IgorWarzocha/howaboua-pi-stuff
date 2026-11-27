@@ -50,7 +50,9 @@ The browser tool is unavailable to the agent, while voice startup and `/browser`
 
 The tool discovers CDP through `CDP_PORT`, port 9222, or `DevToolsActivePort`. Set `CDP_PORT_FILE` for a non-standard port file.
 
-The `start` action runs on the selected host and can launch Chromium through a Linux systemd user session. Override the executable with `CDP_BROWSER` and the profile with `CDP_PROFILE_DIRECTORY`. On other systems, start the browser normally with remote debugging enabled.
+The `start` action reuses a browser already listening on the configured CDP port. On Linux with a systemd user session, it uses `xdg-settings` to find the graphical desktop's default browser on the selected host. Over SSH, the host's systemd user session must know the graphical desktop environment. The action uses the browser's desktop launch command without creating a separate profile. A browser that does not support CDP may open, but the action reports success only when CDP responds.
+
+Set `CDP_BROWSER` to explicitly choose a compatible executable and `CDP_PROFILE_DIRECTORY` to select a profile. If automatic startup is unsupported or the browser does not expose CDP, start the browser normally and enable remote debugging.
 
 ## Boundaries
 
