@@ -457,6 +457,26 @@
         "@howaboua/pi-shepherdr",
       ],
     },
+    "packages/pi-reactions": {
+      "name": "@howaboua/pi-reactions",
+      "version": "0.0.1",
+      "dependencies": {
+        "@earendil-works/pi-schema": "1.7.0",
+      },
+      "devDependencies": {
+        "@earendil-works/pi-coding-agent": "1.7.0",
+        "@earendil-works/pi-tui": "1.7.0",
+        "@howaboua/pi-codex-conversion": "5.1.3",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-coding-agent": ">=1.7.0",
+        "@earendil-works/pi-tui": ">=1.7.0",
+        "@howaboua/pi-codex-conversion": ">=5.1.3",
+      },
+      "optionalPeers": [
+        "@howaboua/pi-codex-conversion",
+      ],
+    },
     "packages/pi-sandbox": {
       "name": "@howaboua/pi-sandbox",
       "version": "0.1.9",
@@ -836,6 +856,8 @@
     "@howaboua/pi-pet": ["@howaboua/pi-pet@workspace:packages/pi-pet"],
 
     "@howaboua/pi-pulses": ["@howaboua/pi-pulses@workspace:packages/pi-pulses"],
+
+    "@howaboua/pi-reactions": ["@howaboua/pi-reactions@workspace:packages/pi-reactions"],
 
     "@howaboua/pi-sandbox": ["@howaboua/pi-sandbox@workspace:packages/pi-sandbox"],
 

@@ -1,0 +1,1 @@
+- Reply rows and selections → session custom entries. Next human kickoff → hidden chronological custom message, developer carrier when PCC is available. Consume from persisted delivery IDs on the active branch. No prompt edits, transcript rewrites or turn triggers.
