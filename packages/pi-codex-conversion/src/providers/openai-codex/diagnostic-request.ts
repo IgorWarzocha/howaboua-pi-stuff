@@ -56,6 +56,48 @@ function instructionItemDiagnostics(
 	};
 }
 
+/** Fingerprint the leading provider instructions and declared tools. */
+function requestPrefix(body: ResponsesBody) {
+	const lite = isResponsesLiteRequest(body);
+	const first = body.input[0] as Record<string, unknown> | undefined;
+	const leadingInstructions: unknown[] = [];
+	if (body.instructions === undefined) {
+		for (let index = lite ? 1 : 0; index < body.input.length; index++) {
+			const item = body.input[index];
+			if (
+				!item ||
+				typeof item !== "object" ||
+				!("role" in item) ||
+				item.role !== "developer"
+			)
+				break;
+			leadingInstructions.push(item);
+		}
+	}
+	return {
+		instructions: body.instructions ?? leadingInstructions,
+		tools: lite ? first?.["tools"] : body.tools,
+	};
+}
+
+export function requestPrefixFingerprints(body: ResponsesBody): {
+	instructions: string;
+	tools: string;
+} {
+	const prefix = requestPrefix(body);
+	return {
+		// buildRequestBody emits the standing system prompt as one leading
+		// developer item. Later developer items are chronological context,
+		// even when a window cut leaves them adjacent to that prompt.
+		instructions: fingerprint(
+			Array.isArray(prefix.instructions)
+				? prefix.instructions.slice(0, 1)
+				: prefix.instructions,
+		),
+		tools: fingerprint(prefix.tools),
+	};
+}
+
 /** Reduce request state before it crosses the diagnostics privacy boundary. */
 export function codexRequestDiagnostics(
 	body: ResponsesBody,
@@ -69,29 +111,14 @@ export function codexRequestDiagnostics(
 	const effort = body.reasoning?.effort;
 	const tier = body.service_tier;
 	const lite = isResponsesLiteRequest(body);
-	const first = body.input[0] as Record<string, unknown> | undefined;
-	const leadingInstructions: unknown[] = [];
-	if (body.instructions === undefined) {
-		for (const item of body.input.slice(lite ? 1 : 0)) {
-			if (
-				!item ||
-				typeof item !== "object" ||
-				!("role" in item) ||
-				item.role !== "developer"
-			)
-				break;
-			leadingInstructions.push(item);
-		}
-	}
+	const prefix = requestPrefix(body);
 	return {
-		instructionsFingerprint: fingerprint(
-			body.instructions ?? leadingInstructions,
-		),
-		instructionItems: (body.instructions === undefined
-			? leadingInstructions
-			: [body.instructions]
+		instructionsFingerprint: fingerprint(prefix.instructions),
+		instructionItems: (Array.isArray(prefix.instructions)
+			? prefix.instructions
+			: [prefix.instructions]
 		).map(instructionItemDiagnostics),
-		toolsFingerprint: fingerprint(lite ? first?.["tools"] : body.tools),
+		toolsFingerprint: fingerprint(prefix.tools),
 		cacheKeyFingerprint: fingerprint(body.prompt_cache_key),
 		routingFingerprint: fingerprint(
 			[

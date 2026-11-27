@@ -44,6 +44,7 @@ import type {
 	CodexPrewarmResult,
 } from "../runtime.ts";
 import { createCacheKeepaliveScheduler } from "./keepalive-scheduler.ts";
+import { createPrefixRollover } from "./prefix-rollover.ts";
 
 interface PreparedKeepaliveRequest {
 	identity: string;
@@ -70,6 +71,7 @@ export function createCodexExtensionTransport(
 	) => AgentMessage[],
 	recordUsage?: CodexUsageRecorder,
 ) {
+	const prefixRollover = createPrefixRollover(pi);
 	let prewarmController: AbortController | undefined;
 	let prewarmPromise: Promise<CodexPrewarmResult> | undefined;
 	let prewarmTransportSettlement: Promise<unknown> | undefined;
@@ -318,6 +320,7 @@ export function createCodexExtensionTransport(
 		prepareTurn(ctx) {
 			requestContext = ctx;
 			ordinaryPrewarmPending = true;
+			prefixRollover.begin();
 		},
 		suspendOrdinaryPrewarm() {
 			ordinaryPrewarmPending = false;
@@ -350,6 +353,23 @@ export function createCodexExtensionTransport(
 				return;
 			const plan = resolveAdapterRuntimePlanForState(ctx, state);
 			if (!isAdapterRuntime(plan)) return;
+			await prefixRollover.beforeSend(
+				ctx,
+				model,
+				context,
+				body,
+				options,
+				responsesLite,
+				(projected) =>
+					validateRemoteRequest(
+						ctx,
+						model,
+						context,
+						projected,
+						options,
+						responsesLite,
+					),
+			);
 			const systemMessage = getCurrentSystemMessage(context.messages);
 			if (systemMessage) {
 				state.preparedPrompt = {

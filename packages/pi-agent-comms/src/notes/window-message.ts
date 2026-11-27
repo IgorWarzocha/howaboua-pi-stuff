@@ -16,6 +16,7 @@ export interface WindowDetails {
 	trim: boolean;
 	role?: string | undefined;
 	tail?: RolloverTail;
+	prefixGuidance?: readonly string[];
 }
 const GUIDANCE = `<context_window_guidance>
 Short checkpoints, relative paths. Reuse notes; avoid duplicate state. Keep only current goal, task constraints/exceptions, decisions/status, next action, evidence/history links. Omit harness/tool instructions and skill-read state.
@@ -135,6 +136,7 @@ function parseWindowDetails(value: unknown): WindowDetails | undefined {
 		details.kind === "window" && details.trim
 			? parseTail(details.tail)
 			: undefined;
+	const guidance = details.prefixGuidance;
 	if (
 		details.protocol !== 1 ||
 		!ids ||
@@ -144,12 +146,21 @@ function parseWindowDetails(value: unknown): WindowDetails | undefined {
 		typeof details.trim !== "boolean"
 	)
 		return;
+	if (
+		guidance !== undefined &&
+		(tail?.mode !== "full" ||
+			!Array.isArray(guidance) ||
+			!guidance.every((id) => typeof id === "string" && id.length > 0) ||
+			new Set(guidance).size !== guidance.length)
+	)
+		return;
 	return {
 		protocol: 1,
 		kind: details.kind!,
 		identity: ids,
 		trim: details.trim,
 		...(tail ? { tail } : {}),
+		...(guidance === undefined ? {} : { prefixGuidance: guidance }),
 		...(typeof details.role === "string" &&
 		/^[a-z][a-z0-9-]*$/.test(details.role)
 			? { role: details.role }
@@ -230,6 +241,7 @@ export function windowMessage(
 	kind: "window" | "identity" = "window",
 	role?: string,
 	tail?: RolloverTail,
+	prefixGuidance?: readonly string[],
 ): CustomMessageEntryDraft {
 	// History exposes lookup IDs on demand; rollover must not churn this text just for UUIDs.
 	const lines = [`Agent name: ${agent}`];
@@ -246,6 +258,7 @@ export function windowMessage(
 			trim,
 			...(role === undefined ? {} : { role }),
 			...(tail ? { tail } : {}),
+			...(prefixGuidance === undefined ? {} : { prefixGuidance }),
 		} satisfies WindowDetails,
 	};
 }
