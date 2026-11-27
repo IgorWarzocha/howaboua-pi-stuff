@@ -145,8 +145,9 @@ function makeRow(
 			? toNestedTool(
 					createImageGenerationTool({ customRendering: custom }),
 					"imagegen",
+					{},
 				)
-			: toNestedTool(view, "view_image");
+			: toNestedTool(view, "view_image", {});
 		const traces: RuntimeToolTrace[] = Array.from(
 			{ length: mode.calls ?? 1 },
 			(_, index) => ({
