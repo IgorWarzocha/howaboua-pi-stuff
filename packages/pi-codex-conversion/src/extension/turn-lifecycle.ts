@@ -32,7 +32,6 @@ import { recordCodexContextBriefings } from "../context-briefings.ts";
 import { recordCodeModeToolkit } from "../adapter/code-mode/toolkit-updates.ts";
 import { recordBindingStatus } from "../adapter/binding-status.ts";
 import { captureNativeCompactionContext } from "../adapter/replay/context.ts";
-import { prefixContextBranch } from "../prefix-rollover.ts";
 import type {
 	ExtensionHandler,
 	InputEvent,
@@ -149,7 +148,6 @@ export function createCodexTurnLifecycle(
 					messages,
 					codeMode.getTools(ctx),
 					codeMode.getPromptTools(ctx),
-					prefixContextBranch(pi, ctx),
 				)
 			)
 				messages = runtime.projectContextMessages(ctx, event.messages);

@@ -2,12 +2,7 @@ import {
 	type ExtensionAPI,
 	type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import {
-	getCurrentSystemMessage,
-	type Api,
-	type Model,
-	type TranscriptContext,
-} from "@earendil-works/pi-ai";
+import type { Api, Model, TranscriptContext } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { dirname } from "node:path";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
@@ -38,7 +33,6 @@ import { CodexDeveloperMessageBridge } from "../adapter/developer-messages.ts";
 import { projectCodexDeveloperHistory } from "../adapter/developer-history.ts";
 import { createAutoReasoning } from "../adapter/auto-reasoning.ts";
 import { createCodexExtensionTransport } from "./transport/runtime.ts";
-import { prefixContextBranch } from "../prefix-rollover.ts";
 
 export type CodexContext = ExtensionContext;
 
@@ -127,20 +121,11 @@ export function createCodexExtensionRuntime(
 	const projectContextMessages = (
 		ctx: CodexContext,
 		messages?: readonly AgentMessage[],
-	) => {
-		const logical = prefixContextBranch(pi, ctx);
-		const result = projectCodexDeveloperHistory(
-			logical ?? ctx.sessionManager.getBranch(),
+	) =>
+		projectCodexDeveloperHistory(
+			ctx.sessionManager.getBranch(),
 			messages,
 		).filter((message) => !isProviderContextExcludedMessage(message));
-		if (logical && !messages && !getCurrentSystemMessage(result)) {
-			const system = getCurrentSystemMessage(
-				ctx.sessionManager.buildSessionProjection().messages,
-			);
-			if (system) result.unshift(system);
-		}
-		return result;
-	};
 
 	const transport = createCodexExtensionTransport(
 		pi,

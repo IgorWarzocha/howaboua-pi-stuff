@@ -10,7 +10,6 @@ import type {
 	InputEventResult,
 	SessionBeforeCompactEvent,
 	SessionCompactFailedEvent,
-	TurnEndEvent,
 } from "@earendil-works/pi-coding-agent";
 import type { NotesBridge } from "./bridge.js";
 import { FreshCheckpoint } from "./fresh-checkpoint.js";
@@ -22,7 +21,6 @@ import {
 import { IdleAdmission } from "./idle-admission.js";
 import type { ModelRoleHandoff } from "./model-roles.js";
 import { noteHints, sessionRef } from "./notes.js";
-import { PrefixRollover } from "./prefix-rollover.js";
 import { RolloverRequests } from "./rollover.js";
 import {
 	branchBackwards,
@@ -64,8 +62,6 @@ export class NotesLifecycle {
 	private readonly checkpoint: FreshCheckpoint;
 	private readonly admission: IdleAdmission;
 	private readonly requests: RolloverRequests;
-	private readonly prefixRollover: PrefixRollover;
-	private prefixWindowDrafted = false;
 
 	private readonly pi: ExtensionAPI;
 	private readonly store: NotesStore;
@@ -96,7 +92,6 @@ export class NotesLifecycle {
 			() => this.requests.pending,
 			() => this.checkpoint.pending,
 		);
-		this.prefixRollover = new PrefixRollover(pi, this);
 	}
 	private sendMessage(
 		message: Omit<CustomMessageEntryDraft, "type">,
@@ -122,8 +117,6 @@ export class NotesLifecycle {
 		this.admission.reset();
 		this.checkpoint.reset();
 		this.requests.reset();
-		this.prefixRollover.reset();
-		this.prefixWindowDrafted = false;
 		this.runId = "";
 		this.windows.restore(ctx?.sessionManager.getBranch() ?? []);
 	}
@@ -178,55 +171,11 @@ export class NotesLifecycle {
 			this.windows.current = startingWindow.identity;
 		else message = this.initialize(ctx);
 		this.runId = randomUUID();
-		this.prefixRollover.capture(ctx, event, this.runId);
 		this.pi.appendEntry(NOTES_RUN_ENTRY, { runId: this.runId });
 		this.checkpoint.bind(event, this.runId);
 		return message
 			? { message: this.prepareReminder?.(message) ?? message }
 			: undefined;
-	}
-	allowsPrefixRollover(): boolean {
-		return (
-			this.active &&
-			!this.normalCompaction &&
-			this.rolloverTail === "off" &&
-			// A completion rollover may run another inference before it settles.
-			// Don't provisionally cut that inference's already-seen history.
-			!this.taskCompletionRollover &&
-			!this.requests.pending &&
-			!this.checkpoint.pending &&
-			!this.admission.pending
-		);
-	}
-	prefixWindowDraft(event: TurnEndEvent, ctx: ExtensionContext) {
-		const draft = this.prefixRollover.takeWindow(event, ctx);
-		if (!draft || event.entries.some((entry) => entry.type === "compaction"))
-			return;
-		this.prefixWindowDrafted = true;
-		return draft;
-	}
-	createPrefixWindowDraft(
-		ctx: ExtensionContext,
-		tail: RolloverTail,
-		guidance: readonly string[],
-	): CustomMessageEntryDraft {
-		const agent = this.agent(ctx);
-		const draft = windowMessage(
-			this.windows.next(),
-			agent,
-			noteHints(this.store, ctx, agent),
-			true,
-			"window",
-			selectedWindowRole(ctx.sessionManager.getBranch()),
-			tail,
-			guidance,
-		);
-		return this.prepareReminder?.(draft) ?? draft;
-	}
-	reconcilePrefixWindow(ctx: ExtensionContext): void {
-		if (!this.prefixWindowDrafted) return;
-		this.prefixWindowDrafted = false;
-		this.windows.restore(ctx.sessionManager.getBranch());
 	}
 	fresh(ctx: ExtensionContext, runId?: string): boolean {
 		if (runId)
@@ -372,7 +321,6 @@ export class NotesLifecycle {
 		event: AgentSettledEvent,
 		ctx: ExtensionContext,
 	): Promise<void> {
-		this.prefixRollover.reset();
 		const checkpoint = this.checkpoint.take();
 		try {
 			this.store.updateFile(sessionRef(ctx));

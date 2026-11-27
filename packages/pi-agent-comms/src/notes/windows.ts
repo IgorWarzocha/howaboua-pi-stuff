@@ -8,7 +8,6 @@ import {
 	type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import type { NotesBridge, WindowIdentity } from "./bridge.js";
-import { resolvePrefixGuidance } from "./prefix-guidance.js";
 import {
 	completeTailCalls,
 	projectTailEntry,
@@ -51,23 +50,13 @@ export class Windows {
 		| undefined;
 	private compactedSinceBoundary = false;
 	private nativeKeptEntry: string | undefined;
-	private prefixGuidance:
-		| {
-				window: string;
-				entries: NonNullable<ReturnType<typeof resolvePrefixGuidance>>;
-		  }
-		| undefined;
 	private reminders = new Set<string>();
 	restore(entries: readonly SessionEntry[]): void {
 		this.current = undefined;
 		this.identityEntry = undefined;
 		this.compactedSinceBoundary = false;
 		this.nativeKeptEntry = undefined;
-		this.prefixGuidance = undefined;
 		this.reminders.clear();
-		let prefix:
-			| { window: string; ids: readonly string[]; kickoff: string }
-			| undefined;
 		for (const entry of entries) {
 			const details = windowDetails(entry);
 			if (
@@ -80,14 +69,6 @@ export class Windows {
 				if (details.trim) {
 					this.compactedSinceBoundary = false;
 					this.nativeKeptEntry = undefined;
-					prefix =
-						details.prefixGuidance && details.tail
-							? {
-									window: entry.id,
-									ids: details.prefixGuidance,
-									kickoff: details.tail.firstKeptEntryId,
-								}
-							: undefined;
 				}
 			} else if (
 				details &&
@@ -107,16 +88,6 @@ export class Windows {
 			}
 			if (entry.type === "compaction" && isWindowCheckpoint(entry))
 				this.nativeKeptEntry = entry.firstKeptEntryId;
-		}
-		if (prefix && !this.compactedSinceBoundary) {
-			const guidance = resolvePrefixGuidance(
-				entries,
-				prefix.ids,
-				prefix.kickoff,
-			);
-			if (!guidance)
-				throw new Error("Saved prefix guidance is missing from this branch");
-			this.prefixGuidance = { window: prefix.window, entries: guidance };
 		}
 	}
 	next(): WindowIdentity {
@@ -261,11 +232,9 @@ export class Windows {
 					content: `${entry.content}\n\nIf no checkpoint is available, use history to recover missing context.`,
 					display: false,
 					details: {
-						protocol: 1,
+						...details,
 						kind: "identity",
-						identity: details.identity,
 						trim: false,
-						...(details.role === undefined ? {} : { role: details.role }),
 					} satisfies WindowDetails,
 				};
 				const prepared = prepareIdentity?.(draft) ?? draft;
@@ -292,7 +261,6 @@ export class Windows {
 		}
 		let boundary = -1;
 		let tail: WindowDetails["tail"];
-		let prefixGuidance: WindowDetails["prefixGuidance"];
 		for (let i = 0; i < messages.length; i++) {
 			const message = messages[i]!;
 			if (message.role !== "custom") continue;
@@ -304,7 +272,6 @@ export class Windows {
 			if (details?.kind === "window" && details.trim) {
 				boundary = i;
 				tail = details.tail;
-				prefixGuidance = details.prefixGuidance;
 			}
 		}
 		if (boundary < 0) return [...messages];
@@ -325,14 +292,6 @@ export class Windows {
 		const carried = tail
 			? this.projectTailMessages(messages.slice(start, boundary), tail, false)
 			: [];
-		if (prefixGuidance && this.prefixGuidance)
-			return [
-				...(system ? [system] : []),
-				...this.prefixGuidance.entries.flatMap(sessionEntryToContextMessages),
-				messages[boundary]!,
-				...carried,
-				...messages.slice(boundary + 1),
-			];
 		return [
 			...(system ? [system] : []),
 			...carried,
@@ -353,28 +312,15 @@ export class Windows {
 			return projected ? [projected] : [];
 		});
 	}
-	projectPrefixBranch(
-		entries: readonly SessionEntry[],
-	): SessionEntry[] | undefined {
-		for (let index = entries.length - 1; index >= 0; index--) {
-			const entry = entries[index]!;
-			if (entry.type === "compaction" && !isWindowCheckpoint(entry)) return;
-			const details = windowDetails(entry);
-			if (details?.kind === "window" && details.trim)
-				return details.prefixGuidance ? this.projectBranch(entries) : undefined;
-		}
-	}
 	projectBranch(entries: readonly SessionEntry[]): SessionEntry[] {
 		let boundary = -1;
 		let summarized = false;
 		let tail: WindowDetails["tail"];
-		let prefixGuidance: WindowDetails["prefixGuidance"];
 		for (let i = 0; i < entries.length; i++) {
 			const details = windowDetails(entries[i]!);
 			if (details?.kind === "window" && details.trim) {
 				boundary = i;
 				tail = details.tail;
-				prefixGuidance = details.prefixGuidance;
 				summarized = false;
 			}
 			// Normal Pi/PCC compaction has already chosen its own checkpoint.
@@ -399,7 +345,7 @@ export class Windows {
 							.flatMap(sessionEntryToContextMessages),
 					)
 				: undefined;
-		const projected = entries.slice(start).map((entry, index): SessionEntry =>
+		return entries.slice(start).map((entry, index): SessionEntry =>
 			isWindowCheckpoint(entry)
 				? {
 						type: "custom",
@@ -415,29 +361,5 @@ export class Windows {
 					? projectTailEntry(entry, tail.mode, complete)
 					: entry,
 		);
-		if (!prefixGuidance || !tail || summarized || boundary < start)
-			return projected;
-		const marker = entries[boundary]!;
-		const guidance =
-			resolvePrefixGuidance(entries, prefixGuidance, tail.firstKeptEntryId) ??
-			(this.prefixGuidance?.window === marker.id
-				? this.prefixGuidance.entries
-				: undefined);
-		if (!guidance)
-			throw new Error("Saved prefix guidance is missing from this branch");
-		// Only the projection moves the new Notes carrier. Foreign entries keep
-		// their IDs and relative order; no source entries are appended or edited.
-		let parentId: string | null = null;
-		return [
-			...guidance,
-			marker,
-			...projected.slice(0, boundary - start),
-			...projected.slice(boundary - start + 1),
-		].map((entry) => {
-			const projectedEntry: SessionEntry =
-				entry.parentId === parentId ? entry : { ...entry, parentId };
-			parentId = entry.id;
-			return projectedEntry;
-		});
 	}
 }

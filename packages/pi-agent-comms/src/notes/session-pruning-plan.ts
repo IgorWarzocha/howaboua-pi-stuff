@@ -79,8 +79,6 @@ export async function planSessionPruning(
 	const index = new Map<string, RecordIndex>();
 	const delivered = new Set<string>();
 	const opaque = new Set<string>();
-	const prefixGuidance = new Set<string>();
-	const contextEdits: { id: string; targetId: string }[] = [];
 	let header = false;
 	await scanSession(path, source.size, (entry) => {
 		if (entry.type === "session") {
@@ -94,9 +92,6 @@ export async function planSessionPruning(
 		if (!header || index.has(entry.id))
 			throw new Error("Session has duplicate or misplaced records.");
 		const details = windowDetails(entry);
-		for (const id of details?.prefixGuidance ?? []) prefixGuidance.add(id);
-		if (entry.type === "context_edit")
-			contextEdits.push({ id: entry.id, targetId: entry.targetId });
 		index.set(entry.id, {
 			id: entry.id,
 			parent: entry.parentId,
@@ -132,11 +127,6 @@ export async function planSessionPruning(
 		// Validate known pending state even when protected.
 		pendingId(entry);
 	});
-	// Prefix windows retain sources outside the native kept suffix. Preserve
-	// their branch-local edits too, including deletions, or old text revives.
-	for (const id of prefixGuidance) protectedIds.add(id);
-	for (const { id, targetId } of contextEdits)
-		if (prefixGuidance.has(targetId)) protectedIds.add(id);
 	const parents = new Set<string>();
 	for (const node of index.values()) {
 		if (node.parent !== null && !index.has(node.parent))

@@ -9,7 +9,6 @@ import {
 	type SessionBeforeCompactResult,
 	type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
-import { windowDetails } from "./window-message.js";
 
 const MARKER = "pi-notes-compaction/window-checkpoint";
 
@@ -21,17 +20,6 @@ export function isWindowCheckpoint(entry: SessionEntry): boolean {
 		MARKER in entry.details &&
 		entry.details[MARKER] === 1
 	);
-}
-
-export function windowCheckpointDraft(
-	firstKeptEntryId: string,
-): CompactionEntryDraft {
-	return {
-		type: "compaction",
-		summary: "",
-		firstKeptEntryId,
-		details: { [MARKER]: 1 },
-	};
 }
 
 /** Persist one complete native cut, never a partially edited conversation. */
@@ -49,18 +37,14 @@ export class WindowCheckpoints {
 		const kept = this.project(entries);
 		const first = kept[0];
 		if (!first || first.id === entries[0]?.id) return;
-		const details = kept
-			.map(windowDetails)
-			.findLast((details) => details?.kind === "window" && details.trim);
-		// Prefix-window guides precede the owned carrier in the logical replay,
-		// but the native checkpoint must keep the physical kickoff, not old history.
-		const firstKeptEntryId =
-			details?.prefixGuidance && details.tail
-				? details.tail.firstKeptEntryId
-				: first.id;
 		const previous = entries.findLast((entry) => entry.type === "compaction");
-		if (previous?.firstKeptEntryId === firstKeptEntryId) return;
-		return windowCheckpointDraft(firstKeptEntryId);
+		if (previous?.firstKeptEntryId === first.id) return;
+		return {
+			type: "compaction",
+			summary: "",
+			firstKeptEntryId: first.id,
+			details: { [MARKER]: 1 },
+		};
 	}
 
 	prepare(

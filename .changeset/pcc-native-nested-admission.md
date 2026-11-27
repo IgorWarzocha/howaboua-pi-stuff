@@ -9,4 +9,3 @@
 - Partial `apply_patch` failures now report changed paths and unfinished edits. Patch guidance recommends completing related patches before formatting changes their context.
 - VM Code now identifies a missing closing brace in a one-off block and confirms that the cell did not run. Code and Notebook guidance encourages computation and tool orchestration with block-scoped temporary bindings.
 - Fixed cache diagnostics logging in headless sessions without a UI theme.
-- When Agent Comms has a fresh Notes checkpoint, a supported Codex prompt or tool-prefix change can start a new context window before the next request, preserving its input and queued messages.

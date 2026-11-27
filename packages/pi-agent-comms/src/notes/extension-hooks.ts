@@ -11,10 +11,7 @@ import {
 	projectTreeCheckpointMessages,
 } from "./tree-checkpoint.js";
 import { projectTreeHandoffReads } from "./tree-handoff-read.js";
-import {
-	type WindowCheckpoints,
-	windowCheckpointDraft,
-} from "./window-checkpoint.js";
+import type { WindowCheckpoints } from "./window-checkpoint.js";
 
 export async function registerNotesHooks(
 	pi: ExtensionAPI,
@@ -101,7 +98,6 @@ export async function registerNotesHooks(
 	pi.on("agent_settled", async (event, ctx) => {
 		if (!lifecycle.active) return;
 		try {
-			lifecycle.reconcilePrefixWindow(ctx);
 			markers.record(
 				ctx,
 				lifecycle.windows.current?.currentWindowId,
@@ -117,15 +113,6 @@ export async function registerNotesHooks(
 		}
 	});
 	pi.on("turn_end", (event, ctx) => {
-		const prefixWindow = lifecycle.prefixWindowDraft(event, ctx);
-		if (prefixWindow)
-			return {
-				entries: [
-					...event.entries,
-					prefixWindow.window,
-					windowCheckpointDraft(prefixWindow.firstKeptEntryId),
-				],
-			};
 		const checkpoint = event.entries.some(
 			(entry) => entry.type === "compaction",
 		)

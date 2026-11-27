@@ -89,7 +89,6 @@ export function recordCodeModeToolkit(
 	messages: readonly AgentMessage[],
 	catalog: readonly CodeModeToolDefinition[],
 	promptCatalog: readonly CodeModeToolDefinition[] = [],
-	logicalBranch?: readonly SessionEntry[],
 ): boolean {
 	const visible = messages.flatMap((message) =>
 		message.role === "custom" &&
@@ -143,18 +142,6 @@ export function recordCodeModeToolkit(
 			rootRetained &&
 			latestRetained &&
 			latest.compactionId === precedingCompaction;
-		if (!retainedAtWindowCheckpoint && logicalBranch) {
-			const retained = new Set(
-				logicalBranch.flatMap((entry) =>
-					entry.type === "custom" &&
-					entry.customType === CODEX_TOOLKIT_UPDATE_TYPE
-						? [readToolkitUpdate(entry.data).id]
-						: [],
-				),
-			);
-			retainedAtWindowCheckpoint =
-				retained.has(latest.rootId) && retained.has(latest.id);
-		}
 	}
 	const previous =
 		latest &&
