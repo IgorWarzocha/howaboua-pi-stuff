@@ -2,20 +2,27 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { loadReactions } from "./config.js";
 import { registerReactionDelivery } from "./delivery.js";
 import { reactionRow } from "./reaction-row.js";
 import {
 	isFinishedReply,
 	projectReactions,
 	readReplyId,
-	REACTIONS,
 	REACTION_ENTRY,
-	REACTION_KEYS,
 	REPLY_ROW,
-	type Reaction,
 } from "./reactions.js";
 
 export default function reactions(pi: ExtensionAPI): void {
+	const definitions = loadReactions();
+	if (!definitions.length) return;
+	const byId = new Map(definitions.map((reaction) => [reaction.id, reaction]));
+	const choices = new Map(
+		definitions.map((reaction) => [
+			`${reaction.icon} ${reaction.label}`,
+			reaction.id,
+		]),
+	);
 	let uiContext: ExtensionContext | undefined;
 	let cached:
 		| {
@@ -29,14 +36,18 @@ export default function reactions(pi: ExtensionAPI): void {
 		const manager = ctx.sessionManager;
 		const leaf = manager.getLeafId();
 		if (!cached || cached.manager !== manager || cached.leaf !== leaf)
-			cached = { manager, leaf, value: projectReactions(manager.getBranch()) };
+			cached = {
+				manager,
+				leaf,
+				value: projectReactions(manager.getBranch(), byId),
+			};
 		return cached.value;
 	};
 
 	const toggle = (
 		ctx: ExtensionContext,
 		replyId: string,
-		reaction: Reaction,
+		reactionId: string,
 	) => {
 		if (!ctx.isIdle()) {
 			ctx.ui.notify("Wait for the turn to finish before reacting", "info");
@@ -47,7 +58,7 @@ export default function reactions(pi: ExtensionAPI): void {
 		const active = read(ctx).selected.get(replyId);
 		pi.appendEntry(REACTION_ENTRY, {
 			replyId,
-			reaction: active === reaction ? null : reaction,
+			reaction: active?.id === reactionId ? null : reactionId,
 		});
 		return true;
 	};
@@ -84,6 +95,7 @@ export default function reactions(pi: ExtensionAPI): void {
 		return reactionRow(
 			theme,
 			pi.getSettings().outputPad === 0 ? 0 : 1,
+			definitions,
 			() => (uiContext ? read(uiContext).selected.get(replyId) : undefined),
 			(reaction) => (uiContext ? toggle(uiContext, replyId, reaction) : false),
 		);
@@ -105,14 +117,11 @@ export default function reactions(pi: ExtensionAPI): void {
 				ctx.ui.notify("No reply to react to", "info");
 				return;
 			}
-			const labels = REACTION_KEYS.map((reaction) => {
-				const { icon, label } = REACTIONS[reaction];
-				return `${icon} ${label}`;
-			});
-			const label = await ctx.ui.select("React to latest reply", labels);
-			const reaction =
-				label === undefined ? undefined : REACTION_KEYS[labels.indexOf(label)];
-			if (reaction) toggle(ctx, entry.id, reaction);
+			const choice = await ctx.ui.select("React to latest reply", [
+				...choices.keys(),
+			]);
+			const reactionId = choice === undefined ? undefined : choices.get(choice);
+			if (reactionId) toggle(ctx, entry.id, reactionId);
 		},
 	});
 }

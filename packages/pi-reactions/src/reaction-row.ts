@@ -1,18 +1,23 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { MouseRegion, visibleWidth } from "@earendil-works/pi-tui";
-import { REACTIONS, REACTION_KEYS, type Reaction } from "./reactions.js";
+import type { Reaction } from "./config.js";
 
-type Button = "picker" | Reaction;
 const PICKER_ICON = "🫥";
 
 export function reactionRow(
 	theme: Theme,
 	outputPad: number,
+	reactions: readonly Reaction[],
 	selected: () => Reaction | undefined,
-	toggle: (reaction: Reaction) => boolean,
+	toggle: (reactionId: string) => boolean,
 ) {
 	let expanded = false;
-	let cells: { row: number; start: number; end: number; button: Button }[] = [];
+	let cells: {
+		row: number;
+		start: number;
+		end: number;
+		reactionId: string | undefined;
+	}[] = [];
 	return new MouseRegion(
 		{
 			render(width) {
@@ -24,16 +29,11 @@ export function reactionRow(
 				let line = margin;
 				let column = inset;
 				const active = selected();
-				const buttons: readonly Button[] = expanded
-					? ["picker", ...REACTION_KEYS]
-					: ["picker"];
-				for (const button of buttons) {
+				const buttons = expanded ? [undefined, ...reactions] : [undefined];
+				for (const reaction of buttons) {
 					const icon =
-						button === "picker"
-							? !expanded && active
-								? REACTIONS[active].icon
-								: PICKER_ICON
-							: REACTIONS[button].icon;
+						reaction?.icon ??
+						(expanded ? PICKER_ICON : (active?.icon ?? PICKER_ICON));
 					const iconWidth = visibleWidth(icon);
 					if (iconWidth > edge - inset) continue;
 					const pad = iconWidth + 2 <= edge - inset ? " " : "";
@@ -45,9 +45,9 @@ export function reactionRow(
 						column = inset;
 						gap = "";
 					}
-					const highlighted =
-						button === active ||
-						(button === "picker" && (expanded || active !== undefined));
+					const highlighted = reaction
+						? reaction.id === active?.id
+						: expanded || active !== undefined;
 					const background = highlighted ? "selectedBg" : "customMessageBg";
 					line += gap + theme.bg(background, pad + icon + pad);
 					column += gap.length;
@@ -55,7 +55,7 @@ export function reactionRow(
 						row: lines.length,
 						start: column,
 						end: column + size,
-						button,
+						reactionId: reaction?.id,
 					});
 					column += size;
 				}
@@ -78,11 +78,11 @@ export function reactionRow(
 					event.y === cell.row && event.x >= cell.start && event.x < cell.end,
 			);
 			if (!hit) return undefined;
-			if (hit.button === "picker") {
+			if (hit.reactionId === undefined) {
 				expanded = !expanded;
 				return { handled: true };
 			}
-			if (!toggle(hit.button)) return undefined;
+			if (!toggle(hit.reactionId)) return undefined;
 			expanded = false;
 			return { handled: true };
 		},

@@ -460,6 +460,9 @@
     "packages/pi-reactions": {
       "name": "@howaboua/pi-reactions",
       "version": "0.0.1",
+      "dependencies": {
+        "@earendil-works/pi-schema": "1.7.0",
+      },
       "devDependencies": {
         "@earendil-works/pi-coding-agent": "1.7.0",
         "@earendil-works/pi-tui": "1.7.0",

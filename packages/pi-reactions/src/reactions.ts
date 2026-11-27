@@ -2,20 +2,11 @@ import type {
 	SessionEntry,
 	SessionMessageEntry,
 } from "@earendil-works/pi-coding-agent";
+import type { Reaction } from "./config.js";
 
 export const REPLY_ROW = "pi-reactions-reply";
 export const REACTION_ENTRY = "pi-reactions-reaction";
 const REACTION_MESSAGE = "pi-reactions-delivery";
-
-export const REACTIONS = {
-	like: { icon: "👍", label: "OK" },
-	dislike: { icon: "👎", label: "Reconsider" },
-	push: { icon: "⬆️", label: "Push" },
-	verify: { icon: "🔍", label: "Verify" },
-} as const;
-
-export type Reaction = keyof typeof REACTIONS;
-export const REACTION_KEYS = Object.keys(REACTIONS) as Reaction[];
 
 export function readReplyId(data: unknown): string | undefined {
 	return data &&
@@ -26,14 +17,12 @@ export function readReplyId(data: unknown): string | undefined {
 		: undefined;
 }
 
-function readReaction(data: unknown): Reaction | null | undefined {
+function readReactionId(data: unknown): string | null | undefined {
 	if (!data || typeof data !== "object" || !("reaction" in data))
 		return undefined;
 	const reaction = data.reaction;
 	if (reaction === null) return null;
-	return typeof reaction === "string" && Object.hasOwn(REACTIONS, reaction)
-		? (reaction as Reaction)
-		: undefined;
+	return typeof reaction === "string" ? reaction : undefined;
 }
 
 export function isFinishedReply(
@@ -59,7 +48,10 @@ function deliveredSelections(details: unknown): Set<unknown> {
 	);
 }
 
-export function projectReactions(branch: readonly SessionEntry[]) {
+export function projectReactions(
+	branch: readonly SessionEntry[],
+	reactions: ReadonlyMap<string, Reaction>,
+) {
 	const selected = new Map<string, Reaction>();
 	const pending = new Map<
 		string,
@@ -71,14 +63,16 @@ export function projectReactions(branch: readonly SessionEntry[]) {
 			replies.set(entry.id, replies.size);
 		} else if (entry.type === "custom" && entry.customType === REACTION_ENTRY) {
 			const replyId = readReplyId(entry.data);
-			const reaction = readReaction(entry.data);
+			const reactionId = readReactionId(entry.data);
 			if (
 				replyId === undefined ||
 				!replies.has(replyId) ||
-				reaction === undefined
+				reactionId === undefined
 			)
 				continue;
-			if (reaction === null) {
+			const reaction =
+				reactionId === null ? undefined : reactions.get(reactionId);
+			if (!reaction) {
 				selected.delete(replyId);
 				pending.delete(replyId);
 			} else {
@@ -108,7 +102,7 @@ export function projectReactions(branch: readonly SessionEntry[]) {
 				: earlier === 1
 					? "the reply before your latest"
 					: `the reply ${earlier} before your latest`;
-		const { icon, label } = REACTIONS[reaction];
+		const { icon, label } = reaction;
 		lines.push(`User reaction to ${target}: ${icon} ${label}`);
 		selectionIds.push(selectionId);
 	}
