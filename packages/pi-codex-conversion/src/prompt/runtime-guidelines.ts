@@ -43,15 +43,17 @@ export function formatRuntimeGuidelines(
 		active.has("wait") &&
 		(executionMode !== "ts" || active.has("notebook"))
 	) {
+		const language = executionMode === "ts" ? "TypeScript" : "JavaScript";
+		const shortLanguage = executionMode === "ts" ? "TS" : "JS";
 		if (executionMode !== "code")
 			add("You may reuse verified bindings.", "Reuse verified bindings only");
 		add(
-			"Bind complex strings before calling tools from JavaScript. Check quotes, commas, and closing delimiters before sending.",
-			"JS calls: bind complex strings first; check quotes, commas, delimiters",
+			`Bind complex strings before calling tools from ${language}. Check quotes, commas, and closing delimiters before sending.`,
+			`${shortLanguage} calls: bind complex strings first; check quotes, commas, delimiters`,
 		);
 		add(
-			"Group related calls in one JavaScript cell and use their results to decide what to do next. Use text() to show the outcome, a blocker, or a decision needed.",
-			"Related calls→one JS cell; branch or loop on results; text()→outcome, blocker or decision",
+			`Use ${language} for computation, data transformation, and tool orchestration. Combine related calls and branch or loop on their results. Use text() to show the outcome, a blocker, or a decision needed.`,
+			`${shortLanguage}→compute, transform, orchestrate tools; batch related calls, branch/loop on results; text()→outcome, blocker or decision`,
 		);
 		if (executionMode === "ts") {
 			add(

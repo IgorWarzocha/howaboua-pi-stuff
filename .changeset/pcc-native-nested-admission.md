@@ -20,6 +20,8 @@ Background shell and Notebook guidance now describe completion reports and start
 
 VM Code identifies a missing final brace in a one-off block and confirms the cell did not run.
 
+Code and Notebook guidance encourages computation and tool orchestration in the active language without prescribing `let` for temporary bindings.
+
 Partial `apply_patch` failures identify changed paths and clarify which edits still need attention.
 
 `apply_patch` guidance now tells agents to finish related patches before formatting, which can invalidate patch context.
