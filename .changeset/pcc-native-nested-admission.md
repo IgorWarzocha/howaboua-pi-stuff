@@ -9,3 +9,4 @@
 - Partial `apply_patch` failures now report changed paths and unfinished edits. Patch guidance recommends completing related patches before formatting changes their context.
 - VM Code now identifies a missing closing brace in a one-off block and confirms that the cell did not run. Code and Notebook guidance encourages computation and tool orchestration with block-scoped temporary bindings.
 - Fixed cache diagnostics logging in headless sessions without a UI theme.
+- Codex streams now request smaller responses without the echoed tool catalogue, per-item usage attribution or redundant delta fields.
