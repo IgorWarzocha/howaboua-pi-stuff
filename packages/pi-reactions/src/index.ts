@@ -61,6 +61,23 @@ export default function reactions(pi: ExtensionAPI): void {
 		return true;
 	};
 
+	for (const { id, label, shortcut } of definitions) {
+		if (!shortcut) continue;
+		pi.registerShortcut(shortcut, {
+			description: `React to latest reply: ${label}`,
+			handler: (ctx) => {
+				const reply = ctx.sessionManager
+					.getBranch()
+					.findLast(
+						(entry) =>
+							entry.type === "message" && isFinishedReply(entry.message),
+					);
+				if (reply) toggle(ctx, reply.id, id);
+				else ctx.ui.notify("No finished reply to react to", "info");
+			},
+		});
+	}
+
 	pi.on("session_start", (_event, ctx) => {
 		uiContext = ctx.mode === "tui" ? ctx : undefined;
 		cached = undefined;

@@ -20,12 +20,20 @@ On first load, Pi Reactions creates `reactions.json` in your Pi agent directory 
 ```json
 [
   { "id": "ship", "icon": "🚀", "label": "Ship it" },
-  { "id": "simplify", "icon": "✂️", "label": "Simplify", "startTurn": true }
+  {
+    "id": "simplify",
+    "icon": "✂️",
+    "label": "Simplify",
+    "startTurn": true,
+    "shortcut": "alt+shift+v"
+  }
 ]
 ```
 
 Use unique IDs and icons. Each icon is one visible glyph. The label goes in the note sent to the agent. Keep an entry's ID when reordering or restyling it. Use a new ID if its meaning changes. An empty list (`[]`) disables reactions without recreating the defaults.
 
 Set `"startTurn": true` on a reaction to send it immediately and start a turn when Pi is idle. Removing a reaction does not start a turn.
+
+Set `"shortcut"` on a reaction to toggle it on the latest finished reply. Shortcuts respect `startTurn` and none are assigned by default. Use a Pi chord with `ctrl`, `alt` or `super`, or a function key from F1 to F12. Pick a key that Pi and your other extensions aren't using.
 
 To try it from the checkout, run `pi -e ./packages/pi-reactions/src/index.ts`.
