@@ -3,8 +3,7 @@ import { MouseRegion, visibleWidth } from "@earendil-works/pi-tui";
 import { REACTIONS, REACTION_KEYS, type Reaction } from "./reactions.js";
 
 type Button = "picker" | Reaction;
-const PICKER_ICON = "🙂";
-const BUTTON_HEIGHT = 3;
+const PICKER_ICON = "🫥";
 
 export function reactionRow(
 	theme: Theme,
@@ -22,8 +21,7 @@ export function reactionRow(
 				const inset = width > 5 ? outputPad : 0;
 				const edge = width - inset;
 				const margin = " ".repeat(inset);
-				let top = margin;
-				let middle = margin;
+				let line = margin;
 				let column = inset;
 				const active = selected();
 				const buttons: readonly Button[] = expanded
@@ -45,8 +43,8 @@ export function reactionRow(
 					const size = iconWidth + padding * 2;
 					let gap = column > inset ? " " : "";
 					if (column + gap.length + size > edge) {
-						lines.push(top, middle, top);
-						top = middle = margin;
+						lines.push(line);
+						line = margin;
 						column = inset;
 						gap = "";
 					}
@@ -55,8 +53,7 @@ export function reactionRow(
 						button === active ||
 						(button === "picker" && (expanded || active !== undefined));
 					const background = highlighted ? "selectedBg" : "customMessageBg";
-					top += gap + theme.bg(background, " ".repeat(size));
-					middle += gap + theme.bg(background, pad + icon + pad);
+					line += gap + theme.bg(background, pad + icon + pad);
 					column += gap.length;
 					cells.push({
 						row: lines.length,
@@ -66,7 +63,7 @@ export function reactionRow(
 					});
 					column += size;
 				}
-				if (cells.length) lines.push(top, middle, top);
+				if (cells.length) lines.push(line);
 				return lines;
 			},
 			invalidate() {},
@@ -82,10 +79,7 @@ export function reactionRow(
 				return undefined;
 			const hit = cells.find(
 				(cell) =>
-					event.y >= cell.row &&
-					event.y < cell.row + BUTTON_HEIGHT &&
-					event.x >= cell.start &&
-					event.x < cell.end,
+					event.y === cell.row && event.x >= cell.start && event.x < cell.end,
 			);
 			if (!hit) return undefined;
 			if (hit.button === "picker") {
