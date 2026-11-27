@@ -1,13 +1,22 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { arr, compile, obj, str, type Static } from "@earendil-works/pi-schema";
+import {
+	arr,
+	bool,
+	compile,
+	obj,
+	opt,
+	str,
+	type Static,
+} from "@earendil-works/pi-schema";
 import { visibleWidth } from "@earendil-works/pi-tui";
 
 const reaction = obj({
 	id: str({ pattern: "^[a-zA-Z0-9_-]+$" }),
 	icon: str(),
 	label: str(),
+	startTurn: opt(bool()),
 });
 
 export type Reaction = Static<typeof reaction>;
@@ -46,7 +55,7 @@ function parseConfig(source: string): Reaction[] {
 	const value: unknown = JSON.parse(source);
 	if (!reactionConfig.check(value)) {
 		throw new Error(
-			"Expected a JSON array of reactions with id, icon and label. IDs use letters, digits, underscores or hyphens.",
+			"Expected reactions with id, icon, label and optional boolean startTurn. IDs use letters, digits, underscores or hyphens.",
 		);
 	}
 	const ids = new Set<string>();

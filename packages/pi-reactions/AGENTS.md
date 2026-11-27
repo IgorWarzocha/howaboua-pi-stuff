@@ -1,1 +1,1 @@
-- Reply rows and selections → session custom entries. Next human kickoff → hidden chronological custom message, developer carrier when PCC is available. Consume from persisted delivery IDs on the active branch. No prompt edits, transcript rewrites or turn triggers.
+- Reply rows and selections → session custom entries. Consume only from persisted hidden delivery IDs. Passive reactions use the PCC carrier when active on an ordinary human kickoff. `startTurn` uses a native custom kickoff after Notes admission and rechecks the exact selection before reserving that turn.

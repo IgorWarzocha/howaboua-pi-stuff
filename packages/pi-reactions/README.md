@@ -11,7 +11,7 @@ Click 🫥 below a finished reply to open its reaction picker. Select the same e
 | ⬆️       | Push to the existing remote branch, not merge or release |
 | 🔍       | Verify the claim or run the check discussed              |
 
-Reactions don't start or interrupt a turn. Pi sends pending reactions as separate context on your next ordinary prompt without changing what you typed. Commands and messages queued during a run leave them pending. Reactions don't approve pending tool calls.
+By default, Pi sends reactions as separate context on your next ordinary prompt without changing what you typed. Commands and messages queued during a run leave them pending. Reactions don't interrupt a turn or approve pending tool calls.
 
 ## Custom reactions
 
@@ -20,10 +20,12 @@ On first load, Pi Reactions creates `reactions.json` in your Pi agent directory 
 ```json
 [
   { "id": "ship", "icon": "🚀", "label": "Ship it" },
-  { "id": "simplify", "icon": "✂️", "label": "Simplify" }
+  { "id": "simplify", "icon": "✂️", "label": "Simplify", "startTurn": true }
 ]
 ```
 
 Use unique IDs and icons. Each icon is one visible glyph. The label goes in the note sent to the agent. Keep an entry's ID when reordering or restyling it. Use a new ID if its meaning changes. An empty list (`[]`) disables reactions without recreating the defaults.
+
+Set `"startTurn": true` on a reaction to send it immediately and start a turn when Pi is idle. Removing a reaction does not start a turn.
 
 To try it from the checkout, run `pi -e ./packages/pi-reactions/src/index.ts`.
