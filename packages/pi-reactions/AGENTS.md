@@ -1,0 +1,1 @@
+- Reply rows and reaction selections → session custom entries. No turn trigger, standing prompt edits or past-message rewrites. Consume reactions only from accepted annotated user entries on the active branch.

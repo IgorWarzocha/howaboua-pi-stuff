@@ -1,0 +1,51 @@
+{
+  "name": "@howaboua/pi-reactions",
+  "version": "0.0.1",
+  "description": "React to assistant replies in Pi without starting another turn",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": "./src/index.ts",
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE",
+    "tsconfig.json",
+    "CHANGELOG.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "check": "bun run lint && bun run typecheck",
+    "lint": "bun run format:check && oxlint --type-aware",
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'",
+    "typecheck": "tsrs --noEmit",
+    "prepack": "bun run check"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "reactions"
+  ],
+  "author": "howaboua",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+    "directory": "packages/pi-reactions"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.7.0",
+    "@earendil-works/pi-tui": "1.7.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=1.7.0",
+    "@earendil-works/pi-tui": ">=1.7.0"
+  }
+}
