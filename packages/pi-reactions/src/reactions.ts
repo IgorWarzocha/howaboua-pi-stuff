@@ -90,31 +90,31 @@ export function projectReactions(
 			}
 		}
 	}
-	const lines: string[] = [];
-	const selectionIds: string[] = [];
-	for (const [replyId, { reaction, selectionId }] of pending) {
-		const position = replies.get(replyId);
-		if (position === undefined) continue;
-		const earlier = replies.size - position - 1;
-		const target =
-			earlier === 0
-				? "your latest reply"
-				: earlier === 1
-					? "the reply before your latest"
-					: `the reply ${earlier} before your latest`;
-		const { icon, label } = reaction;
-		lines.push(`User reaction to ${target}: ${icon} ${label}`);
-		selectionIds.push(selectionId);
+	function messageFor(onlyReplyId?: string) {
+		const lines: string[] = [];
+		const selectionIds: string[] = [];
+		for (const [replyId, { reaction, selectionId }] of pending) {
+			if (onlyReplyId !== undefined && replyId !== onlyReplyId) continue;
+			const position = replies.get(replyId);
+			if (position === undefined) continue;
+			const earlier = replies.size - position - 1;
+			const target =
+				earlier === 0
+					? "your latest reply"
+					: earlier === 1
+						? "the reply before your latest"
+						: `the reply ${earlier} before your latest`;
+			const { icon, label } = reaction;
+			lines.push(`User reaction to ${target}: ${icon} ${label}`);
+			selectionIds.push(selectionId);
+		}
+		if (!lines.length) return undefined;
+		return {
+			customType: REACTION_MESSAGE,
+			display: false,
+			content: lines.join("\n"),
+			details: { selectionIds },
+		};
 	}
-	return {
-		selected,
-		message: lines.length
-			? {
-					customType: REACTION_MESSAGE,
-					display: false,
-					content: lines.join("\n"),
-					details: { selectionIds },
-				}
-			: undefined,
-	};
+	return { selected, messageFor };
 }

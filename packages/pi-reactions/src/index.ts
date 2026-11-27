@@ -37,6 +37,7 @@ export default function reactions(pi: ExtensionAPI): void {
 			};
 		return cached.value;
 	};
+	const startReaction = registerReactionDelivery(pi, read);
 
 	const toggle = (
 		ctx: ExtensionContext,
@@ -50,10 +51,13 @@ export default function reactions(pi: ExtensionAPI): void {
 		if (!ctx.sessionManager.getBranch().some((entry) => entry.id === replyId))
 			return false;
 		const active = read(ctx).selected.get(replyId);
+		const reaction =
+			active?.id === reactionId ? undefined : byId.get(reactionId);
 		pi.appendEntry(REACTION_ENTRY, {
 			replyId,
-			reaction: active?.id === reactionId ? null : reactionId,
+			reaction: reaction?.id ?? null,
 		});
+		if (reaction?.startTurn) void startReaction(ctx, replyId);
 		return true;
 	};
 
@@ -94,5 +98,4 @@ export default function reactions(pi: ExtensionAPI): void {
 			(reaction) => (uiContext ? toggle(uiContext, replyId, reaction) : false),
 		);
 	});
-	registerReactionDelivery(pi, read);
 }
