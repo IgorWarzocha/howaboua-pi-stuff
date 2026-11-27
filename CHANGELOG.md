@@ -18,9 +18,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ## Latest package changelogs
 
-### @howaboua/pi-agent-comms — 0.0.7
+### @howaboua/pi-agent-comms — 0.0.8
 
-- Context-window notices now expand and collapse on click as well as with the keyboard shortcut.
+- Fixed idle rollover to continue in the current window when no eligible saved checkpoint exists, including for custom deliveries.
+- Board help now states that thread replies and post search results are newest first.
 
 [Full changelog](./packages/pi-agent-comms/CHANGELOG.md)
 
@@ -36,9 +37,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-better-skills-tool/CHANGELOG.md)
 
-### @howaboua/pi-browser — 0.0.16
+### @howaboua/pi-browser — 0.0.17
 
-- Shortened browser timeout and tab-creation errors. They say what may have happened and what to check before retrying.
+- On Linux, `start` uses the graphical desktop's configured default browser instead of falling back to Chromium. `CDP_BROWSER` still overrides browser selection.
 
 [Full changelog](./packages/pi-browser/CHANGELOG.md)
 
@@ -58,21 +59,25 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-chatgpt-sites/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 5.1.2
+### @howaboua/pi-codex-conversion — 5.1.3
 
-- Hotfix: Shell guidance now directs agents to resume on the completion report instead of polling with empty `write_stdin` calls.
-- Hotfix: Persistent execution guidance now directs agents to scope one-off work to blocks and use distinct names for retained bindings. Redeclaration errors now suggest using a block or a different name.
+- Removed Structured mode. VM Code is now the default, and saved Structured settings (`normal`) migrate to VM Code.
+- Added per-model Default, On and Off controls under `/codex` → General. Off restores Pi's tools and provider behaviour; Selected models scope uses a provider-and-model whitelist. Previously opted-in Responses providers seed compatible models on first activation in Automatic or All; existing model rules take precedence.
+- Fixed nested Code and Notebook tool calls to respect Pi's tool selection, allowlists and guards. Existing sessions retain their selections; older sessions without recorded nested selections regain the default tools. An in-flight Pi tool call can delay an outer yield until it settles.
+- Background shell completions now reach active agents after the current tool batch and wake idle sessions.
+- Partial `apply_patch` failures now report changed paths and unfinished edits. Patch guidance recommends completing related patches before formatting changes their context.
+- VM Code now identifies a missing closing brace in a one-off block and confirms that the cell did not run. Code and Notebook guidance encourages computation and tool orchestration with block-scoped temporary bindings.
+- Fixed cache diagnostics logging in headless sessions without a UI theme.
+- Codex streams now request smaller responses without the echoed tool catalogue, per-item usage attribution or redundant delta fields.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
-### @howaboua/pi-codex-guardian — 0.0.1
+### @howaboua/pi-codex-guardian — 0.0.2
 
-- Initial release of Codex Guardian approval reviews for Pi.
-  - Select exact tools and optional argument regexes for AI review or local blocking in native Pi, Code Mode and Notebook Mode. Global and trusted project rules combine. No rules are configured by default.
-  - AI reviews use the active ChatGPT-backed Codex session. Denials and review failures block execution. Local blocking needs no model request.
-  - Use `/guardian` to inspect status, enable or disable protection, and reload rules.
+- Removed custom changelog suppression. Update notices now follow Pi's `collapseChangelog` setting.
+- Clarified when action reviews must deny execution.
 
-  Installed separately from the extension bundles. Review requests are not confirmed to be free.
+Fixed duplicate Guardian reviews of nested PCC tool calls. Custom Code tools still use PCC preflight.
 
 [Full changelog](./packages/pi-codex-guardian/CHANGELOG.md)
 
@@ -88,25 +93,22 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-codex-web-run/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.111
+### @howaboua/pi-extensions — 0.0.112
 
 - Bundled updates:
 
-  - **@howaboua/pi-ask**: Shortened Ask replies, steering receipts and invalid-field errors. Errors still list valid fields.
-  - **@howaboua/pi-better-skills-tool**: Shortened the truncated skill output footer to the byte range and continuation command.
-  - **@howaboua/pi-gippity-control**: Shortened voice setup, unsent-task and call-ending messages.
-  - **@howaboua/pi-github-watch**: Shortened watch receipts and notifications. Help explains when automatic updates arrive.
   - **@howaboua/pi-shepherdr**:
 
-    - Shortened delegation help, agent receipts and recovery messages.
-    - Final worker reports suggest following up on material uncertainties.
-    - Herdr command help distinguishes automatic background exit reports from calls that need `hc wait`.
+    - Breaking: `send` takes `task` to delegate supervised work, or `message` to send a peer message. Use `wait: true` to wait for a task. Removed `assign`.
+    - Breaking: `watch` requires `enabled: true` or `false`. Removed `unwatch`.
+    - Breaking: `sharing` takes `operation: "attach" | "detach"` and `scope: "context" | "board" | "both"`. Removed the separate `attach` and `detach` actions.
+    - Clarified when to use `agents`, `hc` and `herdr-app`.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.35
+### @howaboua/pi-gippity-control — 0.0.36
 
-- Shortened voice setup, unsent-task and call-ending messages.
+- Updated package dependencies.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -127,9 +129,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-gpt-switcher/CHANGELOG.md)
 
-### @howaboua/pi-grok-realtime — 0.0.9
+### @howaboua/pi-grok-realtime — 0.0.10
 
-- Shortened xAI credential errors, voice task receipts and reconnect guidance.
+- Updated package dependencies.
 
 [Full changelog](./packages/pi-grok-realtime/CHANGELOG.md)
 
@@ -145,18 +147,18 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-pet/CHANGELOG.md)
 
-### @howaboua/pi-sandbox — 0.1.8
+### @howaboua/pi-sandbox — 0.1.9
 
-- Sandbox help shows default CPU and RAM, resource profiles and service preview options.
-- Shortened error messages for uncertain starts, incomplete templates and services that have not become ready.
+- Sandbox help now states that sandboxes continue after the session exits.
 
 [Full changelog](./packages/pi-sandbox/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 1.0.5
+### @howaboua/pi-shepherdr — 1.0.6
 
-- Shortened delegation help, agent receipts and recovery messages.
-- Final worker reports suggest following up on material uncertainties.
-- Herdr command help distinguishes automatic background exit reports from calls that need `hc wait`.
+- Breaking: `send` takes `task` to delegate supervised work, or `message` to send a peer message. Use `wait: true` to wait for a task. Removed `assign`.
+- Breaking: `watch` requires `enabled: true` or `false`. Removed `unwatch`.
+- Breaking: `sharing` takes `operation: "attach" | "detach"` and `scope: "context" | "board" | "both"`. Removed the separate `attach` and `detach` actions.
+- Clarified when to use `agents`, `hc` and `herdr-app`.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -220,36 +222,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skills/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.119
+### @howaboua/pi-stuff — 0.0.120
 
 - Bundled updates:
 
-  - **@howaboua/pi-ask**: Shortened Ask replies, steering receipts and invalid-field errors. Errors still list valid fields.
-  - **@howaboua/pi-better-skills-tool**: Shortened the truncated skill output footer to the byte range and continuation command.
-  - **@howaboua/pi-gippity-control**: Shortened voice setup, unsent-task and call-ending messages.
-  - **@howaboua/pi-github-watch**: Shortened watch receipts and notifications. Help explains when automatic updates arrive.
   - **@howaboua/pi-shepherdr**:
 
-    - Shortened delegation help, agent receipts and recovery messages.
-    - Final worker reports suggest following up on material uncertainties.
-    - Herdr command help distinguishes automatic background exit reports from calls that need `hc wait`.
-
-  - **@howaboua/pi-skill-code**:
-
-    - Narrowed skill activation: `code-review` applies to reviewing changes, and `codebase-hygiene` applies to changing maintained code.
-    - Updated guidance for focused review, dependency changes, read-only reference checkouts and disposable scratchpads.
-
-  - **@howaboua/pi-skill-foundations**:
-
-    - Added `writing` for prose and interface copy, including telegraphic style, and `non-code-review` for documents, plans and designs.
-    - Narrowed `communication` to conversation, investigation reports and teaching.
-    - Updated `agents-md` and `skill-creator` to add guidance only where it changes behaviour.
-
-  - **@howaboua/pi-skill-harness-and-agent-engineering**:
-
-    - Updated session diagnosis and prompt-cache guidance to verify the live session, trace the first cache miss, and distinguish cache hits from continuation and prewarm.
-    - Updated extension design guidance on when to add tools and how to measure startup cost without sacrificing task success.
-    - Tool design now requires signalling failures through the host's error mechanism.
+    - Breaking: `send` takes `task` to delegate supervised work, or `message` to send a peer message. Use `wait: true` to wait for a task. Removed `assign`.
+    - Breaking: `watch` requires `enabled: true` or `false`. Removed `unwatch`.
+    - Breaking: `sharing` takes `operation: "attach" | "detach"` and `scope: "context" | "board" | "both"`. Removed the separate `attach` and `detach` actions.
+    - Clarified when to use `agents`, `hc` and `herdr-app`.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

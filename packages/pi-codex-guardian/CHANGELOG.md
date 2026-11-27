@@ -1,5 +1,12 @@
 # @howaboua/pi-codex-guardian
 
+## 0.0.2
+
+- Removed custom changelog suppression. Update notices now follow Pi's `collapseChangelog` setting.
+- Clarified when action reviews must deny execution.
+
+Fixed duplicate Guardian reviews of nested PCC tool calls. Custom Code tools still use PCC preflight.
+
 ## 0.0.1
 
 - Initial release of Codex Guardian approval reviews for Pi.

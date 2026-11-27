@@ -1,5 +1,9 @@
 # @howaboua/pi-browser
 
+## 0.0.17
+
+- On Linux, `start` uses the graphical desktop's configured default browser instead of falling back to Chromium. `CDP_BROWSER` still overrides browser selection.
+
 ## 0.0.16
 
 - Shortened browser timeout and tab-creation errors. They say what may have happened and what to check before retrying.

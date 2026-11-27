@@ -1,6 +1,6 @@
 {
   "name": "@howaboua/pi-shepherdr",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Persistent blocking and asynchronous Pi agents through Herdr.",
   "type": "module",
   "license": "MIT",
@@ -43,7 +43,7 @@
     "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'"
   },
   "peerDependencies": {
-    "@howaboua/pi-codex-conversion": ">=5.1.2",
+    "@howaboua/pi-codex-conversion": ">=5.1.3",
     "@earendil-works/pi-ai": ">=1.7.0",
     "@earendil-works/pi-coding-agent": ">=1.7.0",
     "@earendil-works/pi-tui": ">=1.7.0"
@@ -54,8 +54,8 @@
     }
   },
   "devDependencies": {
-    "@howaboua/pi-agent-comms": "0.0.7",
-    "@howaboua/pi-codex-conversion": "5.1.2",
+    "@howaboua/pi-agent-comms": "0.0.8",
+    "@howaboua/pi-codex-conversion": "5.1.3",
     "@earendil-works/pi-ai": "1.7.0",
     "@earendil-works/pi-coding-agent": "1.7.0",
     "@earendil-works/pi-tui": "1.7.0",

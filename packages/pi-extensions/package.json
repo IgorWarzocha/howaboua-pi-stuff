@@ -1,6 +1,6 @@
 {
   "name": "@howaboua/pi-extensions",
-  "version": "0.0.111",
+  "version": "0.0.112",
   "description": "all Howaboua Pi extensions",
   "type": "module",
   "keywords": [
@@ -16,10 +16,10 @@
     "@howaboua/pi-ask": "0.0.23",
     "@howaboua/pi-better-skills-tool": "0.0.16",
     "@howaboua/pi-cache-hit-predictor": "0.0.1",
-    "@howaboua/pi-gippity-control": "0.0.35",
+    "@howaboua/pi-gippity-control": "0.0.36",
     "@howaboua/pi-github-watch": "0.0.10",
     "@howaboua/pi-gpt-switcher": "0.1.7",
-    "@howaboua/pi-shepherdr": "1.0.5",
+    "@howaboua/pi-shepherdr": "1.0.6",
     "@howaboua/pi-suggestions": "0.0.4",
     "@howaboua/pi-unicode-charts": "0.1.6"
   },

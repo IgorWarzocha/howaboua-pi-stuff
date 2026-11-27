@@ -1,5 +1,9 @@
 # @howaboua/pi-sandbox
 
+## 0.1.9
+
+- Sandbox help now states that sandboxes continue after the session exits.
+
 ## 0.1.8
 
 - Sandbox help shows default CPU and RAM, resource profiles and service preview options.
