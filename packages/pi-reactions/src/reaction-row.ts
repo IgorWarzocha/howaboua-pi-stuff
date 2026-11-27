@@ -36,11 +36,8 @@ export function reactionRow(
 							: REACTIONS[button].icon;
 					const iconWidth = visibleWidth(icon);
 					if (iconWidth > edge - inset) continue;
-					const padding = Math.min(
-						2,
-						Math.floor((edge - inset - iconWidth) / 2),
-					);
-					const size = iconWidth + padding * 2;
+					const pad = iconWidth + 2 <= edge - inset ? " " : "";
+					const size = iconWidth + pad.length * 2;
 					let gap = column > inset ? " " : "";
 					if (column + gap.length + size > edge) {
 						lines.push(line);
@@ -48,7 +45,6 @@ export function reactionRow(
 						column = inset;
 						gap = "";
 					}
-					const pad = " ".repeat(padding);
 					const highlighted =
 						button === active ||
 						(button === "picker" && (expanded || active !== undefined));
