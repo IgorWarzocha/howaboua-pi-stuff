@@ -3,7 +3,8 @@ import { MouseRegion, visibleWidth } from "@earendil-works/pi-tui";
 import { REACTIONS, REACTION_KEYS, type Reaction } from "./reactions.js";
 
 type Button = "picker" | Reaction;
-const PICKER_ICON = "☺";
+const PICKER_ICON = "🙂";
+const BUTTON_HEIGHT = 3;
 
 export function reactionRow(
 	theme: Theme,
@@ -20,7 +21,9 @@ export function reactionRow(
 				const lines: string[] = [];
 				const inset = width > 5 ? outputPad : 0;
 				const edge = width - inset;
-				let line = " ".repeat(inset);
+				const margin = " ".repeat(inset);
+				let top = margin;
+				let middle = margin;
 				let column = inset;
 				const active = selected();
 				const buttons: readonly Button[] = expanded
@@ -35,18 +38,26 @@ export function reactionRow(
 							: REACTIONS[button].icon;
 					const iconWidth = visibleWidth(icon);
 					if (iconWidth > edge - inset) continue;
-					const pad = iconWidth + 2 <= edge - inset ? " " : "";
-					const size = iconWidth + pad.length * 2;
-					if (column + size > edge) {
-						lines.push(line);
-						line = " ".repeat(inset);
+					const padding = Math.min(
+						2,
+						Math.floor((edge - inset - iconWidth) / 2),
+					);
+					const size = iconWidth + padding * 2;
+					let gap = column > inset ? " " : "";
+					if (column + gap.length + size > edge) {
+						lines.push(top, middle, top);
+						top = middle = margin;
 						column = inset;
+						gap = "";
 					}
-					const face = pad + icon + pad;
+					const pad = " ".repeat(padding);
 					const highlighted =
 						button === active ||
 						(button === "picker" && (expanded || active !== undefined));
-					line += highlighted ? theme.bg("selectedBg", face) : face;
+					const background = highlighted ? "selectedBg" : "customMessageBg";
+					top += gap + theme.bg(background, " ".repeat(size));
+					middle += gap + theme.bg(background, pad + icon + pad);
+					column += gap.length;
 					cells.push({
 						row: lines.length,
 						start: column,
@@ -55,7 +66,7 @@ export function reactionRow(
 					});
 					column += size;
 				}
-				if (cells.length) lines.push(line);
+				if (cells.length) lines.push(top, middle, top);
 				return lines;
 			},
 			invalidate() {},
@@ -71,7 +82,10 @@ export function reactionRow(
 				return undefined;
 			const hit = cells.find(
 				(cell) =>
-					cell.row === event.y && event.x >= cell.start && event.x < cell.end,
+					event.y >= cell.row &&
+					event.y < cell.row + BUTTON_HEIGHT &&
+					event.x >= cell.start &&
+					event.x < cell.end,
 			);
 			if (!hit) return undefined;
 			if (hit.button === "picker") {

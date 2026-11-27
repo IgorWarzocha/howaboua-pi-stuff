@@ -1,6 +1,6 @@
 # Pi Reactions
 
-Click ☺ below a finished reply to open its reaction picker, or use `/react` for the latest reply. Select the same emoji again to remove it.
+Click 🙂 below a finished reply to open its reaction picker, or use `/react` for the latest reply. Select the same emoji again to remove it.
 
 | Reaction | Meaning                                                  |
 | -------- | -------------------------------------------------------- |
